@@ -7,7 +7,8 @@ import { loadFont } from "@remotion/google-fonts/Inter";
 import { palette, specTimeline, type AnimatedScene, type AnimatedSpec } from "@/lib/animated/spec";
 import { CompareScene } from "./CompareScene";
 import { CounterScene } from "./CounterScene";
-import { SoundTrack, type SfxCue } from "./parts";
+import { SoundTrack, fontFor, type SfxCue } from "./parts";
+import { ClimbWall, ClimbingFigure } from "./Stage";
 
 const { fontFamily } = loadFont("normal", { weights: ["500", "700", "800"], subsets: ["latin"] });
 
@@ -29,43 +30,44 @@ function emphasisRange(words: string[], emphasis?: string): [number, number] | n
 }
 
 /** A word that rises into place, `delay` frames after its scene starts. */
-function Word({ text, delay, marked, colors, last }: { text: string; delay: number; marked: boolean; colors: Colors; last: boolean }) {
+function Word({ text, delay, marked, colors, last, keyOnly = false }: { text: string; delay: number; marked: boolean; colors: Colors; last: boolean; keyOnly?: boolean }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const p = spring({ frame: frame - delay, fps, config: { damping: 200, mass: 0.6 } });
   const mark = marked ? interpolate(frame - delay - 6, [0, 10], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.out(Easing.cubic) }) : 0;
   return (
     <span style={{ display: "inline-block", position: "relative", marginRight: last ? 0 : "0.24em", opacity: p, transform: `translateY(${(1 - p) * 36}px)` }}>
-      {marked && (
+      {marked && keyOnly && <span style={{ position: "relative", color: colors.mark }}>{text}</span>}
+      {marked && !keyOnly && (
         <span aria-hidden style={{ position: "absolute", inset: "0.04em -0.12em -0.02em", background: colors.mark, borderRadius: 14, clipPath: `inset(0 ${100 - mark * 100}% 0 0)` }} />
       )}
-      <span style={{ position: "relative", color: marked && mark > 0.5 ? colors.markInk : undefined }}>{text}</span>
+      {!(marked && keyOnly) && <span style={{ position: "relative", color: marked && mark > 0.5 ? colors.markInk : undefined }}>{text}</span>}
     </span>
   );
 }
 
-function Line({ text, emphasis, start, size, weight, colors, stagger = 2 }: { text: string; emphasis?: string; start: number; size: number; weight: number; colors: Colors; stagger?: number }) {
+function Line({ text, emphasis, start, size, weight, colors, stagger = 2, keyOnly = false }: { text: string; emphasis?: string; start: number; size: number; weight: number; colors: Colors; stagger?: number; keyOnly?: boolean }) {
   const words = text.split(/\s+/).filter(Boolean);
   const range = emphasisRange(words, emphasis);
   return (
     <div style={{ fontSize: size, fontWeight: weight, lineHeight: 1.08, letterSpacing: size > 90 ? "-0.02em" : "-0.01em" }}>
       {words.map((w, i) => (
-        <Word key={i} text={w} delay={start + i * stagger} marked={Boolean(range && i >= range[0] && i <= range[1])} colors={colors} last={i === words.length - 1} />
+        <Word key={i} text={w} delay={start + i * stagger} marked={Boolean(range && i >= range[0] && i <= range[1])} colors={colors} last={i === words.length - 1} keyOnly={keyOnly} />
       ))}
     </div>
   );
 }
 
 /** One scene, laid out by type. Leaves over its last OUT frames. */
-function Scene({ scene, frames, colors }: { scene: AnimatedScene; frames: number; colors: Colors }) {
+function Scene({ scene, frames, colors, above = false }: { scene: AnimatedScene; frames: number; colors: Colors; above?: boolean }) {
   const frame = useCurrentFrame();
   const leave = interpolate(frame, [frames - OUT, frames], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.in(Easing.cubic) });
   const wrap = { opacity: 1 - leave, transform: `translateY(${-leave * 40}px)` };
   let body: React.ReactNode;
   if (scene.type === "hook") {
-    body = <Line text={scene.text} emphasis={scene.emphasis} start={2} size={124} weight={800} colors={colors} />;
+    body = <Line text={scene.text} emphasis={scene.emphasis} start={2} size={124} weight={800} colors={colors} keyOnly={above} />;
   } else if (scene.type === "point") {
-    body = <Line text={scene.text} emphasis={scene.emphasis} start={2} size={84} weight={700} colors={colors} stagger={1.5} />;
+    body = <Line text={scene.text} emphasis={scene.emphasis} start={2} size={84} weight={700} colors={colors} stagger={1.5} keyOnly={above} />;
   } else if (scene.type === "list") {
     body = (
       <div style={{ display: "flex", flexDirection: "column", gap: 44 }}>
@@ -94,7 +96,8 @@ function Scene({ scene, frames, colors }: { scene: AnimatedScene; frames: number
       </div>
     );
   }
-  return <AbsoluteFill style={{ justifyContent: "center", padding: `0 ${PAD}px`, paddingBottom: 140, ...wrap }}>{body}</AbsoluteFill>;
+  // Above a stage, the words sit in the top half so the stage stays clear.
+  return <AbsoluteFill style={{ justifyContent: above ? "flex-start" : "center", padding: `0 ${PAD}px`, paddingTop: above ? 230 : 0, paddingBottom: above ? 0 : 140, ...wrap }}>{body}</AbsoluteFill>;
 }
 
 function Dot({ delay, colors }: { delay: number; colors: Colors }) {
@@ -127,20 +130,35 @@ function Progress({ starts, frames, colors }: { starts: number[]; frames: number
   );
 }
 
-function Signoff({ text, colors }: { text: string; colors: Colors }) {
+function Signoff({ text, colors, above = false }: { text: string; colors: Colors; above?: boolean }) {
   const frame = useCurrentFrame();
   const p = interpolate(frame, [0, 12], [0, 1], { extrapolateRight: "clamp", easing: Easing.out(Easing.cubic) });
   return (
-    <AbsoluteFill style={{ justifyContent: "center", alignItems: "center", gap: 28, opacity: p }}>
+    <AbsoluteFill style={{ justifyContent: above ? "flex-start" : "center", paddingTop: above ? 420 : 0, alignItems: "center", gap: 28, opacity: p }}>
       <div style={{ fontSize: 76, fontWeight: 800, letterSpacing: "-0.01em", transform: `translateY(${(1 - p) * 20}px)` }}>{text}</div>
       <div style={{ width: 120 * p, height: 10, borderRadius: 5, background: colors.mark }} />
     </AbsoluteFill>
   );
 }
 
+/** The account's stage under the words, its character climbing through the video. */
+function WordsStage({ look, total }: { look: NonNullable<AnimatedSpec["look"]>; total: number }) {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const h = 520;
+  return (
+    <ClimbWall look={look} top={1920 - 530 - h} height={h}>
+      {look.character === "stick" && <ClimbingFigure progress={frame / Math.max(1, total - fps)} t={frame / fps} held={frame >= total - fps} height={h} x={760} size={180} />}
+    </ClimbWall>
+  );
+}
+
 export function AnimatedComposition({ spec }: { spec: AnimatedSpec }) {
   const colors = palette(spec);
-  const template = { bg: colors.bg, fg: colors.fg, dim: colors.dim, accent: spec.accent, light: spec.theme === "light" };
+  const look = spec.look ?? null;
+  const template = look
+    ? { bg: look.bg, fg: look.fg, dim: look.dim, accent: look.accent, light: false, look }
+    : { bg: colors.bg, fg: colors.fg, dim: colors.dim, accent: spec.accent, light: spec.theme === "light" };
   if (spec.compare) return <CompareScene compare={spec.compare} signoff={spec.signoff} colors={template} />;
   if (spec.counter) return <CounterScene counter={spec.counter} signoff={spec.signoff} colors={template} />;
   const t = specTimeline(spec);
@@ -150,21 +168,24 @@ export function AnimatedComposition({ spec }: { spec: AnimatedSpec }) {
     ...(spec.signoff ? [{ at: t.total - t.end, name: "pop", volume: 0.4 } as SfxCue] : []),
   ];
   return (
-    <AbsoluteFill style={{ background: colors.bg, color: colors.fg, fontFamily }}>
+    <AbsoluteFill style={{ background: colors.bg, color: colors.fg, fontFamily: look ? fontFor(look.font) : fontFamily, textTransform: look?.upper ? "uppercase" : "none" }}>
       <SoundTrack cues={cues} />
+      {look?.stage === "climb_wall" && <WordsStage look={look} total={t.total} />}
       {spec.scenes.map((s, i) => (
         <Sequence key={i} from={t.starts[i]} durationInFrames={t.frames[i]} layout="none">
-          <Scene scene={s} frames={t.frames[i]} colors={colors} />
+          <Scene scene={s} frames={t.frames[i]} colors={colors} above={look?.stage === "climb_wall"} />
         </Sequence>
       ))}
       {spec.signoff && (
         <Sequence from={t.total - t.end} durationInFrames={t.end} layout="none">
-          <Signoff text={spec.signoff} colors={colors} />
+          <Signoff text={spec.signoff} colors={colors} above={look?.stage === "climb_wall"} />
         </Sequence>
       )}
-      <Sequence from={0} durationInFrames={t.total - t.end} layout="none">
-        <Progress starts={t.starts} frames={t.frames} colors={colors} />
-      </Sequence>
+      {!look && (
+        <Sequence from={0} durationInFrames={t.total - t.end} layout="none">
+          <Progress starts={t.starts} frames={t.frames} colors={colors} />
+        </Sequence>
+      )}
     </AbsoluteFill>
   );
 }

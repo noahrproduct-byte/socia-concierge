@@ -9,6 +9,8 @@ import { getProfile } from "@/lib/profile";
 import { brandWorkspace, type Ctx } from "@/lib/context";
 import { brandLine } from "@/lib/aiStudio/captions";
 import { ACCENTS, cleanSpec, MAX_SCENES, type AnimatedSpec } from "./spec";
+import { lookFromStyle } from "./look";
+import { readSavedStyle, type VideoStyle } from "@/lib/videoStyle";
 
 /** The plan post the video is about: what the plan wrote, nothing more. */
 export type AnimatedSource = { title?: string; hook: string; concept: string; direction?: string; purpose?: string; audience?: string };
@@ -115,9 +117,30 @@ Rules you never break:
 - accent: one of the listed colours, the one closest to the brand's feel.
 - caption: one or two sentences in the brand's voice for the post itself. hashtags: 3 to 5, without the # sign.`;
 
+/** The account's own videos, for the writer: what they are, how they're carried and how they read, and how competitors build theirs. */
+function styleLines(s: VideoStyle): string {
+  const id = s.identity;
+  const kinds = id.formats.map((f) => `- ${f.name}: ${f.look}${f.spine ? ` Carried by ${f.spine}.` : ""}`).join("\n");
+  const st = s.structure;
+  return [
+    "",
+    "# The account's own videos (follow these; the video is drawn in the account's colours, type and stage)",
+    kinds ? `Its kinds of video:\n${kinds}` : "",
+    id.characters ? `Its character: ${id.characters}` : "",
+    id.stage ? `Its stage: ${id.stage}` : "",
+    id.type ? `How its words read: ${id.type}` : "",
+    st.hooks.length || st.spines.length ? `How its competitors build theirs (structure only, never their look or words): ${[...st.hooks, ...st.spines].join("; ")}` : "",
+    "Pick the template closest to one of the account's own kinds: a big stat, a counter, attempts, rounds or a progress bar is \"counter\"; a this-versus-that is \"compare\". Write it the way that kind reads: when its videos tell a first-person story, the rounds are the story's beats (\"Session 1\", \"Week 6\") and the headlines are short and punchy, at most 5 words a line. Keep the subject inside the account's world: its character and stage are drawn for you, so write what the character does and what changes, never describe the drawing.",
+    "",
+  ].filter((l, i, a) => l || a[i - 1]).join("\n");
+}
+
 export async function writeAnimatedSpec(ctx: Ctx, post: AnimatedSource): Promise<AnimatedSpec> {
   const profile = await getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null);
   const brand = brandLine(profile);
+  // The account's own video style (lib/videoStyle.ts): the video is drawn in it, and written like the account's own Reels.
+  const style = readSavedStyle((profile?.brand_detail as { videoStyle?: unknown } | null | undefined)?.videoStyle);
+  const own = style ? styleLines(style) : "";
   const lines = [
     post.title ? `Title: ${post.title}` : "",
     `Hook: ${post.hook}`,
@@ -129,7 +152,7 @@ export async function writeAnimatedSpec(ctx: Ctx, post: AnimatedSource): Promise
   const res = await anthropic.messages.create({
     model: MODEL, max_tokens: 6000, system: SYSTEM,
     output_config: { format: { type: "json_schema", schema: SCHEMA }, ...effortFor(MODEL, "medium") },
-    messages: [{ role: "user", content: `# Brand\n${brand}\n\n# The planned post\n${lines.join("\n")}\n\nWrite the video's scenes.` }],
+    messages: [{ role: "user", content: `# Brand\n${brand}\n${own}\n# The planned post\n${lines.join("\n")}\n\nWrite the video's scenes.` }],
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any);
   recordAiUsage(ctx.ownerId, "animated_script", res);
@@ -140,5 +163,5 @@ export async function writeAnimatedSpec(ctx: Ctx, post: AnimatedSource): Promise
   try { raw = JSON.parse(text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()); } catch { raw = null; }
   const spec = cleanSpec(raw, `${brand}\n${lines.join("\n")}`, { signoff: profile?.brand_name ?? null });
   if (!spec) throw Object.assign(new Error("SOCIA's video came back incomplete. Try again."), { status: 502 });
-  return spec;
+  return { ...spec, look: lookFromStyle(style) };
 }

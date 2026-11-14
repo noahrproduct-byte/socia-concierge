@@ -86,6 +86,8 @@ export type AnimatedSpec = {
   counter?: AnimatedCounter | null;
   /** Shown small at the end, e.g. the brand's name. Never invented. */
   signoff: string | null;
+  /** The account's own look, from its video style (lib/animated/look.ts); SOCIA's own look when absent. */
+  look?: import("./look").AnimatedLook | null;
   caption: string;
   hashtags: string[];
 };
@@ -381,7 +383,8 @@ export function inkOn(hex: string): "#111111" | "#FFFFFF" {
 }
 
 /** The colours for a theme: background, text, and the highlight behind the emphasis word. */
-export function palette(spec: Pick<AnimatedSpec, "theme" | "accent">): { bg: string; fg: string; mark: string; markInk: string; dim: string } {
+export function palette(spec: Pick<AnimatedSpec, "theme" | "accent"> & { look?: AnimatedSpec["look"] }): { bg: string; fg: string; mark: string; markInk: string; dim: string } {
+  if (spec.look) return { bg: spec.look.bg, fg: spec.look.fg, mark: spec.look.key, markInk: inkOn(spec.look.key), dim: spec.look.dim };
   if (spec.theme === "light") return { bg: "#F6F5F2", fg: "#141414", mark: spec.accent, markInk: inkOn(spec.accent), dim: "rgba(20,20,20,0.55)" };
   if (spec.theme === "accent") {
     const fg = inkOn(spec.accent);

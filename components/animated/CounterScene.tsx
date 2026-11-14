@@ -7,7 +7,8 @@
 // read as growth. One brighten at the last round, then a summary and a question.
 import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import { COUNTER_GAP, ROUND_SECONDS, compareValueText, counterTimeline, roundCount, type AnimatedCounter } from "@/lib/animated/spec";
-import { CommentPrompt, Flash, SANS, SoundTrack, SwapHeadline, interpolateEnd, lineOf, roundSfx, type SfxCue, type TemplateColors } from "./parts";
+import { CommentPrompt, Flash, MONO, SANS, SoundTrack, SwapHeadline, fontFor, interpolateEnd, lineOf, roundSfx, type SfxCue, type TemplateColors } from "./parts";
+import { ClimbWall, ClimbingFigure } from "./Stage";
 import { decimalsOf } from "./CompareScene";
 
 const CX = 540, CY = 930, R = 250, STROKE = 26;
@@ -57,6 +58,62 @@ export function CounterScene({ counter, colors, signoff }: { counter: AnimatedCo
     { at: (tl.rounds[n - 1].end - 0.5) * fps, name: "hit", volume: 0.55 },
     ...(counter.question ? [{ at: tl.question * fps, name: "pop", volume: 0.4 } as SfxCue] : []),
   ];
+
+  if (colors.look) {
+    // The account's own layout (lib/animated/look.ts): its headline, its stage with its character
+    // climbing as the count grows, a big stat in the middle, a corner counter and a progress bar.
+    const look = colors.look;
+    const STAGE_TOP = 470, STAGE_H = 660, BAR_Y = STAGE_TOP + STAGE_H + 34;
+    const total = fillOf(held ? round.value : count);
+    const progress = (i + (last ? total : Math.min(1, total))) / n;
+    const font = fontFor(look.font);
+    const done = counter.rounds.filter((_, k) => frame >= at(tl.rounds[k].end));
+    const qOn = counter.question && frame >= at(tl.question);
+    return (
+      <AbsoluteFill style={{ background: look.bg, color: look.fg, fontFamily: font }}>
+        <SoundTrack cues={cues} />
+        <SwapHeadline steps={steps} colors={colors} top={150} />
+        <div style={{ position: "absolute", left: 70, right: 70, top: 116, display: "flex", gap: 16, alignItems: "center", fontFamily: MONO, fontSize: 24, fontWeight: 500, color: look.dim, textTransform: "uppercase", letterSpacing: 2 }}>
+          {counter.setup && <span>{counter.setup}</span>}
+          {counter.illustrative && <span style={{ padding: "2px 12px", border: `2px solid ${look.dim}`, borderRadius: 6 }}>Example numbers</span>}
+        </div>
+
+        <ClimbWall look={look} top={STAGE_TOP} height={STAGE_H}>
+          {colors.look.character === "stick" && <ClimbingFigure progress={progress} t={t} held={held} height={STAGE_H} x={790} size={290} />}
+        </ClimbWall>
+
+        {/* The corner counter: which round of how many. */}
+        <div style={{ position: "absolute", right: 70, top: STAGE_TOP + 28, fontFamily: MONO, fontSize: 30, fontWeight: 700, color: look.key, padding: "6px 14px", background: look.bg, borderRadius: 8, opacity: o }}>
+          {(round.label || `Round ${i + 1}`).toUpperCase()} {i + 1}/{n}
+        </div>
+
+        {/* The big stat, on a dark plate so it reads over the wall. */}
+        <div style={{ position: "absolute", left: 70, top: STAGE_TOP + 110, opacity: o, padding: "10px 26px 14px", background: look.bg, borderRadius: 14 }}>
+          <div style={{ fontFamily: font, fontWeight: 700, fontSize: Math.min(220, 1200 / Math.max(3, text.length)), lineHeight: 1, letterSpacing: look.font === "condensed" ? 1 : -3, fontVariantNumeric: "tabular-nums", color: held ? look.accent : look.fg }}>{text}</div>
+          {counter.measure && <div style={{ fontFamily: MONO, fontSize: 26, fontWeight: 500, color: look.dim, textTransform: "uppercase", letterSpacing: 2, marginTop: 6 }}>{counter.measure}</div>}
+        </div>
+
+        {/* Progress bar under the stage, filling as the rounds go. */}
+        <div style={{ position: "absolute", left: 70, right: 70, top: BAR_Y, height: 16, borderRadius: 8, background: lineOf(colors) }}>
+          <div style={{ width: `${Math.max(0, Math.min(1, progress)) * 100}%`, height: "100%", borderRadius: 8, background: look.accent }} />
+        </div>
+        <div style={{ position: "absolute", left: 70, right: 70, top: BAR_Y + 34, display: "flex", justifyContent: "space-between", gap: 20, opacity: qOn ? 0 : o * (1 - endIn), fontWeight: 700, fontSize: 40, textTransform: look.upper ? "uppercase" : "none" }}>
+          <span>{round.title}</span>
+        </div>
+        {/* Finished rounds as chips. */}
+        <div style={{ position: "absolute", left: 70, right: 70, top: BAR_Y + 100, display: "flex", flexWrap: "wrap", gap: 12, opacity: qOn ? 0 : 1 }}>
+          {done.map((r, k) => (
+            <span key={k} style={{ fontFamily: MONO, fontSize: 24, fontWeight: 500, color: look.dim, border: `2px solid ${lineOf(colors)}`, borderRadius: 8, padding: "4px 12px" }}>
+              {r.title.toUpperCase()} <b style={{ color: look.fg }}>{compareValueText(r.value, counter.format, counter.unit, decimalsOf(r.value))}</b>
+            </span>
+          ))}
+        </div>
+        {counter.note && <div style={{ position: "absolute", left: 70, right: 70, top: BAR_Y + 34, fontSize: 30, fontWeight: 600, color: look.dim, opacity: qOn ? 0 : endIn }}>{counter.note}</div>}
+        <CommentPrompt question={counter.question} startFrame={at(tl.question)} colors={colors} top={BAR_Y + 30} />
+        <Flash atFrame={at(tl.rounds[n - 1].end - 0.5)} colors={colors} />
+      </AbsoluteFill>
+    );
+  }
 
   return (
     <AbsoluteFill style={{ background: colors.bg, color: colors.fg, fontFamily: SANS }}>
