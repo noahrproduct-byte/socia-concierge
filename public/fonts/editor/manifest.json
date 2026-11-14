@@ -5,7 +5,7 @@
     "weight": 600,
     "style": "normal",
     "file": "inter-600.woff2",
-    "bytes": 85272
+    "bytes": 48432
   },
   {
     "id": "inter",
@@ -13,7 +13,7 @@
     "weight": 700,
     "style": "normal",
     "file": "inter-700.woff2",
-    "bytes": 85272
+    "bytes": 48432
   },
   {
     "id": "montserrat",
@@ -21,7 +21,7 @@
     "weight": 600,
     "style": "normal",
     "file": "montserrat-600.woff2",
-    "bytes": 68224
+    "bytes": 35508
   },
   {
     "id": "montserrat",
@@ -29,7 +29,7 @@
     "weight": 700,
     "style": "normal",
     "file": "montserrat-700.woff2",
-    "bytes": 68224
+    "bytes": 35508
   },
   {
     "id": "montserrat",
@@ -37,7 +37,7 @@
     "weight": 800,
     "style": "normal",
     "file": "montserrat-800.woff2",
-    "bytes": 68224
+    "bytes": 35508
   },
   {
     "id": "tiktok",
@@ -45,7 +45,7 @@
     "weight": 600,
     "style": "normal",
     "file": "tiktok-600.woff2",
-    "bytes": 26620
+    "bytes": 39696
   },
   {
     "id": "tiktok",
@@ -53,7 +53,7 @@
     "weight": 800,
     "style": "normal",
     "file": "tiktok-800.woff2",
-    "bytes": 26620
+    "bytes": 39696
   },
   {
     "id": "anton",
@@ -61,7 +61,7 @@
     "weight": 400,
     "style": "normal",
     "file": "anton-400.woff2",
-    "bytes": 21296
+    "bytes": 12004
   },
   {
     "id": "poppins",
@@ -69,7 +69,7 @@
     "weight": 600,
     "style": "normal",
     "file": "poppins-600.woff2",
-    "bytes": 5552
+    "bytes": 7992
   },
   {
     "id": "poppins",
@@ -77,7 +77,7 @@
     "weight": 700,
     "style": "normal",
     "file": "poppins-700.woff2",
-    "bytes": 5448
+    "bytes": 7848
   },
   {
     "id": "poppins",
@@ -85,7 +85,7 @@
     "weight": 800,
     "style": "normal",
     "file": "poppins-800.woff2",
-    "bytes": 5484
+    "bytes": 7816
   },
   {
     "id": "playfair",
@@ -93,7 +93,7 @@
     "weight": 600,
     "style": "normal",
     "file": "playfair-600.woff2",
-    "bytes": 20980
+    "bytes": 38460
   },
   {
     "id": "playfair",
@@ -101,7 +101,7 @@
     "weight": 700,
     "style": "normal",
     "file": "playfair-700.woff2",
-    "bytes": 20980
+    "bytes": 38460
   },
   {
     "id": "bebas",
@@ -109,7 +109,7 @@
     "weight": 400,
     "style": "normal",
     "file": "bebas-400.woff2",
-    "bytes": 5664
+    "bytes": 8596
   },
   {
     "id": "nunito",
@@ -117,7 +117,7 @@
     "weight": 700,
     "style": "normal",
     "file": "nunito-700.woff2",
-    "bytes": 35464
+    "bytes": 39152
   },
   {
     "id": "nunito",
@@ -125,7 +125,7 @@
     "weight": 800,
     "style": "normal",
     "file": "nunito-800.woff2",
-    "bytes": 35464
+    "bytes": 39152
   },
   {
     "id": "spacemono",
@@ -133,7 +133,7 @@
     "weight": 400,
     "style": "normal",
     "file": "spacemono-400.woff2",
-    "bytes": 9752
+    "bytes": 9464
   },
   {
     "id": "spacemono",
@@ -141,7 +141,23 @@
     "weight": 700,
     "style": "normal",
     "file": "spacemono-700.woff2",
-    "bytes": 9732
+    "bytes": 9552
+  },
+  {
+    "id": "instrument",
+    "family": "Instrument Sans",
+    "weight": 600,
+    "style": "normal",
+    "file": "instrument-600.woff2",
+    "bytes": 29904
+  },
+  {
+    "id": "instrument",
+    "family": "Instrument Sans",
+    "weight": 700,
+    "style": "normal",
+    "file": "instrument-700.woff2",
+    "bytes": 29904
   },
   {
     "id": "intertight",
@@ -149,7 +165,7 @@
     "weight": 800,
     "style": "normal",
     "file": "intertight-800.woff2",
-    "bytes": 38140
+    "bytes": 22772
   },
   {
     "id": "kaushan",
@@ -157,7 +173,7 @@
     "weight": 400,
     "style": "normal",
     "file": "kaushan-400.woff2",
-    "bytes": 12872
+    "bytes": 23704
   },
   {
     "id": "serif",
@@ -165,6 +181,6 @@
     "weight": 400,
     "style": "italic",
     "file": "serif-400i.woff2",
-    "bytes": 8444
+    "bytes": 15684
   }
 ]

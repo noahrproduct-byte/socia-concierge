@@ -29,10 +29,13 @@ for (const [id, f] of Object.entries({ ...FAMILIES, ...ITALIC })) {
   const spec = f.italic ? `ital,wght@${f.weights.map((w) => `1,${w}`).join(";")}` : `wght@${f.weights.join(";")}`;
   const url = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(f.family).replace(/%20/g, "+")}:${spec}&display=swap`;
   const css = await (await fetch(url, { headers: { "user-agent": UA } })).text();
-  // Each @font-face block: the latin one only.
-  const blocks = css.split("@font-face").slice(1);
-  for (const b of blocks) {
-    if (!/\/\* latin \*\//.test(b)) continue;
+  // Each @font-face block: the latin one only. Google writes the subset's name as a comment just before its
+  // block, so the block is read together with the comment that heads it (splitting on "@font-face" put each
+  // comment at the end of the block before it, and every face fetched was the latin-ext subset: no ASCII
+  // glyphs, so every caption fell back to a serif. 2026-11-14).
+  const blocks = [...css.matchAll(/\/\* ([a-z-]+) \*\/\s*@font-face\s*\{([^}]*)\}/g)].map((m) => ({ subset: m[1], body: m[2] }));
+  for (const { subset, body: b } of blocks) {
+    if (subset !== "latin") continue;
     const weight = Number(/font-weight:\s*(\d+)/.exec(b)?.[1] ?? 400);
     const style = /font-style:\s*italic/.test(b) ? "italic" : "normal";
     const src = /url\((https:[^)]+\.woff2)\)/.exec(b)?.[1];
