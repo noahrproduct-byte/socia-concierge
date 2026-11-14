@@ -7,7 +7,6 @@ import { buildPlayerData } from "@/lib/studioClips/server";
 import { applyOps, describeCut, type InstructClip } from "@/lib/studioClips/instruct";
 import { opsFor } from "@/lib/studioClips/instructModel";
 import type { Edl } from "@/lib/studioClips/types";
-import { publicMessage } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -46,6 +45,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
     const kind = aiFailure("studio/builds/instruct", e);
     if (kind !== "failed") return NextResponse.json({ error: AI_UNAVAILABLE_COPY[kind], kind }, { status: 503 });
-    return NextResponse.json({ error: publicMessage("studio/builds/instruct", e, "Couldn't apply that change. Say it another way, or make the change in the sections below.") }, { status: 500 });
+    // A provider or parsing fault is logged, never shown: the person gets what to do instead.
+    console.error("[studio] instruct:", e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: "Couldn't apply that change this time. Say it another way, or make the change in the sections below." }, { status: 500 });
   }
 }

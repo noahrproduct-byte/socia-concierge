@@ -6,12 +6,21 @@
 import { structured } from "./analysis";
 import { parseOps, type EditOp } from "./instruct";
 
+// The API's structured output wants every object closed, so one item shape carries every field any
+// operation may use; opSchema (instruct.ts) then checks each operation's own shape and bounds.
+const num = { type: "number" }, str = { type: "string" }, bool = { type: "boolean" };
+const numOrAll = { anyOf: [{ type: "number" }, { type: "string" }] };
+const OP_SCHEMA = {
+  type: "object", additionalProperties: false, required: ["op"],
+  properties: {
+    op: str, index: numOrAll, to: num, clip: num, startSec: num, endSec: num, lengthSec: num, level: num, rate: num, kind: str, amount: num, id: str, on: bool,
+    preset: str, size: str, position: str, highlight: str, uppercase: bool, animation: str, font: str, box: bool,
+    text: str, atSec: num, slot: str, role: str, cta: str, location: str, site: str, off: bool, volume: num, duck: bool, name: str, line: str, color: str, directive: str,
+  },
+};
 const OPS_SCHEMA = {
   type: "object", additionalProperties: false,
-  properties: {
-    ops: { type: "array", items: { type: "object", properties: { op: { type: "string" } }, required: ["op"], additionalProperties: true } },
-    reply: { type: "string" },
-  },
+  properties: { ops: { type: "array", items: OP_SCHEMA }, reply: { type: "string" } },
   required: ["ops", "reply"],
 };
 
