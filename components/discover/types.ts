@@ -29,6 +29,8 @@ export type DiscoverData = {
   competitors: DiscoverAccount[];
   suggestions: DiscoverAccount[];
   reelsToCopy: ProvenReel[];
+  /** A few Reels from the niche: suggested accounts and SOCIA's niche research, never a competitor's. */
+  nicheReels: ProvenReel[];
   reelsRead: { reels: number; accounts: number };
   /** Something is missing or old: the page asks for a background read once. */
   needsRead: boolean;

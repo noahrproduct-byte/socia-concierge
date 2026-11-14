@@ -11508,6 +11508,8 @@ p.cbm-muted { display: block; }
 .cx3-audio-btn:focus-visible { outline: 2px solid var(--primary-text); outline-offset: 2px; }
 .cx5-lead { margin: 0 0 12px; max-width: 78ch; font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
 .cx3-grid.cx5-grid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.cx5-sub { margin: 20px 0 4px; font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.cx5-more { margin-top: 14px; }
 .cx3 .cx2-card-head { flex-wrap: wrap; row-gap: 4px; }
 .cx3 .cx2-card-head h2 { flex: none; }
 @media (max-width: 640px) {
@@ -11822,6 +11824,9 @@ p.cbm-muted { display: block; }
 .dsc-acct-stats div { display: flex; flex-direction: column; gap: 2px; }
 .dsc-acct-stats dt { color: var(--text-secondary); font-size: 12px; }
 .dsc-acct-stats dd { margin: 0; color: var(--text-primary); font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.dsc-acct-stats dd.is-quiet { font-size: 14px; font-weight: 600; color: var(--text-secondary); }
+.dsc-acct-sample { margin: -4px 0 0; color: var(--text-secondary); font-size: 12px; }
+.dsc-found { margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; background: var(--surface-muted); color: var(--text-primary); font-size: 13px; line-height: 1.45; }
 .dsc-acct-tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .dsc-acct-tags:empty { display: none; }
 .dsc-tag { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 999px; background: var(--surface-muted); color: var(--text-primary); font-size: 12px; font-weight: 600; }

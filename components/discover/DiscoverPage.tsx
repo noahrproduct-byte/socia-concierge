@@ -13,7 +13,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, Loader2, Plus, RefreshCw, Trash2, Users, X } from "lucide-react";
+import { ExternalLink, Loader2, Plus, Search, Trash2, Users, X } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import PlanNotice from "@/components/PlanNotice";
 import AddCompetitor from "@/components/competitors/AddCompetitor";
@@ -39,6 +39,16 @@ function Avatar({ a }: { a: DiscoverAccount }) {
     : <span className="dsc-avatar is-letter" aria-hidden>{letter}</span>;
 }
 
+/** One number on an account card; while it is read, or when the platform didn't share it, it says so rather than showing 0. */
+function Stat({ label, value, a }: { label: string; value: string | null; a: DiscoverAccount }) {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd className={value == null ? "is-quiet" : undefined}>{value ?? (a.reading ? "Reading" : "Not shared")}</dd>
+    </div>
+  );
+}
+
 function AccountCard({ a, action, footer }: { a: DiscoverAccount; action: React.ReactNode; footer?: React.ReactNode }) {
   const followers = a.audience.value;
   const reels = a.posts.filter((p) => p.format === "Reel" || p.format === "Short").length;
@@ -53,10 +63,15 @@ function AccountCard({ a, action, footer }: { a: DiscoverAccount; action: React.
         </div>
         {action}
       </div>
-      <dl className="dsc-acct-stats">
-        <div><dt>{a.platform === "youtube" ? "Subscribers" : "Followers"}</dt><dd>{followers != null ? fmtN(followers) : a.reading ? "Reading" : "Not shared"}</dd></div>
-        <div><dt>Reels read</dt><dd>{a.posts.length ? reels : a.reading ? "Reading" : "None"}</dd></div>
-      </dl>
+      {(followers != null || a.posts.length > 0) && <dl className="dsc-acct-stats">
+        <Stat label={a.platform === "youtube" ? "Subscribers" : "Followers"} value={followers != null ? fmtN(followers) : null} a={a} />
+        <Stat label="Median views" value={a.medianViews.value != null ? fmtN(Math.round(a.medianViews.value)) : null} a={a} />
+        <Stat label="Engagement" value={a.engagement.value != null ? `${a.engagement.value >= 10 ? a.engagement.value.toFixed(0) : a.engagement.value.toFixed(1)}%` : null} a={a} />
+        <Stat label="Posts a week" value={a.cadence.value != null ? (a.cadence.value >= 10 ? a.cadence.value.toFixed(0) : a.cadence.value.toFixed(1)) : null} a={a} />
+      </dl>}
+      {a.posts.length > 0 && (
+        <p className="dsc-acct-sample">From their last {a.posts.length} posts{reels ? `, ${reels} of them ${a.platform === "youtube" ? "Shorts" : "Reels"}` : ""}. Engagement: likes and comments per post, against followers.</p>
+      )}
       <div className="dsc-acct-tags">
         {a.style && <span className={`dsc-tag${a.sameStyle ? " is-same" : ""}`}>{a.style}{a.sameStyle ? ", like yours" : ""}</span>}
         {a.addedBy === "you" && <span className="dsc-tag is-quiet">Added by you</span>}
@@ -79,18 +94,25 @@ export default function DiscoverPage({ d }: { d: DiscoverData }) {
   const [finding, setFinding] = useState(false);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [dropError, setDropError] = useState<{ id: string; text: string } | null>(null);
+  const [found, setFound] = useState<string | null>(null);
   const asked = useRef(false);
+  const sugRef = useRef<HTMLElement>(null);
 
-  // One background read per visit for what is missing or old, then the page shows it.
-  useEffect(() => {
-    if (!d.needsRead || asked.current) return;
-    asked.current = true;
-    setReading(true);
+  // Read what is missing or old on Instagram in the background, then show it.
+  const startRead = useCallback(() => {
+    setReading(true); setReadError(null);
     fetch("/api/discover/read", { method: "POST" })
       .then(async (r) => { if (!r.ok) setReadError((await r.json().catch(() => ({}))).error ?? "SOCIA couldn't read the accounts just now."); else router.refresh(); })
       .catch(() => setReadError("SOCIA couldn't read the accounts just now."))
       .finally(() => setReading(false));
-  }, [d.needsRead, router]);
+  }, [router]);
+
+  // Once per visit, when the page says something is missing.
+  useEffect(() => {
+    if (!d.needsRead || asked.current) return;
+    asked.current = true;
+    startRead();
+  }, [d.needsRead, startRead]);
 
   const track = useCallback(async (a: DiscoverAccount) => {
     setBusy(a.id); setNotice(null);
@@ -101,12 +123,13 @@ export default function DiscoverPage({ d }: { d: DiscoverData }) {
         setNotice(isPlanError(j) ? { id: a.id, plan: j } : { id: a.id, text: j.error ?? "Couldn't track that account." });
         return;
       }
-      asked.current = false;
+      asked.current = true;
       router.refresh();
+      startRead();
     } catch {
       setNotice({ id: a.id, text: "Couldn't reach SOCIA. Try again." });
     } finally { setBusy(null); }
-  }, [router]);
+  }, [router, startRead]);
 
   // Removing a competitor, or saying no to a suggestion: either way SOCIA won't suggest it again.
   const drop = useCallback(async (a: DiscoverAccount) => {
@@ -125,10 +148,34 @@ export default function DiscoverPage({ d }: { d: DiscoverData }) {
     } finally { setBusy(null); }
   }, [router]);
 
+  // "Find accounts like mine": SOCIA's research looks again (lib/discoveryRun.ts), seeded by the
+  // competitors tracked and the brand's own video style; then the new ones are read on Instagram.
   const findMore = useCallback(async () => {
-    setFinding(true);
-    try { await fetch("/api/competitors/intel?refresh=1"); asked.current = false; router.refresh(); } finally { setFinding(false); }
-  }, [router]);
+    sugRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!d.nicheAccess && d.lastRun) {
+      setFound(`Looking again is on ${d.nicheUpgrade ? d.nicheUpgrade[0].toUpperCase() + d.nicheUpgrade.slice(1) : "a paid plan"} and up. Your plan gets one search, which SOCIA already ran.`);
+      return;
+    }
+    setFinding(true); setFound(null);
+    try {
+      const res = await fetch("/api/competitors/intel?refresh=1");
+      const j = (await res.json().catch(() => ({}))) as { error?: string; ranAt?: string | null; nextRefreshAt?: string | null; accounts?: unknown[] };
+      if (!res.ok) { setFound(j.error ?? "SOCIA couldn't look just now. Try again in a few minutes."); return; }
+      if (j.nextRefreshAt) {
+        const at = new Date(j.nextRefreshAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+        setFound(`SOCIA looked less than an hour ago, so these are the newest. You can look again after ${at}.`);
+        return;
+      }
+      if (!j.ranAt) { setFound("Add what your business does in Settings so SOCIA knows what to look for."); return; }
+      const n = j.accounts?.length ?? 0;
+      setFound(n ? `SOCIA looked again and has ${n} account${n === 1 ? "" : "s"} like yours. New ones are read on Instagram now.` : "SOCIA looked again and found no new accounts this time.");
+      asked.current = true;
+      router.refresh();
+      startRead();
+    } catch {
+      setFound("Couldn't reach SOCIA. Try again.");
+    } finally { setFinding(false); }
+  }, [d.nicheAccess, d.lastRun, d.nicheUpgrade, router, startRead]);
 
   const on = d.main ? PLATFORM_WORD[d.main] : "Instagram";
   const full = d.competitors.length >= d.limit;
@@ -139,7 +186,14 @@ export default function DiscoverPage({ d }: { d: DiscoverData }) {
         title="Discover"
         sub="Your competitors, the Reels of theirs worth copying, and accounts like them to track next."
         status={reading ? <span className="ov-status"><Loader2 size={12} className="cx-spin" aria-hidden /> Reading your competitors on Instagram</span> : undefined}
-        actions={<button type="button" className="ov-btn primary" onClick={() => setAddOpen(true)}><Plus size={14} /> Add competitor</button>}
+        actions={
+          <>
+            <button type="button" className="ov-btn ghost" disabled={finding} onClick={findMore}>
+              {finding ? <Loader2 size={14} className="cx-spin" aria-hidden /> : <Search size={14} aria-hidden />} {finding ? "Looking…" : "Find accounts like mine"}
+            </button>
+            <button type="button" className="ov-btn primary" onClick={() => setAddOpen(true)}><Plus size={14} /> Add competitor</button>
+          </>
+        }
       />
 
       {!d.igEnabled && (
@@ -188,18 +242,17 @@ export default function DiscoverPage({ d }: { d: DiscoverData }) {
         {d.ownStyle && <p className="dsc-own">Your own Reels read as <b>{d.ownStyle}</b>. Competitors and Reels made the same way come first.</p>}
       </section>
 
-      <ReelsToCopy d={{ nicheAccess: d.nicheAccess, nicheUpgrade: d.nicheUpgrade, now: d.now, reelsToCopy: d.reelsToCopy, reelsRead: d.reelsRead, ytConfigured: d.ytConfigured, ig: { enabled: d.igEnabled } }} />
+      <ReelsToCopy d={{ nicheAccess: d.nicheAccess, nicheUpgrade: d.nicheUpgrade, now: d.now, reelsToCopy: d.reelsToCopy, nicheReels: d.nicheReels, reelsRead: d.reelsRead, ytConfigured: d.ytConfigured, ig: { enabled: d.igEnabled } }} />
 
-      <section className="ov-card cx2-card" aria-labelledby="dsc-sug">
+      <section ref={sugRef} className="ov-card cx2-card" aria-labelledby="dsc-sug">
         <div className="cx2-card-head">
           <h2 id="dsc-sug">Suggested for you</h2>
-          <button type="button" className="ov-btn ghost small" disabled={finding} onClick={findMore}>
-            <RefreshCw size={12} className={finding ? "cx-spin" : undefined} aria-hidden /> {finding ? "Looking…" : "Find more"}
-          </button>
+          {d.lastRun && <span className="cx2-micro" suppressHydrationWarning>Last looked {new Date(d.lastRun).toLocaleDateString([], { month: "short", day: "numeric" })}</span>}
         </div>
+        {(finding || found) && <p className="dsc-found" role="status">{finding ? "Looking for accounts like yours. This takes up to a minute." : found}</p>}
         <p className="dsc-lead">Accounts on {on} like the ones you track, doing well{d.ownStyle ? `, ${d.ownStyle.toLowerCase()} ones first` : ""}. Track the ones you want; SOCIA never adds one for you.</p>
         {d.suggestions.length === 0 ? (
-          <p className="dsc-empty">{d.lastRun ? "No new suggestions right now. Track a few accounts you like, then ask SOCIA to find more like them." : "SOCIA hasn't looked yet. Find more to get suggestions."}</p>
+          <p className="dsc-empty">{d.lastRun ? "No new suggestions right now. Track a few accounts you like, then ask SOCIA to find more like them." : "SOCIA hasn't looked yet. Choose Find accounts like mine to get suggestions."}</p>
         ) : (
           <ul className="dsc-accts">
             {d.suggestions.map((a) => (

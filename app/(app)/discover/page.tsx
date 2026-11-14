@@ -14,6 +14,7 @@ import { type CompetitorRow } from "@/lib/competitorIntel";
 import { igCompetitorRows, igRowStale, type IgCompetitor } from "@/lib/igCompetitorData";
 import { median } from "@/lib/metrics";
 import { provenReels, rankTrendingReels } from "@/lib/trendSignals";
+import type { NichePost } from "@/lib/nicheTrends";
 import { igPosts, ytPosts } from "@/lib/trendSignalsLoad";
 import { getEntitlements, getLimit, canUseFeature, upgradeFor } from "@/lib/entitlements";
 import { isOwnAccount, ownAccounts, type OwnAccounts } from "@/lib/ownAccounts";
@@ -36,6 +37,8 @@ export const metadata = { title: "Discover | SOCIA" };
 // and never waits on Instagram.
 
 const SUGGESTIONS_SHOWN = 12;
+/** Niche Reels under the competitors': a few, so the competitors' stay the most. */
+const NICHE_REELS = 6;
 
 export default async function Page() {
   const { supabase, user } = await getViewer();
@@ -69,7 +72,7 @@ export default async function Page() {
   const limit = getLimit(ent, "competitors");
 
   // ---- who is tracked, and who could be ------------------------------------
-  const [trackedAll, suggestedRows, dismissed, runAt] = await Promise.all([
+  const [trackedAll, suggestedRows, dismissed, runAt, contentRows] = await Promise.all([
     listTracked<Tracked>(ctx.client, ctx.ownerId, "platform, handle, added_at, added_by, pick_reason", { byAdded: true, workspaceId: cwid })
       .catch(() => listTracked<Tracked>(ctx.client, ctx.ownerId, "platform, handle, added_at", { byAdded: true, workspaceId: cwid }))
       .catch(() => [] as Tracked[]),
@@ -95,6 +98,18 @@ export default async function Page() {
         if (cwid) rq = rq.eq("workspace_id", cwid);
         return ((await rq.maybeSingle()).data?.ran_at as string | null) ?? null;
       } catch { return null; }
+    })(),
+    // Reels and Shorts SOCIA's niche research found (lib/discoveryRun.ts), for the few niche Reels under the competitors'.
+    (async () => {
+      try {
+        let cq = ctx.client
+          .from("discovered_content")
+          .select("content_url, platform, account_name, account_handle, title, thumbnail_url, views, likes, comments, published_at, content_type, multiplier, relevance_score, data_source")
+          .eq("user_id", ctx.ownerId).eq("platform", suggestOn);
+        if (cwid) cq = cq.eq("workspace_id", cwid);
+        const { data } = await cq.order("relevance_score", { ascending: false }).limit(80);
+        return ((data ?? []) as Record<string, unknown>[]).filter(nicheVetted);
+      } catch { return [] as Record<string, unknown>[]; } // no discovery yet
     })(),
   ]);
   const tracked = trackedAll.filter((t) => !isOwnAccount(mine, { handle: t.handle })).slice(0, Math.max(limit, 1));
@@ -193,6 +208,31 @@ export default async function Page() {
   const tookOff = provenReels(ordered, { max: 12, perAccount: 3 });
   const reelsToCopy = tookOff.length >= 4 ? tookOff : provenReels(ordered, { max: 9, perAccount: 3, fill: true });
 
+  // A few from the niche under them (Noah: "most of the reels should be from the competitors, but there should also be some from just like niches"):
+  // the suggested accounts SOCIA read, and Reels its niche research found, never a competitor's or the brand's own.
+  const competitorKeys = new Set(competitors.map((c) => c.handle.toLowerCase()));
+  const notOurs = (handle: string | null, name: string | null) =>
+    !(handle && competitorKeys.has(handle.toLowerCase())) && !isOwnAccount(mine, { handle, name });
+  const FORMAT: Record<string, string> = { short: "Short", video: "Video", reel: "Reel" };
+  const content: NichePost[] = contentRows
+    .filter((r) => notOurs((r.account_handle as string) ?? null, (r.account_name as string) ?? null))
+    .map((r) => ({
+      url: String(r.content_url), platform: String(r.platform), accountName: (r.account_name as string) ?? null, accountHandle: (r.account_handle as string) ?? null,
+      title: (r.title as string) ?? null, thumb: (r.thumbnail_url as string) ?? null,
+      views: (r.views as number) ?? null, likes: (r.likes as number) ?? null, comments: (r.comments as number) ?? null,
+      publishedAt: (r.published_at as string) ?? null, multiplier: r.multiplier != null ? Number(r.multiplier) : null,
+      relevanceScore: (r.relevance_score as number) ?? 0, tags: [],
+      format: r.content_type ? FORMAT[String(r.content_type)] ?? null : null,
+      why: null, dataSource: String(r.data_source ?? "web_research"),
+    }));
+  const nicheAll = rankTrendingReels(
+    suggestions.filter((a) => a.posts.length && notOurs(a.handle, a.name)).map((r) => ({ platform: r.platform, name: r.name, handle: r.handle, avatar: r.avatar, posts: r.posts })),
+    content, now,
+  ).filter((r) => notOurs(r.accountHandle, r.accountName));
+  const nicheTookOff = provenReels(nicheAll, { max: NICHE_REELS, perAccount: 2 });
+  const nicheReels = (nicheTookOff.length >= 3 ? nicheTookOff : provenReels(nicheAll, { max: NICHE_REELS, perAccount: 2, fill: true }))
+    .map((r, i) => ({ ...r, id: `N${i + 1}` }));
+
   const ownStale = Boolean(snap?.media?.length) && styleStale(memory.own, now) && !triedRecently(memory, "own", now);
   const data: DiscoverData = {
     now: now.toISOString(),
@@ -200,6 +240,7 @@ export default async function Page() {
     main, ownStyle: styleWord(memory.own), limit,
     tracked, competitors, suggestions,
     reelsToCopy,
+    nicheReels,
     reelsRead: { reels: allReels.length, accounts: new Set(allReels.map((r) => (r.accountHandle ?? r.accountName).toLowerCase())).size },
     needsRead: igRes.enabled && (ownStale || [...competitors, ...suggestions].some((a) => a.reading)),
     lastRun: runAt,
