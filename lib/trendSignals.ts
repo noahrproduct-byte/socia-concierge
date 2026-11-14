@@ -397,7 +397,7 @@ export function refLine(r: ReelRef): string {
  * Each line carries the id to cite. Other accounts' results, never a
  * prediction, and their wording is never reused.
  */
-export function provenEvidence(list: ProvenReel[]): string {
+export function provenEvidence(list: ProvenReel[], isCompetitor?: (r: ProvenReel) => boolean): string {
   const proven = list.filter((r) => r.proven);
   if (!proven.length) return "";
   const lines = [
@@ -406,7 +406,7 @@ export function provenEvidence(list: ProvenReel[]): string {
   for (const r of proven) {
     const bits = [
       `${r.id}`,
-      `${PLATFORM_NAME[r.platform] ?? r.platform} ${r.format} by ${accountLabel(r)}`,
+      `${PLATFORM_NAME[r.platform] ?? r.platform} ${r.format} by ${accountLabel(r)}${isCompetitor ? (isCompetitor(r) ? " (a competitor)" : " (another account in the niche)") : ""}`,
       r.line ? `opens: "${r.line}"` : r.title ? `about: "${r.title.slice(0, 100)}"` : null,
       refResult(r) || null,
       r.structures.length ? `hook structure: ${r.structures.join(", ")}` : null,

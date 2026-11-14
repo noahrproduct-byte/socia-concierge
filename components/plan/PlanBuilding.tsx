@@ -39,7 +39,7 @@ export default function PlanBuilding({ build, onCamera, animated, typical }: { b
   const ideasDetail = !f
     ? null
     : f.reels > 0
-      ? `Found ${f.reels} Reel${f.reels === 1 ? "" : "s"} that took off${f.competitors ? ` across ${f.competitors} competitor${f.competitors === 1 ? "" : "s"}` : ""}${f.posts ? `, and read your last ${f.posts} posts` : ""}.`
+      ? `Found ${f.reels} Reel${f.reels === 1 ? "" : "s"} that took off from ${f.competitors ? `your ${f.competitors} competitor${f.competitors === 1 ? "" : "s"} and ` : ""}your niche${f.posts ? `, and read your last ${f.posts} posts` : ""}.`
       : f.competitors > 0
         ? `Read ${f.competitors} competitor${f.competitors === 1 ? "" : "s"}; no new Reels to build on this week, so the plan uses your niche's trends.`
         : "No competitors on file, so the plan uses your niche's trends.";

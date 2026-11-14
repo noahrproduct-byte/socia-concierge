@@ -144,9 +144,12 @@ export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null
   }
 
   if (evidence?.provenBlock) {
-    parts.push(`\n# Reels that took off in this niche (build the week on these)`);
+    parts.push(`\n# Reels that took off for the account's competitors and in its niche (build the week on these)`);
     parts.push(evidence.provenBlock);
-    parts.push(`These come from the competitors the account follows and the accounts SOCIA found in its niche, and none of them has been used in an earlier plan. Put them in the week: build the posts on them first, one Reel per post, until the Reels or the posts run out, keeping the same format, hook structure, pacing and angle, remade with this account's own subject, place, footage and words. Put that Reel's id (for example "R2") in the post's "reference" field, and say in its evidence field whose Reel it is and what the post takes from it. Start with the Reels that have the higher track record (a count, out of 100, of how that Reel and the niche Reels sharing its hook and topic did). When a Reel can't be filmed by this account at all, skip it, and leave a post's "reference" as "" when it isn't built on one. Never reuse the Reel's wording, never cite an id that isn't listed, and never say the post will match the Reel's result: it is another account's number.`);
+    parts.push(`Each Reel says whether it is from one of the account's competitors (the ones it follows on Discover) or from another account in its niche, and none of them has been used in an earlier plan. Build the week on them, in two ways:
+- Remake one Reel: keep its format, hook structure, pacing and angle, and remake it with this account's own subject, place, footage and words.
+- Combine and adapt: take what works in two or more of the Reels (one Reel's hook, another's format, a third's topic) and turn it into a new idea that fits this account's niche, product and audience better than any one of them does. Not every post has to copy a competitor; the best idea is often a competitor's Reel changed to suit this account.
+Use the competitors' Reels first, then the other niche Reels. Start with the higher track records (a count, out of 100, of how that Reel and the niche Reels sharing its hook and topic did). Put the id of the Reel the post leans on most (for example "R2") in its "reference" field, and in its evidence field name whose Reels it uses and what it takes from each. When a Reel can't be filmed or made by this account at all, skip it, and leave "reference" as "" for a post that isn't built on one. Never reuse a Reel's wording, never cite an id that isn't listed, and never say the post will match a Reel's result: those are other accounts' numbers.`);
   }
 
   if (evidence?.outcomesBlock) {
