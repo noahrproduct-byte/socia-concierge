@@ -336,3 +336,38 @@
 .cpl-mix-note a { color: var(--ink); text-decoration: underline; }
 .cpl-note-x { flex: none; background: none; border: 0; padding: 0; color: var(--ink-2); font: inherit; text-decoration: underline; cursor: pointer; }
 .cpl-note-x:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+/* Content Plan competitors (components/plan/PlanCompetitors.tsx): filled from Discover, untick to leave one out. */
+.cpl-cmp { display: flex; flex-direction: column; gap: var(--sp-2); margin-top: var(--sp-2); }
+.cpl-cmp-lead { margin: 0; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+.cpl-cmp-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; max-height: 264px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--r-card); }
+.cpl-cmp-list li + li { border-top: 1px solid var(--border); }
+.cpl-cmp-row { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); cursor: pointer; min-width: 0; }
+.cpl-cmp-row:hover { background: var(--surface-hover); }
+.cpl-form .cpl-cmp-row input { flex: none; accent-color: var(--ink); width: 16px; height: 16px; min-height: 0; margin: 0; padding: 0; border: 0; box-shadow: none; background: none; }
+.cpl-cmp-row input:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.cpl-cmp-row.off .cpl-cmp-av, .cpl-cmp-row.off .cpl-cmp-name { opacity: 0.5; }
+.cpl-cmp-av { flex: none; width: 28px; height: 28px; border-radius: var(--r-pill); object-fit: cover; display: inline-grid; place-items: center; background: var(--surface-raised); border: 1px solid var(--border); font-size: var(--fs-meta); font-weight: var(--fw-semibold); color: var(--ink-2); }
+.cpl-cmp-name { display: flex; flex-direction: column; min-width: 0; }
+.cpl-cmp-name b { font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); color: var(--ink); overflow-wrap: anywhere; }
+.cpl-cmp-name small { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-3); overflow-wrap: anywhere; }
+.cpl-cmp-add { display: flex; align-items: center; gap: var(--sp-2); }
+.cpl-cmp-add input { flex: 1; min-width: 0; }
+
+/* Content Plan while building (components/plan/PlanBuilding.tsx): each step as the server reports it. */
+.cpl-build { display: flex; flex-direction: column; gap: var(--sp-3); max-width: 460px; margin: 0 auto; padding: var(--sp-6) var(--sp-4); }
+.cpl-build h2 { margin: 0; font-size: var(--fs-lead); line-height: var(--lh-lead); font-weight: var(--fw-semibold); color: var(--ink); }
+.cpl-build-time { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink-2); }
+.cpl-build-clock { font-variant-numeric: tabular-nums; font-weight: var(--fw-semibold); color: var(--ink); }
+.cpl-build-wait { margin: 0; color: var(--ink-3); font-size: var(--fs-body); }
+.cpl-build-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-3); }
+.cpl-build-step { display: flex; gap: var(--sp-3); align-items: flex-start; }
+.cpl-build-dot { flex: none; width: 20px; height: 20px; border-radius: var(--r-pill); border: 2px solid var(--border-strong); display: inline-grid; place-items: center; }
+.cpl-build-step.done .cpl-build-dot { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+/* The active step's dot is the page's one spinner (.cpl-btn-spin), recoloured for the light panel. */
+.cpl-build-dot.cpl-btn-spin { width: 20px; height: 20px; border-color: var(--border-strong); border-top-color: var(--ink); }
+.cpl-build-text { display: flex; flex-direction: column; min-width: 0; }
+.cpl-build-text b { font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-medium); color: var(--ink-3); }
+.cpl-build-step.active .cpl-build-text b, .cpl-build-step.done .cpl-build-text b { color: var(--ink); }
+.cpl-build-text small { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+@media (prefers-reduced-motion: reduce) { .cpl-build-dot.cpl-btn-spin { border-style: dashed; } }

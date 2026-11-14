@@ -66,6 +66,8 @@ export type Deliverable = {
   }[];
   /** Attached by the server after generation; not part of the model's schema. */
   evidenceUsed?: EvidenceUsed;
+  /** How many seconds building this plan took (lib/planGenerate.ts), for the next plan's time estimate. Not part of the model's schema. */
+  buildSeconds?: number;
 };
 
 import type { ProductionGuide } from "./studioGuide";
@@ -201,6 +203,8 @@ export type GenerateInput = {
   onCamera?: number;
   /** How many animated posts this week (lib/animated/planPosts.ts). Unset: the brand's animated setting. */
   animated?: number;
+  /** Competitors (handles) the person unticked on the form: left out of this plan. */
+  skipCompetitors?: string[];
 };
 
 /** What a plan was actually built from. Stored with the plan so history is
