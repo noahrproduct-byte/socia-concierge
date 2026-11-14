@@ -310,9 +310,85 @@ export function decisionsBlock(plans: PlanRow[]): string {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
 
+/** A Reel's address without its query or trailing slash, so the same Reel matches however it was linked. */
+export const reelKey = (url: string) => url.trim().replace(/[?#].*$/, "").replace(/\/+$/, "").toLowerCase();
+
+/** The Reels earlier plans built a post on (each post's reference). Pure. */
+export function usedReelUrls(plans: { data: unknown }[]): Set<string> {
+  const out = new Set<string>();
+  for (const p of plans) {
+    const items = (p.data as { weeklyPlan?: { ref?: { url?: unknown } }[] } | null)?.weeklyPlan;
+    for (const it of Array.isArray(items) ? items : []) if (typeof it?.ref?.url === "string") out.add(reelKey(it.ref.url));
+  }
+  return out;
+}
+
+/** The Reels not yet used by an earlier plan. Pure. */
+export function unusedReels<T extends { url: string }>(reels: T[], used: Set<string>): T[] {
+  return used.size ? reels.filter((r) => !used.has(reelKey(r.url))) : reels;
+}
+
+/** A handle as one key: no "@", lower case. */
+export const handleKey = (h: string | null | undefined) => (h ?? "").trim().replace(/^@/, "").toLowerCase();
+
+/**
+ * Leaves out the competitors the person unticked for this plan: their rows,
+ * their winning videos and their Reels. Matches on handle or display name. Pure.
+ */
+export function withoutSkipped<T>(rows: T[], skip: Set<string>, names: (r: T) => (string | null | undefined)[]): T[] {
+  if (!skip.size) return rows;
+  return rows.filter((r) => !names(r).some((n) => n && skip.has(handleKey(n))));
+}
+
+/** A competitor the plan builds on, as the Content Plan form lists it. */
+export type PlanCompetitor = { platform: string; handle: string; name: string | null; avatar: string | null; source: "tracked" | "found" };
+
+/**
+ * The competitors a plan uses, as the form lists them: the ones the brand
+ * tracks first, then up to ten SOCIA found in its niche (the same rows
+ * loadEvidence reads). Photos come from SOCIA's saved Instagram reads.
+ */
+export async function planCompetitors(supabase: Supa, userId: string, workspaceId?: string | null): Promise<PlanCompetitor[]> {
+  const out: PlanCompetitor[] = [];
+  const seen = new Set<string>();
+  const push = (c: PlanCompetitor) => {
+    const k = handleKey(c.handle);
+    if (!k || seen.has(k)) return;
+    seen.add(k);
+    out.push({ ...c, handle: k });
+  };
+  try {
+    for (const t of await listTracked<TrackedRow>(supabase, userId, "platform, handle", { limit: 20, workspaceId })) push({ platform: t.platform, handle: t.handle, name: null, avatar: null, source: "tracked" });
+  } catch { /* none */ }
+  try {
+    const { data } = await scopeToWorkspace(supabase
+      .from("discovered_accounts")
+      .select("platform, handle, display_name, data_source, relevance_reasons")
+      .eq("user_id", userId), workspaceId)
+      .order("relevance_score", { ascending: false, nullsFirst: false })
+      .limit(40);
+    const found = ((data ?? []) as (CompetitorRow & { data_source?: string; relevance_reasons?: unknown })[]).filter(nicheVetted).filter((a) => a.handle).slice(0, 10);
+    for (const a of found) push({ platform: a.platform, handle: a.handle!, name: a.display_name, avatar: null, source: "found" });
+  } catch { /* none */ }
+  const ig = out.filter((c) => c.platform === "instagram").map((c) => c.handle);
+  if (ig.length) {
+    try {
+      const { data } = await supabase.from("ig_competitor_snapshots").select("handle, display_name, profile_picture").eq("user_id", userId).in("handle", ig.slice(0, 30));
+      const by = new Map(((data ?? []) as { handle: string; display_name: string | null; profile_picture: string | null }[]).map((r) => [handleKey(r.handle), r]));
+      for (const c of out) {
+        const r = c.platform === "instagram" ? by.get(c.handle) : undefined;
+        if (r) { c.avatar = r.profile_picture ?? null; c.name = c.name ?? r.display_name ?? null; }
+      }
+    } catch { /* no saved reads */ }
+  }
+  return out;
+}
+
 /** Everything the strategist may cite, read from the user's own rows. Each
  *  source is best-effort: a missing table simply contributes nothing. */
-export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnapshot | null, workspaceId?: string | null, opts: { outcomes?: PlanOutcome[]; strategy?: GrowthStrategy | null; location?: string | null } = {}): Promise<Evidence> {
+export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnapshot | null, workspaceId?: string | null, opts: { outcomes?: PlanOutcome[]; strategy?: GrowthStrategy | null; location?: string | null; skip?: string[] } = {}): Promise<Evidence> {
+  // Competitors the person unticked on the form are left out of this plan entirely.
+  const skip = new Set((opts.skip ?? []).map(handleKey).filter(Boolean));
   const media = snap?.media ?? [];
   const followers = snap?.followers_count ?? null;
 
@@ -327,10 +403,10 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
       .order("relevance_score", { ascending: false, nullsFirst: false })
       .limit(40);
     // YouTube search results count only once they passed the niche check (lib/nicheCheck.ts).
-    accounts = ((data ?? []) as (CompetitorRow & { data_source?: string; relevance_reasons?: unknown })[]).filter(nicheVetted).slice(0, 12);
+    accounts = withoutSkipped(((data ?? []) as (CompetitorRow & { data_source?: string; relevance_reasons?: unknown })[]).filter(nicheVetted), skip, (a) => [a.handle, a.display_name]).slice(0, 12);
   } catch { /* none */ }
   try {
-    tracked = await listTracked<TrackedRow>(supabase, userId, "platform, handle", { limit: 20, workspaceId });
+    tracked = withoutSkipped(await listTracked<TrackedRow>(supabase, userId, "platform, handle", { limit: 20, workspaceId }), skip, (t) => [t.handle]);
   } catch { /* none */ }
   try {
     const { data } = await scopeToWorkspace(supabase
@@ -339,25 +415,31 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
       .eq("user_id", userId), workspaceId)
       .order("multiplier", { ascending: false, nullsFirst: false })
       .limit(80);
-    winning = ((data ?? []) as (WinningRow & { data_source?: string; relevance_reasons?: unknown })[]).filter(nicheVetted).slice(0, 30);
+    winning = withoutSkipped(((data ?? []) as (WinningRow & { data_source?: string; relevance_reasons?: unknown })[]).filter(nicheVetted), skip, (w) => [w.account_name]).slice(0, 30);
   } catch { /* none */ }
 
   // The niche's trends read live alongside the stored rows; null off the plan feature or on a slow platform.
-  const trendsP = loadNicheRead(supabase, userId, workspaceId ?? null, { location: opts.location ?? null }).catch(() => null);
+  // Twice as many Reels as a plan shows, so there are still eight once the ones earlier plans used are left out.
+  const trendsP = loadNicheRead(supabase, userId, workspaceId ?? null, { location: opts.location ?? null, provenMax: 16 }).catch(() => null);
   const formats = await activeFindings(supabase, userId, workspaceId, FORMATS_PRODUCER, 5);
   // What goes viral in the niche, from the Reels the niche scan studied (lib/nicheScan).
   const playbook = await playbookTextFor(supabase, userId, workspaceId).catch(() => "");
   let recentPlans: PlanRow[] = [];
+  let usedRefs = new Set<string>();
   try {
+    // The last twelve plans: the latest three for what the person decided, all twelve for the Reels already used.
     const { data } = await scopeToWorkspace(supabase.from("plans").select("created_at, data").eq("user_id", userId), workspaceId)
-      .order("created_at", { ascending: false }).limit(3);
-    recentPlans = (data ?? []) as PlanRow[];
+      .order("created_at", { ascending: false }).limit(12);
+    const rows = (data ?? []) as PlanRow[];
+    recentPlans = rows.slice(0, 3);
+    usedRefs = usedReelUrls(rows);
   } catch { /* none */ }
 
   const postsBlock = ownPostsBlock(media, followers);
   const niche = await trendsP;
   const trends = niche?.signals ?? null;
-  const proven = niche?.proven ?? [];
+  // A competitor's Reel goes into one plan only: Reels an earlier plan already built a post on are left out.
+  const proven = withoutSkipped(unusedReels(niche?.proven ?? [], usedRefs), skip, (r) => [r.accountHandle, r.accountName]).slice(0, 8);
   const trendsBlock_ = trendsEvidence(trends);
   const igSnaps = await loadIgSnaps(supabase, userId, [...tracked, ...accounts].filter((x) => x.platform === "instagram" && x.handle).map((x) => x.handle!));
   const competitorsBlock_ = competitorsBlock(accounts, tracked, winning, igSnaps);

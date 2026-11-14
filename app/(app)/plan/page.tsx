@@ -4,9 +4,12 @@ import ContentPlanClient, { type PlanContext } from "@/components/ContentPlanCli
 import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
 import type { GenerateInput } from "@/lib/schema";
 import { getEntitlements, canUseFeature } from "@/lib/entitlements";
-import { resolveContext, brandWorkspace, type Ctx } from "@/lib/context";
+import { resolveContext, brandWorkspace, can, type Ctx } from "@/lib/context";
 import { competitorScopeId } from "@/lib/workspaces";
 import { readStrategy } from "@/lib/strategyLoad";
+import { startingMix } from "@/lib/planMixLoad";
+import { planCompetitors } from "@/lib/planEvidence";
+import type { BrandDetail } from "@/lib/profile";
 
 export const metadata = { title: "Content Plan | SOCIA" };
 
@@ -76,6 +79,7 @@ export default async function ContentPlanPage() {
   let goal: string | null = null;
   let voice: string | null = null;
   let animatedOn = false;
+  let brandDetail: BrandDetail | null = null;
   let platform: string | null = null;
   const brandWs = brandWorkspace(ctx);
   try {
@@ -92,6 +96,7 @@ export default async function ContentPlanPage() {
     const detail = (brandWs ? brandWs.brand_detail : prof?.brand_detail) as { voice?: string; animated?: { on?: boolean } } | null;
     voice = detail?.voice ?? null;
     animatedOn = detail?.animated?.on === true;
+    brandDetail = (detail as BrandDetail | null) ?? null;
     platform = (Array.isArray(prof?.platforms) && prof.platforms[0]) || null;
   } catch {
     // profile columns may be mid-migration; the form still works blank
@@ -107,10 +112,14 @@ export default async function ContentPlanPage() {
   // Entitlements are the workspace owner's: a member's plans count against
   // the owner's allowance.
   const cwid = await competitorScopeId(ctx.client, ctx.workspace?.id);
-  const [counts, ent, strategy] = await Promise.all([
+  const [counts, ent, strategy, start, competitors] = await Promise.all([
     evidenceCounts(ctx.client, ctx.ownerId, cwid),
     getEntitlements(ctx.client, ctx.ownerId),
     readStrategy(ctx).catch(() => null),
+    // How many posts of each kind this week starts from: the last plan's mix (lib/planMix.ts).
+    startingMix(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, brandDetail),
+    // The competitors this plan builds on, from Discover and the Competitors list.
+    planCompetitors(ctx.client, ctx.ownerId, cwid).catch(() => []),
   ]);
   const evidence = { posts: Math.min(media.length, 25), ...counts };
   // Drafts are always saved; whether they can publish themselves is a plan question.
@@ -149,6 +158,10 @@ export default async function ContentPlanPage() {
     evidence,
     strategy,
     animatedOn,
+    mix: start.mix,
+    animatedAllowed: start.animatedAllowed,
+    competitors,
+    canAddCompetitor: can(ctx, "manage_workspace"),
   };
 
   return (

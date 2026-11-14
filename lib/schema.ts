@@ -66,6 +66,8 @@ export type Deliverable = {
   }[];
   /** Attached by the server after generation; not part of the model's schema. */
   evidenceUsed?: EvidenceUsed;
+  /** How many seconds building this plan took (lib/planGenerate.ts), for the next plan's time estimate. Not part of the model's schema. */
+  buildSeconds?: number;
 };
 
 import type { ProductionGuide } from "./studioGuide";
@@ -197,6 +199,12 @@ export type GenerateInput = {
   /** Audience timing, computed in the browser (viewer's time zone) from the
    *  account's own posts. Optional; empty when there isn't enough data. */
   audienceWindows?: string;
+  /** How many filmed (on-camera) posts this week, from the plan form or the brand's last plan (lib/planMix.ts). Unset: the strategist's own 5 to 7, or the strategy's pace. */
+  onCamera?: number;
+  /** How many animated posts this week (lib/animated/planPosts.ts). Unset: the brand's animated setting. */
+  animated?: number;
+  /** Competitors (handles) the person unticked on the form: left out of this plan. */
+  skipCompetitors?: string[];
 };
 
 /** What a plan was actually built from. Stored with the plan so history is

@@ -14,6 +14,7 @@ import type { Evidence } from "./planEvidence";
 import { isMissingColumnError } from "./workspaces";
 import { writeAnimatedPosts } from "./animated/planPosts";
 import { platformName } from "./planItems";
+import { postsStarted, type PlanEvent } from "./planProgress";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
@@ -50,7 +51,7 @@ export function parsePlanJson(text: string): unknown {
 const SAVED_COLS = "id, client_handle, niche, platform, data, created_at";
 
 /** Ask the strategist for the plan. Throws PlanGenerationError when no plan came out. */
-export async function generatePlanData(input: GenerateInput, brand: BrandDetail | null, evidence: Evidence | null, ownerId?: string | null): Promise<Deliverable> {
+export async function generatePlanData(input: GenerateInput, brand: BrandDetail | null, evidence: Evidence | null, ownerId?: string | null, onProgress?: (e: PlanEvent) => void): Promise<Deliverable> {
   // Params are cast loosely: `output_config` (structured outputs) is a newer
   // field, and casting keeps the build green across SDK versions while still
   // sending it in the request body.
@@ -61,8 +62,31 @@ export async function generatePlanData(input: GenerateInput, brand: BrandDetail 
     output_config: { format: { type: "json_schema", schema: deliverableSchema }, ...effortFor(MODEL) },
     messages: [{ role: "user", content: buildUserPrompt(input, brand, evidence) }],
   };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const res = await anthropic.messages.create(params as any);
+  // With a listener, the answer streams in so the page can show the posts being written as they start.
+  const total = input.onCamera ?? 0;
+  let res;
+  if (onProgress) {
+    onProgress({ type: "step", step: "fit", state: "active" });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const stream = anthropic.messages.stream(params as any);
+    let started = 0;
+    stream.on("text", (_delta: string, snapshot: string) => {
+      const n = Math.min(postsStarted(snapshot), total || Infinity);
+      if (n === started) return;
+      if (started === 0) {
+        onProgress({ type: "step", step: "fit", state: "done" });
+        onProgress({ type: "step", step: "posts", state: "active" });
+      }
+      started = n;
+      onProgress({ type: "posts", started: n, total: Math.max(total, n) });
+    });
+    res = await stream.finalMessage();
+    if (started === 0) onProgress({ type: "step", step: "fit", state: "done" });
+    onProgress({ type: "step", step: "posts", state: "done" });
+  } else {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    res = await anthropic.messages.create(params as any);
+  }
   recordAiUsage(ownerId, "content_plan", res);
   if (res.stop_reason === "refusal") throw new PlanGenerationError("refusal", "The model declined this request. Try rephrasing the brief.");
   const textBlock = res.content.find((b) => b.type === "text");
@@ -73,18 +97,21 @@ export async function generatePlanData(input: GenerateInput, brand: BrandDetail 
   // A post's "reference" is an id from the Reels the strategist was shown: SOCIA swaps it for that Reel's own link and numbers.
   const proven = evidence?.proven ?? [];
   data.weeklyPlan = withItemIds((data.weeklyPlan ?? []).map((p) => normalizePlanItem({ ...p, ref: pickRef(p.reference, proven) ?? undefined })));
-  // A brand that posts animated videos gets one or two a day on top of the filmed posts (lib/animated/planPosts.ts).
-  if (brand?.animated?.on) {
+  // Animated posts on top of the filmed ones (lib/animated/planPosts.ts): the number chosen for this week
+  // (lib/planMix.ts), or, when none was given, the brand's setting of one or two a day.
+  if (input.animated != null ? input.animated > 0 : brand?.animated?.on) {
     const brandLine = [
       input.clientHandle && `Account: ${input.clientHandle}`,
       input.niche && `Niche: ${input.niche}`,
-      brand.description && `About: ${brand.description.slice(0, 500)}`,
-      brand.location && `Location: ${brand.location.slice(0, 120)}`,
-      brand.voice && `Voice: ${brand.voice}`,
-      brand.avoid && `Avoid: ${brand.avoid.slice(0, 200)}`,
+      brand?.description && `About: ${brand.description.slice(0, 500)}`,
+      brand?.location && `Location: ${brand.location.slice(0, 120)}`,
+      brand?.voice && `Voice: ${brand.voice}`,
+      brand?.avoid && `Avoid: ${brand.avoid.slice(0, 200)}`,
     ].filter(Boolean).join("\n");
-    const animated = await writeAnimatedPosts({ brand, brandLine, filmed: data.weeklyPlan, platform: platformName(input.platform) ?? undefined, ownerId });
+    onProgress?.({ type: "step", step: "animated", state: "active" });
+    const animated = await writeAnimatedPosts({ brand, brandLine, filmed: data.weeklyPlan, platform: platformName(input.platform) ?? undefined, ownerId, count: input.animated });
     if (animated.length) data.weeklyPlan = [...data.weeklyPlan, ...withItemIds(animated)];
+    onProgress?.({ type: "step", step: "animated", state: "done" });
   }
   // Record what the plan was built from, so the report and history can say so.
   if (evidence) data.evidenceUsed = { ...evidence.used, references: data.weeklyPlan.filter((p) => p.ref).length };
@@ -127,8 +154,14 @@ export async function generatePlan(opts: {
   input: GenerateInput;
   brand: BrandDetail | null;
   evidence: Evidence | null;
+  onProgress?: (e: PlanEvent) => void;
 }): Promise<{ data: Deliverable; saved: SavedPlan | null }> {
-  const data = await generatePlanData(opts.input, opts.brand, opts.evidence, opts.ownerId);
+  const t0 = Date.now();
+  const data = await generatePlanData(opts.input, opts.brand, opts.evidence, opts.ownerId, opts.onProgress);
+  // How long this plan took, so the page can tell the next one how long to expect.
+  data.buildSeconds = Math.round((Date.now() - t0) / 1000);
+  opts.onProgress?.({ type: "step", step: "saving", state: "active" });
   const saved = await savePlan(opts.client, opts.ownerId, opts.workspaceId, opts.input, data);
+  opts.onProgress?.({ type: "step", step: "saving", state: "done" });
   return { data, saved };
 }

@@ -11,6 +11,7 @@ import type { BrandDetail } from "@/lib/profile";
 import type { PlanItem } from "@/lib/planItems";
 import { animatedPerDay } from "./fitCore";
 import { WEEK, animatedDay } from "./day";
+import { animatedSlots } from "@/lib/planMix";
 
 
 const SCHEMA = {
@@ -35,7 +36,7 @@ const SYSTEM = `You add animated posts to a brand's week of social media posts. 
 - compare: 2 to 4 options side by side whose numbers count up on one measure (three grind sizes and their shot times; two routes and their minutes).
 - counter: one number counting up in rounds that grow (one coffee a day for a week, a month, a year).
 - words: an opening line, a few points or a list, and an ending.
-Write exactly the posts asked for: for each day, one post with slot 1, and when two a day are asked for, a second with slot 2 that is a different kind of idea.
+Write exactly the posts asked for, on the days and slots asked for: a second post on a day (slot 2) is a different kind of idea from that day's first.
 Rules:
 - Each idea must work as one of the templates. Prefer compare and counter; use words for tips, myths, opinions and announcements.
 - Different from the filmed posts listed, and from each other. Mix the templates across the week.
@@ -47,15 +48,15 @@ type RawPost = { weekday?: unknown; slot?: unknown; title?: unknown; hook?: unkn
 
 const line = (v: unknown, n: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").replace(/\s*[—–]\s*/g, ", ").trim().slice(0, n) : "");
 
-/** The model's posts as plan items: known days and slots only, at most `perDay` a day, in week order. Pure. */
-export function cleanAnimatedPosts(raw: unknown, perDay: 1 | 2, platform?: string): PlanItem[] {
+/** The model's posts as plan items: known days and slots only, at most `perDay` a day (and only the asked-for days and slots, when given), in week order. Pure. */
+export function cleanAnimatedPosts(raw: unknown, perDay: 1 | 2, platform?: string, only?: Set<string>): PlanItem[] {
   const list = Array.isArray((raw as { posts?: unknown })?.posts) ? ((raw as { posts: RawPost[] }).posts) : [];
   const seen = new Set<string>();
   const out: PlanItem[] = [];
   for (const p of list) {
     const weekday = WEEK.find((d) => d === p?.weekday);
     const slot = p?.slot === 2 && perDay === 2 ? 2 : p?.slot === 1 ? 1 : null;
-    if (!weekday || !slot || seen.has(`${weekday}${slot}`)) continue;
+    if (!weekday || !slot || seen.has(`${weekday}${slot}`) || (only && !only.has(`${weekday}${slot}`))) continue;
     const hook = line(p.hook, 160);
     const concept = line(p.concept, 700);
     if (!hook || !concept) continue;
@@ -78,21 +79,27 @@ export function cleanAnimatedPosts(raw: unknown, perDay: 1 | 2, platform?: strin
  * The week's animated posts for a brand that posts animated videos, or [] when
  * it doesn't (or the call fails: the plan is still good without them).
  */
-export async function writeAnimatedPosts(opts: { brand: BrandDetail | null; brandLine: string; filmed: PlanItem[]; platform?: string; ownerId?: string | null }): Promise<PlanItem[]> {
-  const perDay = animatedPerDay(opts.brand?.animated);
+export async function writeAnimatedPosts(opts: { brand: BrandDetail | null; brandLine: string; filmed: PlanItem[]; platform?: string; ownerId?: string | null; count?: number }): Promise<PlanItem[]> {
+  // `count`: the number the person chose for this week (lib/planMix.ts), spread over the week; otherwise the brand's setting, one or two a day.
+  const slots = opts.count != null ? animatedSlots(opts.count) : null;
+  const perDay: 0 | 1 | 2 = slots ? (slots.length ? (slots.some((s) => s.slot === 2) ? 2 : 1) : 0) : animatedPerDay(opts.brand?.animated);
   if (!perDay) return [];
+  const asked = slots
+    ? `Write exactly these ${slots.length} animated post${slots.length === 1 ? "" : "s"}: ${slots.map((s) => `${WEEK[s.weekday]} (slot ${s.slot})`).join(", ")}.`
+    : `Write ${perDay === 2 ? "two animated posts for each day, Monday to Sunday (slot 1 and slot 2)" : "one animated post for each day, Monday to Sunday (slot 1)"}.`;
+  const only = slots ? new Set(slots.map((s) => `${WEEK[s.weekday]}${s.slot}`)) : undefined;
   const filmed = opts.filmed.map((p) => `- ${p.day}: ${p.title ?? p.hook}`).join("\n");
   try {
     const res = await anthropic.messages.create({
       model: MODEL, max_tokens: 6000, system: SYSTEM,
       output_config: { format: { type: "json_schema", schema: SCHEMA }, ...effortFor(MODEL, "low") },
-      messages: [{ role: "user", content: `# Brand\n${opts.brandLine}\n\n# This week's filmed posts\n${filmed || "(none)"}\n\nWrite ${perDay === 2 ? "two animated posts for each day, Monday to Sunday (slot 1 and slot 2)" : "one animated post for each day, Monday to Sunday (slot 1)"}.` }],
+      messages: [{ role: "user", content: `# Brand\n${opts.brandLine}\n\n# This week's filmed posts\n${filmed || "(none)"}\n\n${asked}` }],
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
     recordAiUsage(opts.ownerId, "animated_plan", res);
     const block = res.content.find((b: { type: string }) => b.type === "text");
     const text = block && "text" in block ? (block as { text: string }).text : "";
-    return cleanAnimatedPosts(JSON.parse(text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()), perDay, opts.platform);
+    return cleanAnimatedPosts(JSON.parse(text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()), perDay, opts.platform, only);
   } catch (e) {
     console.error("[animated/planPosts]", (e as Error)?.message ?? e);
     return [];

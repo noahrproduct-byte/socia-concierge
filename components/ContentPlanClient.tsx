@@ -59,6 +59,12 @@ import { PlanTaskRow, usePlanTasks } from "@/components/plan/PlanTasks";
 import { reasonLabel } from "@/lib/planItems";
 import { Tabs, TabList, Tab, TabPanel } from "@/components/system";
 import type { GrowthStrategy } from "@/lib/strategy";
+import PlanMixControls, { type MixValue } from "@/components/plan/PlanMixControls";
+import PlanCompetitors from "@/components/plan/PlanCompetitors";
+import PlanBuilding, { newBuild, type BuildState } from "@/components/plan/PlanBuilding";
+import { typicalSeconds, type PlanEvent } from "@/lib/planProgress";
+import type { PlanCompetitor } from "@/lib/planEvidence";
+import type { PlanMix } from "@/lib/planMix";
 import { AuditSection, CompetitorSection, OverviewSection, PLAN_SECTIONS, StrategySection, formatLabel, weekOrder, type PlanSectionId } from "@/components/plan/PlanSections";
 
 // Server-assembled context: real prefill from the connected account/profile,
@@ -81,14 +87,19 @@ export type PlanContext = {
   strategy: GrowthStrategy | null;
   /** The brand chose "Post animated videos" (Settings): the plan offers Generate animated videos. */
   animatedOn?: boolean;
+  /** How many posts of each kind this week starts from: the last plan's mix (lib/planMix.ts). */
+  mix: PlanMix;
+  /** The plan includes animated videos (its monthly allowance is above zero). */
+  animatedAllowed: boolean;
+  /** The competitors the plan builds on, from Discover and the Competitors list (lib/planEvidence.ts planCompetitors). */
+  competitors: PlanCompetitor[];
+  /** Whether this person may add to the Competitors list (owners and admins). */
+  canAddCompetitor: boolean;
 };
 
 // Soft guidance limits — counters only, never truncation.
 const MAX: Partial<Record<keyof GenerateInput, number>> = {
   goal: 240,
-  brandVoice: 200,
-  recentPosts: 500,
-  competitors: 500,
 };
 
 function Counter({ value, max }: { value: string; max: number }) {
@@ -125,10 +136,18 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
   const [result, setResult] = useState<{ data: Deliverable; id: string | null } | null>(null);
   const [history, setHistory] = useState<SavedPlan[]>([]);
   const [outcomes, setOutcomes] = useState<PlanOutcomeSummary[]>([]);
+  // This week's mix, starting from the last plan's (lib/planMix.ts).
+  const [mix, setMix] = useState<MixValue>({ onCamera: context.mix.onCamera, animated: context.animatedAllowed ? context.mix.animated : 0 });
+  const [addOnCamera, setAddOnCamera] = useState(context.mix.onCamera > 0);
+  // The competitors this plan builds on; unticked ones are left out of this plan only.
+  const [competitors, setCompetitors] = useState<PlanCompetitor[]>(context.competitors);
+  const [skip, setSkip] = useState<Set<string>>(new Set());
+  // Each step of the build as the server reports it (lib/planProgress.ts).
+  const [build, setBuild] = useState<BuildState>(newBuild);
 
   // Deep links ("Add to Content Plan" from Dashboard / Analytics insights and
-  // content drawers) arrive as ?note= and land in the notes field, reviewed
-  // by the user before anything is generated.
+  // content drawers) arrive as ?note= and show as a note on the form, which
+  // the person can remove before anything is generated.
   useEffect(() => {
     try {
       const note = new URLSearchParams(window.location.search).get("note");
@@ -164,26 +183,67 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
     );
   }
 
+  function onEvent(e: PlanEvent) {
+    setBuild((b) => {
+      if (e.type === "step") return { ...b, live: true, steps: { ...b.steps, [e.step]: e.state } };
+      if (e.type === "found") return { ...b, live: true, found: { competitors: e.competitors, reels: e.reels, posts: e.posts } };
+      if (e.type === "posts") return { ...b, live: true, posts: { started: e.started, total: e.total, firstAt: b.posts?.firstAt ?? Date.now() } };
+      return b;
+    });
+  }
+
+  function finish(json: { data?: unknown; saved?: unknown; usage?: unknown }) {
+    if (json.usage) setUsage(json.usage as UsageSnapshot);
+    setResult({ data: json.data as Deliverable, id: (json.saved as SavedPlan | null)?.id ?? null });
+    if (json.saved) setHistory((h) => [json.saved as SavedPlan, ...h]);
+  }
+
   async function generate() {
     setLoading(true);
     setError(null);
     setPlanError(null);
     setResult(null);
+    setBuild(newBuild());
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        // Asks the server to report each step as it happens.
+        headers: { "Content-Type": "application/json", "x-plan-progress": "1" },
         // Timing is computed here, in the viewer's time zone, from real posts.
-        body: JSON.stringify({ ...form, audienceWindows: audienceWindowsText(context.posts) }),
+        body: JSON.stringify({ ...form, ...mix, skipCompetitors: [...skip], audienceWindows: audienceWindowsText(context.posts) }),
       });
+      if (res.ok && res.body && (res.headers.get("content-type") ?? "").includes("ndjson")) {
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        let buf = "";
+        let ended = false;
+        for (;;) {
+          const { value, done } = await reader.read();
+          buf += dec.decode(value ?? new Uint8Array(), { stream: !done });
+          let nl;
+          while ((nl = buf.indexOf("\n")) >= 0) {
+            const line = buf.slice(0, nl).trim();
+            buf = buf.slice(nl + 1);
+            if (!line) continue;
+            const e = JSON.parse(line) as PlanEvent;
+            if (e.type === "done") { finish(e as { data?: unknown; saved?: unknown; usage?: unknown }); ended = true; }
+            else if (e.type === "error") {
+              ended = true;
+              if (isPlanError(e.body)) setPlanError(e.body);
+              else throw new Error((e.body as { error?: string } | null)?.error || "The plan couldn't be built. Try again in a minute.");
+            } else onEvent(e);
+          }
+          if (done) break;
+        }
+        if (!ended) throw new Error("The connection closed before the plan was ready. Check Recent plans, then try again.");
+        return;
+      }
       const json = await res.json();
       if (!res.ok) {
         if (isPlanError(json)) { setPlanError(json); return; }
         throw new Error(json.error || "Something went wrong.");
       }
-      if (json.usage) setUsage(json.usage as UsageSnapshot);
-      setResult({ data: json.data as Deliverable, id: (json.saved as SavedPlan | null)?.id ?? null });
-      if (json.saved) setHistory((h) => [json.saved as SavedPlan, ...h]);
+      finish(json);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
     } finally {
@@ -191,15 +251,20 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
     }
   }
 
-  const competitorCount = form.competitors.split("\n").filter((l) => l.trim()).length;
   const onFile = context.evidence;
+  const total = mix.onCamera + mix.animated;
+  // An animated-led account turns on-camera videos on and off as a whole.
+  function toggleOnCamera(on: boolean) {
+    setAddOnCamera(on);
+    setMix((m) => ({ ...m, onCamera: on ? Math.max(1, context.mix.onCamera || 2) : 0 }));
+  }
 
   return (
     <div className="cpl">
       {/* header */}
       <PageHeader
         title="Content Plan"
-        sub="SOCIA builds a weekly plan for your account. Add anything recent to sharpen it, or just hit generate."
+        sub={"SOCIA builds a weekly plan from your posts and your competitors' Reels. Choose how many posts, then generate."}
         status={
           context.connected ? (
             <span className="ov-status">
@@ -268,7 +333,15 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
             <option>YouTube Shorts</option>
           </select>
 
-          <small className="cpl-sec cpl-sec-gap">Sharpen the plan, all optional</small>
+          <small className="cpl-sec cpl-sec-gap">This week</small>
+          <PlanMixControls
+            start={context.mix}
+            animatedAllowed={context.animatedAllowed}
+            value={mix}
+            onChange={setMix}
+            addOnCamera={addOnCamera}
+            onAddOnCamera={toggleOnCamera}
+          />
 
           {context.profile.goal ? (
             <p className="cpl-fixed">
@@ -292,69 +365,20 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
             </>
           )}
 
-          <label className="cpl-lab">
-            <span>{context.profile.voice ? <>Notes for this plan <em>optional</em></> : <>Brand voice / notes <em>optional</em></>}</span>
-            <Counter value={form.brandVoice} max={MAX.brandVoice!} />
-          </label>
-          <textarea
-            rows={3}
-            placeholder={context.profile.voice ? `Your voice (${context.profile.voice}) comes from your profile. Add anything just for this week.` : "Playful, family-run, a bit cheeky.\nAvoid corporate tone."}
-            value={form.brandVoice}
-            onChange={(e) => set("brandVoice", e.target.value)}
-          />
-
-          <label className="cpl-lab">
-            <span>
-              {onFile.posts > 0 ? (
-                <>Notes on recent posts <em>optional</em></>
-              ) : (
-                <>Recent posts &amp; how they did <em>one per line</em></>
-              )}
-            </span>
-            <Counter value={form.recentPosts} max={MAX.recentPosts!} />
-          </label>
-          <textarea
-            rows={4}
-            placeholder={
-              "Reel: pizza pull, 12k views, 340 saves\nCarousel: menu update, 900 views\nStatic: staff photo, 400 views, low reach"
-            }
-            value={form.recentPosts}
-            onChange={(e) => set("recentPosts", e.target.value)}
-          />
-          {note("recentPosts")}
           {onFile.posts > 0 && (
-            <small className="cpl-auto">
-              <Sparkles size={10} /> SOCIA already includes your last {onFile.posts} posts with their real numbers.
-            </small>
+            <p className="cpl-fixed">
+              <BarChart3 size={12} /> <span>SOCIA reads your last {onFile.posts} posts with their real numbers.</span>
+            </p>
           )}
-
-          <label className="cpl-lab">
-            <span>
-              {onFile.competitors > 0 || onFile.winning > 0 ? (
-                <>Other competitors <em>optional</em></>
-              ) : (
-                <>Competitors you watch <em>one per line</em></>
-              )}
-            </span>
-            <Counter value={form.competitors} max={MAX.competitors!} />
-          </label>
-          <textarea
-            rows={3}
-            placeholder={
-              "@rivalpizza: behind-the-scenes dough Reels doing 50k+\n@trendyslice: POV first-person eating clips, big saves"
-            }
-            value={form.competitors}
-            onChange={(e) => set("competitors", e.target.value)}
-          />
-
-          {(onFile.competitors > 0 || onFile.winning > 0) && (
-            <small className="cpl-auto">
-              <Sparkles size={10} /> SOCIA already includes{" "}
-              {onFile.competitors > 0 ? `${onFile.competitors} competitor${onFile.competitors === 1 ? "" : "s"}` : ""}
-              {onFile.competitors > 0 && onFile.winning > 0 ? " and " : ""}
-              {onFile.winning > 0 ? `${onFile.winning} winning videos` : ""} from your Competitors page.
-            </small>
+          {form.recentPosts.trim() && (
+            <p className="cpl-fixed cpl-added-note">
+              <PenSquare size={12} /> <span>Added note: {form.recentPosts.trim()}</span>
+              <button type="button" className="cpl-note-x" onClick={() => set("recentPosts", "")}>Remove</button>
+            </p>
           )}
+          <small className="cpl-sec cpl-sec-gap">Competitors</small>
+          <PlanCompetitors list={competitors} onList={setCompetitors} skip={skip} onSkip={setSkip} canAdd={context.canAddCompetitor} platform={form.platform} />
+
           {usage && (
             <small className="cpl-auto">
               <UsageLine meter="content_plan" used={usage.used} limit={usage.limit} resetsOn={usage.resetsOn} always />
@@ -402,23 +426,9 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
         {/* plan stage */}
         <section className="cpl-stage">
           {loading ? (
-            <div className="cpl-loading">
-              <div className="cpl-orb">
-                <Sparkles size={26} />
-              </div>
-              <h2>Building your plan…</h2>
-              <p>
-                Reading {onFile.posts > 0 ? `your last ${onFile.posts} posts` : "your brief"}
-                {onFile.competitors > 0 ? `, ${onFile.competitors} competitors` : ""}
-                {onFile.winning > 0 ? ` and ${onFile.winning} winning videos` : ""}, then drafting
-                the week. Usually takes one to three minutes.
-              </p>
-              <div className="cpl-load-bar" aria-hidden>
-                <span />
-              </div>
-            </div>
+            <PlanBuilding build={build} onCamera={mix.onCamera} animated={mix.animated} typical={typicalSeconds(history.map((h) => h.data?.buildSeconds))} />
           ) : result ? (
-            <Report data={result.data} planId={result.id} posts={context.posts} canSchedule={canSchedule} strategy={context.strategy} goal={context.profile.goal} animatedOn={Boolean(context.animatedOn)} onUpdate={(data) => setResult((r) => (r ? { ...r, data } : r))} />
+            <Report data={result.data} planId={result.id} posts={context.posts} canSchedule={canSchedule} strategy={context.strategy} goal={context.profile.goal} animatedOn={Boolean(context.animatedOn) || result.data.weeklyPlan.some((p) => p.animated)} onUpdate={(data) => setResult((r) => (r ? { ...r, data } : r))} />
           ) : (
             <div className="cpl-empty">
               <div className="cpl-empty-ico">
@@ -426,7 +436,7 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
               </div>
               <h2>Your plan appears here.</h2>
               <p>
-                Hit Generate and you&apos;ll get a personalized 5–7 post plan with score, timing,
+                Hit Generate and you&apos;ll get a plan of {total} {total === 1 ? "post" : "posts"} with score, timing,
                 hooks, content ideas, and more.
               </p>
 
@@ -457,7 +467,7 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
                     <CalendarCheck2 size={16} />
                   </span>
                   <b>Actionable plan</b>
-                  <small>5–7 posts with hooks, formats &amp; timing</small>
+                  <small>{total} {total === 1 ? "post" : "posts"} with hooks, formats &amp; timing</small>
                 </div>
               </div>
 
@@ -485,10 +495,10 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
                         <small>Posts analyzed</small>
                       </div>
                     )}
-                    {onFile.competitors + competitorCount > 0 && (
+                    {onFile.competitors > 0 && (
                       <div className="cpl-stat">
                         <Users size={13} />
-                        <b>{onFile.competitors + competitorCount}</b>
+                        <b>{onFile.competitors}</b>
                         <small>Competitors on file</small>
                       </div>
                     )}
