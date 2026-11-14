@@ -40,7 +40,10 @@ function jsonIn(text: string): unknown {
 
 export async function opsFor(instruction: string, description: string, ownerId: string): Promise<{ ops: EditOp[]; reply: string; rejected: number }> {
   const model = modelFor("fast");
-  const res = await anthropic.messages.create({ model, max_tokens: 1500, system: SYSTEM + ANSWER, messages: [{ role: "user", content: `The cut now:\n${description}\n\nThe person says: """${instruction.trim()}"""` }], output_config: { ...effortFor(model, "low") } });
+  const params = { model, max_tokens: 1500, system: SYSTEM + ANSWER, messages: [{ role: "user", content: `The cut now:\n${description}\n\nThe person says: """${instruction.trim()}"""` }], output_config: { ...effortFor(model, "low") } };
+  // output_config (the effort setting) is ahead of the SDK's types, as in analysis.ts.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const res = await anthropic.messages.create(params as any);
   recordAiUsage(ownerId, "studio_instruct", res);
   if (res.stop_reason === "refusal") throw new AnalysisError("refusal", "The model declined this request.");
   const block = res.content.find((b) => b.type === "text");
