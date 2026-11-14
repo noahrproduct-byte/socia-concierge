@@ -56,7 +56,17 @@ export const styleWord = (s: AccountStyle | null | undefined): string | null =>
   !s ? null : s.style === "mixed" ? "Mixed formats" : STYLE_LABEL[s.style];
 
 /** Brand memory of styles: the brand's own, and each account SOCIA looked at, by "platform:handle". */
-export type StyleMemory = { own: AccountStyle | null; accounts: Record<string, AccountStyle> };
+/** Why Instagram shared nothing about an account on the last try. */
+export type MissKind = "not_found" | "not_business" | "unavailable";
+/** The last time SOCIA tried to read an account (or "own"), and what was missing. */
+export type Tried = { at: string; miss?: MissKind };
+/** An account is read at most once a day, whatever the outcome, so a lookup that fails is not asked again on every visit. */
+export const TRY_TTL_MS = 86_400_000;
+
+export type StyleMemory = { own: AccountStyle | null; accounts: Record<string, AccountStyle>; tried: Record<string, Tried> };
+
+const MISSES: readonly string[] = ["not_found", "not_business", "unavailable"];
+const KEY_RE = /^(instagram|youtube|facebook|tiktok):[a-z0-9._-]{1,60}$/;
 
 const sanitizeStyle = (v: unknown): AccountStyle | null => {
   if (!v || typeof v !== "object") return null;
@@ -74,12 +84,35 @@ export function sanitizeMemory(v: unknown): StyleMemory {
   const raw = o.accounts && typeof o.accounts === "object" ? (o.accounts as Record<string, unknown>) : {};
   const entries = Object.entries(raw)
     .map(([k, s]) => [k.toLowerCase(), sanitizeStyle(s)] as const)
-    .filter((e): e is readonly [string, AccountStyle] => /^(instagram|youtube|facebook|tiktok):[a-z0-9._-]{1,60}$/.test(e[0]) && e[1] != null)
+    .filter((e): e is readonly [string, AccountStyle] => KEY_RE.test(e[0]) && e[1] != null)
     .sort((a, b) => Date.parse(b[1].at) - Date.parse(a[1].at))
     .slice(0, MEMORY_MAX);
   for (const [k, s] of entries) accounts[k] = s;
-  return { own: sanitizeStyle(o.own), accounts };
+  const tried: Record<string, Tried> = {};
+  const rawTried = o.tried && typeof o.tried === "object" ? (o.tried as Record<string, unknown>) : {};
+  Object.entries(rawTried)
+    .map(([k, v]) => {
+      const t = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+      const at = typeof t.at === "string" && !Number.isNaN(Date.parse(t.at)) ? t.at : null;
+      const miss = typeof t.miss === "string" && MISSES.includes(t.miss) ? (t.miss as MissKind) : undefined;
+      return [k.toLowerCase(), at ? { at, ...(miss ? { miss } : {}) } : null] as const;
+    })
+    .filter((e): e is readonly [string, Tried] => (e[0] === "own" || KEY_RE.test(e[0])) && e[1] != null)
+    .sort((a, b) => Date.parse(b[1].at) - Date.parse(a[1].at))
+    .slice(0, MEMORY_MAX)
+    .forEach(([k, t]) => { tried[k] = t; });
+  return { own: sanitizeStyle(o.own), accounts, tried };
 }
+
+/** Tried within the last day: don't ask again yet, and don't say it is being read. */
+export const triedRecently = (m: StyleMemory, key: string, now: Date): boolean => {
+  const t = m.tried[key];
+  return Boolean(t && now.getTime() - Date.parse(t.at) < TRY_TTL_MS);
+};
+
+/** The reason SOCIA keeps for an Instagram lookup that returned nothing. */
+export const missKind = (reason: string | null | undefined): MissKind =>
+  reason === "not_found" ? "not_found" : reason === "not_business" ? "not_business" : "unavailable";
 
 export const styleKey = (platform: string, handle: string): string => `${platform}:${handle.replace(/^@/, "").toLowerCase()}`;
 

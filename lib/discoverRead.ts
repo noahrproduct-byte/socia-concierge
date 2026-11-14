@@ -11,7 +11,9 @@ import { competitorScopeId } from "@/lib/workspaces";
 import { nicheVetted } from "@/lib/discovery";
 import { getIgSnapshot } from "@/lib/instagramSync";
 import { igCompetitorRows } from "@/lib/igCompetitorData";
-import { COVERS_PER_ACCOUNT, styleKey, styleStale } from "./discoverStyle";
+import { createServiceClient } from "@/lib/supabase/service";
+import { dismissedHandles } from "@/lib/competitorAutoPick";
+import { COVERS_PER_ACCOUNT, missKind, styleKey, styleStale, triedRecently, type AccountStyle, type Tried } from "./discoverStyle";
 import { readStyleMemory, saveStyleMemory, styleAccounts } from "./discoverStyleLoad";
 
 /** Suggestions read with the roster, so they show their picture and numbers. */
@@ -29,8 +31,13 @@ export async function discoverHandles(ctx: Ctx): Promise<{ tracked: string[]; su
   try {
     let q = ctx.client.from("discovered_accounts").select("platform, handle, data_source, relevance_reasons").eq("user_id", ctx.ownerId).eq("platform", "instagram");
     if (cwid) q = q.eq("workspace_id", cwid);
-    const { data } = await q.order("relevance_score", { ascending: false }).limit(40);
-    const taken = new Set(tracked);
+    const svc = createServiceClient();
+    const [{ data }, dismissed] = await Promise.all([
+      q.order("relevance_score", { ascending: false }).limit(60),
+      svc ? dismissedHandles(svc, ctx.ownerId, cwid).catch(() => null) : Promise.resolve(null),
+    ]);
+    // The same list the page shows: not tracked, not dismissed.
+    const taken = new Set([...tracked, ...(dismissed ?? [])]);
     suggested = ((data ?? []) as Record<string, unknown>[]).filter(nicheVetted)
       .map((r) => String(r.handle ?? "").toLowerCase()).filter((h) => h && !taken.has(h)).slice(0, SUGGESTIONS_READ);
   } catch { /* discovery tables may not exist yet */ }
@@ -38,18 +45,25 @@ export async function discoverHandles(ctx: Ctx): Promise<{ tracked: string[]; su
 }
 
 export async function readDiscoverAccounts(ctx: Ctx, now: Date): Promise<{ read: number; found: number; styled: number; enabled: boolean }> {
-  const { tracked, suggested } = await discoverHandles(ctx);
-  const handles = [...tracked, ...suggested];
+  const [{ tracked, suggested }, memory] = await Promise.all([discoverHandles(ctx), readStyleMemory(ctx)]);
+  // Accounts tried in the last day wait, whatever came back, so a failed lookup isn't repeated on every visit.
+  const handles = [...tracked, ...suggested].filter((h) => !triedRecently(memory, styleKey("instagram", h), now));
   const res = handles.length
     ? await igCompetitorRows(ctx.client, ctx.ownerId, handles, false, { max: handles.length })
     : { enabled: true, competitors: [] };
+  const at = now.toISOString();
+  const tried: Record<string, Tried> = {};
+  if (res.enabled) {
+    for (const c of res.competitors) tried[styleKey("instagram", c.handle)] = c.found ? { at } : { at, miss: missKind(c.reasonKind) };
+  }
 
   // Styles: the brand's own videos and each account found, when missing or a week old.
   let styled = 0;
+  let found: Record<string, AccountStyle> = {};
   if (process.env.ANTHROPIC_API_KEY) {
-    const memory = await readStyleMemory(ctx);
     const jobs: { key: string; thumbs: (string | null)[] }[] = [];
-    if (styleStale(memory.own, now)) {
+    if (styleStale(memory.own, now) && !triedRecently(memory, "own", now)) {
+      tried.own = { at };
       const snap = await getIgSnapshot(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null).catch(() => null);
       const thumbs = (snap?.media ?? []).slice(0, COVERS_PER_ACCOUNT).map((m) => m.thumbnail_url ?? m.media_url ?? null);
       if (thumbs.some(Boolean)) jobs.push({ key: "own", thumbs });
@@ -62,13 +76,13 @@ export async function readDiscoverAccounts(ctx: Ctx, now: Date): Promise<{ read:
       jobs.push({ key, thumbs: c.media.slice(0, COVERS_PER_ACCOUNT).map((m) => m.thumbnail) });
     }
     if (jobs.length) {
-      const found = await styleAccounts(ctx.ownerId, jobs, now);
+      found = await styleAccounts(ctx.ownerId, jobs, now);
       styled = Object.keys(found).length;
-      if (styled) {
-        const { own, ...rest } = found;
-        await saveStyleMemory(ctx, { own: own ?? memory.own, accounts: { ...memory.accounts, ...rest } });
-      }
     }
+  }
+  if (styled || Object.keys(tried).length) {
+    const { own, ...rest } = found;
+    await saveStyleMemory(ctx, { own: own ?? memory.own, accounts: { ...memory.accounts, ...rest }, tried: { ...memory.tried, ...tried } });
   }
   return { read: handles.length, found: res.competitors.filter((c) => c.found).length, styled, enabled: res.enabled };
 }

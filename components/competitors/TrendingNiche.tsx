@@ -222,13 +222,26 @@ function brief(r: ProvenReel): string {
  * your own. The same Reels are what Content Plans and video ideas build on.
  */
 /** What Reels to copy needs from the page that shows it. */
-export type ReelsToCopyInput = Pick<CompetitorsData, "nicheAccess" | "nicheUpgrade" | "now" | "reelsToCopy" | "reelsRead" | "ytConfigured"> & { ig: { enabled: boolean } };
+export type ReelsToCopyInput = Pick<CompetitorsData, "nicheAccess" | "nicheUpgrade" | "now" | "reelsToCopy" | "reelsRead" | "ytConfigured"> & {
+  ig: { enabled: boolean };
+  /** A few Reels from the niche, shown under the competitors' (Discover). */
+  nicheReels?: ProvenReel[];
+};
+
+/** Shown before "Show more Reels": the competitors' stay the most. */
+const FIRST_COMPETITOR = 6;
+const FIRST_NICHE = 3;
 
 export function ReelsToCopy({ d }: { d: ReelsToCopyInput }) {
   const [copied, setCopied] = useState<string | null>(null);
+  const [more, setMore] = useState(false);
   if (!d.nicheAccess) return <Locked what="Reels you can copy from your competitors" upgrade={d.nicheUpgrade} />;
   const now = new Date(d.now);
   const proven = d.reelsToCopy.filter((r) => r.proven).length;
+  const niche = d.nicheReels ?? [];
+  const comp = more ? d.reelsToCopy : d.reelsToCopy.slice(0, FIRST_COMPETITOR);
+  const nich = more ? niche : niche.slice(0, FIRST_NICHE);
+  const hidden = d.reelsToCopy.length - comp.length + niche.length - nich.length;
 
   const copy = async (r: ProvenReel) => {
     const text = brief(r);
@@ -241,6 +254,42 @@ export function ReelsToCopy({ d }: { d: ReelsToCopyInput }) {
       window.prompt("Copy this brief", text);
     }
   };
+
+  const card = (r: ProvenReel) => (
+    <article key={r.url} className="cx3-card">
+      <a href={r.url} target="_blank" rel="noopener noreferrer" className="cx3-thumb" aria-label={`Open the ${r.format} by ${r.accountName}`}>
+        {r.thumb ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={r.thumb} alt="" loading="lazy" referrerPolicy="no-referrer" />
+        ) : (
+          <span className="cx3-noimg">{r.format}</span>
+        )}
+        {r.multiplier != null && <b className="cx3-mult">{r.multiplier >= 10 ? r.multiplier.toFixed(0) : r.multiplier.toFixed(1)}× their usual</b>}
+        <ExternalLink size={13} className="cx3-open" aria-hidden />
+      </a>
+      <div className="cx3-body">
+        <span className="cx3-acct">
+          {r.accountName} | {PLATFORM[r.platform] ?? r.platform}
+        </span>
+        {(r.line ?? r.title) && <p>{r.line ? `\u201c${r.line}\u201d` : r.title}</p>}
+        <small>
+          {[metricLine(r), r.multiplier == null ? "no baseline for this account yet" : null, ago(r.publishedAt, now)].filter(Boolean).join(" | ")}
+        </small>
+        <ul className="cx5-does" aria-label="What it does">
+          {does(r).map((x) => <li key={x}>{x}</li>)}
+        </ul>
+        <p className="cx5-make"><b>Make yours:</b> {recipe(r)}</p>
+        <div className="cx3-actions">
+          <Link href={`/plan?note=${encodeURIComponent(brief(r))}`} className="ov-btn outline small">
+            <Plus size={13} /> Add to my plan
+          </Link>
+          <button type="button" className="ov-btn ghost small" onClick={() => copy(r)}>
+            {copied === r.url ? <Check size={13} /> : <Copy size={13} />} {copied === r.url ? "Copied" : "Copy brief"}
+          </button>
+        </div>
+      </div>
+    </article>
+  );
 
   return (
     <section className="ov-card cx2-card cx3" aria-labelledby="cx5-title">
@@ -268,44 +317,20 @@ export function ReelsToCopy({ d }: { d: ReelsToCopyInput }) {
               : `None of the recent Reels SOCIA read beat their creator's usual by ${PROVEN_AT}× yet. These are the best of the last ${TREND_WINDOW_DAYS} days.`}
             {proven > 0 && proven < d.reelsToCopy.length ? " The others are the best of the rest SOCIA read." : ""}
           </p>
-          <div className="cx3-grid cx5-grid">
-            {d.reelsToCopy.map((r) => (
-              <article key={r.url} className="cx3-card">
-                <a href={r.url} target="_blank" rel="noopener noreferrer" className="cx3-thumb" aria-label={`Open the ${r.format} by ${r.accountName}`}>
-                  {r.thumb ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={r.thumb} alt="" loading="lazy" referrerPolicy="no-referrer" />
-                  ) : (
-                    <span className="cx3-noimg">{r.format}</span>
-                  )}
-                  {r.multiplier != null && <b className="cx3-mult">{r.multiplier >= 10 ? r.multiplier.toFixed(0) : r.multiplier.toFixed(1)}× their usual</b>}
-                  <ExternalLink size={13} className="cx3-open" aria-hidden />
-                </a>
-                <div className="cx3-body">
-                  <span className="cx3-acct">
-                    {r.accountName} | {PLATFORM[r.platform] ?? r.platform}
-                  </span>
-                  {(r.line ?? r.title) && <p>{r.line ? `\u201c${r.line}\u201d` : r.title}</p>}
-                  <small>
-                    {[metricLine(r), r.multiplier == null ? "no baseline for this account yet" : null, ago(r.publishedAt, now)].filter(Boolean).join(" | ")}
-                  </small>
-                  <ul className="cx5-does" aria-label="What it does">
-                    {does(r).map((x) => <li key={x}>{x}</li>)}
-                  </ul>
-                  <p className="cx5-make"><b>Make yours:</b> {recipe(r)}</p>
-                  <div className="cx3-actions">
-                    <Link href={`/plan?note=${encodeURIComponent(brief(r))}`} className="ov-btn outline small">
-                      <Plus size={13} /> Add to my plan
-                    </Link>
-                    <button type="button" className="ov-btn ghost small" onClick={() => copy(r)}>
-                      {copied === r.url ? <Check size={13} /> : <Copy size={13} />} {copied === r.url ? "Copied" : "Copy brief"}
-                    </button>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
+          <div className="cx3-grid cx5-grid">{comp.map(card)}</div>
         </>
+      )}
+      {nich.length > 0 && (
+        <>
+          <h3 className="cx5-sub">From your niche</h3>
+          <p className="cx5-lead">Accounts like yours that you don&apos;t track yet, from SOCIA&apos;s suggestions and niche research.</p>
+          <div className="cx3-grid cx5-grid">{nich.map(card)}</div>
+        </>
+      )}
+      {(hidden > 0 || more) && (
+        <button type="button" className="ov-btn ghost small cx5-more" aria-expanded={more} onClick={() => setMore((m) => !m)}>
+          {more ? "Show fewer Reels" : `Show ${hidden} more Reel${hidden === 1 ? "" : "s"}`}
+        </button>
       )}
       <small className="cx2-foot">
         Every number is what the platform published: views on YouTube, and on Instagram views where Instagram shares them, otherwise likes and comments, each against that account&apos;s own median. They are other accounts&apos; results, not a forecast for yours. Copy the idea, not the video: your own footage and your own words.
