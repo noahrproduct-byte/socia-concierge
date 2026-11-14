@@ -109,7 +109,7 @@ const outlineWeight = (font: EdlStyle["font"]) => (font === "anton" || font === 
  * so neither path ever paints a fallback face. Only the way in and out is
  * animated here: a fade or a small pop, as the preset says.
  */
-function TextLayer({ line, width, height, font, textBox, accent, animation }: { line: EdlText; width: number; height: number; font: FontId; textBox: EdlStyle["textBox"]; accent: string; /** the theme's entrance; absent = the look's own */ animation?: "pop" | "rise" | "wipe" | "settle" | "letters" }) {
+function TextLayer({ line, width, height, font, textBox, accent, animation, captionsOn }: { line: EdlText; width: number; height: number; font: FontId; textBox: EdlStyle["textBox"]; accent: string; /** the theme's entrance; absent = the look's own */ animation?: "pop" | "rise" | "wipe" | "settle" | "letters"; /** captions are on screen in this cut: a live-type line without a slot of its own sits at the top, clear of them */ captionsOn?: boolean }) {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
   const preset = presetOf(line);
@@ -125,7 +125,7 @@ function TextLayer({ line, width, height, font, textBox, accent, animation }: { 
     return () => { alive = false; };
   }, [args, line.id]);
   // The Showroom theme's lines are live type, not an image: letters rise in one by one under a gold rule.
-  if (animation === "letters") return <KineticLine text={line.text} slot={line.slot ?? preset.slot} family={familyFor(font)} accent={accent} width={width} height={height} />;
+  if (animation === "letters") return <KineticLine text={line.text} slot={line.slot ?? (captionsOn ? "top" : preset.slot)} family={familyFor(font)} accent={accent} width={width} height={height} />;
   if (!src) return null;
   const inF = Math.max(1, Math.round(fps * 0.25)), outF = Math.max(1, Math.round(fps * 0.25));
   const leave = interpolate(frame, [durationInFrames - outF, durationInFrames], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
@@ -666,7 +666,10 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
   const pageMs = capSpec.pageMs;
   // One text at a time: the captions step aside while a designed line or the ending card is up.
   const cardFrom = card ? tl.durationFrames - END_FRAMES + END_SOFTEN_FRAMES : Infinity;
-  const pages = useMemo(() => (captionsOn ? clearOfText(captionPages(edl, words, fps, pageMs, pageWords), edl, fps, cardFrom) : []), [edl, words, captionsOn, fps, pageMs, pageWords, cardFrom]);
+  // A theme whose lines are live type at the top (Showroom's "letters") keeps the captions up under them: the
+  // words are the edit there, and a line over the first sentence must not take them away (rug reel, 2026-11-14).
+  const linesClearCaptions = theme?.typography.titleAnimation !== "letters";
+  const pages = useMemo(() => (captionsOn ? clearOfText(captionPages(edl, words, fps, pageMs, pageWords), linesClearCaptions ? edl : { text: [] }, fps, cardFrom) : []), [edl, words, captionsOn, fps, pageMs, pageWords, cardFrom, linesClearCaptions]);
   // With ducking on, the music sits low under speech and comes up between (lib/studioClips/musicDuck.ts).
   const spoken = useMemo(() => (music?.duck ? speechSpans(edl, words) : []), [music?.duck, edl, words]);
   // A voiceover (lib/studioClips/voiceover.ts): its voiced lines play where they sit, and the
@@ -784,7 +787,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
         // premountFor: the line's image is drawn before it is due. Without it the Player paused about 170 ms
         // the moment a line came on ("sliced to order" at 8.9 s, 2026-11-12): a visible hitch in picture and sound.
         <Sequence key={t.id} from={secToFrames(t.at)} durationInFrames={Math.max(1, secToFrames(t.end - t.at))} premountFor={PREMOUNT_FRAMES} name={`text · ${presetOf(t).label}`}>
-          <TextLayer line={t} width={width} height={height} font={style.font} textBox={style.textBox} accent={style.accent} animation={theme?.typography.titleAnimation} />
+          <TextLayer line={t} width={width} height={height} font={style.font} textBox={style.textBox} accent={style.accent} animation={theme?.typography.titleAnimation} captionsOn={captionsOn && pages.length > 0} />
         </Sequence>
       ))}
       {ranking && <RankingLayer ranking={ranking} fontFamily={fontFamily} />}
