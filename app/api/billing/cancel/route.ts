@@ -6,7 +6,8 @@ import { hasLiveSubscription, readBillingInfo } from "@/lib/billing";
 import { getEntitlements } from "@/lib/entitlements";
 import { PLANS } from "@/lib/plans";
 import { perUserLimit } from "@/lib/rateLimit";
-import { BOOST_DAYS, REASONS, boostLines, canOfferBoost, cleanDetail, detailRequired, isReason } from "@/lib/retention/core";
+import { creditsBuy, type CreditAction } from "@/lib/credits/config";
+import { REASONS, STAY_CREDITS, canOfferBoost, cleanDetail, detailRequired, isReason } from "@/lib/retention/core";
 import { boostHistory, cancelPageUrl, giveBoost, recordFeedback } from "@/lib/retention/server";
 
 export const runtime = "nodejs";
@@ -14,9 +15,9 @@ export const runtime = "nodejs";
 // Cancelling a plan. The person says why (required), is offered a little more
 // for staying, and either stays or goes on to Stripe's own page, which cancels
 // at the end of the paid period. Nothing is cancelled by this route itself.
-//   GET  -> { canCancel, plan, periodEnd, reasons, offer: { lines, days } | null }
+//   GET  -> { canCancel, plan, periodEnd, reasons, offer: { credits, buys } | null }
 //   POST { reason, detail?, choice: "stay" | "cancel" }
-//        -> stay:   { stayed: true, boostUntil | null }
+//        -> stay:   { stayed: true, credits: number | null } (null when the offer wasn't given)
 //        -> cancel: { url } (Stripe's cancel page)
 
 async function who() {
@@ -30,9 +31,10 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
   const [billing, ent, history] = await Promise.all([readBillingInfo(supabase, user.id), getEntitlements(supabase, user.id), boostHistory(user.id)]);
   const canCancel = hasLiveSubscription(billing) && !billing.cancelAt;
-  // The offer is what the plan itself would gain, without a boost already counted in.
-  const lines = boostLines(PLANS[ent.plan]);
-  const offer = history.ready && canOfferBoost(history.givenAt) && lines.length ? { lines, days: BOOST_DAYS } : null;
+  // The offer is credits, with what they buy on this person's own plan so the number means something.
+  const offer = history.ready && canOfferBoost(history.givenAt)
+    ? { credits: STAY_CREDITS, buys: creditsBuy(STAY_CREDITS, (a: CreditAction) => (PLANS[ent.plan].meters[a] ?? 0) > 0) }
+    : null;
   return NextResponse.json({ canCancel, plan: PLANS[billing.plan]?.name ?? "your", periodEnd: billing.currentPeriodEnd, reasons: REASONS, offer });
 }
 
@@ -55,8 +57,8 @@ export async function POST(req: Request) {
 
   if (choice === "stay") {
     await recordFeedback(user.id, billing.plan, reason, detail, "stayed");
-    const boostUntil = await giveBoost(user.id);
-    return NextResponse.json({ stayed: true, boostUntil });
+    const given = await giveBoost(user.id);
+    return NextResponse.json({ stayed: true, credits: given ? STAY_CREDITS : null });
   }
 
   if (billing.cancelAt) return NextResponse.json({ error: "This plan is already set to cancel." }, { status: 409 });

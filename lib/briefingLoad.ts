@@ -67,10 +67,13 @@ export async function currentGoalValues(ctx: Ctx): Promise<Partial<Record<Goal["
   const connected = rows.filter((r) => r.connected).map((r) => r.platform);
   const out: Partial<Record<Goal["metric"], { value: number; platforms: Goal["platforms"] }>> = {};
   for (const id of ["followers", "views_30d", "engagement_rate", "posts_per_week"] as const) {
-    const platforms = (goalMetric(id)?.measuredOn ?? []).filter((p) => connected.includes(p));
+    const read = (platforms: Goal["platforms"]) => currentFor({ kind: "primary", metric: id, platforms, baseline: null, target: 1, due_date: null }, rows, x).value;
+    // Only the connected accounts that really returned this number: one that didn't (a platform that
+    // is offline, or reports no count) leaves the others readable instead of hiding all of them.
+    const platforms = (goalMetric(id)?.measuredOn ?? []).filter((p) => connected.includes(p) && read([p]) != null);
     if (!platforms.length) continue;
-    const c = currentFor({ kind: "primary", metric: id, platforms, baseline: null, target: 1, due_date: null }, rows, x);
-    if (c.value != null) out[id] = { value: c.value, platforms };
+    const value = read(platforms);
+    if (value != null) out[id] = { value, platforms };
   }
   return out;
 }
