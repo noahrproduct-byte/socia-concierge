@@ -55,6 +55,26 @@ export async function recordStartingPoints(ctx: Ctx, goals: Goal[]): Promise<Goa
   return goals;
 }
 
+/**
+ * Where the account stands now on each goal SOCIA can measure, read from the
+ * connected accounts: the number a target is set against at onboarding. A
+ * goal whose accounts aren't connected, or that the platform didn't report,
+ * is left out (never 0).
+ */
+export async function currentGoalValues(ctx: Ctx): Promise<Partial<Record<Goal["metric"], { value: number; platforms: Goal["platforms"] }>>> {
+  const ent = await getEntitlements(ctx.client, ctx.ownerId);
+  const { rows, x } = await readNow(ctx, ent);
+  const connected = rows.filter((r) => r.connected).map((r) => r.platform);
+  const out: Partial<Record<Goal["metric"], { value: number; platforms: Goal["platforms"] }>> = {};
+  for (const id of ["followers", "views_30d", "engagement_rate", "posts_per_week"] as const) {
+    const platforms = (goalMetric(id)?.measuredOn ?? []).filter((p) => connected.includes(p));
+    if (!platforms.length) continue;
+    const c = currentFor({ kind: "primary", metric: id, platforms, baseline: null, target: 1, due_date: null }, rows, x);
+    if (c.value != null) out[id] = { value: c.value, platforms };
+  }
+  return out;
+}
+
 export async function runInitialization(ctx: Ctx, opts: { understoodAt: string | null }): Promise<{ outcomes: StepOutcome[]; briefing: Briefing }> {
   const ent = await getEntitlements(ctx.client, ctx.ownerId);
   const { src, rows, x } = await readNow(ctx, ent);
