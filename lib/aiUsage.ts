@@ -12,7 +12,7 @@ export type AiFeature =
   | "niche_analyze" | "niche_opportunity" | "niche_formats" | "growth_strategy" | "content_guide" | "account_audit" | "niche_describe"
   | "competitor_research" | "content_plan" | "comment_reply"
   | "clip_card" | "clip_batch" | "clip_edl" | "transcribe" | "music_playlist" | "video_ideas" | "place_scan"
-  | "clipper_captions" | "clipper_pick" | "clipper_frame" | "studio_ideas" | "brief_enhance" | "animated_script" | "animated_fit" | "animated_pick" | "animated_plan" | "video_style"
+  | "clipper_captions" | "clipper_pick" | "clipper_frame" | "studio_ideas" | "brief_enhance" | "animated_script" | "animated_fit" | "animated_pick" | "animated_plan" | "video_style" | "animated_review"
   | "voiceover_script" | "niche_scan" | "discover_styles" | "studio_instruct";
 
 type Usage = {

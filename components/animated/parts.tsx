@@ -130,6 +130,28 @@ export function CommentPrompt({ question, startFrame, answer, colors, top = 1600
   );
 }
 
+/**
+ * The ending that asks for the goal (spec.cta): one line naming what the brand
+ * does, then its own call to action as a button, then its name. Replaces the
+ * comment question when the video is meant to bring sign-ups, orders or bookings.
+ */
+export function CtaCard({ cta, brand, startFrame, colors, top = 1240 }: { cta: { line: string; action: string }; brand: string | null; startFrame: number; colors: TemplateColors; top?: number }) {
+  const frame = useCurrentFrame();
+  const f = frame - startFrame;
+  if (f < 0) return null;
+  const p = interpolate(f, [0, 10], [0, 1], { extrapolateRight: "clamp", easing: Easing.out(Easing.cubic) });
+  const b = interpolate(f, [8, 18], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.out(Easing.cubic) });
+  const look = colors.look;
+  const family = look ? fontFor(look.font) : SANS;
+  return (
+    <div style={{ position: "absolute", left: 50, right: 50, top: top + (1 - p) * 30, opacity: p, display: "flex", flexDirection: "column", alignItems: look ? "flex-start" : "center", gap: 22, textAlign: look ? "left" : "center", padding: look ? "28px 26px" : 0, borderRadius: 18, background: look ? colors.bg : "transparent" }}>
+      <div style={{ fontFamily: family, fontWeight: 700, fontSize: look?.font === "condensed" ? 52 : 44, lineHeight: 1.12, color: colors.fg, textTransform: look?.upper ? "uppercase" : "none" }}>{cta.line}</div>
+      <div style={{ display: "inline-flex", alignItems: "center", gap: 16, padding: "18px 30px", borderRadius: 16, background: colors.accent, color: "#111111", fontFamily: family, fontWeight: 700, fontSize: 40, transform: `scale(${0.9 + 0.1 * b})`, opacity: b, textTransform: look?.upper ? "uppercase" : "none" }}>{cta.action}</div>
+      {brand && <div style={{ fontFamily: look ? MONO : SANS, fontWeight: 600, fontSize: 28, color: colors.dim, letterSpacing: look ? 2 : 0, opacity: b }}>{brand}</div>}
+    </div>
+  );
+}
+
 /** The one climax effect: a short brighten starting at `atFrame`. */
 export function Flash({ atFrame, colors }: { atFrame: number; colors: TemplateColors }) {
   const f = useCurrentFrame() - atFrame;

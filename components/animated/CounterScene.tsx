@@ -7,14 +7,14 @@
 // read as growth. One brighten at the last round, then a summary and a question.
 import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import { COUNTER_GAP, ROUND_SECONDS, compareValueText, counterTimeline, roundCount, type AnimatedCounter } from "@/lib/animated/spec";
-import { CommentPrompt, Flash, MONO, SANS, SoundTrack, SwapHeadline, fontFor, interpolateEnd, lineOf, roundSfx, type SfxCue, type TemplateColors } from "./parts";
+import { CtaCard, CommentPrompt, Flash, MONO, SANS, SoundTrack, SwapHeadline, fontFor, interpolateEnd, lineOf, roundSfx, type SfxCue, type TemplateColors } from "./parts";
 import { ClimbWall, ClimbingFigure } from "./Stage";
 import { decimalsOf } from "./CompareScene";
 
 const CX = 540, CY = 930, R = 250, STROKE = 26;
 const ROWS_TOP = 1262, ROW_H = 64;
 
-export function CounterScene({ counter, colors, signoff }: { counter: AnimatedCounter; colors: TemplateColors; signoff: string | null }) {
+export function CounterScene({ counter, colors, signoff, cta = null }: { counter: AnimatedCounter; colors: TemplateColors; signoff: string | null; cta?: { line: string; action: string } | null }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const t = frame / fps;
@@ -109,7 +109,7 @@ export function CounterScene({ counter, colors, signoff }: { counter: AnimatedCo
           ))}
         </div>
         {counter.note && <div style={{ position: "absolute", left: 70, right: 70, top: BAR_Y + 34, fontSize: 30, fontWeight: 600, color: look.dim, opacity: qOn ? 0 : endIn }}>{counter.note}</div>}
-        <CommentPrompt question={counter.question} startFrame={at(tl.question)} colors={colors} top={BAR_Y + 30} />
+        {cta ? <CtaCard cta={cta} brand={signoff} startFrame={at(tl.question)} colors={colors} top={STAGE_TOP + STAGE_H - 110} /> : <CommentPrompt question={counter.question} startFrame={at(tl.question)} colors={colors} top={BAR_Y + 30} />}
         <Flash atFrame={at(tl.rounds[n - 1].end - 0.5)} colors={colors} />
       </AbsoluteFill>
     );
@@ -158,7 +158,7 @@ export function CounterScene({ counter, colors, signoff }: { counter: AnimatedCo
       {counter.note && (
         <div style={{ position: "absolute", left: 60, right: 60, top: ROWS_TOP + n * ROW_H + 18, textAlign: "center", fontWeight: 500, fontSize: 30, color: colors.dim, opacity: endIn }}>{counter.note}</div>
       )}
-      <CommentPrompt question={counter.question} startFrame={at(tl.question)} colors={colors} />
+      {cta ? <CtaCard cta={cta} brand={signoff} startFrame={at(tl.question)} colors={colors} /> : <CommentPrompt question={counter.question} startFrame={at(tl.question)} colors={colors} />}
       {signoff && (
         <div style={{ position: "absolute", left: 0, right: 0, bottom: 44, textAlign: "center", fontWeight: 700, fontSize: 32, color: colors.dim, opacity: endIn }}>{signoff}</div>
       )}

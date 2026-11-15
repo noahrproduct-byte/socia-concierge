@@ -7,7 +7,7 @@
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
 import { COMPARE_TIMES, compareCounter, compareStopAt, compareValueText, type AnimatedCompare, type CompareTone } from "@/lib/animated/spec";
 import { ClimbWall, ClimbingFigure } from "./Stage";
-import { CommentPrompt, Flash, MONO, SANS, fontFor, SoundTrack, SwapHeadline, TONES, interpolateEnd, lineOf, stampScale, surfaceOf, type SfxCue, type TemplateColors } from "./parts";
+import { CtaCard, CommentPrompt, Flash, MONO, SANS, fontFor, SoundTrack, SwapHeadline, TONES, interpolateEnd, lineOf, stampScale, surfaceOf, type SfxCue, type TemplateColors } from "./parts";
 
 export type CompareColors = TemplateColors;
 
@@ -16,7 +16,7 @@ const MARGIN = 80;
 
 export const decimalsOf = (v: number) => (Number.isInteger(v) ? 0 : Math.round(v * 10) === v * 10 ? 1 : 2);
 
-export function CompareScene({ compare, colors, signoff }: { compare: AnimatedCompare; colors: CompareColors; signoff: string | null }) {
+export function CompareScene({ compare, colors, signoff, cta = null }: { compare: AnimatedCompare; colors: CompareColors; signoff: string | null; cta?: { line: string; action: string } | null }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const t = frame / fps;
@@ -38,7 +38,7 @@ export function CompareScene({ compare, colors, signoff }: { compare: AnimatedCo
     { at: COMPARE_TIMES.close * fps, name: "whoosh", volume: 0.45 },
     ...compare.columns.filter((c) => c.stamp).map((c): SfxCue => ({ at: compareStopAt(c.value, max) * fps + 6, name: "stamp", volume: 0.8 })),
     { at: lastStop, name: "hit", volume: 0.55 },
-    ...(compare.question ? [{ at: qStart, name: "pop", volume: 0.4 }, { at: qStart + 18, name: "typing", volume: 0.3, frames: answer.length * 2 + 2 }] as SfxCue[] : []),
+    ...(cta ? [{ at: qStart, name: "pop", volume: 0.4 }] as SfxCue[] : compare.question ? [{ at: qStart, name: "pop", volume: 0.4 }, { at: qStart + 18, name: "typing", volume: 0.3, frames: answer.length * 2 + 2 }] as SfxCue[] : []),
   ];
   const endIn = interpolateEnd(t, COMPARE_TIMES.close);
   const valueSize = Math.min(n <= 2 ? 140 : n === 3 ? 112 : 88, ...compare.columns.map((c) => (span - 24) / (0.62 * compareValueText(c.value, compare.format, compare.unit, decimalsOf(c.value)).length)));
@@ -103,7 +103,7 @@ export function CompareScene({ compare, colors, signoff }: { compare: AnimatedCo
           );
         })}
         {compare.note && <div style={{ position: "absolute", left: 70, right: 70, top: VAL_Y + 110, textAlign: "center", fontSize: 30, fontWeight: 600, color: look.dim, opacity: qOn ? 0 : endIn }}>{compare.note}</div>}
-        <CommentPrompt question={compare.question} startFrame={qStart} answer={answer} colors={colors} top={VAL_Y - 10} />
+        {cta ? <CtaCard cta={cta} brand={signoff} startFrame={qStart} colors={colors} top={STAGE_TOP + STAGE_H - 110} /> : <CommentPrompt question={compare.question} startFrame={qStart} answer={answer} colors={colors} top={VAL_Y - 10} />}
         <Flash atFrame={lastStop} colors={colors} />
       </AbsoluteFill>
     );
@@ -161,7 +161,7 @@ export function CompareScene({ compare, colors, signoff }: { compare: AnimatedCo
       )}
 
       {/* The comment box types the first column's label: an option, not a made-up person's comment. */}
-      <CommentPrompt question={compare.question} startFrame={qStart} answer={answer} colors={colors} />
+      {cta ? <CtaCard cta={cta} brand={signoff} startFrame={qStart} colors={colors} /> : <CommentPrompt question={compare.question} startFrame={qStart} answer={answer} colors={colors} />}
 
       {signoff && (
         <div style={{ position: "absolute", left: 0, right: 0, bottom: 44, textAlign: "center", fontWeight: 700, fontSize: 32, color: colors.dim, opacity: endIn }}>{signoff}</div>
