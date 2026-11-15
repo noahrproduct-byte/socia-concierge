@@ -28,6 +28,7 @@ import RepurposeCard from "@/components/RepurposeCard";
 import VideoIdeasCard from "@/components/VideoIdeasCard";
 import NicheScanCard from "@/components/NicheScanCard";
 import Momentum from "@/components/dashboard/Momentum";
+import ShareWins from "@/components/dashboard/ShareWins";
 import { ButtonLink, Card, CardHeader, Empty, PlatformMark, SegmentedControl, Skeleton, TableWrap, Unavailable, type Platform } from "@/components/system";
 import type { Candidate } from "@/lib/repurpose";
 import type { PlatformSummary } from "@/lib/metrics/allPlatforms";
@@ -377,6 +378,8 @@ export default function Dashboard({ d }: { d: DashboardData }) {
 
       {/* ---- a new account's first steps, and the posting streak (lib/perks) -------- */}
       <Momentum />
+      {/* ---- posts that beat the account's usual result, with an image to share (lib/share) ---- */}
+      <ShareWins />
 
       {/* ---- what goes viral in the niche (lib/nicheScan) ------------------------- */}
       {!nothingConnected && (
