@@ -5,12 +5,18 @@
 // says what is on the stage and when.
 import { AbsoluteFill, Easing, Sequence, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import { Audio } from "@remotion/media";
-import { FLOOR_Y, STAGE_H, atSeconds, boardTimeline, cardHeight, stampEnd, stampWidth, tagWidth, type At, type BoardFigure, type BoardPoint, type BoardTimeline, type FigureKey, type Storyboard, type Tone } from "@/lib/animated/board";
+import { FLOOR_Y, STAGE_H, TAG_H, atSeconds, boardTimeline, cardHeight, counterEnd, stampEnd, stampWidth, tagWidth, type At, type BoardFigure, type BoardPoint, type BoardTimeline, type FigureKey, type Storyboard, type Tone } from "@/lib/animated/board";
 import type { AnimatedLook } from "@/lib/animated/look";
 import { inkOn } from "@/lib/animated/spec";
 import { MONO, fontFor } from "./parts";
 
-const STAGE_TOP = 600;
+// The frame, top to bottom: chapter label, captions, the stage, the meter. It sits between the
+// parts of a Reel that the app covers (the top bar, and the name and caption over the bottom
+// fifth); the stage's ground runs on to the bottom edge so nothing is left as an empty band.
+const FRAME_H = 1920;
+const LABEL_TOP = 190;
+const CAPTION_TOP = 262;
+const STAGE_TOP = 660;
 const BAD = "#E8504A";
 const PROP_COLORS = ["#E8504A", "#F2C230", "#5BBE5F", "#3E8EDC", "#9B6BD8", "#F08A3C", "#E46AA6", "#E9E6DD"];
 
@@ -118,12 +124,13 @@ function Stage({ board, tl, look, t }: { board: Storyboard; tl: BoardTimeline; l
   const dots = scatter(board.set.scatter).filter((d) => !board.points.some((q) => Math.hypot(q.x - d.x, q.y - d.y) < 46));
   const poses = new Map(board.figures.map((f) => [f.id, figurePose(f, tl, pts, t)]));
   return (
-    <svg width={1080} height={STAGE_H} viewBox={`0 0 1080 ${STAGE_H}`} style={{ position: "absolute", left: 0, top: STAGE_TOP }}>
+    <svg width={1080} height={FRAME_H - STAGE_TOP} viewBox={`0 0 1080 ${FRAME_H - STAGE_TOP}`} style={{ position: "absolute", left: 0, top: STAGE_TOP }}>
       <defs>
         <linearGradient id="bsL" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#FFFFFF" stopOpacity={0.16} /><stop offset="1" stopColor="#FFFFFF" stopOpacity={0} /></linearGradient>
         <linearGradient id="bsR" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#FFFFFF" stopOpacity={0.16} /><stop offset="1" stopColor="#FFFFFF" stopOpacity={0} /></linearGradient>
+        <linearGradient id="bsG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={look.bg} stopOpacity={0} /><stop offset="1" stopColor={look.bg} stopOpacity={0.9} /></linearGradient>
       </defs>
-      <rect x={0} y={0} width={1080} height={STAGE_H} fill={look.surface} />
+      <rect x={0} y={0} width={1080} height={FRAME_H - STAGE_TOP} fill={look.surface} />
       {board.set.panels && (
         <>
           <polygon points="0,0 170,0 110,420 0,470" fill="#FFFFFF" opacity={0.06} />
@@ -162,10 +169,12 @@ function Stage({ board, tl, look, t }: { board: Storyboard; tl: BoardTimeline; l
 
       {board.set.floor && (
         <>
-          <rect x={0} y={FLOOR_Y} width={1080} height={STAGE_H - FLOOR_Y} fill={look.stage === "climb_wall" ? "#2E4A8F" : look.fg} opacity={look.stage === "climb_wall" ? 1 : 0.14} />
+          <rect x={0} y={FLOOR_Y} width={1080} height={FRAME_H - STAGE_TOP - FLOOR_Y} fill={look.stage === "climb_wall" ? "#2E4A8F" : look.fg} opacity={look.stage === "climb_wall" ? 1 : 0.14} />
           <rect x={0} y={FLOOR_Y} width={1080} height={6} fill="#000" opacity={0.3} />
         </>
       )}
+      {/* Below the stage the ground runs on and darkens: the app sets the account's name and caption in white over this part. */}
+      <rect x={0} y={STAGE_H} width={1080} height={FRAME_H - STAGE_TOP - STAGE_H} fill="url(#bsG)" />
       {sweeping && (
         <>
           <rect x={0} y={sweepY - 60} width={1080} height={60} fill={look.accent} opacity={0.1} />
@@ -185,15 +194,15 @@ function Stage({ board, tl, look, t }: { board: Storyboard; tl: BoardTimeline; l
         const gap = Math.hypot(hand.x - q.x, hand.y - q.y);
         if (gap < 14 || gap > 170) return null;
         const col = toneColor(look, l.tone);
-        const w = l.label.length * 15.5 + 30;
+        const w = tagWidth(l.label);
         const lx = Math.max(10, Math.min(1070 - w, q.x - 20));
         return (
           <g key={i}>
             <line x1={hand.x} y1={hand.y} x2={q.x} y2={q.y} stroke={col} strokeWidth={5} strokeDasharray="10 10" />
             {l.label && (
               <>
-                <rect x={lx} y={Math.max(6, q.y - 92)} width={w} height={44} rx={8} fill={look.bg} stroke={col} strokeWidth={2} />
-                <text x={lx + 15} y={Math.max(6, q.y - 92) + 31} fontFamily={MONO} fontWeight={700} fontSize={24} fill={col}>{l.label.toUpperCase()}</text>
+                <rect x={lx} y={Math.max(6, q.y - 112)} width={w} height={TAG_H} rx={12} fill={look.bg} stroke={col} strokeWidth={3} />
+                <text x={lx + 22} y={Math.max(6, q.y - 112) + 46} fontFamily={MONO} fontWeight={700} fontSize={36} fill={col}>{l.label.toUpperCase()}</text>
               </>
             )}
           </g>
@@ -208,9 +217,9 @@ function Stage({ board, tl, look, t }: { board: Storyboard; tl: BoardTimeline; l
         // Beside the point, on the side with more room.
         const x = q.x + (q.x < 540 ? -50 : 50), y = q.y - 30;
         return (
-          <g key={i} transform={`translate(${Math.max(30, Math.min(1050, x))} ${Math.max(30, y)}) scale(${sc})`} opacity={fade(t, at)}>
-            <circle r={26} fill={look.accent} />
-            <text y={10} textAnchor="middle" fontFamily={fontFor(look.font)} fontWeight={700} fontSize={30} fill={inkOn(look.accent)}>{m.label}</text>
+          <g key={i} transform={`translate(${Math.max(44, Math.min(1036, x))} ${Math.max(44, y)}) scale(${sc})`} opacity={fade(t, at)}>
+            <circle r={32} fill={look.accent} />
+            <text y={12} textAnchor="middle" fontFamily={fontFor(look.font)} fontWeight={700} fontSize={36} fill={inkOn(look.accent)}>{m.label}</text>
           </g>
         );
       })}
@@ -218,11 +227,11 @@ function Stage({ board, tl, look, t }: { board: Storyboard; tl: BoardTimeline; l
       {board.tags.filter((g) => on(g.from, g.to)).map((g, i) => {
         const col = toneColor(look, g.tone);
         const w = tagWidth(g.text);
-        const x = Math.max(10, Math.min(1070 - w, g.x - w / 2));
+        const x = Math.max(16, Math.min(1064 - w, g.x - w / 2));
         return (
           <g key={i} opacity={fade(t, sec(g.from))}>
-            <rect x={x} y={g.y - 22} width={w} height={44} rx={8} fill={look.bg} stroke={col} strokeWidth={2} />
-            <text x={x + 15} y={g.y + 9} fontFamily={MONO} fontWeight={700} fontSize={24} fill={col}>{g.text.toUpperCase()}</text>
+            <rect x={x} y={g.y - TAG_H / 2} width={w} height={TAG_H} rx={12} fill={look.bg} stroke={col} strokeWidth={3} />
+            <text x={x + 22} y={g.y + 13} fontFamily={MONO} fontWeight={700} fontSize={36} fill={col}>{g.text.toUpperCase()}</text>
           </g>
         );
       })}
@@ -305,6 +314,15 @@ export function BoardScene({ board, look, signoff, voice }: { board: Storyboard;
   const steps = counter ? counter.steps.map((s) => ({ t: sec(s.at), v: s.value })).sort((a, b) => a.t - b.t) : [];
   const step = [...steps].reverse().find((s) => t >= s.t);
   const counterGood = counter && counter.goodAt.ph >= 0 && t >= sec(counter.goodAt);
+  const counterTo = counterEnd(board, tl);
+  const counterOn = !!counter && !!step && t < counterTo;
+  const counterO = counterOn ? interpolate(counterTo - t, [0, 0.3], [0, 1], clamp01) : 0;
+  // The captions keep one width for a whole phrase: narrower whenever the counter shows during it.
+  const besideCounter = !!counter && !!phrase && steps.length > 0 && steps[0].t < phrase.end && counterTo > phrase.start;
+  // The chapter label and its example chip share one line: the type steps down for a long label rather than running off the frame.
+  const labelChars = 3 + (chapter?.label.length ?? 0), chipChars = board.example.length;
+  const labelRoom = 940 - (counterOn ? 210 : 0) - 2 * labelChars - (chipChars ? 44 + 2 * chipChars : 0);
+  const labelSize = Math.max(20, Math.min(32, Math.floor(labelRoom / (0.6 * labelChars + 0.6 * 0.8 * chipChars))));
 
   const meter = board.meter;
   const mKeys = meter ? meter.keys.map((k) => ({ t: sec(k.at), v: k.value })).sort((a, b) => a.t - b.t) : [];
@@ -335,21 +353,21 @@ export function BoardScene({ board, look, signoff, voice }: { board: Storyboard;
       <Stage board={board} tl={tl} look={look} t={t} />
 
       {!inCard && chapter && (
-        <div style={{ position: "absolute", left: 70, top: 150, display: "flex", alignItems: "center", gap: 18, fontFamily: MONO, fontSize: 28, fontWeight: 500, letterSpacing: 2, textTransform: "uppercase", color: look.dim }}>
+        <div style={{ position: "absolute", left: 70, top: LABEL_TOP, display: "flex", alignItems: "center", gap: 18, fontFamily: MONO, fontSize: labelSize, fontWeight: 500, letterSpacing: 2, whiteSpace: "nowrap", textTransform: "uppercase", color: look.dim }}>
           <span>{"// "}{chapter.label}</span>
-          {board.example && <span style={{ border: `2px solid ${look.dim}`, borderRadius: 6, padding: "2px 10px", fontSize: 22 }}>{board.example}</span>}
+          {board.example && <span style={{ border: `2px solid ${look.dim}`, borderRadius: 6, padding: "2px 10px", fontSize: Math.round(labelSize * 0.8) }}>{board.example}</span>}
         </div>
       )}
 
-      {!inCard && counter && step && (
-        <div style={{ position: "absolute", right: 70, top: 128, textAlign: "right" }}>
-          <div style={{ fontFamily: MONO, fontSize: 24, letterSpacing: 2, color: look.dim, textTransform: "uppercase" }}>{counter.label}</div>
+      {!inCard && counter && step && counterOn && (
+        <div style={{ position: "absolute", right: 70, top: LABEL_TOP - 22, textAlign: "right", opacity: counterO }}>
+          <div style={{ fontFamily: MONO, fontSize: 28, letterSpacing: 2, color: look.dim, textTransform: "uppercase" }}>{counter.label}</div>
           <div style={{ fontFamily: font, fontWeight: 700, fontSize: 92, lineHeight: 1, fontVariantNumeric: "tabular-nums", color: counterGood ? look.accent : look.fg, transform: `scale(${interpolate(t - step.t, [0, 0.08, 0.2], [1.25, 0.95, 1], clamp01)})`, transformOrigin: "right center" }}>{step.v.toLocaleString("en-US")}</div>
         </div>
       )}
 
       {!inCard && phrase && (
-        <div style={{ position: "absolute", left: 70, right: counter ? 230 : 70, top: 220, fontFamily: font, fontWeight: 700, fontSize: look.font === "condensed" ? 100 : 78, lineHeight: 1.04, letterSpacing: look.font === "condensed" ? 0.5 : -1 }}>
+        <div style={{ position: "absolute", left: 70, right: besideCounter ? 230 : 70, top: CAPTION_TOP, fontFamily: font, fontWeight: 700, fontSize: look.font === "condensed" ? 106 : 84, lineHeight: 1.04, letterSpacing: look.font === "condensed" ? 0.5 : -1 }}>
           {phrase.words.map((w, i) => {
             const k = fade(t, w.t);
             return <span key={i} style={{ display: "inline-block", marginRight: "0.22em", color: w.em ? look.key : look.fg, opacity: k, transform: `translateY(${(1 - k) * 22}px)` }}>{up(w.w)}</span>;

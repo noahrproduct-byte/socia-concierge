@@ -34,6 +34,8 @@ export type BoardStamp = { text: string; tone: Tone; x: number; y: number; at: A
 export type BoardLink = { figure: string; hand: "lh" | "rh"; point: string; label: string; tone: Tone; from: At; to: At };
 export type BoardCard = { title: string; lines: string[]; x: number; y: number; w: number; from: At; to: At };
 export const END_ICONS = ["chat", "follow", "send"] as const;
+/** The longest line of an ending row. */
+export const END_LINE = 40;
 
 export type Storyboard = {
   version: 1;
@@ -182,7 +184,7 @@ export function cleanBoard(raw: unknown, sourceText: string): Storyboard | null 
       eyebrow: str(end.eyebrow, 30),
       title: [str(title[0], 22), str(title[1], 22)],
       rows: arr(end.rows, 3)
-        .map((x) => ({ icon: ((END_ICONS as readonly string[]).includes(String(x.icon)) ? x.icon : "chat") as (typeof END_ICONS)[number], a: str(x.a, 34), b: str(x.b, 34) }))
+        .map((x) => ({ icon: ((END_ICONS as readonly string[]).includes(String(x.icon)) ? x.icon : "chat") as (typeof END_ICONS)[number], a: str(x.a, END_LINE), b: str(x.b, END_LINE) }))
         .filter((x) => x.a),
     },
   };
@@ -196,15 +198,29 @@ export function cleanBoard(raw: unknown, sourceText: string): Storyboard | null 
   return board;
 }
 
-/** When a stamp leaves: when the next stamp or the flash comes in after it, else at the ending card. */
-export function stampEnd(b: Pick<Storyboard, "stamps" | "flash">, tl: BoardTimeline, i: number): number {
+/** When each chapter after the first starts, in seconds. */
+const chapterStarts = (b: Pick<Storyboard, "chapters">, tl: BoardTimeline): number[] =>
+  b.chapters.map((c) => tl.phrases[c.ph]?.start ?? 0).filter((t) => t > 0.05);
+
+/** When a stamp leaves: when the next stamp, the flash or the next chapter comes in after it, else at the ending card. A verdict on one part of the story never sits over the next part. */
+export function stampEnd(b: Pick<Storyboard, "stamps" | "flash" | "chapters">, tl: BoardTimeline, i: number): number {
   const at = atSeconds(tl, b.stamps[i].at);
-  const later = [...b.stamps.map((s) => atSeconds(tl, s.at)), ...(b.flash.ph >= 0 ? [atSeconds(tl, b.flash)] : [])].filter((t) => t > at + 0.05);
+  const later = [...b.stamps.map((s) => atSeconds(tl, s.at)), ...(b.flash.ph >= 0 ? [atSeconds(tl, b.flash)] : []), ...chapterStarts(b, tl)].filter((t) => t > at + 0.05);
   return Math.min(tl.card, ...later);
 }
 
+/** When the counter leaves: at the first chapter that starts after its last count (once that count has had a moment to be read), else at the ending card. A finished count doesn't stay over the rest of the story. */
+export function counterEnd(b: Pick<Storyboard, "counter" | "chapters">, tl: BoardTimeline): number {
+  if (!b.counter?.steps.length) return 0;
+  // Its last moment: the last count, or when it turns to the good colour if that comes later.
+  const last = Math.max(...b.counter.steps.map((s) => atSeconds(tl, s.at)), b.counter.goodAt.ph >= 0 ? atSeconds(tl, b.counter.goodAt) : 0);
+  const next = chapterStarts(b, tl).filter((t) => t > last + 0.05).sort((x, y) => x - y)[0];
+  return next === undefined ? tl.card : Math.min(tl.card, Math.max(next, last + 0.8));
+}
+
 /** How wide a label, a stamp and a card are drawn, so the layout check and the renderer agree. */
-export const tagWidth = (text: string) => text.length * 15.5 + 30;
+export const TAG_H = 68;
+export const tagWidth = (text: string) => text.length * 23 + 44;
 export const stampWidth = (text: string, condensed: boolean) => text.length * (condensed ? 34 : 44) + 60;
 export const cardHeight = (lines: number) => 124 + lines * 70;
 
@@ -216,7 +232,7 @@ function declutter(b: Storyboard): void {
   const placed: Box[] = b.cards.map((c) => ({ x0: c.x - c.w / 2, x1: c.x + c.w / 2, y: c.y, h: cardHeight(c.lines.length), from: atSeconds(tl, c.from), to: until(c.to) }));
   const movable: Box[] = [
     ...b.stamps.map((s, i) => { const w = stampWidth(s.text, false); return { x0: s.x - w / 2, x1: s.x + w / 2, y: s.y, h: 100, from: atSeconds(tl, s.at), to: stampEnd(b, tl, i), set: (y: number) => { s.y = y; } }; }),
-    ...b.tags.map((t) => { const w = tagWidth(t.text); return { x0: t.x - w / 2, x1: t.x + w / 2, y: t.y, h: 48, from: atSeconds(tl, t.from), to: until(t.to), set: (y: number) => { t.y = y; } }; }),
+    ...b.tags.map((t) => { const w = tagWidth(t.text); return { x0: t.x - w / 2, x1: t.x + w / 2, y: t.y, h: TAG_H + 4, from: atSeconds(tl, t.from), to: until(t.to), set: (y: number) => { t.y = y; } }; }),
   ];
   const hits = (a: Box, c: Box) => a.from < c.to && c.from < a.to && a.x0 < c.x1 && c.x0 < a.x1 && Math.abs(a.y - c.y) < (a.h + c.h) / 2 + 6;
   for (const m of movable) {
@@ -232,15 +248,62 @@ function declutter(b: Storyboard): void {
   }
 }
 
-/** Every line the viewer reads, in order, for the meaning check. */
+/** Every line the viewer reads, for the meaning check: each caption with what is on the stage while it is up, then the ending card. */
 export function boardWords(b: Storyboard): string {
+  const tl = boardTimeline(b);
+  const until = (to: At) => (to.ph < 0 ? tl.card : atSeconds(tl, to));
+  // On screen with a caption when they share a real stretch of it, not a few frames at its edge.
+  const during = (from: number, to: number, a: number, z: number) => Math.min(to, z) - Math.max(from, a) >= Math.min(0.4, (z - a) / 2, to - from);
+  const counterTo = counterEnd(b, tl);
+  const lines = tl.phrases.map((ph, i) => {
+    const chapter = [...b.chapters].sort((x, y) => y.ph - x.ph).find((c) => c.ph <= i);
+    const stage = [
+      ...b.cards.filter((c) => during(atSeconds(tl, c.from), until(c.to), ph.start, ph.end)).map((c) => `card "${c.title}"${c.lines.length ? ` (${c.lines.join("; ")})` : ""}`),
+      ...b.tags.filter((t) => during(atSeconds(tl, t.from), until(t.to), ph.start, ph.end)).map((t) => `label "${t.text}"`),
+      ...b.stamps.filter((s, k) => during(atSeconds(tl, s.at), stampEnd(b, tl, k), ph.start, ph.end)).map((s) => `stamp "${s.text}"`),
+      ...b.links.filter((l) => l.label && during(atSeconds(tl, l.from), until(l.to), ph.start, ph.end)).map((l) => `label "${l.label}"`),
+      ...(b.counter && during(Math.min(...b.counter.steps.map((s) => atSeconds(tl, s.at))), counterTo, ph.start, ph.end) ? [`counter "${b.counter.label}" up to ${Math.max(...b.counter.steps.map((s) => s.value))}`] : []),
+      ...(b.meter ? [`meter "${b.meter.label}"`] : []),
+    ];
+    return `${i + 1}. [${chapter?.label ?? "no chapter label"}] "${b.phrases[i].text}"${stage.length ? ` · on the stage: ${stage.join(", ")}` : ""}`;
+  });
   return [
-    `Story video. Captions: ${b.phrases.map((p) => p.text).join(" | ")}`,
-    b.chapters.length ? `Chapter labels: ${b.chapters.map((c) => c.label).join(" | ")}` : "",
-    b.example ? `[labelled ${b.example}]` : "",
-    b.counter ? `Counter: ${b.counter.label}, up to ${Math.max(...b.counter.steps.map((s) => s.value))}` : "",
-    b.meter ? `Meter: ${b.meter.label}` : "",
-    b.tags.length || b.stamps.length ? `On the stage: ${[...b.tags.map((t) => t.text), ...b.stamps.map((s) => s.text), ...b.links.map((l) => l.label)].filter(Boolean).join("; ")}` : "",
-    `Ending card: ${b.end.title.join(" ")} / ${b.end.rows.map((x) => `${x.a} ${x.b}`).join("; ")}`,
+    "Story video: captions appear one at a time over a stage of cards, labels and shapes. Each line below is one caption with what the stage shows while it is up.",
+    b.example ? `Illustrative content is marked on screen for the whole video with the label "${b.example}".` : "",
+    ...lines,
+    `Ending card: ${[b.end.eyebrow, b.end.title.join(" ")].filter(Boolean).join(" / ")} / ${b.end.rows.map((x) => `${x.a} ${x.b}`.trim()).join("; ")}`,
   ].filter(Boolean).join("\n");
+}
+
+/** Which icon an ask goes with. */
+const askIcon = (text: string): (typeof END_ICONS)[number] => (/\b(comment|reply)\b/i.test(text) ? "chat" : /\b(dm|message|send|share)\b/i.test(text) ? "send" : "follow");
+const askWords = (text: string) => new Set(text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 3));
+
+/**
+ * The ending asks for what the account itself asks for. When the account has
+ * its own call to action and the ending card doesn't already carry it, it
+ * becomes the card's first row, in the account's words; the writer's other
+ * rows follow, up to three in all. Pure.
+ */
+export function withOwnCta(b: Storyboard, cta: string | null | undefined, sourceText = ""): Storyboard {
+  const own = str(cta, 80).replace(/[“”]/g, '"');
+  if (!own) return b;
+  const want = askWords(own);
+  const kind = askIcon(own);
+  const said = [b.end.title.join(" "), ...b.end.rows.map((x) => `${x.a} ${x.b}`)];
+  const has = (text: string) => { const w = askWords(text); let n = 0; for (const x of want) if (w.has(x)) n++; return want.size > 0 && n / want.size >= 0.6; };
+  // Already there, or the ending already asks for the same kind of thing (a post's own "comment ..." ask stands).
+  if (said.some(has) || (kind !== "follow" && said.some((x) => askIcon(x) === kind))) return b;
+  if (inventsNumbers(own, numberTokens(`${sourceText} ${own}`))) return b;
+  // One line when it fits; otherwise two, split at the word boundary nearest the middle.
+  let a = own, second = "";
+  if (own.length > END_LINE) {
+    const words = own.split(" ");
+    let best = 1;
+    for (let i = 1; i < words.length; i++) if (Math.abs(words.slice(0, i).join(" ").length - own.length / 2) < Math.abs(words.slice(0, best).join(" ").length - own.length / 2)) best = i;
+    a = words.slice(0, best).join(" ").slice(0, END_LINE);
+    second = words.slice(best).join(" ").slice(0, END_LINE);
+  }
+  const row = { icon: kind, a, b: second };
+  return { ...b, end: { ...b.end, rows: [row, ...b.end.rows].slice(0, 3) } };
 }

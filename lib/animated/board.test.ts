@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { atSeconds, boardTimeline, boardWords, cleanBoard } from "./board";
+import { atSeconds, boardTimeline, boardWords, cleanBoard, counterEnd, stampEnd, withOwnCta } from "./board";
 import { EXAMPLE_BOARD } from "./board.example";
 import { specTimeline, type AnimatedSpec } from "./spec";
 
@@ -96,5 +96,57 @@ describe("the writer's answer", () => {
   });
   it("is told every block of the board", () => {
     for (const k of ["phrases", "chapters", "counter", "meter", "set", "points", "figures", "shapes", "tags", "markers", "stamps", "links", "cards", "sweep", "flash", "end"]) expect(STORY_SHAPE).toContain(`"${k}"`);
+  });
+});
+
+describe("what stays on screen", () => {
+  const at = (ph: number, dt = 0) => ({ ph, dt });
+  const b = cleanBoard({
+    phrases: ["You guess what to post", "Then wonder why it flopped", "Connect in a minute", "Click connect and allow", "It reads your own posts", "and plans your week"].map((text) => ({ text, em: "" })),
+    chapters: [{ ph: 0, label: "Before" }, { ph: 2, label: "Connecting" }, { ph: 4, label: "Your plan" }],
+    counter: { label: "Seconds", steps: [{ at: at(2, 0.4), value: 0 }, { at: at(3, 1), value: 60 }], goodAt: at(3, 1) },
+    stamps: [{ text: "Guess", tone: "bad", x: 540, y: 600, at: at(1, 0.4) }, { text: "Scheduled", tone: "accent", x: 540, y: 600, at: at(5, 0.5) }],
+    tags: [{ text: "Felt right", tone: "dim", x: 540, y: 400, from: at(0, 0.3), to: at(1, 0.2) }],
+    cards: [{ title: "Next week", lines: ["Mon, something trending"], x: 540, y: 250, w: 860, from: at(0), to: at(2) }],
+    end: { eyebrow: "Part 2 is next", title: ["Watch it plan", "a real account"], rows: [{ icon: "follow", a: "Follow for Part 2", b: "we run it on a real account" }, { icon: "follow", a: "Follow for Part 3", b: "approve and schedule" }] },
+  }, "60 seconds, Part 2 and Part 3")!;
+  const tl = boardTimeline(b);
+  it("takes a stamp down when the next chapter starts", () => {
+    expect(stampEnd(b, tl, 0)).toBe(tl.phrases[2].start);
+    expect(stampEnd(b, tl, 1)).toBe(tl.card);
+  });
+  it("takes the counter down at the chapter after its last count", () => {
+    expect(counterEnd(b, tl)).toBe(Math.max(tl.phrases[4].start, tl.phrases[3].start + 1 + 0.8));
+    expect(counterEnd({ ...b, chapters: b.chapters.slice(0, 2) }, tl)).toBe(tl.card);
+    expect(counterEnd({ ...b, counter: null }, tl)).toBe(0);
+  });
+  it("gives the check each caption with what is on the stage", () => {
+    const w = boardWords(b).split("\n");
+    expect(w.find((l) => l.startsWith("1."))).toContain('card "Next week"');
+    expect(w.find((l) => l.startsWith("1."))).toContain('label "Felt right"');
+    expect(w.find((l) => l.startsWith("2."))).toContain('stamp "Guess"');
+    expect(w.find((l) => l.startsWith("3."))).not.toContain("Guess");
+    expect(w.find((l) => l.startsWith("4."))).toContain('counter "Seconds" up to 60');
+    expect(w.find((l) => l.startsWith("6."))).not.toContain("counter");
+  });
+  it("puts the account's own ask first on the ending card", () => {
+    const e = withOwnCta(b, "Comment “EARLY ACCESS” for the link").end;
+    expect(e.rows).toHaveLength(3);
+    expect(e.rows[0]).toEqual({ icon: "chat", a: 'Comment "EARLY ACCESS" for the link', b: "" });
+    expect(e.rows[1].a).toBe("Follow for Part 2");
+  });
+  it("leaves an ending that already asks for it, or for the same kind of thing", () => {
+    const own = { ...b, end: { ...b.end, rows: [{ icon: "chat" as const, a: "Comment EARLY ACCESS", b: "for the link" }] } };
+    expect(withOwnCta(own, "Comment “EARLY ACCESS” for the link")).toBe(own);
+    const post = { ...b, end: { ...b.end, rows: [{ icon: "chat" as const, a: "Comment your handle", b: "Part 2 runs it on yours" }] } };
+    expect(withOwnCta(post, "Comment “EARLY ACCESS” for the link")).toBe(post);
+    expect(withOwnCta(b, null)).toBe(b);
+  });
+  it("splits a long ask over two lines and never adds an invented number", () => {
+    const e = withOwnCta(b, "DM us the word PLAN and we will send you the whole week").end.rows[0];
+    expect(e.icon).toBe("send");
+    expect(e.a.length).toBeLessThanOrEqual(40);
+    expect(e.b.length).toBeGreaterThan(0);
+    expect(`${e.a} ${e.b}`).toBe("DM us the word PLAN and we will send you the whole week");
   });
 });
