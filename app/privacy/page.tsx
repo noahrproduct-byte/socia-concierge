@@ -226,7 +226,10 @@ export default function PrivacyPage() {
           It also reads out a video&apos;s voiceover: only the words of each
           line and the chosen stock voice are sent, never your footage or your
           own voice. The voiced lines are stored privately with the
-          project&apos;s clips and deleted with them.
+          project&apos;s clips and deleted with them. For an animated video,
+          its captions and ending are sent the same way; SOCIA does not keep
+          that audio on its own, it goes to your browser and into the video
+          you save.
         </li>
         <li>
           <b>Higgsfield</b>: makes the videos and images in AI Studio. The

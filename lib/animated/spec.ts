@@ -90,6 +90,8 @@ export type AnimatedSpec = {
   board?: import("./board").Storyboard | null;
   /** The ending that asks for the goal: a line naming what the brand does and the account's own call to action. Shown instead of the comment question. */
   cta?: { line: string; action: string } | null;
+  /** A storyboard video's voiceover (lib/animated/voice.ts), kept in the browser that made it; used only while the captions still match it. */
+  voice?: import("./voice").BoardVoice | null;
   /** SOCIA's check of the words before the person saw them (lib/animated/write.ts): passed, or what is still off. */
   review?: { passed: boolean; problems: string[] } | null;
   /** The account's own look, from its video style (lib/animated/look.ts); SOCIA's own look when absent. */
@@ -404,7 +406,10 @@ export function sceneFrames(s: AnimatedScene): number {
 
 /** Where each scene starts, and the whole length, in frames. The sign-off adds a short end card. */
 export function specTimeline(spec: AnimatedSpec): { starts: number[]; frames: number[]; end: number; total: number } {
-  if (spec.board) return { starts: [], frames: [], end: 0, total: Math.round(boardTimeline(spec.board).total * ANIMATED_FPS) };
+  if (spec.board) {
+    const voice = voiceFits(spec.board, spec.voice) ? spec.voice : null;
+    return { starts: [], frames: [], end: 0, total: Math.round(boardTimeline(spec.board, voice?.words, voice?.end).total * ANIMATED_FPS) };
+  }
   if (spec.compare) return { starts: [], frames: [], end: 0, total: Math.round(COMPARE_TIMES.total * ANIMATED_FPS) };
   if (spec.counter) return { starts: [], frames: [], end: 0, total: Math.round(counterTimeline(spec.counter).total * ANIMATED_FPS) };
   const frames = spec.scenes.map(sceneFrames);
@@ -438,3 +443,4 @@ export function palette(spec: Pick<AnimatedSpec, "theme" | "accent"> & { look?: 
 
 // At the end: board.ts imports numberTokens from this file, and function declarations are hoisted.
 import { boardTimeline } from "./board";
+import { voiceFits } from "./voice";

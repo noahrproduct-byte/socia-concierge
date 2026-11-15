@@ -10,7 +10,7 @@ import { brandWorkspace, type Ctx } from "@/lib/context";
 import { brandLine } from "@/lib/aiStudio/captions";
 import { ACCENTS, boardSpec, cleanSpec, MAX_SCENES, type AnimatedSpec } from "./spec";
 import { lookFromStyle } from "./look";
-import { boardWords, cleanBoard } from "./board";
+import { boardWords, cleanBoard, withOwnCta } from "./board";
 import { STORY_SHAPE, STORY_SYSTEM } from "./boardWrite";
 import { pitchFromDetail, pitchLines } from "@/lib/brandPitch";
 import { readSavedStyle, type VideoStyle } from "@/lib/videoStyle";
@@ -161,16 +161,17 @@ export function jsonObject(text: string): unknown {
  * The storyboard video in a model's answer, or why there isn't one. The board
  * goes through cleanBoard and the caption and hashtags through the same checks
  * as every other video's. A board written at the top level instead of under
- * "board" is still read. Pure.
+ * "board" is still read. The ending carries the account's own call to action
+ * when it has one (withOwnCta). Pure.
  */
-export function storyFromAnswer(text: string, sourceText: string, signoff: string | null = null): { spec: AnimatedSpec; why?: undefined } | { spec: null; why: string } {
+export function storyFromAnswer(text: string, sourceText: string, signoff: string | null = null, ownCta: string | null = null): { spec: AnimatedSpec; why?: undefined } | { spec: null; why: string } {
   const raw = jsonObject(text) as { board?: unknown; phrases?: unknown; caption?: unknown; hashtags?: unknown } | null;
   if (!raw || typeof raw !== "object") return { spec: null, why: "the answer was not JSON" };
   const inner = raw.board && typeof raw.board === "object" ? raw.board : Array.isArray(raw.phrases) ? raw : null;
   if (!inner) return { spec: null, why: `the answer had no board (keys: ${Object.keys(raw).slice(0, 8).join(", ") || "none"})` };
   const board = cleanBoard(inner, sourceText);
   if (!board) return { spec: null, why: "the board had fewer than three captions" };
-  return { spec: boardSpec(board, raw, sourceText, { signoff }) };
+  return { spec: boardSpec(withOwnCta(board, ownCta, sourceText), raw, sourceText, { signoff }) };
 }
 
 /** A spec from the wire, storyboard or template, cleaned like any model answer. Null when nothing usable is left. Pure. */
@@ -190,10 +191,11 @@ const REVIEW_SCHEMA = {
 
 const REVIEW_SYSTEM = `You check the words of a short animated social video before its owner sees it. You get what the brand is and wants, the planned post, and every line the viewer will read, in order. Answer passed only when ALL of these hold:
 1. It makes one clear point a person in the brand's audience would get and care about.
-2. That point moves them toward the owner's main goal.
-3. When the brand sells or makes something, the brand is named once and the video says plainly what it does for this problem.
-4. Nothing claims a result for the brand's product (no numbers or "faster/better" about it), and no number is presented as fact unless it is labelled as an example.
-5. The words match what is on screen: a comparison is shown as options side by side, a counter as one number going up; nothing mentions bars, charts or rings.
+2. That point moves them toward the owner's main goal. The ending asks for something: the ask the planned post names for its ending, or else the account's own call to action when it has one.
+3. When the brand sells or makes something, the brand is named at least once, anywhere in the video, and the video says plainly what it does for this problem.
+4. Nothing invents a result for the brand's product, and no invented number is presented as fact. A number, a time or a claim that is written in the planned post or in the brand details is the owner's own and is allowed as written. Content marked on screen as an example is allowed. Saying what the product does (it reads, plans, schedules, scores) is a description, not a result.
+5. The words match what is on screen. In a template video: a comparison is shown as options side by side, a counter as one number going up, and nothing mentions bars, charts or rings. In a story video: each label, stamp and card fits the caption it appears with.
+Judge only by these rules. Do not add requirements of your own (where in the video the brand is named, how long it is, its style), and do not fail it for something the planned post itself asked for.
 problems: each failure as one short sentence saying what to change. Empty when passed.`;
 
 /** Every line the viewer reads, in order, for the check. Pure. */
@@ -285,7 +287,7 @@ export async function writeAnimatedSpec(ctx: Ctx, post: AnimatedSource, opts: { 
       // Every way a storyboard is dropped says why, so a fallback to the templates is never silent.
       if (res.stop_reason === "refusal" || res.stop_reason === "max_tokens") { console.error(`[animated/story] dropped: the answer stopped early (${res.stop_reason})`); return null; }
       const block = res.content.find((b: { type: string }) => b.type === "text");
-      const out = storyFromAnswer(block && "text" in block ? (block as { text: string }).text : "", `${brand}\n${about}\n${lines.join("\n")}\n${opts.change ?? ""}`, profile?.brand_name ?? null);
+      const out = storyFromAnswer(block && "text" in block ? (block as { text: string }).text : "", `${brand}\n${about}\n${lines.join("\n")}\n${opts.change ?? ""}`, profile?.brand_name ?? null, pitch.cta);
       if (!out.spec) console.error(`[animated/story] dropped: ${out.why}`);
       return out.spec;
     } catch (e) {
