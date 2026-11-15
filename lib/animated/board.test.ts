@@ -49,3 +49,18 @@ describe("the storyboard", () => {
   it("needs a story", () => expect(cleanBoard({ phrases: [{ text: "One", em: "" }] }, "")).toBeNull());
   it("gives the meaning check every line", () => expect(boardWords(board)).toContain("Their beta isn't your beta."));
 });
+
+import { jsonObject } from "./write";
+import { STORY_SHAPE } from "./boardWrite";
+describe("the writer's answer", () => {
+  it("is read from plain JSON, a code fence or stray words around it", () => {
+    expect(jsonObject('{"board":{"phrases":[]}}')).toEqual({ board: { phrases: [] } });
+    expect(jsonObject('```json\n{"a":1}\n```')).toEqual({ a: 1 });
+    expect(jsonObject('Here it is: {"a":{"b":2}} Done.')).toEqual({ a: { b: 2 } });
+    expect(jsonObject("no json here")).toBeNull();
+    expect(jsonObject('{"a": ')).toBeNull();
+  });
+  it("is told every block of the board", () => {
+    for (const k of ["phrases", "chapters", "counter", "meter", "set", "points", "figures", "shapes", "tags", "markers", "stamps", "links", "cards", "sweep", "flash", "end"]) expect(STORY_SHAPE).toContain(`"${k}"`);
+  });
+});

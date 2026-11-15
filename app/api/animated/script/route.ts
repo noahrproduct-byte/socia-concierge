@@ -10,8 +10,8 @@ import { aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/aiStatus";
 import type { Deliverable } from "@/lib/schema";
 
 export const runtime = "nodejs";
-// Writing, the meaning check, and at most one rewrite.
-export const maxDuration = 180;
+// Writing a storyboard, the meaning check, and at most one rewrite.
+export const maxDuration = 300;
 
 // "Make it with AI", animated style: the scenes for one post of a saved
 // content plan, or for a Calendar draft that is waiting for its video (written
