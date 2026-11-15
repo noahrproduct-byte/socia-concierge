@@ -17,6 +17,7 @@ import { getEntitlements, type Entitlements } from "./entitlements";
 import { PLANS, formatPrice, nextPlan, pricingHref } from "./plans";
 import { bonusCapUsd } from "./referrals/core";
 import { BOOST_CAP_USD } from "./retention/core";
+import { PERK_CAP_USD } from "./perks/core";
 
 /** USD per million input / output tokens, by model family. */
 const TOKEN_PRICES: { match: RegExp; input: number; output: number }[] = [
@@ -85,8 +86,8 @@ export async function spendState(ownerId: string, ent: Entitlements, now = new D
   const svc = createServiceClient();
   if (!svc) return null;
   // The plan's ceiling, plus a little room for each invitation that counts right now (lib/referrals/core.ts)
-  // and for a stay boost that is on (lib/retention/core.ts).
-  const capUsd = (PLANS[ent.plan]?.aiSpendCapUsd ?? 0) + bonusCapUsd(ent.invites ?? 0) + (ent.boost ? BOOST_CAP_USD : 0);
+  // and for a stay boost (lib/retention/core.ts) or a perk (lib/perks/core.ts) that is on.
+  const capUsd = (PLANS[ent.plan]?.aiSpendCapUsd ?? 0) + bonusCapUsd(ent.invites ?? 0) + (ent.boost ? BOOST_CAP_USD : 0) + (ent.perk ? PERK_CAP_USD : 0);
   const { data, error } = await svc.from("ai_spend").select("micro_usd").eq("user_id", ownerId).eq("month", monthKey(now)).maybeSingle();
   if (error) {
     if (!missing(error)) console.error("[ai-spend] can't read:", error.message);

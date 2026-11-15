@@ -13,7 +13,7 @@ const as = (uid: string) => ({ role: "authenticated", uid }) as const;
 const anon = { role: "anon" } as const;
 
 beforeAll(async () => {
-  ({ db } = await freshDatabase({ before: { "security-hardening.sql": seed }, rerun: ["referrals.sql", "cancel-flow.sql"] }));
+  ({ db } = await freshDatabase({ before: { "security-hardening.sql": seed }, rerun: ["referrals.sql", "cancel-flow.sql", "perks.sql"] }));
   await db.exec(`
     insert into public.referral_codes (user_id, code) values ('${U.A}', 'aaaa2345'), ('${U.B}', 'bbbb2345');
     insert into public.referrals (referred_id, referrer_id, qualified_at) values ('${U.B}', '${U.A}', now());
@@ -72,6 +72,11 @@ describe("why people cancel (cancel_feedback)", () => {
   it("takes only a listed reason and outcome", async () => {
     await expect(db.query(`insert into public.cancel_feedback (user_id, plan, reason, outcome) values ('${U.A}', 'starter', 'because', 'stayed')`)).rejects.toThrow();
     await expect(db.query(`insert into public.cancel_feedback (user_id, plan, reason, outcome) values ('${U.A}', 'starter', 'other', 'maybe')`)).rejects.toThrow();
+  });
+  it("keeps the perk out of reach of the person it is for", async () => {
+    expect((await refused(db, as(U.A), `update public.referral_bonuses set perk_until = now() + interval '30 days', first_week_at = null, streak_at = null where user_id = '${U.A}'`)).refused).toBe(true);
+    await db.query(`update public.referral_bonuses set perk_until = now() + interval '30 days', first_week_at = now() where user_id = '${U.A}'`);
+    expect((await rowsAs<{ perk_until: string | null }>(db, as(U.A), `select perk_until from public.referral_bonuses`))[0]?.perk_until).toBeTruthy();
   });
   it("keeps the stay boost out of reach of the person it is for", async () => {
     expect((await refused(db, as(U.A), `update public.referral_bonuses set boost_until = now() + interval '30 days', boost_given_at = null where user_id = '${U.A}'`)).refused).toBe(true);
