@@ -49,7 +49,7 @@ describe("ai-media storage", () => {
   it("is private and capped by size and type", async () => {
     const [b] = (await db.query<{ public: boolean; file_size_limit: string; allowed_mime_types: string[] }>(`select public, file_size_limit, allowed_mime_types from storage.buckets where id = 'ai-media'`)).rows;
     expect(b.public).toBe(false);
-    expect(Number(b.file_size_limit)).toBe(2000 * 1024 * 1024);
+    expect(Number(b.file_size_limit)).toBe(5000 * 1024 * 1024);
     expect(b.allowed_mime_types).toEqual(["video/mp4", "video/quicktime", "video/3gpp", "image/jpeg", "image/png", "image/webp"]);
   });
 
