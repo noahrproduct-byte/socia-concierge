@@ -1758,3 +1758,7 @@
 .sd-wave-detail { height: 88px; }
 .sd-wave-note { font-size: var(--fs-meta); color: var(--text-muted); }
 .sd-nudge { min-width: 2rem; font-size: var(--fs-meta); font-variant-numeric: tabular-nums; }
+.sd-subtabs { display: flex; gap: var(--sp-1); flex-wrap: wrap; }
+.sd-subtab { padding: var(--sp-1) var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-pill); background: var(--surface); color: var(--text-secondary); font: inherit; font-size: var(--fs-meta); cursor: pointer; }
+.sd-subtab.is-on { background: var(--primary); border-color: var(--primary); color: #fff; }
+.sd-subtab:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }

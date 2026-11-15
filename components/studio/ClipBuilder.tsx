@@ -163,6 +163,8 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   const [section, setSection] = useState<Panel | null>(initialPanel ? PANEL_FOR[initialPanel] ?? null : null);
   const setPanel = useCallback((id: Panel | keyof typeof PANEL_FOR) => { setSection((PANEL_FOR[id as string] ?? id) as Panel); }, []);
   const toggleTool = useCallback((id: Panel) => setSection((cur) => (cur === id ? null : id)), []);
+  // The Look tool in four short pages (it was one five-screen scroll).
+  const [lookTab, setLookTab] = useState<"look" | "type" | "frame" | "fix">("look");
   const [presets, setPresets] = useState<VideoPresets>({ brand: null, templates: [] });
   const [tplName, setTplName] = useState("");
   const [styleNote, setStyleNote] = useState<string | null>(null);
@@ -1300,8 +1302,15 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
         )}
         {section === "look" && (
           <section className="sd-tool-body" aria-labelledby="sd-tool-look">
+          <nav className="sd-subtabs" aria-label="Look">
+            {([["look", "Look"], ["type", "Type and brand"], ["frame", "Size and framing"], ["fix", "Corrections"]] as const).map(([id, label]) => (
+              <button key={id} type="button" className={`sd-subtab${lookTab === id ? " is-on" : ""}`} aria-pressed={lookTab === id} onClick={() => setLookTab(id)}>{label}</button>
+            ))}
+          </nav>
+          {lookTab === "look" && (
           <EffectsPanel edl={edl} sources={sources} theme={theme} index={0} canEdit={data.canEdit} busy={busy} fixture={Boolean(fixture)} list={false} cut={false} onSelect={() => undefined} onMotion={setMotion} onStabilize={setStabilize} onLook={(grade) => override({ color: { grade } })} onSources={() => undefined} />
-          {(
+          )}
+          {lookTab === "type" && (
             <div className="cbb-frame cbb-style">
               <div className="ov-card">
                 <b><Palette size={14} /> Text</b>
@@ -1346,7 +1355,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               </div>
             </div>
           )}
-          {(
+          {lookTab === "frame" && (
             <div className="cbb-frame">
               <div className="ov-card">
                 <b><Crop size={14} /> Size</b>
@@ -1380,7 +1389,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               </ol>
             </div>
           )}
-          {(
+          {lookTab === "fix" && (
             <FinishPanel edl={edl} sources={sources} canEdit={data.canEdit} busy={busy} initialMeasures={measures} onCommit={(next) => { commit(next); setCompare("after"); }} />
           )}
           </section>
