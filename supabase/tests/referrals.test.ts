@@ -1,7 +1,8 @@
 // Invite a friend (supabase/referrals.sql): a person's code, who invited whom,
 // and what each person currently has from invitations. A signed-in person can
 // read their own rows and write none of them; only SOCIA's server writes. The
-// file runs twice without harm.
+// file runs twice without harm. Also the answers people give when cancelling
+// (supabase/cancel-flow.sql): closed to every browser session.
 
 import { beforeAll, describe, expect, it } from "vitest";
 import { freshDatabase, refused, rowsAs, type Db } from "./harness";
@@ -12,7 +13,7 @@ const as = (uid: string) => ({ role: "authenticated", uid }) as const;
 const anon = { role: "anon" } as const;
 
 beforeAll(async () => {
-  ({ db } = await freshDatabase({ before: { "security-hardening.sql": seed }, rerun: ["referrals.sql"] }));
+  ({ db } = await freshDatabase({ before: { "security-hardening.sql": seed }, rerun: ["referrals.sql", "cancel-flow.sql"] }));
   await db.exec(`
     insert into public.referral_codes (user_id, code) values ('${U.A}', 'aaaa2345'), ('${U.B}', 'bbbb2345');
     insert into public.referrals (referred_id, referrer_id, qualified_at) values ('${U.B}', '${U.A}', now());
@@ -57,5 +58,24 @@ describe("the tables' own rules", () => {
     await expect(db.query(`insert into public.referrals (referred_id, referrer_id) values ('${U.O}', '${U.O}')`)).rejects.toThrow();
     await expect(db.query(`update public.referral_bonuses set active = 6 where user_id = '${U.A}'`)).rejects.toThrow();
     await expect(db.query(`insert into public.referral_codes (user_id, code) values ('${U.O}', 'Bad Code!')`)).rejects.toThrow();
+  });
+});
+
+describe("why people cancel (cancel_feedback)", () => {
+  it("is kept by the server and closed to every browser session", async () => {
+    await db.query(`insert into public.cancel_feedback (user_id, plan, reason, detail, outcome) values ('${U.A}', 'starter', 'too_expensive', null, 'continued')`);
+    expect((await refused(db, as(U.A), `select * from public.cancel_feedback`)).refused).toBe(true);
+    expect((await refused(db, anon, `select * from public.cancel_feedback`)).refused).toBe(true);
+    expect((await refused(db, as(U.A), `insert into public.cancel_feedback (user_id, plan, reason, outcome) values ('${U.A}', 'starter', 'other', 'stayed')`)).refused).toBe(true);
+    expect((await refused(db, as(U.A), `delete from public.cancel_feedback`)).refused).toBe(true);
+  });
+  it("takes only a listed reason and outcome", async () => {
+    await expect(db.query(`insert into public.cancel_feedback (user_id, plan, reason, outcome) values ('${U.A}', 'starter', 'because', 'stayed')`)).rejects.toThrow();
+    await expect(db.query(`insert into public.cancel_feedback (user_id, plan, reason, outcome) values ('${U.A}', 'starter', 'other', 'maybe')`)).rejects.toThrow();
+  });
+  it("keeps the stay boost out of reach of the person it is for", async () => {
+    expect((await refused(db, as(U.A), `update public.referral_bonuses set boost_until = now() + interval '30 days', boost_given_at = null where user_id = '${U.A}'`)).refused).toBe(true);
+    await db.query(`update public.referral_bonuses set boost_until = now() + interval '30 days', boost_given_at = now() where user_id = '${U.A}'`);
+    expect((await rowsAs<{ boost_until: string | null }>(db, as(U.A), `select boost_until from public.referral_bonuses`))[0]?.boost_until).toBeTruthy();
   });
 });
