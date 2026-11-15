@@ -7,6 +7,10 @@ import { recordVoice } from "@/lib/aiUsage";
 import { listVoices, speakLine, VoiceError, voiceConfigured } from "@/lib/voiceover/elevenlabs";
 import { VOICE_MAX_CHARS, voiceScript, wordStarts } from "@/lib/animated/voice";
 import { END_ICONS } from "@/lib/animated/board";
+import { pickVoice } from "@/lib/animated/voicePick";
+import { loadVoiceUses } from "@/lib/animated/voicePickLoad";
+import { savedVideoStyle } from "@/lib/videoStyleLoad";
+import { readHeard } from "@/lib/voiceRead";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -16,6 +20,9 @@ export const maxDuration = 120;
 // word is spoken so the captions and the stage follow the voice. The audio is
 // returned to the browser that asked (the video is rendered there); nothing is
 // stored. Counts one voiceover on the plan, given back when it fails.
+//   GET  -> { voices, pick }: the voices to choose from and the one SOCIA would use, chosen from
+//           how this account's own voiced videos performed, starting from the kind of voice its own
+//           and its competitors' best Reels use (lib/animated/voicePick.ts). Nothing is counted.
 //   POST { phrases: string[], end: { title: [string, string], rows: [{ a, b }] }, voiceId? }
 //     -> { audio (base64 MP3), words, end, text, voice: { id, name } }
 
@@ -23,6 +30,23 @@ const clean = (v: unknown, n: number) => (typeof v === "string" ? v.replace(/\s+
 
 function voiceErr(e: VoiceError) {
   return NextResponse.json({ error: e.message, kind: e.kind, notConfigured: e.kind === "not_configured" }, { status: e.kind === "busy" ? 429 : e.kind === "not_configured" ? 503 : e.kind === "rejected" ? 400 : 502 });
+}
+
+export async function GET() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  if (!voiceConfigured()) return NextResponse.json({ voices: [], pick: null, notConfigured: true });
+  const ctx = await resolveContext(supabase, user.id);
+  try {
+    const voices = await listVoices();
+    const [uses, style] = await Promise.all([loadVoiceUses(ctx).catch(() => []), savedVideoStyle(ctx).catch(() => null)]);
+    // What the account's own and its competitors' best Reels sound like, from the last video style read.
+    return NextResponse.json({ voices, pick: pickVoice(voices, uses, readHeard(style?.measured?.voice)) });
+  } catch (e) {
+    const msg = e instanceof VoiceError ? e.message : "The voice list couldn't be loaded just now.";
+    return NextResponse.json({ voices: [], pick: null, error: msg }, { status: 502 });
+  }
 }
 
 export async function POST(req: Request) {

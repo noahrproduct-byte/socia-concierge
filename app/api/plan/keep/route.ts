@@ -94,21 +94,33 @@ export async function POST(req: Request) {
   }
 
   let compTotal: number | null = null;
+  // What the database function checks the kept list against: its length once validated per brand above.
+  let keepCap = competitorLimit;
   if (competitors) {
-    const { data, error } = await supabase.from("tracked_competitors").select("platform, handle").eq("user_id", user.id);
+    const { data, error } = await supabase.from("tracked_competitors").select("workspace_id, platform, handle").eq("user_id", user.id);
     if (error) return fail(error, "Could not read your competitors.");
-    const rows = (data ?? []) as { platform: string; handle: string }[];
+    const rows = (data ?? []) as { workspace_id: string | null; platform: string; handle: string }[];
     compTotal = rows.length;
     const known = new Set(rows.map((r) => `${r.platform}:${r.handle}`));
     if (competitors.some((k) => !known.has(k))) {
       return NextResponse.json({ error: "One of those competitors is not on your list." }, { status: 400 });
     }
-    if (competitors.length > competitorLimit) {
+    // The limit is per brand (2026-11-15). A kept handle stays active in every
+    // brand that tracks it, so no brand may end up over the limit.
+    const kept = new Set(competitors);
+    const perBrand = new Map<string, number>();
+    for (const r of rows) {
+      if (!kept.has(`${r.platform}:${r.handle}`)) continue;
+      const k = r.workspace_id ?? "";
+      perBrand.set(k, (perBrand.get(k) ?? 0) + 1);
+    }
+    if (Math.max(0, ...perBrand.values()) > competitorLimit) {
       return NextResponse.json(
-        { error: `${ent.config.name} supports ${competitorLimit} ${competitorLimit === 1 ? "competitor" : "competitors"}. Choose ${competitorLimit} to keep.` },
+        { error: `${ent.config.name} supports ${competitorLimit} ${competitorLimit === 1 ? "competitor" : "competitors"} in each brand. Keep ${competitorLimit} or fewer in each.` },
         { status: 400 },
       );
     }
+    keepCap = competitors.length;
   }
 
   // ---- Apply, in one privileged call ---------------------------------------
@@ -120,7 +132,7 @@ export async function POST(req: Request) {
     p_accounts: accounts ?? null,
     p_competitors: competitors ?? null,
     p_account_limit: accountLimit,
-    p_competitor_limit: competitorLimit,
+    p_competitor_limit: keepCap,
   });
   if (error) {
     if (isMissingSchema(error)) return NextResponse.json({ error: MIGRATION_MESSAGE }, { status: 409 });

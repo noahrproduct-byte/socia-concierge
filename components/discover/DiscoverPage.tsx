@@ -206,7 +206,7 @@ export default function DiscoverPage({ d }: { d: DiscoverData }) {
       <section className="ov-card cx2-card" aria-labelledby="dsc-comp">
         <div className="cx2-card-head">
           <h2 id="dsc-comp"><Users size={14} /> Your competitors</h2>
-          <span className="cx2-micro">{d.competitors.length} of {d.limit} on your plan</span>
+          <span className="cx2-micro">{d.competitors.length} of {d.limit} for this brand</span>
         </div>
         {d.competitors.length === 0 ? (
           <div className="dsc-empty">

@@ -65,6 +65,8 @@ export type VideoStyle = {
   measured: {
     own: { seconds: number | null; cutsPer10s: number | null; palette: Swatch[] };
     competitors: { seconds: number | null; cutsPer10s: number | null };
+    /** What the Reels sound like and the pitch of each voice SOCIA can use (lib/voiceRead.ts); absent on reads made before it was measured. */
+    voice?: import("./voiceRead").HeardVoices;
   };
   /** From the account's own Reels. */
   identity: {

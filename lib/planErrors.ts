@@ -92,11 +92,13 @@ export function limitError(plan: PlanId, limit: LimitKey, max: number, used?: nu
   const required = minPlanWithLimit(limit, max + 1);
   const { cta, href } = upgradeCta(required, "View");
   const platforms = WORKSPACE_PLATFORMS.map((p) => PLATFORM_NAME[p]).join(", ");
+  // Competitors are counted per brand (2026-11-15).
+  const scope = limit === "competitors" ? " in this brand" : "";
   const error = limit === "workspaces"
     ? `${PLANS[plan].name} includes ${max} ${unit}. Each workspace holds one account on each of ${platforms}.`
     : used != null
-      ? `You are using ${used} of ${max} ${unit} on ${PLANS[plan].name}.`
-      : `${PLANS[plan].name} includes ${max} ${unit}.`;
+      ? `You are using ${used} of ${max} ${unit}${scope} on ${PLANS[plan].name}.`
+      : `${PLANS[plan].name} includes ${max} ${unit}${scope ? " per brand" : ""}.`;
   return {
     error,
     code: "limit_reached", plan, planName: PLANS[plan].name,

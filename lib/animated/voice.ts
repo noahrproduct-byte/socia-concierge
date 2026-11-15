@@ -87,3 +87,18 @@ export function voiceFits(board: Pick<Storyboard, "phrases" | "end">, voice: Boa
   const { captions } = voiceScript(board);
   return voice.text === captions && voice.words.length === captions.split(/\s+/).filter(Boolean).length;
 }
+
+/**
+ * A voice as the picker shows it. The service names its stock voices like
+ * "Bella - Professional, Bright, Warm" and describes them in a sentence; the
+ * picker needs the name and a few words. Pure.
+ */
+export function voiceLabel(v: { name: string; description?: string | null }): { name: string; traits: string; label: string } {
+  const [first, ...rest] = v.name.split(/\s+[-–—]\s+/);
+  const name = (first || v.name).trim();
+  // The traits after the name; without them, the opening clause of the description.
+  const fromName = rest.join(", ").trim();
+  const fromText = (v.description ?? "").split(/[.;:]|,?\s+(?:with|ready|perfect|great|ideal|that|who)\b/i)[0].replace(/^(this voice is|a|an)\s+/i, "").trim().split(/\s+/).slice(0, 4).join(" ");
+  const traits = (fromName || fromText).replace(/\s+/g, " ").toLowerCase().split(/,\s*/).filter(Boolean).slice(0, 3).join(", ").slice(0, 48);
+  return { name, traits, label: traits ? `${name} (${traits})` : name };
+}

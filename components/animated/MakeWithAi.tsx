@@ -15,7 +15,7 @@ import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import { ACCENTS, ANIMATED_FPS, ANIMATED_SIZE, specTimeline, type AnimatedCompare, type AnimatedCounter, type AnimatedScene, type AnimatedSpec, type AnimatedTheme, type CompareHeadline } from "@/lib/animated/spec";
 import { AnimatedComposition } from "./AnimatedComposition";
 import type { Storyboard } from "@/lib/animated/board";
-import { voiceFits, type BoardVoice } from "@/lib/animated/voice";
+import { voiceFits, voiceLabel, type BoardVoice } from "@/lib/animated/voice";
 import type { VoiceChoice } from "@/lib/studioClips/voiceover";
 
 type Phase =
@@ -91,14 +91,17 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
   const [voices, setVoices] = useState<VoiceChoice[] | null>(null);
   const [voiceOff, setVoiceOff] = useState(false);
   const [voiceId, setVoiceId] = useState("");
+  const [pickLine, setPickLine] = useState("");
   const [voicing, setVoicing] = useState(false);
   const [voiceErr, setVoiceErr] = useState<string | null>(null);
   useEffect(() => {
     if (!isBoard || voices) return;
     let alive = true;
-    fetch("/api/studio/voices").then((r) => r.json().catch(() => null)).then((j: { voices?: VoiceChoice[]; notConfigured?: boolean } | null) => {
+    fetch("/api/animated/voice").then((r) => r.json().catch(() => null)).then((j: { voices?: VoiceChoice[]; pick?: { voiceId: string | null; line: string; note?: string } | null; notConfigured?: boolean } | null) => {
       if (!alive) return;
       setVoices(j?.voices ?? []);
+      // SOCIA's own choice, from how this account's voiced videos performed; the person can pick another.
+      if (j?.pick?.voiceId) { setVoiceId(j.pick.voiceId); setPickLine([j.pick.line, j.pick.note].filter(Boolean).join(" ")); }
       if (j?.notConfigured || !j?.voices?.length) setVoiceOff(true);
     }).catch(() => { if (alive) { setVoices([]); setVoiceOff(true); } });
     return () => { alive = false; };
@@ -114,10 +117,12 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
         phrases: spec.board.phrases.map((p) => p.text), end: { title: spec.board.end.title, rows: spec.board.end.rows.slice(0, 1) }, voiceId: voiceId || voices?.[0]?.id,
       });
       const bytes = Uint8Array.from(atob(r.audio), (c) => c.charCodeAt(0));
-      const url = URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }));
+      // Brought up to the level a Reel is heard at before it is played or rendered.
+      const { voiceBlob } = await import("./voiceAudio");
+      const url = URL.createObjectURL(await voiceBlob(bytes));
       if (voiceUrl.current) URL.revokeObjectURL(voiceUrl.current);
       voiceUrl.current = url;
-      const voice: BoardVoice = { url, words: r.words, end: r.end, text: r.text, voiceId: r.voice.id, voiceName: r.voice.name };
+      const voice: BoardVoice = { url, words: r.words, end: r.end, text: r.text, voiceId: r.voice.id, voiceName: voiceLabel(r.voice).name };
       setSpec((x) => (x ? { ...x, voice } : x));
     } catch (e) {
       setVoiceErr((e as Error).message);
@@ -148,8 +153,10 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
       await uploadMedia(supabase, "scheduled-media", path, new File([blob], "video.mp4", { type: "video/mp4" }), (sent, all) => setPhase({ kind: "uploading", progress: all ? sent / all : 0 }));
       setPhase({ kind: "saving" });
       const caption = [spec.caption, spec.hashtags.map((t) => `#${t}`).join(" ")].filter(Boolean).join("\n\n");
+      // The voice the video was really rendered with, kept on the post so its result can count for that voice.
+      const voice = spec.board && voiceFits(spec.board, spec.voice) ? { id: spec.voice.voiceId, name: spec.voice.voiceName } : undefined;
       const r = await post<{ href: string; post?: ScheduledPost }>("/api/animated/draft",
-        source.kind === "plan" ? { path, caption, planId: source.planId, planDay: source.day } : { path, postId: source.postId });
+        source.kind === "plan" ? { path, caption, planId: source.planId, planDay: source.day, voice } : { path, postId: source.postId, voice });
       if (r.post) onAttached?.(r.post);
       setPhase({ kind: "done", href: r.href });
     } catch (e) {
@@ -235,7 +242,7 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
                 <Field label="Voiceover" hint="A voice reads the captions and the ending, and the captions follow it word by word. Each one you make uses one voiceover from your plan.">
                   <Select value={voiceId || voices?.[0]?.id || ""} disabled={busy || voicing || voiceOff || !voices?.length} onChange={(e) => setVoiceId(e.target.value)}>
                     {!voices?.length && <option value="">{voices ? "No voices available" : "Loading voices"}</option>}
-                    {voices?.map((v) => <option key={v.id} value={v.id}>{v.description ? `${v.name}: ${v.description.split(",")[0]}` : v.name}</option>)}
+                    {voices?.map((v) => <option key={v.id} value={v.id}>{voiceLabel(v).label}</option>)}
                   </Select>
                 </Field>
                 <div className="mwa-change">
@@ -244,6 +251,7 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
                   {voiceErr && <small role="alert">{voiceErr}</small>}
                 </div>
                 {voiceOff && <p className="mwa-note">Voiceovers aren&apos;t available in SOCIA right now.</p>}
+                {!voiceOff && pickLine && !spec.voice && <p className="mwa-note">{pickLine} You can pick another.</p>}
                 {voiceOn && spec.voice && <p className="mwa-note" role="status">Voiceover by {spec.voice.voiceName}. Unmute the preview to hear it.</p>}
                 {spec.voice && !voiceOn && <p className="mwa-note" role="status">The captions changed after the voiceover was made, so it is off. Make it again to match the new words.</p>}
               </div>
