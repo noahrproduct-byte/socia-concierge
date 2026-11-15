@@ -20,13 +20,50 @@ import { styleKey } from "./discoverStyle";
 import { freshDetail, currentDetail } from "./intel/understandLoad";
 import { ffmpeg, readableVideo } from "./nicheScan/frames";
 import type { BrandDetail } from "./profile";
+import { VOICE_READ_RATE, readVoice, voiceKind, type VoiceRead } from "./voiceRead";
+import { listVoices, voiceConfigured } from "./voiceover/elevenlabs";
 import { FONTS, LOGO_SPOTS, OWN_REELS, COMPETITOR_REELS, OWN_FRAMES, COMPETITOR_FRAMES, averageOf, cleanStyleRead, cutTimes, cutsPer10s, mergePalettes, paletteFromPixels, readSavedStyle, type StyleSource, type Swatch, type VideoStyle } from "./videoStyle";
 
 const MAX_VIDEO_BYTES = 40_000_000;
 const STEP_TIMEOUT_MS = 20_000;
 
 type Candidate = { source: StyleSource; video: string; frames: number; own: boolean };
-type Measured = { c: Candidate; seconds: number | null; cuts: number | null; palette: Swatch[]; frames: { data: string; at: number }[] };
+type Measured = { c: Candidate; seconds: number | null; cuts: number | null; palette: Swatch[]; frames: { data: string; at: number }[]; voice: VoiceRead | null };
+
+/** Seconds of a Reel's sound that are listened to. */
+const LISTEN_SECONDS = 45;
+
+/** What kind of voice an audio or video file has (lib/voiceRead.ts); null when it has no sound that can be read. */
+async function hearFile(bin: string, file: string): Promise<VoiceRead | null> {
+  const r = await run(bin, ["-hide_banner", "-loglevel", "error", "-t", String(LISTEN_SECONDS), "-i", file, "-vn", "-ac", "1", "-ar", String(VOICE_READ_RATE), "-f", "f32le", "pipe:1"], "buffer");
+  const raw = r?.out as Buffer | undefined;
+  if (!raw || raw.length < VOICE_READ_RATE * 4) return null;
+  // Copied so the samples start on a 4-byte boundary.
+  const samples = new Float32Array(raw.buffer.slice(raw.byteOffset, raw.byteOffset + Math.floor(raw.length / 4) * 4));
+  return readVoice(samples, VOICE_READ_RATE);
+}
+
+/** The pitch of each voice SOCIA can read a voiceover in, measured from the voice's own sample the same way the Reels are. */
+async function stockPitches(bin: string, dir: string): Promise<{ id: string; pitchHz: number }[]> {
+  if (!voiceConfigured()) return [];
+  const voices = await listVoices().catch(() => []);
+  const out = await Promise.all(voices.map(async (v) => {
+    try {
+      if (!v.preview || !/^https:\/\//.test(v.preview)) return null;
+      const res = await fetch(v.preview, { signal: AbortSignal.timeout(STEP_TIMEOUT_MS), redirect: "error" });
+      if (!res.ok) return null;
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (!buf.length || buf.length > 5_000_000) return null;
+      const file = join(dir, `voice-${v.id.replace(/[^a-z0-9]/gi, "_").slice(0, 40)}.mp3`);
+      await writeFile(file, buf);
+      const heard = await hearFile(bin, file);
+      return heard?.pitchHz ? { id: v.id, pitchHz: heard.pitchHz } : null;
+    } catch {
+      return null;
+    }
+  }));
+  return out.filter((x): x is { id: string; pitchHz: number } => Boolean(x));
+}
 
 const median = (xs: number[]) => {
   if (!xs.length) return null;
@@ -130,7 +167,8 @@ async function measure(bin: string, c: Candidate, dir: string): Promise<Measured
       const raw = p?.out as Buffer | undefined;
       if (raw && raw.length) palette = paletteFromPixels(new Uint8Array(raw));
     }
-    return { c, seconds: seconds ? Math.round(seconds * 10) / 10 : null, cuts, palette, frames };
+    const voice = await hearFile(bin, file).catch(() => null);
+    return { c, seconds: seconds ? Math.round(seconds * 10) / 10 : null, cuts, palette, frames, voice };
   } catch {
     return null;
   }
@@ -210,8 +248,9 @@ export async function readVideoStyle(ctx: Ctx, opts: { now?: Date; fresh?: boole
 
   const dir = await mkdtemp(join(tmpdir(), "vstyle-"));
   let measured: (Measured | null)[] = [];
+  let stock: { id: string; pitchHz: number }[] = [];
   try {
-    measured = await pool([...own, ...comp], 4, (c) => measure(bin, c, dir));
+    [measured, stock] = await Promise.all([pool([...own, ...comp], 4, (c) => measure(bin, c, dir)), stockPitches(bin, dir)]);
   } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => {});
   }
@@ -244,6 +283,8 @@ export async function readVideoStyle(ctx: Ctx, opts: { now?: Date; fresh?: boole
     own: { seconds: averageOf(ownOk.map((m) => m.seconds)), cutsPer10s: averageOf(ownOk.map((m) => cutsPer10s(m.cuts ?? 0, m.seconds))) },
     competitors: { seconds: averageOf(compOk.map((m) => m.seconds)), cutsPer10s: averageOf(compOk.map((m) => cutsPer10s(m.cuts ?? 0, m.seconds))) },
   });
+  // What the Reels sound like: counted from the audio, like the lengths and cuts above.
+  fresh.measured.voice = { own: voiceKind(ownOk.map((m) => m.voice)), competitors: voiceKind(compOk.map((m) => m.voice)), stock };
   // What the person corrected stays theirs on a weekly re-read; "Read again" from Settings starts fresh.
   const prev = readSavedStyle((detail as { videoStyle?: unknown }).videoStyle);
   const style = prev?.confirmed_at && !opts.fresh ? { ...fresh, identity: prev.identity, confirmed_at: prev.confirmed_at } : fresh;

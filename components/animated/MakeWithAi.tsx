@@ -97,11 +97,11 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
   useEffect(() => {
     if (!isBoard || voices) return;
     let alive = true;
-    fetch("/api/animated/voice").then((r) => r.json().catch(() => null)).then((j: { voices?: VoiceChoice[]; pick?: { voiceId: string | null; line: string } | null; notConfigured?: boolean } | null) => {
+    fetch("/api/animated/voice").then((r) => r.json().catch(() => null)).then((j: { voices?: VoiceChoice[]; pick?: { voiceId: string | null; line: string; note?: string } | null; notConfigured?: boolean } | null) => {
       if (!alive) return;
       setVoices(j?.voices ?? []);
       // SOCIA's own choice, from how this account's voiced videos performed; the person can pick another.
-      if (j?.pick?.voiceId) { setVoiceId(j.pick.voiceId); setPickLine(j.pick.line); }
+      if (j?.pick?.voiceId) { setVoiceId(j.pick.voiceId); setPickLine([j.pick.line, j.pick.note].filter(Boolean).join(" ")); }
       if (j?.notConfigured || !j?.voices?.length) setVoiceOff(true);
     }).catch(() => { if (alive) { setVoices([]); setVoiceOff(true); } });
     return () => { alive = false; };
