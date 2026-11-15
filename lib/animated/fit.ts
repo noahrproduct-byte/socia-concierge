@@ -2,7 +2,7 @@
 // posts and what works for others in its niche suggest that animated text
 // videos suit it? One model call; the answer is checked (lib/animated/fitCore.ts)
 // and saved on the brand (brand_detail.animated.fit). Server only.
-import { anthropic, MODEL, effortFor } from "@/lib/anthropic";
+import { anthropic, modelFor, effortFor } from "@/lib/anthropic";
 import { recordAiUsage } from "@/lib/aiUsage";
 import { brandWorkspace, type Ctx } from "@/lib/context";
 import { getIgSnapshot } from "@/lib/instagramSync";
@@ -43,9 +43,11 @@ export async function scanAnimatedFit(ctx: Ctx): Promise<AnimatedFit> {
     posts.text,
     trendsEvidence(niche?.signals ?? null) || "No niche trend read is stored yet.",
   ].filter(Boolean).join("\n");
+  // A yes or no from stored evidence is an easier task, on the fast model (lib/anthropic.ts).
+  const model = modelFor("animated_fit");
   const res = await anthropic.messages.create({
-    model: MODEL, max_tokens: 2000, system: SYSTEM,
-    output_config: { format: { type: "json_schema", schema: SCHEMA }, ...effortFor(MODEL, "medium") },
+    model, max_tokens: 2000, system: SYSTEM,
+    output_config: { format: { type: "json_schema", schema: SCHEMA }, ...effortFor(model, "medium") },
     messages: [{ role: "user", content: `# Evidence\n${evidence}\n\nDo animated text videos suit this account?` }],
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any);

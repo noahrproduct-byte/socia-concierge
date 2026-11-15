@@ -1,7 +1,7 @@
 // Which days of a content plan suit an animated video (a comparison, a counter
 // or words on screen, no footage) and which need real filming. One model call over the week; the
 // person sees each day's reason and can change the choice. Server only.
-import { anthropic, MODEL, effortFor } from "@/lib/anthropic";
+import { anthropic, modelFor, effortFor } from "@/lib/anthropic";
 import { recordAiUsage } from "@/lib/aiUsage";
 import type { Ctx } from "@/lib/context";
 
@@ -46,9 +46,11 @@ export async function pickAnimatedDays(ctx: Ctx, days: PlanDay[]): Promise<DayPi
     d.format ? `  Format: ${d.format.slice(0, 120)}` : "",
     d.direction ? `  Direction: ${d.direction.slice(0, 200)}` : "",
   ].filter(Boolean).join("\n")).join("\n");
+  // Sorting a week's posts is an easier task, on the fast model (lib/anthropic.ts).
+  const model = modelFor("animated_pick");
   const res = await anthropic.messages.create({
-    model: MODEL, max_tokens: 2000, system: SYSTEM,
-    output_config: { format: { type: "json_schema", schema: SCHEMA }, ...effortFor(MODEL, "low") },
+    model, max_tokens: 2000, system: SYSTEM,
+    output_config: { format: { type: "json_schema", schema: SCHEMA }, ...effortFor(model, "low") },
     messages: [{ role: "user", content: `# The week's posts (index in brackets)\n${lines}` }],
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any);
