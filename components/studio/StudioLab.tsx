@@ -69,14 +69,13 @@ function installMock(thumbs: fx.Thumb[], durationSec: number, screen: Screen): (
     if (p === `/api/studio/projects/${fx.PROJECT_ID}/batch`) return json({ existing: [], history: null, accounts: [], accountsComplete: true, builds: [], canSchedule: true, planError: null, roleBlocked: false });
     if (p === `/api/studio/projects/${fx.PROJECT_ID}/brief` && method === "GET") return json({ builds: [] });
     if (p === `/api/studio/projects/${fx.PROJECT_ID}/edit`) return json(fx.build(thumbs, durationSec, -1));
-    if (p.startsWith("/api/studio/builds/") && p.endsWith("/music/auto")) return json({ state: "off" });
     if (p.startsWith("/api/studio/builds/") && method === "GET") return json(fx.playerData(thumbs, durationSec, p.includes(fx.MANUAL_BUILD_ID) ? -1 : 0));
     if (p.startsWith("/api/studio/builds/") && method === "PATCH") { const b = (await (init?.body ? JSON.parse(String(init.body)) : null)) as { edl?: unknown } | null; const base = fx.build(thumbs, durationSec, p.includes(fx.MANUAL_BUILD_ID) ? -1 : 0); return json({ ...base, edl: b?.edl ?? base.edl }); }
     if (p === "/api/studio/learn") return json({ outcomes: [], lessons: { published: 0, settledCount: 0, lessons: [], best: null, summary: "No posts made in Content Studio have been published yet." } });
     if (p === "/api/studio/videos") return json({ videos: fx.videos() });
     if (p === "/api/studio/library") return json({ clips: fx.library(thumbs, durationSec) });
     if (p === "/api/studio/style") return json({ brand: null, templates: [] });
-    if (p === "/api/studio/music") return json({ auto: true });
+    if (p === "/api/studio/tracks") return json({ tracks: [] });
     if (p === "/api/studio/outlook") return json(fx.outlook(new URLSearchParams(window.location.search).get("outlook")));
     if (p === "/api/studio/rater-log") return method === "GET" ? json(fx.raterLog()) : json({ ok: true });
     if (p === "/api/studio/analyze") return json({ analysis: fx.analysis(durationSec), usage: { meter: "content_studio", used: 2, limit: 20, remaining: 18, resetsOn: "2026-12-01" } });

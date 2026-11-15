@@ -289,7 +289,7 @@ export function applyOps(edl: Edl, ops: EditOp[], clips: InstructClip[]): ApplyR
       }
       case "music": {
         if (op.on === false) { if (!out.soundtrack) { done.push("there was no music"); break; } const { soundtrack: _s, ...rest } = out; void _s; out = rest; done.push("music off"); break; }
-        if (!out.soundtrack) { skipped.push(op.on ? "no track is in this cut yet; pick one in Sound (SOCIA makes tracks for it there)" : "there is no music to change"); break; }
+        if (!out.soundtrack) { skipped.push(op.on ? "no sound is in this cut yet; drop one or pick one from your playlist in Sound" : "there is no music to change"); break; }
         const st = { ...out.soundtrack };
         if (op.volume != null) st.musicVolume = r2(op.volume);
         if (op.duck != null) { if (op.duck) st.duck = true; else delete st.duck; }

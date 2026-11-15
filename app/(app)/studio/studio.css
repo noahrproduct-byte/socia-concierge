@@ -1706,3 +1706,27 @@
 .sd-ask-reply ul.is-off { color: var(--text-muted); }
 .sd-done-actions { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
 @media (max-width: 640px) { .sd-ask-row { grid-template-columns: minmax(0, 1fr); } .sd-ask-btns { justify-content: flex-end; } }
+
+/* Your playlist: the drop box, the waveform trimmer and the saved sounds (components/studio/MusicBox.tsx). */
+.sd-drop { display: flex; align-items: center; justify-content: center; min-height: 4.5rem; padding: var(--sp-3); border: 1px dashed var(--border); border-radius: var(--r-card); background: var(--surface); cursor: pointer; text-align: center; }
+.sd-drop:hover, .sd-drop.is-over { border-color: var(--accent); background: var(--surface-2, var(--surface)); }
+.sd-drop:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.sd-drop.is-busy { cursor: progress; }
+.sd-drop p { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--sp-1) var(--sp-2); margin: 0; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--text-secondary); }
+.sd-drop p b { color: var(--ink); }
+.sd-trim { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-card); background: var(--surface); }
+.sd-trim-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 var(--sp-2); align-items: start; }
+.sd-trim-head b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sd-trim-head small { grid-column: 1; font-size: var(--fs-meta); color: var(--text-muted); }
+.sd-trim-head .sd-iconbtn { grid-column: 2; grid-row: 1 / span 2; }
+.sd-wave { display: block; width: 100%; height: 72px; border-radius: var(--r-ctl, 6px); background: var(--surface-2, var(--surface)); cursor: col-resize; touch-action: none; }
+.sd-trim-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); }
+.sd-trim-row label { display: inline-flex; align-items: center; gap: var(--sp-1); font-size: var(--fs-meta); color: var(--text-secondary); }
+.sd-trim-row input[type="number"] { width: 5rem; }
+.sd-trim-row input[type="text"] { min-width: 12rem; }
+.sd-trim-name { flex: 1 1 14rem; }
+.sd-trim-name input { flex: 1; }
+.sd-trim-len { font-size: var(--fs-meta); font-variant-numeric: tabular-nums; color: var(--ink); }
+.sd-trim-progress { width: 100%; height: 4px; }
+.sd-track-actions { display: flex; align-items: center; gap: var(--sp-1); flex-wrap: wrap; }
+.sd-rename { font: inherit; padding: 2px var(--sp-1); }

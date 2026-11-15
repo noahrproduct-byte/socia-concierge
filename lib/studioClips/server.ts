@@ -32,7 +32,8 @@ import { settleCut } from "./cutCheck";
 import { SHOT_SOUND_NOTE, muteSilentShots, shotSoundNote } from "./shotSound";
 import { applyTheme } from "./themes/apply";
 import { DEFAULT_THEME_ID, themeById } from "./themes";
-import { musicPath, sanitizeSoundtrack } from "@/lib/music/taste";
+import { sanitizeSoundtrack } from "@/lib/music/taste";
+import { loadTrack } from "@/lib/music/tracks";
 import { mergeVoiceover, ownsVoicePath, sanitizeVoiceover } from "./voiceover";
 import { briefFloorSec, briefText, fillCut, isBriefIdx, nextBriefIdx, opportunityFromBrief, referenceStyle, titleFor, withBrief, type ReferenceBreakdown } from "./reference";
 import { audioLine } from "@/lib/audio/server";
@@ -372,7 +373,7 @@ export async function buildPlayerData(client: Supa, ownerId: string, wsId: strin
       };
     });
   const voicePaths = (row.edl?.voiceover?.lines ?? []).map((l) => l.path).filter((p): p is string => Boolean(p) && ownsVoicePath(ownerId, row.project_id, buildId)(p!));
-  const [music, voice] = await Promise.all([madeTracks(client, ownerId, row.project_id, buildId), voicePaths.length ? signUrls(client, voicePaths).catch(() => ({})) : Promise.resolve({})]);
+  const [music, voice] = await Promise.all([madeTracks(client, row), voicePaths.length ? signUrls(client, voicePaths).catch(() => ({})) : Promise.resolve({})]);
   const build = rowToBuild(row, await clipRows(client, row.project_id));
   // The last video made from this cut is a public file in scheduled-media (the draft post plays it): the editor offers it to download.
   if (row.render_path) build.renderUrl = client.storage.from("scheduled-media").getPublicUrl(row.render_path).data.publicUrl;
@@ -380,13 +381,13 @@ export async function buildPlayerData(client: Supa, ownerId: string, wsId: strin
 }
 
 /** The tracks already made for a cut, as signed URLs by track id (files are named <buildId>-<trackId>.mp3). */
-export async function madeTracks(client: Supa, ownerId: string, projectId: string, buildId: string): Promise<Record<string, string>> {
+/** The cut's soundtrack, playable: its signed link by track id (empty when the cut has no music or the file is gone). */
+export async function madeTracks(client: Supa, row: { edl: { soundtrack?: { trackId: string; path: string } } | null }): Promise<Record<string, string>> {
+  const st = row.edl?.soundtrack;
+  if (!st?.path) return {};
   try {
-    const folder = `${ownerId}/${projectId}/music`;
-    const { data } = await storageClient(client).storage.from(STUDIO_BUCKET).list(folder, { limit: 100, search: buildId });
-    const files = (data ?? []).filter((o) => o.id && o.name.startsWith(`${buildId}-`) && o.name.endsWith(".mp3"));
-    const urls = await signUrls(client, files.map((f) => `${folder}/${f.name}`));
-    return Object.fromEntries(files.map((f) => [f.name.slice(buildId.length + 1, -4), urls[`${folder}/${f.name}`]]).filter(([, u]) => Boolean(u)));
+    const urls = await signUrls(client, [st.path]);
+    return urls[st.path] ? { [st.trackId]: urls[st.path] } : {};
   } catch {
     return {};
   }
@@ -500,13 +501,11 @@ export async function saveBuildEdl(client: Supa, ownerId: string, wsId: string |
   // A cut made from a brief keeps its brief through every save, so Regenerate still follows it.
   const edl = withBrief(revalidateEdl(edited, forEdl).edl, row.edl?.brief);
   // The playlist is the server's; the person chooses which of its tracks plays, and the levels.
-  if (row.edl?.playlist) edl.playlist = row.edl.playlist;
-  if (row.edl?.musicAuto) edl.musicAuto = row.edl.musicAuto;
-  const soundtrack = sanitizeSoundtrack(edited.soundtrack, row.edl?.playlist, (trackId) => musicPath(ownerId, row.project_id, buildId, trackId));
+  // The track stays the cut's own (a save that only moved the levels keeps it); another must be in the playlist.
+  const wanted = (edited.soundtrack as { trackId?: unknown } | undefined)?.trackId;
+  const fromPlaylist = typeof wanted === "string" && wanted !== row.edl?.soundtrack?.trackId ? await loadTrack(client, ownerId, wsId, wanted).catch(() => null) : null;
+  const soundtrack = sanitizeSoundtrack(edited.soundtrack, row.edl?.soundtrack, () => (fromPlaylist?.ready ? { name: fromPlaylist.name, path: fromPlaylist.path } : null));
   if (soundtrack) edl.soundtrack = soundtrack;
-  // A track SOCIA added on its own while this save was being made (the editor stamps musicAuto when it hears
-  // back) is kept: a save from a browser that never saw it must not erase it.
-  else if (row.edl?.soundtrack && row.edl.musicAuto && !edited.musicAuto) edl.soundtrack = row.edl.soundtrack;
   // The voiceover's lines and audio are the server's (only voicing changes them); the person's switch and level come through.
   const stored = sanitizeVoiceover(row.edl?.voiceover, ownsVoicePath(ownerId, row.project_id, buildId));
   const voiceover = mergeVoiceover(stored, (edited as { voiceover?: unknown }).voiceover ?? {});
@@ -551,10 +550,8 @@ export async function regenerateBuild(client: Supa, args: { ownerId: string; wsI
   edl.cleanSound = row.edl.cleanSound ?? true;
   // A brief's cut keeps its size, its look and the brief itself.
   if (brief) { edl.brief = brief; edl.width = row.edl.width; edl.height = row.edl.height; if (row.edl.style) edl.style = row.edl.style; if (row.edl.captions) edl.captions = row.edl.captions; }
-  // The music made for the cut, and the track chosen, stay with it.
-  if (row.edl.playlist) edl.playlist = row.edl.playlist;
+  // The sound chosen from the playlist stays with the cut.
   if (row.edl.soundtrack) edl.soundtrack = row.edl.soundtrack;
-  if (row.edl.musicAuto) edl.musicAuto = row.edl.musicAuto;
   if (row.edl.lookAuto) edl.lookAuto = row.edl.lookAuto;
   // The voiceover was paid for: it stays, and "Write it again" fits it to the new cut.
   if (row.edl.voiceover) edl.voiceover = row.edl.voiceover;
@@ -706,11 +703,12 @@ export async function listVideos(client: Supa, ownerId: string, wsId: string | n
 /**
  * The whole footage, finished as asked and nothing more (lib/studioClips/briefIntent.ts):
  * every clip in order and in full, captions from the real words when there's
- * speech, the sound cleaned. No model call, no text, no ending card, and music
- * only when the prompt asked for it. Saved as a new build from the brief.
+ * speech, the sound cleaned. No model call, no text, no ending card, no music
+ * (that comes from the person's playlist in the editor). Saved as a new build from the brief.
  */
 export async function wholeFromBrief(client: Supa, args: { ownerId: string; wsId: string | null; project: ProjectRow; prompt: string; music: boolean; tighten?: boolean; acct?: AccountContext; preset?: { style: EdlStyle; width: number; height: number } | null; voiceover?: VoiceoverAsk }): Promise<StudioBuild> {
-  const { ownerId, wsId, project, prompt, music, tighten, preset } = args;
+  // `music` in the brief is the person's to act on in the editor now (their own playlist); the cut is made without a track.
+  const { ownerId, wsId, project, prompt, tighten, preset } = args;
   const rows = await clipRows(client, project.id);
   const all = rows.filter((r) => r.source_path && !r.purged_at && r.status !== "expired" && (r.duration_s ?? 0) > 0).sort((a, b) => a.position - b.position);
   if (!all.length) throw new Error("Add a clip first.");
@@ -737,8 +735,6 @@ export async function wholeFromBrief(client: Supa, args: { ownerId: string; wsId
   edl.captions = usable.some((r) => r.transcript?.words?.length) ? { source: "transcript" } : null;
   edl.cleanSound = true;
   edl.brief = { prompt, reference: null, referenceName: null, ...(args.voiceover ? { voiceover: args.voiceover } : {}) };
-  // Music wasn't asked for: SOCIA doesn't add a track on its own to this one.
-  if (!music) edl.musicAuto = now();
   Object.assign(edl, withDefaultTheme(edl, forEdl, preset?.style));
   const guide = guideFromEdl(edl, forEdl);
   const row: Record<string, unknown> = { project_id: project.id, user_id: ownerId, opportunity_idx: idx, edl, guide, caption: null, model: "manual", updated_at: now() };

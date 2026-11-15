@@ -5,7 +5,7 @@ import type { Transcript, TranscriptWord } from "@/lib/transcribe/types";
 
 import type { EdlStyle, VideoPresets } from "./style";
 import type { TextPresetId, TextSlot } from "@/lib/textPresets";
-import type { Playlist, Soundtrack } from "@/lib/music/taste";
+import type { Soundtrack } from "@/lib/music/taste";
 import type { EditStyleId } from "./profiles";
 import type { HouseGenre } from "./houseStyle";
 
@@ -355,12 +355,8 @@ export type Edl = {
   endCard?: EndCard;
   /** No one is talking and the action's own sound is the point: the clips' sound is lifted for it, not just cleaned. */
   actionSound?: boolean;
-  /** Original tracks SOCIA made for this cut from the account's taste (lib/music/taste.ts). Server-owned. */
-  playlist?: Playlist;
-  /** The track mixed in, and the two levels the person chose. */
+  /** The sound mixed in, from the person's own playlist (lib/music/tracks.ts), and the two levels they chose. */
   soundtrack?: Soundtrack;
-  /** When SOCIA tried adding music on its own (once per cut, whatever happened). Server-owned. */
-  musicAuto?: string;
   /** When SOCIA coloured the cut on its own (lib/studioClips/autoLook.ts), once per cut whatever happened. */
   lookAuto?: string;
   /** The editing style the cut was made in (lib/studioClips/profiles.ts): its pacing, joins and speech trimming. Absent = food and process. */
@@ -585,7 +581,7 @@ export type BuildPlayerData = {
   presets?: VideoPresets;
   /** The viewer may change the brand's preset (owners and admins). */
   canManageBrand?: boolean;
-  /** Tracks already made for this cut's playlist: signed URL by track id. */
+  /** The cut's soundtrack, playable: signed URL by track id (one entry, when the cut has music). */
   music?: Record<string, string>;
   /** The voiceover's voiced lines: signed URL by storage path. */
   voice?: Record<string, string>;

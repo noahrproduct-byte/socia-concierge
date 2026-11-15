@@ -18,7 +18,7 @@ import { createClient } from "@/lib/supabase/client";
 import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import { ClipComposition } from "./remotion/ClipComposition";
 import AudioPanel from "./AudioPanel";
-import MusicPlaylist from "./MusicPlaylist";
+import MusicBox from "./MusicBox";
 import VoiceoverCard from "./VoiceoverCard";
 import FinishPanel from "./FinishPanel";
 import TextLayersPanel from "./TextLayersPanel";
@@ -166,9 +166,6 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     heads.forEach((h) => io.observe(h));
     return () => io.disconnect();
   }, [data?.build.id]);
-  // Music added on its own (Growth/Pro, once per cut, unless the brand turned it off): lib/music, music/auto.
-  const [autoMusic, setAutoMusic] = useState<{ state: "adding" | "added" | "skipped" | "failed"; note: string | null } | null>(null);
-  const [musicAutoOn, setMusicAutoOn] = useState<boolean | null>(null);
   const [presets, setPresets] = useState<VideoPresets>({ brand: null, templates: [] });
   const [tplName, setTplName] = useState("");
   const [styleNote, setStyleNote] = useState<string | null>(null);
@@ -271,36 +268,6 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
 
   useEffect(() => { if (data?.presets) setPresets(data.presets); }, [data?.presets]);
 
-  // Once the cut is loaded: a cut with no track that SOCIA hasn't tried before gets one, from the brand's taste.
-  const autoTried = useRef(false);
-  useEffect(() => {
-    if (fixture || !data?.canEdit || !edl || autoTried.current) return;
-    autoTried.current = true;
-    if (edl.soundtrack || edl.musicAuto) return;
-    let alive = true;
-    setAutoMusic({ state: "adding", note: null });
-    (async () => {
-      const res = await fetch(`/api/studio/builds/${buildId}/music/auto`, { method: "POST" }).catch(() => null);
-      const j = res ? ((await res.json().catch(() => null)) as { state?: string; playlist?: Edl["playlist"]; soundtrack?: Edl["soundtrack"]; url?: string | null; error?: string; notConfigured?: boolean } | null) : null;
-      if (!alive) return;
-      const stamp = new Date().toISOString();
-      if (res?.ok && j?.state === "added" && j.playlist && j.soundtrack) {
-        setEdl((e) => (e ? { ...e, playlist: j.playlist, soundtrack: j.soundtrack, musicAuto: stamp } : e));
-        if (j.url) setTrackUrls((u) => ({ ...u, [j.soundtrack!.trackId]: j.url! }));
-        setAutoMusic({ state: "added", note: null });
-        return;
-      }
-      setEdl((e) => (e ? { ...e, musicAuto: e.musicAuto ?? stamp } : e));
-      // The month's music tracks are used up: say so, never a silent "no track yet".
-      if (isPlanError(j) && j.code === "usage_exhausted") { setAutoMusic({ state: "skipped", note: `${j.error} This video has no music until they reset.` }); return; }
-      // Not on the plan, not switched on, or turned off: the Music tab says so; nothing else changes.
-      if (res?.ok || isPlanError(j) || j?.notConfigured) { setAutoMusic({ state: "skipped", note: null }); return; }
-      setAutoMusic({ state: "failed", note: j?.error ?? "SOCIA couldn't add music this time. Pick a track in Music." });
-    })();
-    return () => { alive = false; };
-    // Once per opened cut, after it loads.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data?.canEdit, edl == null]);
 
   // Once the cut is loaded: a cut nobody talks in that wants a voice gets a voiceover, once per cut
   // (lib/studioClips/voiceover.ts needsVoiceover; the server decides and stamps the cut).
@@ -368,15 +335,6 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.canEdit, edl == null, sourceCount]);
 
-  useEffect(() => {
-    if (fixture || musicAutoOn != null) return;
-    fetch("/api/studio/music").then((r) => (r.ok ? r.json() : null)).then((j) => setMusicAutoOn(typeof j?.auto === "boolean" ? j.auto : null)).catch(() => null);
-  }, [fixture, musicAutoOn]);
-  const toggleMusicAuto = async (on: boolean) => {
-    setMusicAutoOn(on);
-    const res = await fetch("/api/studio/music", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ auto: on }) }).catch(() => null);
-    if (!res?.ok) setMusicAutoOn(!on);
-  };
   const sources = useMemo(() => Object.fromEntries((data?.sources ?? []).map((s) => [s.clipId, s])) as Record<string, BuildSource>, [data]);
   const tl = useMemo(() => (edl ? timeline(edl) : null), [edl]);
   const tlRef = useRef(tl);
@@ -397,21 +355,15 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   const [voiceUrls, setVoiceUrls] = useState<Record<string, string>>({});
   useEffect(() => { if (data?.voice) setVoiceUrls((u) => ({ ...data.voice, ...u })); }, [data?.voice]);
   const voiceOn = Boolean(edl?.voiceover?.on && edl.voiceover.lines.some((l) => l.path && voiceUrls[l.path]));
-  // The track's beat, measured here from the track itself; the tempo it was made at when that fails.
+  // The track's beat, measured here from the track itself (lib/studioClips/beat.ts); none when it can't be heard.
   const [beat, setBeat] = useState<(Beat & { trackId: string }) | null>(null);
-  const trackBpm = edl?.soundtrack ? edl.playlist?.tracks.find((t) => t.id === edl.soundtrack!.trackId)?.bpm ?? null : null;
   useEffect(() => {
     const id = edl?.soundtrack?.trackId;
     if (!id || !musicUrl) { setBeat(null); return; }
     let alive = true;
-    beatOfTrack(musicUrl).then((b) => {
-      if (!alive) return;
-      if (b) setBeat({ ...b, trackId: id });
-      else if (trackBpm) setBeat({ bpm: trackBpm, offsetSec: 0, confidence: 0, trackId: id });
-      else setBeat(null);
-    });
+    beatOfTrack(musicUrl).then((b) => { if (alive) setBeat(b ? { ...b, trackId: id } : null); });
     return () => { alive = false; };
-  }, [edl?.soundtrack?.trackId, musicUrl, trackBpm]);
+  }, [edl?.soundtrack?.trackId, musicUrl]);
   // What a viewer would notice, checked again after every change (lib/studioClips/cutCheck.ts).
   const check = useMemo(() => (edl ? checkCut(edl, clipsForEdl(sources)) : null), [edl, sources]);
   // The pacing score, held down while the check has found something.
@@ -977,7 +929,6 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                     <option value="medium">Standard (smaller, faster to upload)</option>
                   </select>
                 </label>
-                {autoMusic?.state === "adding" && <small className="ov-source"><Loader2 size={11} className="spin" /> SOCIA is still making a track for this cut. Make the video now and it has no music, or wait for the Music tab.</small>}
                 {lookState?.state === "working" && <small className="ov-source"><Loader2 size={11} className="spin" /> Measuring the colour of clip {Math.min(lookState.done + 1, lookState.total)} of {lookState.total} first.</small>}
                 {lookState?.state === "done" && lookState.corrected > 0 && <small className="ov-source">SOCIA corrected the colour of {lookState.corrected} clip{lookState.corrected === 1 ? "" : "s"}. Change it or switch it off in Look &amp; sound.</small>}
                 {build.postId && <Link className="ov-btn ghost small" href={`/create?post=${build.postId}`}>Open the saved draft <ArrowRight size={12} /></Link>}
@@ -1278,23 +1229,17 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               />
               <div className="ov-card cba-current">
                 <b><Music size={14} /> Music in this video</b>
-                {autoMusic?.state === "adding" ? <p><Loader2 size={12} className="spin" /> SOCIA is adding a track from your taste (about a minute).</p>
-                  : edl.soundtrack ? <p>{edl.musicAuto && autoMusic?.state === "added" ? `SOCIA added “${edl.soundtrack.name}” on its own. Pick another below, change the levels, or take it out.` : `“${edl.soundtrack.name}” plays in this video.`}</p>
-                  : <p>{autoMusic?.note ?? "No track in this video yet. Pick one from your playlist below."}</p>}
-                {theme && theme.audio.mood !== "none" && <small className="sd-fx-note">{theme.name} asks for {theme.audio.mood === "lofi" ? "lo-fi" : theme.audio.mood} music; new tracks SOCIA makes for this cut follow that.</small>}
-                {musicAutoOn != null && data.canEdit && (
-                  <label className="cbm-auto"><input type="checkbox" checked={musicAutoOn} onChange={(e) => void toggleMusicAuto(e.target.checked)} /> Add a track to new videos on their own</label>
-                )}
+                {edl.soundtrack ? <p>“{edl.soundtrack.name}” is in this video. Change the levels below, pick another sound from your playlist, or take it out.</p>
+                  : <p>No sound in this video yet. Drop one below, or pick one from your playlist.</p>}
+                {theme && theme.audio.mood !== "none" && <small className="sd-fx-note">{theme.name} suits {theme.audio.mood === "lofi" ? "lo-fi" : theme.audio.mood} music.</small>}
               </div>
-              <MusicPlaylist
+              <MusicBox
                 buildId={buildId}
                 edl={edl}
-                canEdit={data.canEdit && !busy && !fixture}
-                autoAdding={autoMusic?.state === "adding"}
-                trackUrls={trackUrls}
+                canEdit={data.canEdit && !busy}
+                fixture={Boolean(fixture)}
                 onTrackUrl={(id, url) => setTrackUrls((u) => ({ ...u, [id]: url }))}
                 // The server already saved these: the cut takes them without becoming "unsaved".
-                onPlaylist={(p) => setEdl((e) => (e ? { ...e, playlist: p } : e))}
                 onSoundtrack={(st) => setEdl((e) => { if (!e) return e; if (st) return { ...e, soundtrack: st }; const { soundtrack: _drop, ...rest } = e; void _drop; return rest; })}
                 onLevels={(musicVolume, originalVolume) => { setEdl((e) => (e?.soundtrack ? { ...e, soundtrack: { ...e.soundtrack, musicVolume, originalVolume } } : e)); setDirty(true); }}
                 onDuck={(on) => { setEdl((e) => { if (!e?.soundtrack) return e; const { duck: _old, ...st } = e.soundtrack; void _old; return { ...e, soundtrack: on ? { ...st, duck: true } : st }; }); setDirty(true); }}
