@@ -21,7 +21,13 @@ export async function GET(req: Request) {
     const { denied } = await requireFeature(ctx.client, ctx.ownerId, "build_from_clips");
     if (denied) return denied;
     const refresh = new URL(req.url).searchParams.get("refresh") === "1";
-    const competitors = await syncAudioCandidates(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, { refreshCompetitors: refresh });
+    // The sync (the account's reels and its competitors') can fail on its own: the insights still come from
+    // what is stored, and the panel says the sync didn't run (2026-11-15: a 500 here took the panel away).
+    const competitors = await syncAudioCandidates(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, { refreshCompetitors: refresh }).catch((e: unknown) => {
+      if (isMissingTable(e)) throw e;
+      console.error("[studio/audio] sync failed:", e instanceof Error ? e.message : e);
+      return { enabled: false, reason: "SOCIA couldn't read new posts just now; what it measured before is shown.", refreshed: false, accounts: 0 };
+    });
     return NextResponse.json(await audioData(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, competitors));
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: "Audio insights need their table. Run supabase/studio-audio.sql in the Supabase SQL editor.", migration: true }, { status: 503 });

@@ -1,0 +1,86 @@
+{
+  "id": "editorial",
+  "name": "Editorial",
+  "description": "The explainer cut: a calm serif, captions lower left in sentence case with a marker sweeping under each word as it is said, a slow push into every shot, titles that rise and settle, a bar for who is talking, warm paper tones with a little grain. Nothing shouts; the story carries it.",
+  "bestFor": "A lecture, an interview, a history or a how-it-works piece.",
+  "tags": [
+    "explainer",
+    "serif",
+    "calm",
+    "lecture",
+    "interview"
+  ],
+  "sample": {
+    "title": "the part nobody tells you",
+    "caption": "here is why"
+  },
+  "typography": {
+    "font": "playfair",
+    "weight": 700,
+    "sizeScale": 1.05,
+    "letterSpacing": 0,
+    "transform": "none",
+    "captionPosition": "lower",
+    "align": "left",
+    "maxWords": 5,
+    "captionPreset": "vox",
+    "captionAnimation": "none",
+    "textBox": "none",
+    "pill": false,
+    "highlight": "#f5d547",
+    "titlePreset": "hook_pair",
+    "titleAnimation": "rise",
+    "scriptFont": "playfair"
+  },
+  "color": {
+    "primary": "#1a1612",
+    "accent": "#f5d547",
+    "text": "#fbf7ef",
+    "captionBg": "#1a1612",
+    "grade": {
+      "contrast": 1.05,
+      "saturation": 0.95,
+      "warmth": 0.1,
+      "vignette": 0.22,
+      "grain": 0.14,
+      "chroma": 0,
+      "scanlines": 0,
+      "letterbox": 0
+    }
+  },
+  "motion": {
+    "zoom": {
+      "kind": "in",
+      "from": 1,
+      "to": 1.05,
+      "ease": "inOut"
+    },
+    "punchIn": 0.05,
+    "shake": 0,
+    "transition": "cut",
+    "transitionFrames": 2,
+    "brollSec": 2.4,
+    "beatSync": false,
+    "alternateZoom": false
+  },
+  "layout": {
+    "lowerThird": "bar",
+    "progressBar": false,
+    "watermark": false,
+    "intro": "none",
+    "outro": "cta",
+    "frame": "none",
+    "dateStamp": false
+  },
+  "audio": {
+    "mood": "cinematic",
+    "duck": 0.3,
+    "sfx": false,
+    "pops": false
+  },
+  "pacing": {
+    "hook": true,
+    "maxClipSec": 10,
+    "silenceSec": 0.8
+  }
+}

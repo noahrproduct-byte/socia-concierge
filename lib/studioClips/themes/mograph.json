@@ -1,0 +1,86 @@
+{
+  "id": "mograph",
+  "name": "Mograph",
+  "description": "The kinetic edit: three words at a time, the spoken one bigger and in colour, a step in on every word that matters, a slow push on each shot, titles rising letter by letter, hard cuts on the beat, a pop as each line lands. Warm, a touch of contrast and grain, a tag for who is talking, a lockup to close.",
+  "bestFor": "A talking reel, a lecture clip or an explainer cut by hand, word by word.",
+  "tags": [
+    "kinetic",
+    "captions",
+    "talking-head",
+    "lecture",
+    "motion"
+  ],
+  "sample": {
+    "title": "watch this",
+    "caption": "every word lands"
+  },
+  "typography": {
+    "font": "intertight",
+    "weight": 800,
+    "sizeScale": 1.15,
+    "letterSpacing": 0,
+    "transform": "none",
+    "captionPosition": "middle",
+    "align": "center",
+    "maxWords": 3,
+    "captionPreset": "highlight",
+    "captionAnimation": "bounce",
+    "textBox": "none",
+    "pill": false,
+    "highlight": "#ffd400",
+    "titlePreset": "hook_title",
+    "titleAnimation": "letters",
+    "scriptFont": "kaushan"
+  },
+  "color": {
+    "primary": "#0b0b0b",
+    "accent": "#ffd400",
+    "text": "#ffffff",
+    "captionBg": "#0b0b0b",
+    "grade": {
+      "contrast": 1.08,
+      "saturation": 1.05,
+      "warmth": 0.06,
+      "vignette": 0.15,
+      "grain": 0.08,
+      "chroma": 0,
+      "scanlines": 0,
+      "letterbox": 0
+    }
+  },
+  "motion": {
+    "zoom": {
+      "kind": "alternate",
+      "from": 1,
+      "to": 1.06,
+      "ease": "out"
+    },
+    "punchIn": 0.08,
+    "shake": 0,
+    "transition": "cut",
+    "transitionFrames": 2,
+    "brollSec": 1.4,
+    "beatSync": true,
+    "alternateZoom": true
+  },
+  "layout": {
+    "lowerThird": "tag",
+    "progressBar": false,
+    "watermark": false,
+    "intro": "none",
+    "outro": "lockup",
+    "frame": "none",
+    "dateStamp": false
+  },
+  "audio": {
+    "mood": "upbeat",
+    "duck": 0.35,
+    "sfx": true,
+    "pops": true
+  },
+  "pacing": {
+    "hook": true,
+    "maxClipSec": 7,
+    "silenceSec": 0.5
+  }
+}

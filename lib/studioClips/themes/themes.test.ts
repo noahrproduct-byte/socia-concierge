@@ -4,10 +4,10 @@ import { deepDiff, deepMerge, parseTheme, withOverrides } from "./schema";
 import { HOUSE_TRANSITIONS } from "../houseStyle";
 
 describe("the shipped themes", () => {
-  it("are eight, valid, with distinct ids and names", () => {
-    expect(THEMES).toHaveLength(9);
-    expect(new Set(THEMES.map((t) => t.id)).size).toBe(9);
-    expect(new Set(THEMES.map((t) => t.name)).size).toBe(9);
+  it("are eleven, valid, with distinct ids and names", () => {
+    expect(THEMES).toHaveLength(11);
+    expect(new Set(THEMES.map((t) => t.id)).size).toBe(11);
+    expect(new Set(THEMES.map((t) => t.name)).size).toBe(11);
     expect(isThemeId(DEFAULT_THEME_ID)).toBe(true);
     expect(themeById("nope")).toBeNull();
   });

@@ -7,7 +7,7 @@ A theme is one declarative object that fully describes an edit: typography, colo
 | Path | What |
 | --- | --- |
 | `lib/studioClips/themes/schema.ts` | The `Theme` zod schema (the single source of truth for every field and its bounds), `parseTheme`, `deepMerge`, `deepDiff`, `withOverrides` |
-| `lib/studioClips/themes/*.json` | The nine shipped themes; `showroom.json` is the default every new cut gets |
+| `lib/studioClips/themes/*.json` | The eleven shipped themes; `showroom.json` is the default every new cut gets; `mograph.json` and `editorial.json` are the owner's own hand edits as themes (2026-11-15) |
 | `lib/studioClips/themes/index.ts` | The registry (`THEMES`, `themeById`, `isThemeId`) |
 | `lib/studioClips/themes/apply.ts` | `applyTheme`, `setThemeOverride`, `resetToTheme`, `resolveTheme`, `styleFromTheme` |
 | `lib/studioClips/themes/autoEdit.ts` | The edit a theme makes from the raw footage (captions, dead air, hook, B-roll pacing and overlay, beat) |
@@ -112,3 +112,13 @@ The owner's two rug reels cut by hand (Zein Rugs and Furniture, Nov 2026) are th
 - The Retro theme's date stamp is REC plus the running time, not a date: a fabricated date would be invented data.
 - Stabilization is a server job (`lib/studioClips/stabilize.ts`, ffmpeg vidstab) because the browser's ffmpeg.wasm core ships without vidstab and the export runs in the browser; the preview and the export both play the stabilized copy, so they match.
 - A speed ramp is rendered as constant-rate pieces (ramp in, body, ramp out), since the media tag plays one rate per sequence; the ramp is a two-step ease rather than a continuous curve.
+
+## Mograph and Editorial (2026-11-15)
+
+Two themes written from the owner's own Remotion edits, so a cut can start the way they would cut it by hand:
+
+- **Mograph** (the kinetic edits: the Odayy, Abu Bakr, Uwais and Islamic-short pieces): three words at a time in Inter Tight 800, the spoken word bigger and in yellow, a bounce as each lands, a step in of 8% on every emphasised word, a slow alternating push on each shot, titles rising letter by letter, hard cuts of two frames on the beat, a pop as each line lands, a tag for who is talking, a lockup to close; warm, a touch more contrast, light grain and vignette; upbeat music ducked to 35% under speech.
+- **Editorial** (the Vox-style explainer and the newspaper piece): Playfair Display, captions lower left in sentence case with the yellow marker sweeping under each word (the `vox` caption style), a slow push into every shot, a 5% step on emphasis, titles that rise and settle, a bar lower third, a CTA ending; warm paper tones, grain and vignette; cinematic music, no pops.
+
+Both keep the house rules the theme test holds every theme to: captions of at most five words, a key-word highlight, no logo-first intro, cuts by default.
+
