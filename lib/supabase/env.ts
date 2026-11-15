@@ -19,7 +19,18 @@ function clean(v: string | undefined): string {
 }
 
 export function getSupabaseUrl(): string {
-  const v = clean(process.env.NEXT_PUBLIC_SUPABASE_URL);
+  return resolveSupabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL);
+}
+
+/**
+ * The project URL a raw NEXT_PUBLIC_SUPABASE_URL value means, with the same
+ * tolerance getSupabaseUrl has always had. Every server-side reader of the
+ * storage origin goes through this too, so a value that is missing or mangled
+ * in the hosting dashboard can never make the app treat its own bucket as a
+ * foreign host while the Supabase clients keep working from the fallback.
+ */
+export function resolveSupabaseUrl(raw: string | undefined): string {
+  const v = clean(raw);
   // 1) use it if it's already a valid http(s) URL
   try {
     const u = new URL(v);

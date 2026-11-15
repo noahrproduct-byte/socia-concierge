@@ -121,6 +121,19 @@ export function statusFromFetch(s: PublishStatus, publishId: string, direct: boo
   }
 }
 
+/**
+ * A retry finds the session an earlier attempt opened. TikTok still has a
+ * post in it only when the upload got through (every byte arrived, or the
+ * session moved past uploading): that one is polled, never posted twice. A
+ * FAILED session, or one still waiting for bytes SOCIA stopped sending, is
+ * dead and the retry opens a new session and uploads again. Pure, unit-tested.
+ */
+export function sessionIsDead(s: PublishStatus, videoSize: number | null): boolean {
+  if (s.status === "FAILED") return true;
+  if (s.status === "PROCESSING_UPLOAD") return videoSize == null || (s.uploaded_bytes ?? 0) < videoSize;
+  return false;
+}
+
 const FAIL_REASONS: Record<string, string> = {
   file_format_check_failed: "TikTok could not read the video file (unsupported format or codec).",
   duration_check_failed: "The video is outside the length TikTok allows for this account.",
@@ -278,12 +291,28 @@ async function uploadChunks(media: MediaItem, plan: ChunkPlan, uploadUrl: string
 // ---------------------------------------------------------------------------
 
 async function publish(ctx: PublishContext): Promise<PublishOutcome> {
-  // A destination that already holds a publish_id was uploaded; never start another.
-  if (ctx.destination.externalContainerId) return poll(ctx);
   const res = await resolve(ctx);
   if ("failure" in res) return res.failure;
   const { auth, username, direct } = res.r;
   const media = ctx.item.media[0];
+  // An earlier attempt may have opened a session (its publish_id is kept on the
+  // row). Ask TikTok about it first: a session that holds the video is polled
+  // and never posted twice; a dead one (FAILED, or an upload SOCIA never
+  // finished) is replaced by a fresh upload below, so Retry really retries.
+  const held = ctx.destination.externalContainerId;
+  if (held) {
+    const st = await tiktok<PublishStatus>("/post/publish/status/fetch/", auth.token, { publish_id: held });
+    if (st.ok) {
+      const size = media && typeof media.size === "number" && Number.isFinite(media.size) && media.size > 0 ? Math.floor(media.size) : null;
+      if (!sessionIsDead(st.data, size)) return statusFromFetch(st.data, held, direct, username);
+    } else {
+      const auth_ = authFailure(st.error, st.status);
+      if (auth_) return auth_;
+      // TikTok could not be asked (network, 5xx, rate limit): do not risk a second post; try again later.
+      if (st.error.retryable) return fail(st.error.message, st.error.code, true);
+      // TikTok no longer knows the session; nothing of this post is on their side.
+    }
+  }
   if (!media) return fail("Add a video before publishing to TikTok.", "media_missing");
   if (media.kind !== "video") return fail("TikTok needs a video file.", "media_kind");
   if (ctx.item.media.length > 1) return fail("TikTok takes one video per post.", "media_count");
@@ -316,7 +345,8 @@ async function publish(ctx: PublishContext): Promise<PublishOutcome> {
   if (!publishId || !uploadUrl) return fail("TikTok did not return an upload session.", "no_session", true);
 
   const up = await uploadChunks(media, plan, uploadUrl);
-  // The session exists either way; keep its id so a retry polls instead of re-initialising.
+  // The session exists either way; keep its id so a retry asks TikTok about it
+  // first (publish above) and only re-uploads when that session is dead.
   if (up) return { ...up, externalContainerId: publishId };
 
   // Bytes are in. TikTok now processes; the first status read is usually immediate.

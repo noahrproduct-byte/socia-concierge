@@ -166,7 +166,25 @@ describe("YouTube thumbnail source", () => {
     expect(storageFetchUrl({ path: null, url: "https://abc.supabase.co/storage/v1/object/public/scheduled-media/u1/a.jpg" }, origin)).toBe("https://abc.supabase.co/storage/v1/object/public/scheduled-media/u1/a.jpg");
     expect(storageFetchUrl({ path: null, url: "https://evil.example/x.jpg" }, origin)).toBeNull();
     expect(storageFetchUrl({ path: "u1/a.jpg", url: null }, null)).toBeNull();
-    expect(storageOrigin({})).toBeNull();
+  });
+  it("resolves the storage origin like the Supabase clients do, so a stored file is never refused over the env value", () => {
+    // Regression: the first "Publish to TikTok" failed with "The video is not in
+    // SOCIA's storage" although the file was in the scheduled-media bucket with
+    // its path on the row. storageOrigin read NEXT_PUBLIC_SUPABASE_URL raw and
+    // answered null for a quoted, padded or missing value, while every Supabase
+    // client resolved the same value fine through lib/supabase/env.ts.
+    const path = "u1/p1/1763000000000_clip.mp4";
+    const expectUrl = (origin: string | null) =>
+      expect(storageFetchUrl({ path, url: null }, origin)).toBe(`${origin}/storage/v1/object/public/scheduled-media/u1/p1/1763000000000_clip.mp4`);
+    expectUrl(storageOrigin({ NEXT_PUBLIC_SUPABASE_URL: "https://abc.supabase.co" }));
+    expect(storageOrigin({ NEXT_PUBLIC_SUPABASE_URL: ' "https://abc.supabase.co/"\n' })).toBe("https://abc.supabase.co");
+    expect(storageOrigin({ NEXT_PUBLIC_SUPABASE_URL: "URL is https://abc.supabase.co" })).toBe("https://abc.supabase.co");
+    const fallback = storageOrigin({});
+    expect(fallback).toMatch(/^https:\/\/[a-z0-9-]+\.supabase\.co$/);
+    expect(storageOrigin({ NEXT_PUBLIC_SUPABASE_URL: "not a url" })).toBe(fallback);
+    expectUrl(fallback);
+    // A foreign host is still never fetched from.
+    expect(storageFetchUrl({ path: null, url: "https://evil.example/x.jpg" }, fallback)).toBeNull();
   });
   it("caps the download by the real body, not the declared size", async () => {
     const small = new Response(new Uint8Array(10), { headers: { "content-length": "10" } });
