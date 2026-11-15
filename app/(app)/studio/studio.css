@@ -269,6 +269,10 @@
   color: var(--ink-disabled);
   cursor: default;
 }
+.sd-cutlist-move button.is-danger:not(:disabled):hover {
+  color: var(--negative-ink);
+  border-color: var(--negative);
+}
 .sd-pace-line {
   color: var(--ink-2);
   font-size: var(--fs-meta);

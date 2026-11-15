@@ -1097,6 +1097,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                         <span className="sd-cutlist-move">
                           <button type="button" aria-label={`Move cut ${i + 1} earlier`} disabled={locked || i === 0} onClick={() => { move(i, -1); setSel({ kind: "cut", index: i - 1 }); }}><ArrowUp size={12} /></button>
                           <button type="button" aria-label={`Move cut ${i + 1} later`} disabled={locked || i === edl.segments.length - 1} onClick={() => { move(i, 1); setSel({ kind: "cut", index: i + 1 }); }}><ArrowDown size={12} /></button>
+                          <button type="button" className="is-danger" aria-label={`Delete cut ${i + 1}`} title={edl.segments.length <= 1 ? "A video needs at least one cut" : "Delete this cut"} disabled={locked || edl.segments.length <= 1} onClick={() => { remove(i); setSel(null); }}><Trash2 size={12} /></button>
                         </span>
                       </li>
                     );
@@ -1179,6 +1180,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                 <div>
                   <b><Captions size={14} /> Captions</b>
                   <small>{anySpeech ? "From the real transcript, word by word." : voiceOn ? "From the voiceover, word by word as it's read." : transcribing ? "Transcribing the clips' speech; captions come on when the words are in (about a minute)." : "No speech was detected in these clips, so there is nothing to caption."}</small>
+                  {captionsOn && <button type="button" className="ov-btn ghost small danger cbb-captions-del" disabled={!data.canEdit || busy} onClick={toggleCaptions}><Trash2 size={12} /> Delete captions</button>}
                 </div>
                 <button type="button" className={`cbb-toggle${captionsOn ? " on" : ""}`} role="switch" aria-checked={captionsOn} disabled={!(anySpeech || voiceOn) || !data.canEdit || busy} onClick={toggleCaptions}><i /></button>
               </div>
