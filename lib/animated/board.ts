@@ -74,9 +74,10 @@ export type BoardTimeline = { phrases: { start: number; end: number; words: Boar
 
 /**
  * When every word appears. Without a voiceover the pace is a natural reading
- * pace; with one (`spoken`: each word's real start), the captions follow it.
+ * pace; with one (`spoken`: each word's real start, `voiceEnd`: when the voice
+ * stops), the captions follow it.
  */
-export function boardTimeline(board: Pick<Storyboard, "phrases">, spoken?: number[] | null): BoardTimeline {
+export function boardTimeline(board: Pick<Storyboard, "phrases">, spoken?: number[] | null, voiceEnd?: number | null): BoardTimeline {
   let t = 0.1, k = 0;
   const phrases = board.phrases.map((p) => {
     const em = new Set(p.em.toLowerCase().split(/\s+/).map(bare).filter(Boolean));
@@ -92,7 +93,8 @@ export function boardTimeline(board: Pick<Storyboard, "phrases">, spoken?: numbe
   // Each phrase stays until the next one starts.
   for (let i = 0; i < phrases.length - 1; i++) phrases[i].end = phrases[i + 1].start;
   const card = (phrases[phrases.length - 1]?.end ?? 0) + 0.25;
-  return { phrases, card, total: card + END_SECONDS };
+  // The ending card stays until the voice has finished saying it.
+  return { phrases, card, total: Math.max(card + END_SECONDS, (voiceEnd ?? 0) + 0.8) };
 }
 
 /** A moment in seconds. */
