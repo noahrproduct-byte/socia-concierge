@@ -121,9 +121,13 @@ export default function PrivacyPage() {
           Reels and up to six public Reels from the competitors you follow,
           measures their length, cuts and colours on our server, and sends a
           few frames from each to Anthropic to describe how your videos look
-          and how theirs are built. SOCIA keeps that description and links to
-          the Reels, which you can change in Settings; the video files and
-          frames are deleted as soon as they are measured.
+          and how theirs are built. It also listens to each Reel&apos;s sound
+          on our server to tell whether someone is speaking and how low or
+          high the voice is, so a voiceover can start from that kind of voice.
+          Nobody is identified from a voice, and the sound is not sent to
+          anyone. SOCIA keeps that description, those counts and links to the
+          Reels, which you can change in Settings; the video files and frames
+          are deleted as soon as they are measured.
         </li>
         <li>
           <b>Comments on your posts</b>: for AI comment replies, we store the

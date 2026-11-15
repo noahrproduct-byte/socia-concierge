@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { MIN_PER_VOICE, pickVoice, type VoiceUse } from "./voicePick";
+import { MIN_PER_VOICE, heardOrder, pickVoice, type VoiceUse } from "./voicePick";
+import type { HeardVoices } from "@/lib/voiceRead";
 
 const voices = [
   { id: "bella", name: "Bella - Professional, Bright, Warm" },
@@ -56,5 +57,51 @@ describe("choosing the voice from the account's own results", () => {
   it("drops the caution once a voice has several results", () => {
     const p = pickVoice(voices.slice(0, 2), twiceEach({ bella: [1, 1, 1, 1, 1], alice: [2, 2, 2, 2, 2] }));
     expect(p.line).not.toContain("only a few");
+  });
+});
+
+describe("starting from the kind of voice the best Reels use", () => {
+  const stock = [{ id: "bella", pitchHz: 208 }, { id: "alice", pitchHz: 190 }, { id: "charlie", pitchHz: 112 }];
+  const none = { reels: 0, spoken: 0, pitchHz: null };
+  const heard = (own: HeardVoices["own"], competitors: HeardVoices["competitors"]): HeardVoices => ({ own, competitors, stock });
+  it("goes first with the voice closest to the competitors' voice when the account's own Reels have none", () => {
+    const h = heard({ reels: 6, spoken: 0, pitchHz: null }, { reels: 6, spoken: 4, pitchHz: 118 });
+    const p = pickVoice(voices, [], h);
+    expect(p.why).toBe("trying");
+    expect(p.voiceId).toBe("charlie");
+    expect(p.line).toContain("4 of your competitors' 6 best Reels");
+    expect(p.line).toContain("a lower voice");
+    expect(p.line).toContain("Charlie is the closest");
+    expect(p.line).toContain("picks by your own results");
+    expect(heardOrder(voices, h)?.order).toEqual(["charlie", "alice", "bella"]);
+  });
+  it("uses the account's own voice before its competitors'", () => {
+    const p = pickVoice(voices, [], heard({ reels: 8, spoken: 5, pitchHz: 200 }, { reels: 6, spoken: 4, pitchHz: 118 }));
+    expect(p.voiceId).toBe("bella");
+    expect(p.line).toContain("5 of the 8 Reels of yours");
+    expect(p.line).toContain("a higher voice");
+  });
+  it("keeps turns fair after the first: the least used voice, the closest among equals", () => {
+    const h = heard(none, { reels: 6, spoken: 4, pitchHz: 118 });
+    expect(pickVoice(voices, [use("charlie")], h).voiceId).toBe("alice");
+    expect(pickVoice(voices, [use("charlie"), use("alice")], h).voiceId).toBe("bella");
+    expect(pickVoice(voices, [use("charlie"), use("alice"), use("bella")], h).voiceId).toBe("charlie");
+  });
+  it("lets results decide once there are enough, whatever was heard", () => {
+    const p = pickVoice(voices, twiceEach({ bella: [2, 2.4], alice: [1, 1], charlie: [0.7, 0.9] }), heard(none, { reels: 6, spoken: 4, pitchHz: 118 }));
+    expect(p.why).toBe("best");
+    expect(p.voiceId).toBe("bella");
+  });
+  it("needs two speaking Reels and two measured voices before it trusts what it heard", () => {
+    expect(heardOrder(voices, heard(none, { reels: 6, spoken: 1, pitchHz: 118 }))).toBeNull();
+    expect(heardOrder(voices, { own: none, competitors: { reels: 6, spoken: 4, pitchHz: 118 }, stock: stock.slice(0, 1) })).toBeNull();
+    expect(pickVoice(voices, [], heard(none, { reels: 6, spoken: 1, pitchHz: 118 })).voiceId).toBe("bella");
+    expect(heardOrder(voices, null)).toBeNull();
+  });
+  it("says when few of the competitors' best Reels have anyone speaking", () => {
+    const p = pickVoice(voices, [], heard(none, { reels: 6, spoken: 1, pitchHz: 118 }));
+    expect(p.note).toBe("Only 1 of your competitors' 6 best Reels that SOCIA listened to has someone speaking, so a voiceover is less common in your niche.");
+    expect(pickVoice(voices, [], heard(none, { reels: 6, spoken: 4, pitchHz: 118 })).note).toBeUndefined();
+    expect(pickVoice(voices, [], heard(none, { reels: 2, spoken: 0, pitchHz: null })).note).toBeUndefined();
   });
 });
