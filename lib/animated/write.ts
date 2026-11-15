@@ -136,7 +136,7 @@ function styleLines(s: VideoStyle, story = false): string {
     "",
     "# The account's own videos (follow these; the video is drawn in the account's colours, type and stage)",
     kinds ? `Its kinds of video:\n${kinds}` : "",
-    id.characters ? `Its character: ${id.characters}` : "",
+    id.characters ? `Its character: ${id.characters}` : story ? "Its character: none. Its videos have no people or characters, so do not add one; tell it with screens, cards, shapes and words." : "",
     id.stage ? `Its stage: ${id.stage}` : "",
     id.type ? `How its words read: ${id.type}` : "",
     st.hooks.length || st.spines.length ? `How its competitors build theirs (structure only, never their look or words): ${[...st.hooks, ...st.spines].join("; ")}` : "",

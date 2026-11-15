@@ -171,8 +171,8 @@ export function cleanBoard(raw: unknown, sourceText: string): Storyboard | null 
     links: arr(r.links, 4)
       .map((l) => ({ figure: str(l.figure, 12), hand: (l.hand === "rh" ? "rh" : "lh") as BoardLink["hand"], point: ref(l.point), label: str(l.label, 18), tone: tone(l.tone, "bad"), from: at(l.from), to: at(l.to) }))
       .filter((l) => l.point && figureIds.has(l.figure)),
-    cards: arr(r.cards, 2)
-      .map((c) => ({ title: str(c.title, 30), lines: (Array.isArray(c.lines) ? c.lines : []).map((x) => str(x, 44)).filter(Boolean).slice(0, 4), x: sx(c.x), y: sy(c.y), w: Math.round(num(c.w, 240, 900, 520)), from: at(c.from), to: at(c.to, true) }))
+    cards: arr(r.cards, 4)
+      .map((c) => ({ title: str(c.title, 30), lines: (Array.isArray(c.lines) ? c.lines : []).map((x) => str(x, 44)).filter(Boolean).slice(0, 4), x: sx(c.x), y: sy(c.y), w: Math.round(num(c.w, 560, 960, 760)), from: at(c.from), to: at(c.to, true) }))
       .filter((c) => c.title),
     sweep: { from: at(sweep.from, true), to: at(sweep.to, true) },
     flash: at(r.flash, true),
@@ -204,7 +204,7 @@ export function stampEnd(b: Pick<Storyboard, "stamps" | "flash">, tl: BoardTimel
 /** How wide a label, a stamp and a card are drawn, so the layout check and the renderer agree. */
 export const tagWidth = (text: string) => text.length * 15.5 + 30;
 export const stampWidth = (text: string, condensed: boolean) => text.length * (condensed ? 34 : 44) + 60;
-export const cardHeight = (lines: number) => 76 + lines * 44;
+export const cardHeight = (lines: number) => 124 + lines * 70;
 
 /** Labels, stamps and cards that are up at the same time never sit on top of each other: the later one moves down, or up when there is no room. */
 function declutter(b: Storyboard): void {

@@ -55,9 +55,9 @@ THE STAGE is ${STAGE_W} wide and ${STAGE_H} tall; x grows to the right, y grows 
 - stamps: one or two big words that spring in at a moment (SENT, DONE, TOO LATE), at most two in a video. A stamp leaves when the next stamp or the flash comes in.
 - Give every tag, stamp and card its own clear area: never on top of another, never over a character or the main object.
 - links: a dashed line from a character's hand to a point with a label of at most 3 words. It shows only while the hand is close to the point without touching it: a near miss.
-- cards: a small panel with a title and up to 4 short lines, for an app screen, a receipt, a list.
+- cards: an app-style panel with a bold title and up to 4 short lines that join one after another (at most 4 words a line; w 600 to 960; a card with 3 lines is about 330 tall, so show one card at a time, or two side by side only when both are narrow; up to 4 cards in a video): an app screen, a list of posts, a receipt, a plan. For an account whose videos are app screens, cards are the main objects: make them wide and central.
 - sweep: a line that sweeps down the stage between two moments and lights up the drawn points: a scan. flash: one flash at the story's turn. Use ph -1 when not used.
-- Tones: "fg" (main), "dim" (grey), "key" (the account's key colour), "accent" (the account's accent: good results), "bad" (red: problems).
+- Tones: "fg" (main), "dim" (grey), "key" (the account's key colour), "accent" (the account's accent: good results), "bad" (red: problems). Show a change of state with tone: empty or waiting things are "dim", filled or done things are "key" or "accent", so the viewer sees it happen.
 
 THE HUD. chapters: 2 or 3 short labels with the phrase each starts at; the last is usually "Brand · what changes". counter: a label and steps (the value from each moment; it only appears from its first step, so start it when counting starts, and change it at the moment the stage shows the change), with goodAt when it turns to the accent colour (ph -1 if never); use it for tries, steps, days, a price. meter: a label and keys (0 to 100 over time) that fills under the stage and turns red above 70, with goodAt when it recovers. Use the counter and the meter only when they carry the story; otherwise give them an empty label and no steps or keys.
 

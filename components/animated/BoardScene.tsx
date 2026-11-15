@@ -231,11 +231,21 @@ function Stage({ board, tl, look, t }: { board: Storyboard; tl: BoardTimeline; l
         const o = fade(t, sec(c.from), 0.3);
         const h = cardHeight(c.lines.length);
         const x = Math.max(20, Math.min(1060 - c.w, c.x - c.w / 2)), y = Math.max(20, Math.min(FLOOR_Y - h - 10, c.y - h / 2));
+        const since = t - sec(c.from);
         return (
           <g key={i} opacity={o} transform={`translate(0 ${(1 - o) * 20})`}>
-            <rect x={x} y={y} width={c.w} height={h} rx={22} fill={look.bg} stroke={look.dim} strokeWidth={2} />
-            <text x={x + 28} y={y + 50} fontFamily={fontFor(look.font)} fontWeight={700} fontSize={36} fill={look.fg}>{look.upper ? c.title.toUpperCase() : c.title}</text>
-            {c.lines.map((ln, k) => <text key={k} x={x + 28} y={y + 96 + k * 44} fontFamily={MONO} fontSize={26} fill={look.fg} opacity={0.72}>{ln}</text>)}
+            <rect x={x} y={y} width={c.w} height={h} rx={34} fill={look.bg} stroke={look.dim} strokeWidth={2} />
+            <text x={x + 40} y={y + 78} fontFamily={fontFor(look.font)} fontWeight={700} fontSize={54} fill={look.fg}>{look.upper ? c.title.toUpperCase() : c.title}</text>
+            {c.lines.map((ln, k) => {
+              // Lines join one after another, like a list filling in.
+              const lo = interpolate(since - 0.35 - k * 0.3, [0, 0.25], [0, 1], clamp01);
+              return (
+                <g key={k} opacity={lo}>
+                  <circle cx={x + 54} cy={y + 146 + k * 70} r={12} fill={look.key} />
+                  <text x={x + 86} y={y + 160 + k * 70} fontFamily={fontFor(look.font)} fontWeight={500} fontSize={42} fill={look.fg}>{ln}</text>
+                </g>
+              );
+            })}
           </g>
         );
       })}
@@ -358,26 +368,26 @@ export function BoardScene({ board, look, signoff, voice }: { board: Storyboard;
       <AbsoluteFill style={{ background: look.accent, opacity: flash, pointerEvents: "none" }} />
 
       {inCard && (
-        <AbsoluteFill style={{ background: look.bg, opacity: cardO, fontFamily: font }}>
+        <AbsoluteFill style={{ background: look.bg, opacity: cardO, fontFamily: font, padding: "500px 90px 0", display: "flex", flexDirection: "column", gap: 30 }}>
           {board.end.eyebrow && (
-            <div style={{ position: "absolute", left: 90, top: 520, display: "flex", alignItems: "center", gap: 14, fontFamily: MONO, fontSize: 26, letterSpacing: 3, color: look.dim, textTransform: "uppercase" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, fontFamily: MONO, fontSize: 26, letterSpacing: 3, color: look.dim, textTransform: "uppercase" }}>
               <span style={{ width: 16, height: 16, background: look.key, display: "inline-block" }} /> {board.end.eyebrow}
             </div>
           )}
-          <div style={{ position: "absolute", left: 90, right: 90, top: 575, fontWeight: 700, fontSize: look.font === "condensed" ? 150 : 112, lineHeight: 1.0 }}>
+          <div style={{ fontWeight: 700, fontSize: look.font === "condensed" ? 150 : 104, lineHeight: 1.02, marginBottom: 26 }}>
             <div style={{ color: look.fg }}>{up(board.end.title[0])}</div>
             <div style={{ color: look.key }}>{up(board.end.title[1])}</div>
           </div>
           {board.end.rows.map((r, i) => (
-            <div key={i} style={{ position: "absolute", left: 90, right: 90, top: 930 + i * 150, display: "flex", alignItems: "center", gap: 30, opacity: row(i), transform: `translateY(${(1 - row(i)) * 24}px)` }}>
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 30, opacity: row(i), transform: `translateY(${(1 - row(i)) * 24}px)` }}>
               <Icon kind={r.icon} color={look.accent} />
-              <div style={{ fontWeight: 700, fontSize: look.font === "condensed" ? 50 : 40, lineHeight: 1.05 }}>
+              <div style={{ fontWeight: 700, fontSize: look.font === "condensed" ? 50 : 40, lineHeight: 1.08 }}>
                 <div style={{ color: look.fg }}>{up(r.a)}</div>
                 {r.b && <div style={{ color: look.key }}>{up(r.b)}</div>}
               </div>
             </div>
           ))}
-          {signoff && <div style={{ position: "absolute", left: 0, right: 0, top: 940 + board.end.rows.length * 150, textAlign: "center", fontFamily: MONO, fontSize: 30, fontWeight: 700, letterSpacing: 2, color: look.dim, opacity: row(board.end.rows.length) }}>{signoff}</div>}
+          {signoff && <div style={{ marginTop: 10, textAlign: "center", fontFamily: MONO, fontSize: 30, fontWeight: 700, letterSpacing: 2, color: look.dim, opacity: row(board.end.rows.length) }}>{signoff}</div>}
         </AbsoluteFill>
       )}
     </AbsoluteFill>
