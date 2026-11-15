@@ -9,6 +9,7 @@ describe("the brand's pitch", () => {
     expect(ownCallToAction(["Scan the wall. Get beta that fits your body. Your body. Your beta. 🧗 👉 DM to enter waitlist"])).toBe("DM to enter waitlist");
     expect(ownCallToAction(["Pizza by the slice since 1998.", "Order online, link in bio! #pizza"])).toBe("Order online, link in bio");
     expect(ownCallToAction(["Just a climber."])).toBeNull();
+    expect(ownCallToAction(["Stop guessing what to post. Comment \u201cEARLY ACCESS\u201d for the link. First 50 get a"])).toBe("Comment \u201cEARLY ACCESS\u201d for the link");
   });
   it("says what the brand is, sells and wants", () => {
     const detail = { growth: { main_goal: "bookings_orders", niche_path: { specific: "Pre-launch climbing app" }, understanding: { facts: [{ bio: "Scan the wall. 👉 DM to enter waitlist", standouts: [{ text: "The most advanced climbing buddy ever created.", format: "Reel", multiple: 1.7, metric: "views", value: 2089 }] }], visual: { about: { value: "An app that scans a bouldering wall and suggests beta that fits your body.", product: "BetaTwin app", confidence: 85, evidence: [] } } } } } as unknown as BrandDetail;

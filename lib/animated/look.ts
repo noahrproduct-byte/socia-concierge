@@ -63,7 +63,7 @@ export function lookFromStyle(style: VideoStyle | null | undefined): AnimatedLoo
   const accent = dark ? lift(id.accent, 0.55) : darken(id.accent, 0.42);
   // The key colour: the most saturated colour in the palette other than the background and the accent.
   const others = id.palette.filter((p) => p.toUpperCase() !== bg && p.toUpperCase() !== id.accent.toUpperCase() && sat(p) > 0.25);
-  const keyRaw = others.sort((a, b) => sat(b) - sat(a))[0] ?? id.accent;
+  const keyRaw = id.key ?? others.sort((a, b) => sat(b) - sat(a))[0] ?? id.accent;
   const key = dark ? lift(keyRaw, 0.58) : darken(keyRaw, 0.4);
   const [bh, bs, bl] = toHsl(bg);
   const surface = fromHsl(bh, Math.min(1, bs + 0.1), dark ? Math.min(0.32, bl + 0.08) : Math.max(0.7, bl - 0.06));
@@ -93,3 +93,6 @@ export function readLook(v: unknown): AnimatedLook | null {
     character: (CHARACTERS as readonly string[]).includes(String(l.character)) ? (l.character as CharacterKit) : "none",
   };
 }
+
+/** The look for an account whose video style hasn't been read: a neutral dark frame with one accent. */
+export const DEFAULT_LOOK: AnimatedLook = { bg: "#101012", surface: "#1B1D22", fg: "#F4F2EE", dim: "rgba(244,242,238,0.58)", accent: "#8BCB8E", key: "#F2C230", font: "sans", upper: false, stage: "none", character: "none" };

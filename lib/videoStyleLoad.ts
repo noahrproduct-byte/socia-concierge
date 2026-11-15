@@ -126,7 +126,7 @@ async function measure(bin: string, c: Candidate, dir: string): Promise<Measured
     }))).filter((f): f is { data: string; at: number } => Boolean(f));
     let palette: Swatch[] = [];
     if (c.own) {
-      const p = await run(bin, ["-hide_banner", "-loglevel", "error", "-i", file, "-vf", "fps=1,scale=27:48", "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1"], "buffer");
+      const p = await run(bin, ["-hide_banner", "-loglevel", "error", "-i", file, "-vf", "fps=1/2,scale=108:192:flags=neighbor", "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1"], "buffer");
       const raw = p?.out as Buffer | undefined;
       if (raw && raw.length) palette = paletteFromPixels(new Uint8Array(raw));
     }
@@ -150,9 +150,9 @@ const SCHEMA = {
   properties: {
     identity: {
       type: "object", additionalProperties: false,
-      required: ["background", "text", "accent", "font", "type", "logo", "characters", "stage", "formats"],
+      required: ["background", "text", "accent", "key", "font", "type", "logo", "characters", "stage", "formats"],
       properties: {
-        background: { type: "string" }, text: { type: "string" }, accent: { type: "string" },
+        background: { type: "string" }, text: { type: "string" }, accent: { type: "string" }, key: { type: "string" },
         font: { type: "string", enum: [...FONTS] },
         type: { type: "string" },
         logo: { type: "object", additionalProperties: false, required: ["spot", "what"], properties: { spot: { type: "string", enum: [...LOGO_SPOTS] }, what: { type: "string" } } },
@@ -174,7 +174,7 @@ const SCHEMA = {
 const SYSTEM = `You describe how one social media account's videos look, so new videos can be made that look like that account made them. You get frames from inside the account's own Reels ("own"), with the colours measured from their pixels, and frames from its competitors' Reels ("competitor"). You never invent.
 
 identity comes ONLY from the own Reels:
-- background, text, accent: hex colours, each one of the measured palette.
+- background, text, accent, key: hex colours, each one of the measured palette. text is the colour of the main words; key is the colour its key words and highlights are set in (often a gold, a yellow or a brand colour); accent is its second colour, used for results and buttons.
 - font: the closest type family: sans, condensed (tall narrow bold letters), serif, rounded, mono, handwritten.
 - type: one or two sentences on how the words look: weight, case, size, where they sit, how a key word is set apart, how words appear.
 - logo: where the account's logo sits in the frame ("none" when there isn't one) and what it looks like.

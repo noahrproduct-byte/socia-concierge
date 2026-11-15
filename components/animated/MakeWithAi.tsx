@@ -14,6 +14,7 @@ import { createClient } from "@/lib/supabase/client";
 import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import { ACCENTS, ANIMATED_FPS, ANIMATED_SIZE, specTimeline, type AnimatedCompare, type AnimatedCounter, type AnimatedScene, type AnimatedSpec, type AnimatedTheme, type CompareHeadline } from "@/lib/animated/spec";
 import { AnimatedComposition } from "./AnimatedComposition";
+import type { Storyboard } from "@/lib/animated/board";
 
 type Phase =
   | { kind: "writing" }
@@ -167,7 +168,7 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
               initiallyMuted
               acknowledgeRemotionLicense
             />
-            <small>{Math.round(total / ANIMATED_FPS)} seconds, 9:16, with sound effects (unmute the preview to hear them).{spec.compare ? " Comparison style." : spec.counter ? " Counter style." : ""}</small>
+            <small>{Math.round(total / ANIMATED_FPS)} seconds, 9:16, with sound effects (unmute the preview to hear them).{spec.board ? " Made for your account." : spec.compare ? " Comparison style." : spec.counter ? " Counter style." : ""}</small>
           </div>
           <div className="mwa-edit">
             {spec.review && (spec.review.passed
@@ -209,6 +210,7 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
             </div>
             </>
             )}
+            {spec.board && <BoardFields board={spec.board} busy={busy} onChange={(board) => setSpec((x) => (x ? { ...x, board } : x))} />}
             {spec.compare && <CompareFields compare={spec.compare} busy={busy} onChange={setCompare} />}
             {spec.counter && <CounterFields counter={spec.counter} busy={busy} onChange={setCounter} />}
             {spec.scenes.map((s, i) => (
@@ -229,6 +231,29 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
         </div>
       )}
     </Dialog>
+  );
+}
+
+/** Edit a storyboard's words: each caption phrase and the ending card. What is on the stage changes through "Tell SOCIA what to change". */
+function BoardFields({ board, busy, onChange }: { board: Storyboard; busy: boolean; onChange: (b: Storyboard) => void }) {
+  const setPhrase = (i: number, text: string) => onChange({ ...board, phrases: board.phrases.map((p, k) => (k === i ? { ...p, text } : p)) });
+  const setRow = (i: number, patch: Partial<Storyboard["end"]["rows"][number]>) => onChange({ ...board, end: { ...board.end, rows: board.end.rows.map((r, k) => (k === i ? { ...r, ...patch } : r)) } });
+  return (
+    <>
+      <Field label="Captions" hint="One line each, in order. Each appears word by word.">
+        <div className="mwa-phrases">
+          {board.phrases.map((p, i) => <Input key={i} aria-label={`Caption ${i + 1}`} maxLength={90} disabled={busy} value={p.text} onChange={(e) => setPhrase(i, e.target.value)} />)}
+        </div>
+      </Field>
+      <Field label="Ending title" hint="Two lines.">
+        <Textarea rows={2} maxLength={60} disabled={busy} value={board.end.title.join("\n")} onChange={(e) => { const [a = "", b = ""] = e.target.value.split("\n"); onChange({ ...board, end: { ...board.end, title: [a, b] } }); }} />
+      </Field>
+      {board.end.rows.map((r, i) => (
+        <Field key={i} label={`Ending line ${i + 1}`}>
+          <Input maxLength={70} disabled={busy} value={[r.a, r.b].filter(Boolean).join(" / ")} onChange={(e) => { const [a = "", b = ""] = e.target.value.split(" / "); setRow(i, { a, b }); }} />
+        </Field>
+      ))}
+    </>
   );
 }
 

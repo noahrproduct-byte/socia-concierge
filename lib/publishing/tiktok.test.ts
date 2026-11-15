@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   planChunks, chunkRange, buildPostInfo, statusFromFetch, describeFailReason, permalinkFor, canUpload, canPublishDirect, parseTikTokJson,
-  MIN_CHUNK, MAX_CHUNK, INBOX_NOTE,
+  sessionIsDead, MIN_CHUNK, MAX_CHUNK, INBOX_NOTE,
 } from "./adapters/tiktok";
 import { defaultSettings } from "./types";
 
@@ -47,6 +47,30 @@ describe("TikTok post_info", () => {
     const p = buildPostInfo(defaultSettings("tiktok"), "x".repeat(3000), "SELF_ONLY");
     expect("video_cover_timestamp_ms" in p).toBe(false);
     expect(p.title.length).toBe(2200);
+  });
+});
+
+describe("TikTok retry of a destination that already holds a session", () => {
+  // Regression: a first attempt that failed before any byte reached TikTok
+  // (the video could not be read from storage) kept its publish_id. Retry then
+  // only polled that empty session, which TikTok reports as PROCESSING_UPLOAD
+  // for good, so the row looked accepted while nothing was ever uploaded.
+  it("declares a session dead when TikTok is still waiting for bytes SOCIA will never send", () => {
+    expect(sessionIsDead({ status: "PROCESSING_UPLOAD" }, 10 * MB)).toBe(true);
+    expect(sessionIsDead({ status: "PROCESSING_UPLOAD", uploaded_bytes: 0 }, 10 * MB)).toBe(true);
+    expect(sessionIsDead({ status: "PROCESSING_UPLOAD", uploaded_bytes: 4 * MB }, 10 * MB)).toBe(true);
+    // The size was never recorded, so a half-sent upload cannot be told from a whole one: start over.
+    expect(sessionIsDead({ status: "PROCESSING_UPLOAD", uploaded_bytes: 10 * MB }, null)).toBe(true);
+  });
+  it("declares a FAILED session dead so the next attempt uploads again", () => {
+    expect(sessionIsDead({ status: "FAILED", fail_reason: "file_format_check_failed" }, 10 * MB)).toBe(true);
+  });
+  it("keeps a session TikTok is still processing or has published, so the video is never posted twice", () => {
+    expect(sessionIsDead({ status: "PROCESSING_UPLOAD", uploaded_bytes: 10 * MB }, 10 * MB)).toBe(false);
+    expect(sessionIsDead({ status: "PROCESSING_DOWNLOAD" }, 10 * MB)).toBe(false);
+    expect(sessionIsDead({ status: "SEND_TO_USER_INBOX" }, 10 * MB)).toBe(false);
+    expect(sessionIsDead({ status: "PUBLISH_COMPLETE", publicaly_available_post_id: ["1"] }, 10 * MB)).toBe(false);
+    expect(sessionIsDead({}, 10 * MB)).toBe(false);
   });
 });
 

@@ -23,7 +23,7 @@ export type BrandPitch = {
 };
 
 /** Calls to action people put in a bio or caption. */
-const CTA_RE = /\b(dm|message us|link in bio|waitlist|wait list|sign up|signup|join|book|order|reserve|download|get the app|shop|visit)\b/i;
+const CTA_RE = /\b(dm|message us|comment|link in bio|waitlist|wait list|sign up|signup|join|book|order|reserve|download|get the app|shop|visit)\b/i;
 
 /** The account's own call to action: the first sentence of the bio or a caption that asks for something. Pure. */
 export function ownCallToAction(texts: (string | null | undefined)[]): string | null {

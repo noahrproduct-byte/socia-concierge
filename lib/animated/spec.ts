@@ -86,6 +86,8 @@ export type AnimatedSpec = {
   counter?: AnimatedCounter | null;
   /** Shown small at the end, e.g. the brand's name. Never invented. */
   signoff: string | null;
+  /** When set, the video is a storyboard (lib/animated/board.ts): a format composed for this account, drawn by BoardScene. */
+  board?: import("./board").Storyboard | null;
   /** The ending that asks for the goal: a line naming what the brand does and the account's own call to action. Shown instead of the comment question. */
   cta?: { line: string; action: string } | null;
   /** SOCIA's check of the words before the person saw them (lib/animated/write.ts): passed, or what is still off. */
@@ -127,6 +129,25 @@ function sceneText(s: AnimatedScene): string {
 }
 
 /**
+ * A storyboard video's spec: the board (already cleaned by cleanBoard) with a
+ * caption and hashtags that pass the same checks as every other video's. It
+ * has no scenes of its own; the board is the whole video. Pure.
+ */
+export function boardSpec(board: import("./board").Storyboard, raw: { caption?: unknown; hashtags?: unknown } | null | undefined, sourceText: string, opts: { signoff?: string | null } = {}): AnimatedSpec {
+  const caption = clean(raw?.caption, 2200);
+  return {
+    version: 1, theme: "ink", accent: ACCENTS[0], scenes: [], board,
+    caption: inventsNumbers(caption, numberTokens(sourceText)) ? "" : caption,
+    cta: null,
+    signoff: opts.signoff ? clean(opts.signoff, 40) || null : null,
+    hashtags: cleanHashtags(raw?.hashtags),
+  };
+}
+
+const cleanHashtags = (v: unknown): string[] =>
+  (Array.isArray(v) ? v : []).filter((t): t is string => typeof t === "string").map((t) => t.replace(/^#/, "").replace(/[^\p{L}\p{N}_]/gu, "").slice(0, 40)).filter(Boolean).slice(0, 5);
+
+/**
  * The model's scenes, made safe: known types only, short lines, no em dashes,
  * no number the plan didn't contain (no invented prices, stats or results),
  * an emphasis word that is really in its line, at most MAX_SCENES, and a hook
@@ -142,7 +163,7 @@ export function cleanSpec(raw: unknown, sourceText: string, opts: { signoff?: st
   const extras = {
     cta,
     signoff: opts.signoff ? clean(opts.signoff, 40) || null : null,
-    hashtags: (Array.isArray(r.hashtags) ? r.hashtags : []).filter((t): t is string => typeof t === "string").map((t) => t.replace(/^#/, "").replace(/[^\p{L}\p{N}_]/gu, "").slice(0, 40)).filter(Boolean).slice(0, 5),
+    hashtags: cleanHashtags(r.hashtags),
   };
   const accent = ACCENTS.includes(r.accent as (typeof ACCENTS)[number]) ? (r.accent as string) : ACCENTS[0];
   const caption = clean(r.caption, 2200);
@@ -383,6 +404,7 @@ export function sceneFrames(s: AnimatedScene): number {
 
 /** Where each scene starts, and the whole length, in frames. The sign-off adds a short end card. */
 export function specTimeline(spec: AnimatedSpec): { starts: number[]; frames: number[]; end: number; total: number } {
+  if (spec.board) return { starts: [], frames: [], end: 0, total: Math.round(boardTimeline(spec.board).total * ANIMATED_FPS) };
   if (spec.compare) return { starts: [], frames: [], end: 0, total: Math.round(COMPARE_TIMES.total * ANIMATED_FPS) };
   if (spec.counter) return { starts: [], frames: [], end: 0, total: Math.round(counterTimeline(spec.counter).total * ANIMATED_FPS) };
   const frames = spec.scenes.map(sceneFrames);
@@ -413,3 +435,6 @@ export function palette(spec: Pick<AnimatedSpec, "theme" | "accent"> & { look?: 
   }
   return { bg: "#101012", fg: "#F4F2EE", mark: spec.accent, markInk: inkOn(spec.accent), dim: "rgba(244,242,238,0.55)" };
 }
+
+// At the end: board.ts imports numberTokens from this file, and function declarations are hoisted.
+import { boardTimeline } from "./board";

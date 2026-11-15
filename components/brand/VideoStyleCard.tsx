@@ -91,12 +91,15 @@ export default function VideoStyleCard({ initial, canEdit, connected }: { initia
       <div className="br-block">
         <span className="s-label">Colours</span>
         <div className="vs-colors">
-          {(["background", "text", "accent"] as const).map((k) => (
-            <label key={k} className="vs-color">
-              <input type="color" value={id[k]} disabled={!canEdit} onChange={(e) => set({ [k]: e.target.value.toUpperCase() })} />
-              <span>{k === "background" ? "Background" : k === "text" ? "Text" : "Accent"}<small>{id[k]}</small></span>
-            </label>
-          ))}
+          {(["background", "text", "key", "accent"] as const).map((k) => {
+            const v = id[k] ?? id.accent;
+            return (
+              <label key={k} className="vs-color">
+                <input type="color" value={v} disabled={!canEdit} onChange={(e) => set({ [k]: e.target.value.toUpperCase() })} />
+                <span>{k === "background" ? "Background" : k === "text" ? "Text" : k === "key" ? "Highlight" : "Accent"}<small>{v}</small></span>
+              </label>
+            );
+          })}
         </div>
         <div className="vs-palette" aria-label="Colours measured from your Reels">
           {m.own.palette.map((s) => <span key={s.hex} style={{ background: s.hex, flexGrow: Math.max(s.share, 0.04) }} title={`${s.hex}, ${Math.round(s.share * 100)}% of your frames`} />)}
