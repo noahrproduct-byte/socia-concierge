@@ -668,7 +668,8 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
   const cardFrom = card ? tl.durationFrames - END_FRAMES + END_SOFTEN_FRAMES : Infinity;
   // A theme whose lines are live type at the top (Showroom's "letters") keeps the captions up under them: the
   // words are the edit there, and a line over the first sentence must not take them away (rug reel, 2026-11-14).
-  const linesClearCaptions = theme?.typography.titleAnimation !== "letters";
+  // The Editorial theme's captions sit lower left, away from any line, so they stay up there too.
+  const linesClearCaptions = theme?.typography.titleAnimation !== "letters" && theme?.typography.captionPreset !== "vox";
   const pages = useMemo(() => (captionsOn ? clearOfText(captionPages(edl, words, fps, pageMs, pageWords), linesClearCaptions ? edl : { text: [] }, fps, cardFrom) : []), [edl, words, captionsOn, fps, pageMs, pageWords, cardFrom, linesClearCaptions]);
   // With ducking on, the music sits low under speech and comes up between (lib/studioClips/musicDuck.ts).
   const spoken = useMemo(() => (music?.duck ? speechSpans(edl, words) : []), [music?.duck, edl, words]);
