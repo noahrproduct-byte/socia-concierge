@@ -10,6 +10,7 @@ import { CounterScene } from "./CounterScene";
 import { SoundTrack, fontFor, type SfxCue } from "./parts";
 import { ClimbWall, ClimbingFigure } from "./Stage";
 import { BoardScene } from "./BoardScene";
+import { voiceFits } from "@/lib/animated/voice";
 import { DEFAULT_LOOK } from "@/lib/animated/look";
 
 const { fontFamily } = loadFont("normal", { weights: ["500", "700", "800"], subsets: ["latin"] });
@@ -161,7 +162,7 @@ export function AnimatedComposition({ spec }: { spec: AnimatedSpec }) {
   const template = look
     ? { bg: look.bg, fg: look.fg, dim: look.dim, accent: look.accent, light: false, look }
     : { bg: colors.bg, fg: colors.fg, dim: colors.dim, accent: spec.accent, light: spec.theme === "light" };
-  if (spec.board) return <BoardScene board={spec.board} look={look ?? DEFAULT_LOOK} signoff={spec.signoff} />;
+  if (spec.board) return <BoardScene board={spec.board} look={look ?? DEFAULT_LOOK} signoff={spec.signoff} voice={voiceFits(spec.board, spec.voice) ? spec.voice : null} />;
   if (spec.compare) return <CompareScene compare={spec.compare} signoff={spec.signoff} colors={template} cta={spec.cta} />;
   if (spec.counter) return <CounterScene counter={spec.counter} signoff={spec.signoff} colors={template} cta={spec.cta} />;
   const t = specTimeline(spec);

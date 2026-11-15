@@ -9,12 +9,14 @@ import type { ScheduledPost } from "@/lib/scheduling";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Player } from "@remotion/player";
 import { Loader2 } from "lucide-react";
-import { Dialog, Button, ButtonLink, SegmentedControl, Field, Input, Textarea, Checkbox } from "@/components/system";
+import { Dialog, Button, ButtonLink, SegmentedControl, Field, Input, Select, Textarea, Checkbox } from "@/components/system";
 import { createClient } from "@/lib/supabase/client";
 import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import { ACCENTS, ANIMATED_FPS, ANIMATED_SIZE, specTimeline, type AnimatedCompare, type AnimatedCounter, type AnimatedScene, type AnimatedSpec, type AnimatedTheme, type CompareHeadline } from "@/lib/animated/spec";
 import { AnimatedComposition } from "./AnimatedComposition";
 import type { Storyboard } from "@/lib/animated/board";
+import { voiceFits, type BoardVoice } from "@/lib/animated/voice";
+import type { VoiceChoice } from "@/lib/studioClips/voiceover";
 
 type Phase =
   | { kind: "writing" }
@@ -75,12 +77,53 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
     if (!spec || !changeText.trim()) return;
     setChanging(true); setChangeErr(null);
     try {
-      const r = await post<{ spec: AnimatedSpec }>("/api/animated/script", { ...JSON.parse(askKey), change: changeText.trim(), current: spec });
+      // The voiceover stays in this browser; the new version is voiced again when the person asks.
+      const r = await post<{ spec: AnimatedSpec }>("/api/animated/script", { ...JSON.parse(askKey), change: changeText.trim(), current: { ...spec, voice: null } });
       setSpec(r.spec); setChangeText("");
     } catch (e) {
       setChangeErr((e as Error).message);
     } finally { setChanging(false); }
   }
+
+  // The voiceover (storyboard videos): a voice reads the captions and the captions follow it. Made on the
+  // server, kept here as a blob URL until the video is rendered in this browser.
+  const isBoard = Boolean(spec?.board);
+  const [voices, setVoices] = useState<VoiceChoice[] | null>(null);
+  const [voiceOff, setVoiceOff] = useState(false);
+  const [voiceId, setVoiceId] = useState("");
+  const [voicing, setVoicing] = useState(false);
+  const [voiceErr, setVoiceErr] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isBoard || voices) return;
+    let alive = true;
+    fetch("/api/studio/voices").then((r) => r.json().catch(() => null)).then((j: { voices?: VoiceChoice[]; notConfigured?: boolean } | null) => {
+      if (!alive) return;
+      setVoices(j?.voices ?? []);
+      if (j?.notConfigured || !j?.voices?.length) setVoiceOff(true);
+    }).catch(() => { if (alive) { setVoices([]); setVoiceOff(true); } });
+    return () => { alive = false; };
+  }, [isBoard, voices]);
+  // The audio's blob URL is released when it is replaced and when the dialog goes away.
+  const voiceUrl = useRef<string | null>(null);
+  useEffect(() => () => { if (voiceUrl.current) URL.revokeObjectURL(voiceUrl.current); }, []);
+  async function addVoice() {
+    if (!spec?.board) return;
+    setVoicing(true); setVoiceErr(null);
+    try {
+      const r = await post<{ audio: string; words: number[]; end: number; text: string; voice: { id: string; name: string } }>("/api/animated/voice", {
+        phrases: spec.board.phrases.map((p) => p.text), end: { title: spec.board.end.title, rows: spec.board.end.rows.slice(0, 1) }, voiceId: voiceId || voices?.[0]?.id,
+      });
+      const bytes = Uint8Array.from(atob(r.audio), (c) => c.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }));
+      if (voiceUrl.current) URL.revokeObjectURL(voiceUrl.current);
+      voiceUrl.current = url;
+      const voice: BoardVoice = { url, words: r.words, end: r.end, text: r.text, voiceId: r.voice.id, voiceName: r.voice.name };
+      setSpec((x) => (x ? { ...x, voice } : x));
+    } catch (e) {
+      setVoiceErr((e as Error).message);
+    } finally { setVoicing(false); }
+  }
+  const voiceOn = Boolean(spec?.board && voiceFits(spec.board, spec.voice));
 
   const total = useMemo(() => (spec ? specTimeline(spec).total : 1), [spec]);
   const busy = phase.kind === "rendering" || phase.kind === "uploading" || phase.kind === "saving";
@@ -168,7 +211,7 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
               initiallyMuted
               acknowledgeRemotionLicense
             />
-            <small>{Math.round(total / ANIMATED_FPS)} seconds, 9:16, with sound effects (unmute the preview to hear them).{spec.board ? " Made for your account." : spec.compare ? " Comparison style." : spec.counter ? " Counter style." : ""}</small>
+            <small>{Math.round(total / ANIMATED_FPS)} seconds, 9:16, with {voiceOn ? "a voiceover and sound effects" : "sound effects"} (unmute the preview to hear them).{spec.board ? " Made for your account." : spec.compare ? " Comparison style." : spec.counter ? " Counter style." : ""}</small>
           </div>
           <div className="mwa-edit">
             {spec.review && (spec.review.passed
@@ -187,6 +230,24 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
               <Button size="sm" onClick={() => void change()} busy={changing} disabled={busy || changing || !changeText.trim()}>Change it</Button>
               {changeErr && <small role="alert">{changeErr}</small>}
             </div>
+            {spec.board && (
+              <div className="mwa-voice">
+                <Field label="Voiceover" hint="A voice reads the captions and the ending, and the captions follow it word by word. Each one you make uses one voiceover from your plan.">
+                  <Select value={voiceId || voices?.[0]?.id || ""} disabled={busy || voicing || voiceOff || !voices?.length} onChange={(e) => setVoiceId(e.target.value)}>
+                    {!voices?.length && <option value="">{voices ? "No voices available" : "Loading voices"}</option>}
+                    {voices?.map((v) => <option key={v.id} value={v.id}>{v.description ? `${v.name}: ${v.description.split(",")[0]}` : v.name}</option>)}
+                  </Select>
+                </Field>
+                <div className="mwa-change">
+                  <Button size="sm" onClick={() => void addVoice()} busy={voicing} disabled={busy || voicing || voiceOff || !voices?.length}>{spec.voice ? "Make the voiceover again" : "Add a voiceover"}</Button>
+                  {spec.voice && <Button size="sm" variant="ghost" disabled={busy || voicing} onClick={() => setSpec((x) => (x ? { ...x, voice: null } : x))}>Remove it</Button>}
+                  {voiceErr && <small role="alert">{voiceErr}</small>}
+                </div>
+                {voiceOff && <p className="mwa-note">Voiceovers aren&apos;t available in SOCIA right now.</p>}
+                {voiceOn && spec.voice && <p className="mwa-note" role="status">Voiceover by {spec.voice.voiceName}. Unmute the preview to hear it.</p>}
+                {spec.voice && !voiceOn && <p className="mwa-note" role="status">The captions changed after the voiceover was made, so it is off. Make it again to match the new words.</p>}
+              </div>
+            )}
             {spec.cta && (
               <>
                 <Field label="Ending line" hint="Names what you do. Shown instead of the comment question.">

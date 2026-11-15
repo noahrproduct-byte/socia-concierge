@@ -297,11 +297,13 @@ function Icon({ kind, color }: { kind: "chat" | "follow" | "send"; color: string
   );
 }
 
-export function BoardScene({ board, look, signoff, voice }: { board: Storyboard; look: AnimatedLook; signoff: string | null; voice?: { url: string; words: number[] } | null }) {
+export function BoardScene({ board, look, signoff, voice }: { board: Storyboard; look: AnimatedLook; signoff: string | null; voice?: { url: string; words: number[]; end?: number } | null }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const t = frame / fps;
-  const tl = boardTimeline(board, voice?.words);
+  const tl = boardTimeline(board, voice?.words, voice?.end);
+  // Under a voice the sound effects sit back so the words stay clear.
+  const sfx = voice?.url ? 0.5 : 1;
   const sec = (a: At) => atSeconds(tl, a);
   const font = fontFor(look.font);
   const up = (s: string) => (look.upper ? s.toUpperCase() : s);
@@ -347,7 +349,7 @@ export function BoardScene({ board, look, signoff, voice }: { board: Storyboard;
     <AbsoluteFill style={{ background: look.bg, color: look.fg }}>
       {voice?.url && <Audio src={voice.url} />}
       {cues.map((c, i) => (
-        <Sequence key={i} from={Math.max(0, Math.round(c.at * fps))} layout="none"><Audio src={`/animated/sfx/${c.name}.mp3`} volume={c.v} /></Sequence>
+        <Sequence key={i} from={Math.max(0, Math.round(c.at * fps))} layout="none"><Audio src={`/animated/sfx/${c.name}.mp3`} volume={c.v * sfx} /></Sequence>
       ))}
 
       <Stage board={board} tl={tl} look={look} t={t} />

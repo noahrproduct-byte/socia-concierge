@@ -515,3 +515,4 @@
 .mwa-change small { color: var(--danger-text); font-size: var(--fs-meta); }
 .mwa-note { margin: 0; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
 .mwa-phrases { display: flex; flex-direction: column; gap: var(--sp-1); }
+.mwa-voice { display: flex; flex-direction: column; gap: var(--sp-2); }
