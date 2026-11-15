@@ -516,3 +516,8 @@
 .mwa-note { margin: 0; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
 .mwa-phrases { display: flex; flex-direction: column; gap: var(--sp-1); }
 .mwa-voice { display: flex; flex-direction: column; gap: var(--sp-2); }
+/* Settings, Invite a friend */
+.invite { display: flex; flex-direction: column; gap: var(--sp-3); }
+.invite-row { display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap; }
+.invite-row > :first-child { flex: 1 1 240px; min-width: 0; }
+.invite-note { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink-2); }

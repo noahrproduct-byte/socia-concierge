@@ -130,6 +130,14 @@ export default function PrivacyPage() {
           are deleted as soon as they are measured.
         </li>
         <li>
+          <b>Invitations</b>: if you open SOCIA through someone&apos;s invite
+          link, your browser keeps the link&apos;s code in a cookie for up to
+          30 days. When you make an account, SOCIA records that this person
+          invited you and whether you have connected a social account, so it
+          can give you both the extra allowance. You each see how many people
+          signed up with your link, never who they are.
+        </li>
+        <li>
           <b>Comments on your posts</b>: for AI comment replies, we store the
           commenter&apos;s name or username, the comment and the post&apos;s
           caption, alongside the reply SOCIA suggests. Nothing is sent until you
@@ -394,8 +402,9 @@ export default function PrivacyPage() {
         </li>
         <li>
           SOCIA uses cookies only to keep you signed in, to complete a
-          connection with a platform, and to remember for a year that you have
-          seen the short intro film so it does not play again. Your
+          connection with a platform, to remember for a year that you have
+          seen the short intro film so it does not play again, and to remember
+          for up to 30 days the code of an invite link you opened. Your
           browser&apos;s storage holds display preferences. There are no advertising or analytics cookies:
           the page-view counts from Vercel Web Analytics don&apos;t use cookies.
         </li>

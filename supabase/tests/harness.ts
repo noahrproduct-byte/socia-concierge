@@ -62,6 +62,7 @@ export const MIGRATIONS = [
   "clip-crop-path.sql",
   "reel-history.sql",
   "post-voices.sql",
+  "referrals.sql",
 ];
 
 const SUPABASE_STANDIN = `

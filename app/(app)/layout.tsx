@@ -9,6 +9,7 @@ import { needsOnboarding } from "@/lib/onboarding";
 import { INTRO_COOKIE, introDue } from "@/lib/intro";
 import { cookies } from "next/headers";
 import IntroGate from "@/components/intro/IntroGate";
+import RefCapture from "@/components/referrals/RefCapture";
 
 // Every signed-in section shares this shell. As a layout it stays mounted
 // while the person moves between sections: the sidebar and top bar are not
@@ -34,6 +35,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <AppShell>
       <TimezoneSync />
+      {/* a new account that came through an invite link says so, once */}
+      {user && <RefCapture claim />}
       {children}
       {/* the first-run film, once per account, over the page it leads into */}
       {user && introDue(user) && <IntroGate userId={user.id} seen={Boolean((await cookies()).get(INTRO_COOKIE))} />}

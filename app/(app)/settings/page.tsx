@@ -47,13 +47,14 @@ import { limitError } from "@/lib/planErrors";
 import PlanNotice from "@/components/PlanNotice";
 import PlanBilling from "@/components/settings/PlanBilling";
 import CreditsPanel from "@/components/settings/CreditsPanel";
+import InviteFriends from "@/components/settings/InviteFriends";
 import { PLANS, checkoutAvailable } from "@/lib/plans";
 import { readBillingInfo, syncCheckoutSession } from "@/lib/billing";
 import WorkspacesManager, { type WorkspaceRow } from "@/components/settings/WorkspacesManager";
 import TeamManager, { type TeamMemberRow, type TeamInviteRow } from "@/components/settings/TeamManager";
 import { resolveContext, can, brandWorkspace } from "@/lib/context";
 import { teamEnabled, listMembers, listInvites, seatsUsed } from "@/lib/team";
-import { Users } from "lucide-react";
+import { Gift, Users } from "lucide-react";
 import type { BrandDetail } from "@/lib/profile";
 import { workspacesEnabled, listWorkspaces, getActiveWorkspace, activeWorkspaces, scopeToWorkspace, competitorScopeId } from "@/lib/workspaces";
 import { listTracked } from "@/lib/trackedCompetitors";
@@ -630,6 +631,16 @@ export default async function SettingsPage({
                 notice={billingNotice}
               />
               <CreditsPanel checkout={checkoutAvailable()} />
+            </section>
+
+            {/* Invite a friend */}
+            <section className="st2-card" id="invite">
+              <div className="st2-card-head">
+                <span className="st2-card-ico"><Gift size={15} /></span>
+                <h3>Invite a friend</h3>
+                <span className="st2-card-note">You both get a little more</span>
+              </div>
+              <InviteFriends />
             </section>
 
             {/* Security & session */}
