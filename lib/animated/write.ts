@@ -10,6 +10,8 @@ import { brandWorkspace, type Ctx } from "@/lib/context";
 import { brandLine } from "@/lib/aiStudio/captions";
 import { ACCENTS, cleanSpec, MAX_SCENES, type AnimatedSpec } from "./spec";
 import { lookFromStyle } from "./look";
+import { boardWords, cleanBoard } from "./board";
+import { STORY_SCHEMA, STORY_SYSTEM } from "./boardWrite";
 import { pitchFromDetail, pitchLines } from "@/lib/brandPitch";
 import { readSavedStyle, type VideoStyle } from "@/lib/videoStyle";
 
@@ -126,7 +128,7 @@ Rules you never break:
 - caption: one or two sentences in the brand's voice for the post itself. hashtags: 3 to 5, without the # sign.`;
 
 /** The account's own videos, for the writer: what they are, how they're carried and how they read, and how competitors build theirs. */
-function styleLines(s: VideoStyle): string {
+function styleLines(s: VideoStyle, story = false): string {
   const id = s.identity;
   const kinds = id.formats.map((f) => `- ${f.name}: ${f.look}${f.spine ? ` Carried by ${f.spine}.` : ""}`).join("\n");
   const st = s.structure;
@@ -134,12 +136,16 @@ function styleLines(s: VideoStyle): string {
     "",
     "# The account's own videos (follow these; the video is drawn in the account's colours, type and stage)",
     kinds ? `Its kinds of video:\n${kinds}` : "",
-    id.characters ? `Its character: ${id.characters}` : "",
+    id.characters ? `Its character: ${id.characters}` : story ? "Its character: none. Its videos have no people or characters, so do not add one; tell it with screens, cards, shapes and words." : "",
     id.stage ? `Its stage: ${id.stage}` : "",
     id.type ? `How its words read: ${id.type}` : "",
     st.hooks.length || st.spines.length ? `How its competitors build theirs (structure only, never their look or words): ${[...st.hooks, ...st.spines].join("; ")}` : "",
-    "Pick the template closest to one of the account's own kinds: a big stat, a counter, attempts, rounds or a progress bar is \"counter\"; a this-versus-that is \"compare\". Write it the way that kind reads: when its videos tell a first-person story, the rounds are the story's beats (\"Session 1\", \"Week 6\") and the headlines are short and punchy, at most 5 words a line. Keep the subject inside the account's world: its character and stage are drawn for you, so write what the character does and what changes, never describe the drawing.",
-    "How it is drawn in this look: a comparison is the stage split into lanes, one character per option, each going up as its number counts and topping out when it stops; a counter is a big number with the character going up the stage and a progress line. There are no bars, rings or charts on screen, so never mention a bar, a column, a chart or a ring in any headline, note or question.",
+    ...(story
+      ? ["Build the stage and the character yourself from the blocks, so the video looks like one of the account's own: the same kind of stage, the same kind of character, the same way of telling it."]
+      : [
+        "Pick the template closest to one of the account's own kinds: a big stat, a counter, attempts, rounds or a progress bar is \"counter\"; a this-versus-that is \"compare\". Write it the way that kind reads: when its videos tell a first-person story, the rounds are the story's beats (\"Session 1\", \"Week 6\") and the headlines are short and punchy, at most 5 words a line. Keep the subject inside the account's world: its character and stage are drawn for you, so write what the character does and what changes, never describe the drawing.",
+        "How it is drawn in this look: a comparison is the stage split into lanes, one character per option, each going up as its number counts and topping out when it stops; a counter is a big number with the character going up the stage and a progress line. There are no bars, rings or charts on screen, so never mention a bar, a column, a chart or a ring in any headline, note or question.",
+        ]),
     "",
   ].filter((l, i, a) => l || a[i - 1]).join("\n");
 }
@@ -160,6 +166,7 @@ problems: each failure as one short sentence saying what to change. Empty when p
 /** Every line the viewer reads, in order, for the check. Pure. */
 export function specWords(spec: AnimatedSpec): string {
   const h = (x: { lines: [string, string] }) => x.lines.join(" / ");
+  if (spec.board) return boardWords(spec.board);
   const out: string[] = [];
   if (spec.compare) {
     const c = spec.compare;
@@ -199,6 +206,7 @@ export async function writeAnimatedSpec(ctx: Ctx, post: AnimatedSource, opts: { 
   // The account's own video style (lib/videoStyle.ts): the video is drawn in it, and written like the account's own Reels.
   const style = readSavedStyle((profile?.brand_detail as { videoStyle?: unknown } | null | undefined)?.videoStyle);
   const own = style ? styleLines(style) : "";
+  const ownStory = style ? styleLines(style, true) : "";
   // What the brand sells and wants, so the video has a point (lib/brandPitch.ts).
   const pitch = pitchFromDetail(profile?.brand_detail, { name: profile?.brand_name, goals: profile?.goals });
   const about = pitchLines(pitch).join("\n") || "(not set)";
@@ -229,13 +237,39 @@ export async function writeAnimatedSpec(ctx: Ctx, post: AnimatedSource, opts: { 
     // Numbers the change asked for count as the owner's own.
     return cleanSpec(raw, `${brand}\n${about}\n${lines.join("\n")}\n${opts.change ?? ""}`, { signoff: profile?.brand_name ?? null });
   };
-  let spec = await write("");
+  // The storyboard: a format composed for this account and this post (./board.ts). When it can't be written, the templates below still can.
+  const writeStory = async (extra: string): Promise<AnimatedSpec | null> => {
+    try {
+      const res = await anthropic.messages.create({
+        model: MODEL, max_tokens: 14000, system: STORY_SYSTEM,
+        output_config: { format: { type: "json_schema", schema: STORY_SCHEMA }, ...effortFor(MODEL, "medium") },
+        messages: [{ role: "user", content: `# Brand\n${brand}\n\n# What the brand sells and wants\n${about}\n${ownStory}\n# The planned post\n${lines.join("\n")}\n\n${opts.change ? ask : "Write the storyboard."}${extra}` }],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
+      recordAiUsage(ctx.ownerId, "animated_script", res);
+      if (res.stop_reason === "refusal" || res.stop_reason === "max_tokens") return null;
+      const block = res.content.find((b: { type: string }) => b.type === "text");
+      const raw = JSON.parse((block && "text" in block ? (block as { text: string }).text : "").replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()) as { board?: unknown; caption?: unknown; hashtags?: unknown };
+      const source = `${brand}\n${about}\n${lines.join("\n")}\n${opts.change ?? ""}`;
+      const board = cleanBoard(raw.board, source);
+      if (!board) return null;
+      // The caption and hashtags go through the same checks as every other video's.
+      const shell = cleanSpec({ format: "words", scenes: [{ type: "hook", text: board.phrases[0].text }], caption: raw.caption, hashtags: raw.hashtags }, source, { signoff: profile?.brand_name ?? null });
+      return shell ? { ...shell, scenes: [], board } : null;
+    } catch (e) {
+      console.error("[animated/story]", (e as Error)?.message ?? e);
+      return null;
+    }
+  };
+  const story = await writeStory("");
+  const rewrite = story ? writeStory : write;
+  let spec = story ?? (await write(""));
   if (!spec) throw Object.assign(new Error("SOCIA's video came back incomplete. Try again."), { status: 502 });
   // The meaning check: one rewrite with what's off, then the result as it is, said honestly.
   const postText = lines.join("\n");
   let review = await reviewSpec(ctx.ownerId, about, postText, spec);
   if (!review.passed && review.problems.length) {
-    const again = await write(`\n\nA check of your first version found these problems. Fix every one:\n${review.problems.map((p) => `- ${p}`).join("\n")}`).catch(() => null);
+    const again = await rewrite(`\n\nA check of your first version found these problems. Fix every one:\n${review.problems.map((p) => `- ${p}`).join("\n")}`).catch(() => null);
     if (again) {
       spec = again;
       review = await reviewSpec(ctx.ownerId, about, postText, spec);

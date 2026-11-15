@@ -71,6 +71,8 @@ export type VideoStyle = {
     background: string;
     text: string;
     accent: string;
+    /** The colour the account sets its key words and highlights in; absent on reads made before it was asked for. */
+    key?: string;
     /** Every colour that matters, from the measured palette. */
     palette: string[];
     font: FontId;
@@ -103,7 +105,7 @@ export const isHex = (v: unknown): v is string => typeof v === "string" && /^#[0
  * pixel goes in a bucket of near colours, close buckets merge, and the result
  * is each colour's share of the frame. Pure.
  */
-export function paletteFromPixels(rgb: Uint8Array, max = 6): Swatch[] {
+export function paletteFromPixels(rgb: Uint8Array, max = 9): Swatch[] {
   const buckets = new Map<number, { n: number; r: number; g: number; b: number }>();
   for (let i = 0; i + 2 < rgb.length; i += 3) {
     const r = rgb[i], g = rgb[i + 1], b = rgb[i + 2];
@@ -125,13 +127,14 @@ export function paletteFromPixels(rgb: Uint8Array, max = 6): Swatch[] {
   }
   return merged
     .sort((a, b) => b.n - a.n)
-    .filter((m) => m.n / total >= 0.01)
+    // Words cover little of a frame: a colour counts from 0.4% of it, so the highlight colour isn't lost.
+    .filter((m) => m.n / total >= 0.004)
     .slice(0, max)
-    .map((m) => ({ hex: toHex(...m.c), share: Math.round((m.n / total) * 100) / 100 }));
+    .map((m) => ({ hex: toHex(...m.c), share: Math.round((m.n / total) * 1000) / 1000 }));
 }
 
 /** Several videos' palettes as one, weighted by how much of each video a colour covers. Pure. */
-export function mergePalettes(list: Swatch[][], max = 8): Swatch[] {
+export function mergePalettes(list: Swatch[][], max = 10): Swatch[] {
   const all = list.flatMap((p) => p.map((s) => ({ ...s, share: s.share / Math.max(list.length, 1) })));
   const out: { c: [number, number, number]; share: number }[] = [];
   for (const s of all.sort((a, b) => b.share - a.share)) {
@@ -139,7 +142,7 @@ export function mergePalettes(list: Swatch[][], max = 8): Swatch[] {
     const near = out.find((o) => dist(o.c, c) < 48);
     if (near) near.share += s.share; else out.push({ c, share: s.share });
   }
-  return out.sort((a, b) => b.share - a.share).slice(0, max).map((o) => ({ hex: toHex(...o.c), share: Math.round(o.share * 100) / 100 }));
+  return out.sort((a, b) => b.share - a.share).slice(0, max).map((o) => ({ hex: toHex(...o.c), share: Math.round(o.share * 1000) / 1000 }));
 }
 
 /** The times ffmpeg's scene filter reported a cut at, from its showinfo log. Pure. */
@@ -206,6 +209,7 @@ export function cleanStyleRead(raw: unknown, ctx: { sources: StyleSource[]; pale
       background: bg,
       text: snap(id.text, measured.find((h) => h !== bg) ?? "#FFFFFF"),
       accent: snap(id.accent, measured[2] ?? measured[1] ?? "#2F5BFF"),
+      ...(snap(id.key, "") ? { key: snap(id.key, "") } : {}),
       palette: measured,
       font: (FONTS as readonly string[]).includes(String(id.font)) ? (id.font as FontId) : "sans",
       type: str(id.type, 300),
@@ -241,6 +245,7 @@ export function applyStyleEdits(base: VideoStyle, edits: unknown, now: Date): Vi
       background: pick(id.background, base.identity.background),
       text: pick(id.text, base.identity.text),
       accent: pick(id.accent, base.identity.accent),
+      ...(isHex(id.key) ? { key: id.key.toUpperCase() } : base.identity.key ? { key: base.identity.key } : {}),
       palette: pal.length ? pal : base.identity.palette,
       font: (FONTS as readonly string[]).includes(String(id.font)) ? (id.font as FontId) : base.identity.font,
       type: "type" in id ? str(id.type, 300) : base.identity.type,

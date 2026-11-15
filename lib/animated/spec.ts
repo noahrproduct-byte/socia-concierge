@@ -86,6 +86,8 @@ export type AnimatedSpec = {
   counter?: AnimatedCounter | null;
   /** Shown small at the end, e.g. the brand's name. Never invented. */
   signoff: string | null;
+  /** When set, the video is a storyboard (lib/animated/board.ts): a format composed for this account, drawn by BoardScene. */
+  board?: import("./board").Storyboard | null;
   /** The ending that asks for the goal: a line naming what the brand does and the account's own call to action. Shown instead of the comment question. */
   cta?: { line: string; action: string } | null;
   /** SOCIA's check of the words before the person saw them (lib/animated/write.ts): passed, or what is still off. */
@@ -383,6 +385,7 @@ export function sceneFrames(s: AnimatedScene): number {
 
 /** Where each scene starts, and the whole length, in frames. The sign-off adds a short end card. */
 export function specTimeline(spec: AnimatedSpec): { starts: number[]; frames: number[]; end: number; total: number } {
+  if (spec.board) return { starts: [], frames: [], end: 0, total: Math.round(boardTimeline(spec.board).total * ANIMATED_FPS) };
   if (spec.compare) return { starts: [], frames: [], end: 0, total: Math.round(COMPARE_TIMES.total * ANIMATED_FPS) };
   if (spec.counter) return { starts: [], frames: [], end: 0, total: Math.round(counterTimeline(spec.counter).total * ANIMATED_FPS) };
   const frames = spec.scenes.map(sceneFrames);
@@ -413,3 +416,6 @@ export function palette(spec: Pick<AnimatedSpec, "theme" | "accent"> & { look?: 
   }
   return { bg: "#101012", fg: "#F4F2EE", mark: spec.accent, markInk: inkOn(spec.accent), dim: "rgba(244,242,238,0.55)" };
 }
+
+// At the end: board.ts imports numberTokens from this file, and function declarations are hoisted.
+import { boardTimeline } from "./board";
