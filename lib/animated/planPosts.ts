@@ -42,6 +42,8 @@ Rules:
 - Different from the filmed posts listed, and from each other. Mix the templates across the week.
 - About the brand's own world, as "What the account is" says: its subject, products, customers and know-how. Never take a topic from a word in the account's name alone (a "beta" app for climbers is about climbing beta, not software testing). When the brand line says nothing about what the account is, keep to what its filmed posts are about.
 - When "How it posts" lists the account's own animated kinds of video, pick ideas those videos would tell: the same subject, characters and stories, in the closest template. Never invent the brand's own results, sales, prices, ratings, awards or offers; general facts and clearly typical examples are fine.
+- Every post makes ONE point that moves the account's audience toward the owner's main goal. Start from a problem or a want the audience really has (a climber stuck on a move, a family deciding where to eat), let the video show it, and end on why it matters to them. A fun fact or general know-how with no point for this audience is not a post.
+- About half the posts lead to what the brand sells or makes: the point is the problem it solves, and the video names the brand once, plainly, as what helps. The others earn trust on the same problems without selling. Never claim a result the brand's product gets (no "3x faster", no numbers about it); say only what it does, from "What it is".
 - title: at most 8 words. hook: the first line a viewer reads, at most 12 words. concept: two or three sentences saying what the video shows and which numbers or points it uses.
 - Sentence case, plain words, no hashtags, emoji or em dashes.`;
 

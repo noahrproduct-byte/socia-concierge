@@ -86,6 +86,10 @@ export type AnimatedSpec = {
   counter?: AnimatedCounter | null;
   /** Shown small at the end, e.g. the brand's name. Never invented. */
   signoff: string | null;
+  /** The ending that asks for the goal: a line naming what the brand does and the account's own call to action. Shown instead of the comment question. */
+  cta?: { line: string; action: string } | null;
+  /** SOCIA's check of the words before the person saw them (lib/animated/write.ts): passed, or what is still off. */
+  review?: { passed: boolean; problems: string[] } | null;
   /** The account's own look, from its video style (lib/animated/look.ts); SOCIA's own look when absent. */
   look?: import("./look").AnimatedLook | null;
   caption: string;
@@ -131,7 +135,12 @@ function sceneText(s: AnimatedScene): string {
 export function cleanSpec(raw: unknown, sourceText: string, opts: { signoff?: string | null } = {}): AnimatedSpec | null {
   const r = (raw ?? {}) as Record<string, unknown>;
   const source = numberTokens(sourceText);
+  const ctaRaw = (r.cta && typeof r.cta === "object" ? r.cta : {}) as Record<string, unknown>;
+  const ctaLine = clean(ctaRaw.line, 140), ctaAction = clean(ctaRaw.action, 60);
+  // The ending names what the brand does and asks for the goal, with no number the brand didn't write.
+  const cta = ctaLine && ctaAction && !inventsNumbers(`${ctaLine} ${ctaAction}`, source) ? { line: ctaLine, action: ctaAction } : null;
   const extras = {
+    cta,
     signoff: opts.signoff ? clean(opts.signoff, 40) || null : null,
     hashtags: (Array.isArray(r.hashtags) ? r.hashtags : []).filter((t): t is string => typeof t === "string").map((t) => t.replace(/^#/, "").replace(/[^\p{L}\p{N}_]/gu, "").slice(0, 40)).filter(Boolean).slice(0, 5),
   };

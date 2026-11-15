@@ -66,6 +66,21 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
     if (!open) abort.current?.abort();
   }, [open, write]);
 
+  // Change it in the person's own words: SOCIA writes the whole video again with that change.
+  const [changeText, setChangeText] = useState("");
+  const [changing, setChanging] = useState(false);
+  const [changeErr, setChangeErr] = useState<string | null>(null);
+  async function change() {
+    if (!spec || !changeText.trim()) return;
+    setChanging(true); setChangeErr(null);
+    try {
+      const r = await post<{ spec: AnimatedSpec }>("/api/animated/script", { ...JSON.parse(askKey), change: changeText.trim(), current: spec });
+      setSpec(r.spec); setChangeText("");
+    } catch (e) {
+      setChangeErr((e as Error).message);
+    } finally { setChanging(false); }
+  }
+
   const total = useMemo(() => (spec ? specTimeline(spec).total : 1), [spec]);
   const busy = phase.kind === "rendering" || phase.kind === "uploading" || phase.kind === "saving";
 
@@ -155,12 +170,45 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
             <small>{Math.round(total / ANIMATED_FPS)} seconds, 9:16, with sound effects (unmute the preview to hear them).{spec.compare ? " Comparison style." : spec.counter ? " Counter style." : ""}</small>
           </div>
           <div className="mwa-edit">
+            {spec.review && (spec.review.passed
+              ? <p className="mwa-check ok">SOCIA checked it: one clear point, aimed at your goal{spec.cta ? ", with your call to action at the end" : ""}.</p>
+              : spec.review.problems.length > 0 && (
+                <div className="mwa-check">
+                  <b>SOCIA&apos;s check still found:</b>
+                  <ul>{spec.review.problems.map((x, i) => <li key={i}>{x}</li>)}</ul>
+                  <small>Fix it below, or tell SOCIA what to change.</small>
+                </div>
+              ))}
+            <Field label="Tell SOCIA what to change" hint="It writes the whole video again with your change. This doesn't use another animated video.">
+              <Textarea rows={2} maxLength={300} disabled={busy || changing} value={changeText} placeholder="e.g. Make it about joining the waitlist, use the tutorial style, shorter headlines" onChange={(e) => setChangeText(e.target.value)} />
+            </Field>
+            <div className="mwa-change">
+              <Button size="sm" onClick={() => void change()} busy={changing} disabled={busy || changing || !changeText.trim()}>Change it</Button>
+              {changeErr && <small role="alert">{changeErr}</small>}
+            </div>
+            {spec.cta && (
+              <>
+                <Field label="Ending line" hint="Names what you do. Shown instead of the comment question.">
+                  <Input maxLength={140} disabled={busy} value={spec.cta.line} onChange={(e) => setSpec((x) => (x?.cta ? { ...x, cta: { ...x.cta, line: e.target.value } } : x))} />
+                </Field>
+                <Field label="Call to action">
+                  <Input maxLength={60} disabled={busy} value={spec.cta.action} onChange={(e) => setSpec((x) => (x?.cta ? { ...x, cta: { ...x.cta, action: e.target.value } } : x))} />
+                </Field>
+                <Button size="sm" variant="ghost" disabled={busy} onClick={() => setSpec((x) => (x ? { ...x, cta: null } : x))}>End on a comment question instead</Button>
+              </>
+            )}
+            {spec.look ? (
+              <p className="mwa-note">Drawn in your video style. Change it in Settings, under Your video style.</p>
+            ) : (
+            <>
             <SegmentedControl label="Background" options={spec.compare || spec.counter ? THEMES.filter((x) => x.value !== "accent") : THEMES} value={spec.theme} onChange={(theme) => setSpec((s) => (s ? { ...s, theme } : s))} />
             <div className="mwa-swatches" role="radiogroup" aria-label="Highlight colour">
               {ACCENTS.map((c) => (
                 <button key={c} type="button" role="radio" aria-checked={spec.accent === c} aria-label={`Colour ${c}`} className={`mwa-swatch${spec.accent === c ? " is-on" : ""}`} style={{ background: c }} disabled={busy} onClick={() => setSpec((s) => (s ? { ...s, accent: c } : s))} />
               ))}
             </div>
+            </>
+            )}
             {spec.compare && <CompareFields compare={spec.compare} busy={busy} onChange={setCompare} />}
             {spec.counter && <CounterFields counter={spec.counter} busy={busy} onChange={setCounter} />}
             {spec.scenes.map((s, i) => (

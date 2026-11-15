@@ -3,13 +3,14 @@
 // words and numbers; lib/animated/spec.ts cleans them (no invented numbers,
 // short lines; comparison values not in the plan are marked "Example numbers")
 // and components/animated/AnimatedComposition.tsx draws them. Server only.
-import { anthropic, MODEL, effortFor } from "@/lib/anthropic";
+import { anthropic, MODEL, FAST_MODEL, effortFor } from "@/lib/anthropic";
 import { recordAiUsage } from "@/lib/aiUsage";
 import { getProfile } from "@/lib/profile";
 import { brandWorkspace, type Ctx } from "@/lib/context";
 import { brandLine } from "@/lib/aiStudio/captions";
 import { ACCENTS, cleanSpec, MAX_SCENES, type AnimatedSpec } from "./spec";
 import { lookFromStyle } from "./look";
+import { pitchFromDetail, pitchLines } from "@/lib/brandPitch";
 import { readSavedStyle, type VideoStyle } from "@/lib/videoStyle";
 
 /** The plan post the video is about: what the plan wrote, nothing more. */
@@ -21,7 +22,7 @@ const HEADLINE = {
 } as const;
 
 const SCHEMA = {
-  type: "object", additionalProperties: false, required: ["format", "theme", "accent", "compare", "counter", "scenes", "caption", "hashtags"],
+  type: "object", additionalProperties: false, required: ["format", "theme", "accent", "compare", "counter", "scenes", "caption", "hashtags", "cta"],
   properties: {
     format: { type: "string", enum: ["compare", "counter", "words"] },
     compare: {
@@ -77,10 +78,17 @@ const SCHEMA = {
     },
     caption: { type: "string" },
     hashtags: { type: "array", items: { type: "string" } },
+    cta: { type: "object", additionalProperties: false, required: ["line", "action"], properties: { line: { type: "string" }, action: { type: "string" } } },
   },
 } as const;
 
 const SYSTEM = `You turn one planned social media post into a short animated vertical video drawn in code: no footage, no people, no photos. There are three formats. Prefer "compare" or "counter" over "words" whenever one of them honestly fits.
+
+THE POINT, before anything else. The video argues ONE point that moves the brand's audience toward the owner's main goal (see "What the brand sells and wants"):
+- The hook names a problem or a want the audience really has, in their words. The middle shows it with the format. The close headline is the lesson, and it points at what the brand does about it.
+- When the brand sells or makes something, the video names the brand once, plainly, as what helps with that problem. Say only what it does, from "What it is". Never claim a result it gets: no numbers, no "faster", "better" or "more" about the brand's product.
+- cta: when the main goal is people doing something (booking, ordering, signing up, joining a waitlist) and the brand sells something, fill it: "line" is one sentence, at most 14 words, that names the brand and what it does for this problem; "action" is the account's own call to action, in its own words when they are given (for example "DM to enter the waitlist"), at most 7 words. Otherwise leave both empty and end on the comment question.
+- A fun fact or general know-how with no point for this audience is not acceptable.
 
 FORMAT "compare": 2 to 4 options side by side, measured on ONE number that counts up in every column at once (time, price, steps, minutes, grams, cups, kilometres, days). Each column stops at its value, turns green (tone "win"), red ("lose") or grey ("neutral") and gets a stamp of one or two words (for example SOUR, BALANCED, BITTER; TOO SLOW; BEST VALUE). It fits tips, mistakes, myths, "this vs that", options, before and after told as numbers, and anything where choosing differently changes a number.
 - hook: the opening headline, two short lines (at most 7 words each) that state the surprising setup, e.g. "Same beans. Same machine." / "Three different coffees." "key" is one or two words copied exactly from the second line to set in italics.
@@ -136,12 +144,64 @@ function styleLines(s: VideoStyle): string {
   ].filter((l, i, a) => l || a[i - 1]).join("\n");
 }
 
-export async function writeAnimatedSpec(ctx: Ctx, post: AnimatedSource): Promise<AnimatedSpec> {
+const REVIEW_SCHEMA = {
+  type: "object", additionalProperties: false, required: ["passed", "problems"],
+  properties: { passed: { type: "boolean" }, problems: { type: "array", items: { type: "string" } } },
+} as const;
+
+const REVIEW_SYSTEM = `You check the words of a short animated social video before its owner sees it. You get what the brand is and wants, the planned post, and every line the viewer will read, in order. Answer passed only when ALL of these hold:
+1. It makes one clear point a person in the brand's audience would get and care about.
+2. That point moves them toward the owner's main goal.
+3. When the brand sells or makes something, the brand is named once and the video says plainly what it does for this problem.
+4. Nothing claims a result for the brand's product (no numbers or "faster/better" about it), and no number is presented as fact unless it is labelled as an example.
+5. The words match what is on screen: a comparison is shown as options side by side, a counter as one number going up; nothing mentions bars, charts or rings.
+problems: each failure as one short sentence saying what to change. Empty when passed.`;
+
+/** Every line the viewer reads, in order, for the check. Pure. */
+export function specWords(spec: AnimatedSpec): string {
+  const h = (x: { lines: [string, string] }) => x.lines.join(" / ");
+  const out: string[] = [];
+  if (spec.compare) {
+    const c = spec.compare;
+    out.push(`Comparison. Headlines: ${h(c.hook)} | ${h(c.turn)} | ${h(c.close)}`, `Setup: ${c.setup}`, `Options: ${c.columns.map((x) => `${x.label} ${x.value} ${c.unit} (${x.stamp})`).join("; ")}${c.illustrative ? " [labelled Example numbers]" : ""}`, `Note: ${c.note}`);
+  } else if (spec.counter) {
+    const c = spec.counter;
+    out.push(`Counter of ${c.measure}. Headlines: ${h(c.hook)} | ${c.rounds.map((r) => `${r.title} ${r.value}: ${h(r.result)}`).join(" | ")} | ${h(c.close)}${c.illustrative ? " [labelled Example numbers]" : ""}`, `Note: ${c.note}`);
+  } else {
+    for (const sc of spec.scenes) out.push(sc.type === "list" ? `${sc.title}: ${sc.items.join("; ")}` : sc.type === "cta" ? `${sc.text} ${sc.sub ?? ""}` : sc.text);
+  }
+  out.push(spec.cta ? `Ending: ${spec.cta.line} / ${spec.cta.action}` : `Ending question: ${spec.compare?.question ?? spec.counter?.question ?? ""}`);
+  return out.filter(Boolean).join("\n");
+}
+
+async function reviewSpec(ownerId: string, about: string, post: string, spec: AnimatedSpec): Promise<{ passed: boolean; problems: string[] }> {
+  try {
+    const res = await anthropic.messages.create({
+      model: FAST_MODEL, max_tokens: 1200, system: REVIEW_SYSTEM,
+      output_config: { format: { type: "json_schema", schema: REVIEW_SCHEMA }, ...effortFor(FAST_MODEL, "low") },
+      messages: [{ role: "user", content: `# What the brand sells and wants\n${about}\n\n# The planned post\n${post}\n\n# The video's words\n${specWords(spec)}` }],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+    recordAiUsage(ownerId, "animated_review", res);
+    const block = res.content.find((b: { type: string }) => b.type === "text");
+    const raw = JSON.parse((block && "text" in block ? (block as { text: string }).text : "{}").replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()) as { passed?: unknown; problems?: unknown };
+    const problems = (Array.isArray(raw.problems) ? raw.problems : []).filter((x): x is string => typeof x === "string").map((x) => x.replace(/\s*[—–]\s*/g, ", ").slice(0, 200)).slice(0, 5);
+    return { passed: raw.passed === true && !problems.length, problems };
+  } catch {
+    // A check that can't run never blocks the video; it just isn't marked as checked.
+    return { passed: false, problems: [] };
+  }
+}
+
+export async function writeAnimatedSpec(ctx: Ctx, post: AnimatedSource, opts: { change?: string; current?: AnimatedSpec | null } = {}): Promise<AnimatedSpec> {
   const profile = await getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null);
   const brand = brandLine(profile);
   // The account's own video style (lib/videoStyle.ts): the video is drawn in it, and written like the account's own Reels.
   const style = readSavedStyle((profile?.brand_detail as { videoStyle?: unknown } | null | undefined)?.videoStyle);
   const own = style ? styleLines(style) : "";
+  // What the brand sells and wants, so the video has a point (lib/brandPitch.ts).
+  const pitch = pitchFromDetail(profile?.brand_detail, { name: profile?.brand_name, goals: profile?.goals });
+  const about = pitchLines(pitch).join("\n") || "(not set)";
   const lines = [
     post.title ? `Title: ${post.title}` : "",
     `Hook: ${post.hook}`,
@@ -150,19 +210,37 @@ export async function writeAnimatedSpec(ctx: Ctx, post: AnimatedSource): Promise
     post.purpose ? `Purpose: ${post.purpose}` : "",
     post.audience ? `For: ${post.audience}` : "",
   ].filter(Boolean).map((l) => l.slice(0, 600));
-  const res = await anthropic.messages.create({
-    model: MODEL, max_tokens: 6000, system: SYSTEM,
-    output_config: { format: { type: "json_schema", schema: SCHEMA }, ...effortFor(MODEL, "medium") },
-    messages: [{ role: "user", content: `# Brand\n${brand}\n${own}\n# The planned post\n${lines.join("\n")}\n\nWrite the video's scenes.` }],
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any);
-  recordAiUsage(ctx.ownerId, "animated_script", res);
-  if (res.stop_reason === "refusal") throw Object.assign(new Error("SOCIA declined this one. Try a different post."), { status: 422 });
-  const block = res.content.find((b: { type: string }) => b.type === "text");
-  const text = block && "text" in block ? (block as { text: string }).text : "";
-  let raw: unknown = null;
-  try { raw = JSON.parse(text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()); } catch { raw = null; }
-  const spec = cleanSpec(raw, `${brand}\n${lines.join("\n")}`, { signoff: profile?.brand_name ?? null });
+  const ask = opts.change
+    ? `The owner saw this version:\n${opts.current ? specWords(opts.current) : "(not shown)"}\n\nThey asked for this change: "${opts.change}"\nWrite the whole video again with that change, keeping everything else that worked.`
+    : "Write the video's scenes.";
+  const write = async (extra: string) => {
+    const res = await anthropic.messages.create({
+      model: MODEL, max_tokens: 6000, system: SYSTEM,
+      output_config: { format: { type: "json_schema", schema: SCHEMA }, ...effortFor(MODEL, "medium") },
+      messages: [{ role: "user", content: `# Brand\n${brand}\n\n# What the brand sells and wants\n${about}\n${own}\n# The planned post\n${lines.join("\n")}\n\n${ask}${extra}` }],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+    recordAiUsage(ctx.ownerId, "animated_script", res);
+    if (res.stop_reason === "refusal") throw Object.assign(new Error("SOCIA declined this one. Try a different post."), { status: 422 });
+    const block = res.content.find((b: { type: string }) => b.type === "text");
+    const text = block && "text" in block ? (block as { text: string }).text : "";
+    let raw: unknown = null;
+    try { raw = JSON.parse(text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()); } catch { raw = null; }
+    // Numbers the change asked for count as the owner's own.
+    return cleanSpec(raw, `${brand}\n${about}\n${lines.join("\n")}\n${opts.change ?? ""}`, { signoff: profile?.brand_name ?? null });
+  };
+  let spec = await write("");
   if (!spec) throw Object.assign(new Error("SOCIA's video came back incomplete. Try again."), { status: 502 });
+  // The meaning check: one rewrite with what's off, then the result as it is, said honestly.
+  const postText = lines.join("\n");
+  let review = await reviewSpec(ctx.ownerId, about, postText, spec);
+  if (!review.passed && review.problems.length) {
+    const again = await write(`\n\nA check of your first version found these problems. Fix every one:\n${review.problems.map((p) => `- ${p}`).join("\n")}`).catch(() => null);
+    if (again) {
+      spec = again;
+      review = await reviewSpec(ctx.ownerId, about, postText, spec);
+    }
+  }
+  spec = { ...spec, review };
   return { ...spec, look: lookFromStyle(style) };
 }

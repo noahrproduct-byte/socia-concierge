@@ -159,8 +159,8 @@ export function AnimatedComposition({ spec }: { spec: AnimatedSpec }) {
   const template = look
     ? { bg: look.bg, fg: look.fg, dim: look.dim, accent: look.accent, light: false, look }
     : { bg: colors.bg, fg: colors.fg, dim: colors.dim, accent: spec.accent, light: spec.theme === "light" };
-  if (spec.compare) return <CompareScene compare={spec.compare} signoff={spec.signoff} colors={template} />;
-  if (spec.counter) return <CounterScene counter={spec.counter} signoff={spec.signoff} colors={template} />;
+  if (spec.compare) return <CompareScene compare={spec.compare} signoff={spec.signoff} colors={template} cta={spec.cta} />;
+  if (spec.counter) return <CounterScene counter={spec.counter} signoff={spec.signoff} colors={template} cta={spec.cta} />;
   const t = specTimeline(spec);
   // Sound: a whoosh as each scene after the first comes in, a pop for the sign-off.
   const cues: SfxCue[] = [

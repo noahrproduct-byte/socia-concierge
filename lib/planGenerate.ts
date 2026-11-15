@@ -15,6 +15,7 @@ import { isMissingColumnError } from "./workspaces";
 import { writeAnimatedPosts } from "./animated/planPosts";
 import { platformName } from "./planItems";
 import { brandLines } from "./brandBrief";
+import { pitchFromDetail, pitchLines } from "./brandPitch";
 import { postsStarted, type PlanEvent } from "./planProgress";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -113,7 +114,7 @@ export async function generatePlanData(input: GenerateInput, brand: BrandDetail 
       voice: brand?.voice,
       location: brand?.location,
       avoid: brand?.avoid,
-    }).join("\n");
+    }).concat(pitchLines(pitchFromDetail(brand, { name: input.clientHandle, goals: input.goal }))).join("\n");
     onProgress?.({ type: "step", step: "animated", state: "active" });
     const animated = await writeAnimatedPosts({ brand, brandLine, filmed: data.weeklyPlan, platform: platformName(input.platform) ?? undefined, ownerId, count: input.animated });
     if (animated.length) data.weeklyPlan = [...data.weeklyPlan, ...withItemIds(animated)];
