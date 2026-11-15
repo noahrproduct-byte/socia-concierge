@@ -93,3 +93,6 @@ export function readLook(v: unknown): AnimatedLook | null {
     character: (CHARACTERS as readonly string[]).includes(String(l.character)) ? (l.character as CharacterKit) : "none",
   };
 }
+
+/** The look for an account whose video style hasn't been read: a neutral dark frame with one accent. */
+export const DEFAULT_LOOK: AnimatedLook = { bg: "#101012", surface: "#1B1D22", fg: "#F4F2EE", dim: "rgba(244,242,238,0.58)", accent: "#8BCB8E", key: "#F2C230", font: "sans", upper: false, stage: "none", character: "none" };
