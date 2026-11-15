@@ -81,6 +81,12 @@ export function assessBilling(f: BillingFacts): CheckLine[] {
     if (p.price.unitAmount !== want) problems.push(`it charges ${p.price.unitAmount == null ? "a custom amount" : usd(p.price.unitAmount)}, but SOCIA's pricing page says ${usd(want)}`);
     if (p.product && !p.product.active) problems.push("the product is archived");
     line(id, problems.length ? "fix" : "ok", `${name} price`, problems.length ? `Fix in Stripe: ${problems.join("; ")}.` : `${usd(want)} a month (${p.price.id}).`);
+    // Prices are shown before tax (pricing page): each price must add tax on top at checkout.
+    const behavior = p.price.taxBehavior;
+    line(`taxmode-${p.plan}`, behavior === "exclusive" ? "ok" : "fix", `${name} price excludes tax`,
+      behavior === "exclusive" ? `Tax is added on top at checkout, so customers pay ${usd(want)} plus any sales tax.`
+        : behavior === "inclusive" ? `This price includes tax, but the pricing page says ${usd(want)} before tax. Stripe can't change that on an existing price: add a new ${usd(want)} monthly price with "Include tax in price" set to No, make it the product's default, then archive the old one.`
+        : `This price doesn't say whether tax is included. In Stripe, open the price and set "Include tax in price" to No (it can be set once).`);
     const tax = p.product?.taxCode ?? null;
     line(`tax-${p.plan}`, tax ? "ok" : "fix", `${name} tax code`,
       tax ? `Product tax code ${tax}${tax === SAAS_TAX_CODE ? " (SaaS, business use)" : ""}.` : `Managed Payments needs a tax code on the product. Set ${SAAS_TAX_CODE} (Software as a service, business use) on "${p.product?.name ?? name}".`);

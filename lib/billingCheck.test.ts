@@ -26,6 +26,13 @@ describe("is Stripe ready to take a payment", () => {
     expect(fixes(f)).toEqual(["switch", "price-starter", "tax-growth"]);
     expect(assessBilling(f).find((l) => l.id === "price-starter")?.detail).toContain("$15");
   });
+  it("flags a price that includes tax or doesn't say, since prices are shown before tax", () => {
+    const withTax = (plan: PriceFacts["plan"], cents: number, taxBehavior: string | null) => price(plan, cents, { price: { id: `price_${plan}`, active: true, currency: "usd", unitAmount: cents, interval: "month", taxBehavior } });
+    const f = { ...good, prices: [withTax("starter", 1999, "inclusive"), withTax("growth", 3499, null), price("pro", 4999)] };
+    expect(fixes(f)).toEqual(["taxmode-starter", "taxmode-growth"]);
+    expect(assessBilling(f).find((l) => l.id === "taxmode-starter")?.detail).toContain("add a new $19.99 monthly price");
+    expect(assessBilling(good).find((l) => l.id === "taxmode-pro")?.detail).toContain("plus any sales tax");
+  });
   it("flags a webhook missing events and a portal that cancels at once", () => {
     const f = { ...good, webhooks: [{ url: "https://sociaos.com/api/stripe/webhook/", status: "enabled", events: ["checkout.session.completed"] }], portal: { ...good.portal!, cancelMode: "immediately" } };
     expect(fixes(f)).toEqual(["webhook", "portal"]);
