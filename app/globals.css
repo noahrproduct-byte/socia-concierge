@@ -11668,6 +11668,13 @@ p.cbm-muted { display: block; }
 .txo-guide span { position: absolute; bottom: 4px; right: 6px; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #2d9cff; }
 .txp-list { list-style: none; display: flex; flex-direction: column; gap: 8px; margin: 0 0 10px; padding: 0; }
 .txp-row { padding: 0; overflow: hidden; }
+.txp-row-top { display: flex; align-items: center; }
+.txp-row-top .txp-row-head { flex: 1; min-width: 0; }
+.txp-row-del { display: grid; place-items: center; flex: none; width: 32px; height: 32px; margin-right: var(--sp-2); border: 1px solid var(--border); border-radius: var(--r-control); background: var(--surface); color: var(--ink-2); cursor: pointer; }
+.txp-row-del:not(:disabled):hover { color: var(--negative-ink); border-color: var(--negative); }
+.txp-row-del:disabled { color: var(--ink-disabled); cursor: default; }
+.txp-row-del:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cbb-captions-del { margin-top: var(--sp-2); align-self: flex-start; }
 .txp-row.empty .txp-row-text { color: var(--text-muted); font-style: italic; }
 .txp-row-head { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 10px 12px; font: inherit; color: var(--text-primary); background: transparent; border: none; text-align: left; cursor: pointer; }
 .txp-row-style { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--primary-text); background: var(--primary-subtle); border-radius: 6px; padding: 4px 7px; white-space: nowrap; }

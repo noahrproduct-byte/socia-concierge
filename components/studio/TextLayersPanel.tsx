@@ -134,12 +134,15 @@ export default function TextLayersPanel({ layers, onChange, durationSec, frame, 
           const slot: TextSlot = l.slot ?? preset.slot;
           return (
             <li key={l.id} className={`ov-card txp-row${isOpen ? " open" : ""}${!l.text.trim() ? " empty" : ""}`}>
-              <button type="button" className="txp-row-head" aria-expanded={isOpen} onClick={() => openRow(l)}>
-                <span className="txp-row-style">{preset.label}</span>
-                <span className="txp-row-text">{l.text.trim() ? l.text.replace(/\n/g, " · ") : "Type the words"}</span>
-                <span className="txp-row-time">{fmtClock(l.at)}–{fmtClock(l.end)}</span>
-                <ChevronDown size={14} className="txp-chev" aria-hidden />
-              </button>
+              <div className="txp-row-top">
+                <button type="button" className="txp-row-head" aria-expanded={isOpen} onClick={() => openRow(l)}>
+                  <span className="txp-row-style">{preset.label}</span>
+                  <span className="txp-row-text">{l.text.trim() ? l.text.replace(/\n/g, " · ") : "Type the words"}</span>
+                  <span className="txp-row-time">{fmtClock(l.at)}–{fmtClock(l.end)}</span>
+                  <ChevronDown size={14} className="txp-chev" aria-hidden />
+                </button>
+                <button type="button" className="txp-row-del" aria-label={`Delete “${l.text.trim().replace(/\n/g, " ") || preset.label}”`} title="Delete this line" disabled={locked} onClick={() => remove(l.id)}><Trash2 size={13} /></button>
+              </div>
               {isOpen && (
                 <div className="txp-edit">
                   {picking === l.id ? (
