@@ -521,6 +521,17 @@
 .invite-row { display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap; }
 .invite-row > :first-child { flex: 1 1 240px; min-width: 0; }
 .invite-note { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink-2); }
+/* Dashboard, first week and posting streak */
+.mom { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--sp-4); }
+.mom-steps { list-style: none; margin: 0 0 var(--sp-3); padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
+.mom-steps li { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink); }
+.mom-steps li.is-done { color: var(--ink-2); }
+.mom-tick { flex: none; width: 18px; height: 18px; border-radius: var(--r-pill); border: 1px solid var(--border-strong); display: inline-flex; align-items: center; justify-content: center; }
+.mom-steps li.is-done .mom-tick { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.mom-strip { list-style: none; margin: 0 0 var(--sp-3); padding: 0; display: flex; gap: var(--sp-1); }
+.mom-strip li { flex: 1 1 0; height: 10px; border-radius: var(--r-pill); background: var(--surface-raised); border: 1px solid var(--border); }
+.mom-strip li.is-on { background: var(--ink); border-color: var(--ink); }
+.mom-note { margin: 0; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
 /* Settings, cancelling a plan */
 .cancel-link { align-self: flex-start; margin-top: var(--sp-3); padding: 0; border: 0; background: none; color: var(--ink-2); font-size: var(--fs-meta); line-height: var(--lh-meta); text-decoration: underline; cursor: pointer; }
 .cancel-link:hover { color: var(--ink); }
