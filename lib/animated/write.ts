@@ -131,6 +131,7 @@ function styleLines(s: VideoStyle): string {
     id.type ? `How its words read: ${id.type}` : "",
     st.hooks.length || st.spines.length ? `How its competitors build theirs (structure only, never their look or words): ${[...st.hooks, ...st.spines].join("; ")}` : "",
     "Pick the template closest to one of the account's own kinds: a big stat, a counter, attempts, rounds or a progress bar is \"counter\"; a this-versus-that is \"compare\". Write it the way that kind reads: when its videos tell a first-person story, the rounds are the story's beats (\"Session 1\", \"Week 6\") and the headlines are short and punchy, at most 5 words a line. Keep the subject inside the account's world: its character and stage are drawn for you, so write what the character does and what changes, never describe the drawing.",
+    "How it is drawn in this look: a comparison is the stage split into lanes, one character per option, each going up as its number counts and topping out when it stops; a counter is a big number with the character going up the stage and a progress line. There are no bars, rings or charts on screen, so never mention a bar, a column, a chart or a ring in any headline, note or question.",
     "",
   ].filter((l, i, a) => l || a[i - 1]).join("\n");
 }

@@ -44,5 +44,8 @@ describe("value text", () => {
     expect(compareValueText(2, "number", "moves")).toBe("2 moves");
     expect(compareValueText(1, "number", "class")).toBe("1 class");
     expect(compareValueText(1, "number", "$")).toBe("$1");
+    expect(compareValueText(1, "number", "tries")).toBe("1 try");
+    expect(compareValueText(1, "number", "boxes")).toBe("1 box");
+    expect(compareValueText(1, "number", "min")).toBe("1 min");
   });
 });
