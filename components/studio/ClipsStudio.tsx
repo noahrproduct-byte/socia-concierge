@@ -607,7 +607,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
               {project.status === "failed" && project.error && <span className="cb-stale-inline"><AlertTriangle size={12} /> {project.error}</span>}
             </div>
             <div className="cb-bar-actions">
-              {meta?.usage && <UsageLine meter="content_build" used={meta.usage.used} limit={meta.usage.limit} resetsOn={meta.usage.resetsOn} always />}
+              {meta?.usage && <UsageLine meter="content_build" used={meta.usage.used} limit={meta.usage.limit} resetsOn={meta.usage.resetsOn} credits={meta.usage.credits} always />}
               {view === "collect" && project.yield && <button type="button" className="ov-btn ghost small" onClick={() => setAdding(false)}>Back to results</button>}
               {view === "collect" && (
                 <button type="button" className={`ov-btn ${editing ? "primary" : "ghost"}`} disabled={!(readyClips.length > 0 && !uploading) || manualBusy} onClick={() => void openManual()} title="Cut, arrange and export these clips yourself. No AI, nothing counted.">

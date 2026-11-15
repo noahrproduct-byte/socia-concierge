@@ -134,7 +134,7 @@ export default function PrivacyPage() {
           link, your browser keeps the link&apos;s code in a cookie for up to
           30 days. When you make an account, SOCIA records that this person
           invited you and whether you have connected a social account, so it
-          can give you both the extra allowance. You each see how many people
+          can give you both the extra AI credits. You each see how many people
           signed up with your link, never who they are.
         </li>
         <li>

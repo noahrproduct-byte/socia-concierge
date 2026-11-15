@@ -215,9 +215,9 @@ describe("comparison table", () => {
     for (const p of PLAN_ORDER) expect(comingSoonFor(p)).toEqual([]);
   });
 
-  it("uses the spec's ten sections in order", () => {
+  it("uses the AI credits section, then the spec's ten sections in order", () => {
     expect(COMPARISON.map((c) => c.category)).toEqual([
-      "Workspaces & platforms", "Analytics", "SOCIA intelligence", "Content creation", "Competitors & trends",
+      "AI credits", "Workspaces & platforms", "Analytics", "SOCIA intelligence", "Content creation", "Competitors & trends",
       "Publishing", "Alerts", "Reports", "Team", "Support",
     ]);
   });

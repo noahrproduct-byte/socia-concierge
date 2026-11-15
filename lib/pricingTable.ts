@@ -7,11 +7,11 @@
 // Client-safe: no server imports.
 
 import {
-  PLANS, SALE_ORDER, SCALE_ON_SALE, FEATURE_STATUS, FEATURE_LABEL, METER_PERIOD, PLATFORM_NAME, WORKSPACE_PLATFORMS,
+  PLANS, SALE_ORDER, SCALE_ON_SALE, FEATURE_STATUS, FEATURE_LABEL, PLATFORM_NAME, WORKSPACE_PLATFORMS,
   formatHistory,
-  type PlanId, type PlanConfig, type FeatureKey, type LimitKey, type MeterKey,
+  type PlanId, type PlanConfig, type FeatureKey, type LimitKey,
 } from "./plans";
-import { MONTHLY_CREDITS, clipMinutesFor } from "./credits/config";
+import { MONTHLY_CREDITS, actionCredits, type CreditAction } from "./credits/config";
 
 export type Cell =
   | { kind: "yes" }
@@ -57,10 +57,10 @@ function limitCell(key: LimitKey, fmt: (n: number) => string = String): Record<P
   return perPlan((p) => text(fmt(p.limits[key])));
 }
 
-/** "50 / month" or "3 / week"; a zero allowance is simply "no". */
-function meterCell(key: MeterKey): Record<PlanId, Cell> {
-  const per = METER_PERIOD[key];
-  return perPlan((p) => (p.meters[key] > 0 ? text(`${p.meters[key]} / ${per}`) : NO));
+/** What one use costs in credits, on the plans that include it ("no" where the plan doesn't). */
+function creditCell(key: CreditAction): Record<PlanId, Cell> {
+  const cost = actionCredits(key);
+  return perPlan((p) => (p.meters[key] > 0 ? text(`${cost} ${cost === 1 ? "credit" : "credits"}`) : NO));
 }
 
 /** A feature row whose label is the feature's own label. */
@@ -79,6 +79,16 @@ export const CONNECTED_PLATFORMS = WORKSPACE_PLATFORMS.map((p) => PLATFORM_NAME[
 export const PUBLISHING_PLATFORMS = "Instagram and YouTube";
 
 export const COMPARISON: ComparisonCategory[] = [
+  {
+    category: "AI credits",
+    rows: [
+      {
+        label: "AI credits a month",
+        note: "One balance for every AI feature; the rows below show what each one uses. Monthly credits refill on the 1st and don't carry over. Top-ups don't expire.",
+        cells: perPlan((p) => text(MONTHLY_CREDITS[p.id].toLocaleString("en-US"))),
+      },
+    ],
+  },
   {
     category: "Workspaces & platforms",
     rows: [
@@ -113,9 +123,9 @@ export const COMPARISON: ComparisonCategory[] = [
   {
     category: "SOCIA intelligence",
     rows: [
-      { label: "Ask SOCIA questions", cells: meterCell("ask_socia") },
-      { label: "Video ideas", note: "Each batch is 5 ideas following your own theme: every shot, what to say, the sound and the length.", cells: meterCell("content_ideas") },
-      { label: "Full weekly Content Plan", cells: contentPlanCells() },
+      { label: "Ask SOCIA, per question", cells: creditCell("ask_socia") },
+      { label: "Video ideas, per batch", note: "Each batch is 5 ideas following your own theme: every shot, what to say, the sound and the length.", cells: creditCell("content_ideas") },
+      { label: "Full weekly Content Plan, per plan", cells: contentPlanCells() },
       feature("daily_recommendations", "A Today card on your Dashboard: posts due or failed, comments waiting, gaps in your schedule, your best window and posts taking off."),
       feature("repurposing", "Your best recent posts that aren't on your other platforms yet, made into a draft for each with a caption written for that platform."),
     ],
@@ -123,19 +133,19 @@ export const COMPARISON: ComparisonCategory[] = [
   {
     category: "Content creation",
     rows: [
-      { label: "Content Studio analyses", note: "Rate a video or photo before you post it.", cells: meterCell("content_studio") },
-      { label: "Hooks, captions and CTAs", cells: meterCell("content_generation") },
+      { label: "Content Studio rating", note: "Rate a video or photo before you post it.", cells: creditCell("content_studio") },
+      { label: "Hooks, captions and CTAs", cells: creditCell("content_generation") },
       feature("build_from_clips", "Upload your clips; SOCIA finds the posts they support and you edit them in the Video editor."),
-      { label: "Footage analyses", note: "One for each batch of clips SOCIA watches and understands.", cells: meterCell("content_build") },
+      { label: "Footage analysis", note: "One for each batch of clips SOCIA watches and understands.", cells: creditCell("content_build") },
       { label: "Clips per project", cells: limitCell("studio_clips_per_project") },
       { label: "Footage per project", cells: limitCell("studio_footage_minutes", (m) => `${m} minutes`) },
       { label: "Upload per project", cells: limitCell("studio_upload_mb", (mb) => (mb >= 1000 ? `${mb / 1000} GB` : `${mb} MB`)) },
       feature("auto_build", "SOCIA cuts and renders the video from your clips or a prompt; you can change anything after."),
-      { label: "AI-made videos", cells: meterCell("video_builds") },
-      { label: "Animated videos", note: "Comparisons, counters and words on screen, written by SOCIA from your plan and made in your browser.", cells: meterCell("animated_videos") },
-      { label: "Account audits", cells: meterCell("account_audit") },
-      feature("ai_clipper", "Upload a long video; SOCIA returns vertical clips with captions, a title, a score and a caption. Only clip videos you own or have rights to."),
-      { label: "Clipper credits per month", note: "Every video shows its price before anything is spent. In brackets: about how many minutes of video that clips.", cells: perPlan((p) => (MONTHLY_CREDITS[p.id] > 0 ? text(`${MONTHLY_CREDITS[p.id].toLocaleString("en-US")} (about ${clipMinutesFor(MONTHLY_CREDITS[p.id])} min)`) : NO)) },
+      { label: "AI-made video", cells: creditCell("video_builds") },
+      { label: "Animated video", note: "Comparisons, counters and words on screen, written by SOCIA from your plan and made in your browser.", cells: creditCell("animated_videos") },
+      { label: "Voiceover", cells: creditCell("voiceovers") },
+      { label: "Account audit", cells: creditCell("account_audit") },
+      feature("ai_clipper", "Upload a long video; SOCIA returns vertical clips with captions, a title, a score and a caption. Priced by the video's length, shown before anything is spent. Only clip videos you own or have rights to."),
       // Scale's row, once Scale is on sale (lib/credits/config.ts CREDIT_PRICES_CONFIRMED).
       ...(SCALE_ON_SALE ? [feature("ai_studio", "Ideas from your brand and niche, turned into AI videos and images on a curated set of models.")] : []),
     ],
@@ -202,7 +212,8 @@ function contentPlanCells(): Record<PlanId, Cell> {
   return perPlan((p) => {
     if (!p.features.content_plan || p.meters.content_plan <= 0) return NO;
     if (featureSoon("content_plan")) return SOON;
-    return text(`${p.meters.content_plan} / month`);
+    const cost = actionCredits("content_plan");
+    return text(`${cost} credits`);
   });
 }
 

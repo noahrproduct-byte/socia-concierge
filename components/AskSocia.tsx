@@ -291,7 +291,7 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
           {chips.map((c) => <span key={c} className="ov-chip muted">{c}</span>)}
           <span className="ask-chips-note">answers from your verified data</span>
           {persist && messages.length > 0 && <button type="button" className="ov-btn ghost small ask-new" onClick={() => { setMessages([]); setAppliedState({}); setError(null); setPlanError(null); }}>New chat</button>}
-          {usage && <UsageLine meter="ask_socia" used={usage.used} limit={usage.limit} resetsOn={usage.resetsOn} />}
+          {usage && <UsageLine meter="ask_socia" used={usage.used} limit={usage.limit} resetsOn={usage.resetsOn} credits={usage.credits} />}
         </div>
         <div className="ask-thread" ref={scrollRef}>
           {messages.length === 0 && !busy && (

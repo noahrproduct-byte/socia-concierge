@@ -6,12 +6,11 @@ import { checkoutAvailable } from "@/lib/plans";
 import { getEntitlements, canUseFeature } from "@/lib/entitlements";
 import { saveCustomerId } from "@/lib/billing";
 import { recordEvent } from "@/lib/planGuard";
-import { CREDIT_PRICES_CONFIRMED, TOPUP_PACKS, type TopupKey } from "@/lib/credits/config";
+import { TOPUP_PACKS, type TopupKey } from "@/lib/credits/config";
+import { topupPriceId, topupsOpen } from "@/lib/credits/topups";
 
 export const runtime = "nodejs";
 
-/** The Stripe Price for a pack: STRIPE_PRICE_TOPUP_SMALL, STRIPE_PRICE_TOPUP_LARGE (one-off prices). */
-const topupPriceId = (key: TopupKey): string | null => process.env[`STRIPE_PRICE_TOPUP_${key.toUpperCase()}`]?.trim() || null;
 
 // POST { pack } -> { url }: a one-off Stripe Checkout for a credit pack. The
 // webhook (checkout.session.completed, mode "payment") adds the credits once.
@@ -21,8 +20,8 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "Sign in to buy credits." }, { status: 401 });
   const stripe = getStripe();
   const svc = createServiceClient();
-  // Closed until the credit prices are confirmed (lib/credits/config.ts).
-  if (!stripe || !svc || !checkoutAvailable() || !CREDIT_PRICES_CONFIRMED) return NextResponse.json({ error: "Top-ups are not available yet." }, { status: 503 });
+  // Closed until checkout is on and both packs have a Stripe price (lib/credits/topups.ts).
+  if (!stripe || !svc || !topupsOpen()) return NextResponse.json({ error: "Top-ups are not available yet." }, { status: 503 });
   const body = (await req.json().catch(() => null)) as { pack?: unknown } | null;
   const pack = TOPUP_PACKS.find((p) => p.key === body?.pack);
   if (!pack) return NextResponse.json({ error: "Choose a credit pack." }, { status: 400 });

@@ -396,7 +396,7 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
 
           {usage && (
             <small className="cpl-auto">
-              <UsageLine meter="content_plan" used={usage.used} limit={usage.limit} resetsOn={usage.resetsOn} always />
+              <UsageLine meter="content_plan" used={usage.used} limit={usage.limit} resetsOn={usage.resetsOn} credits={usage.credits} always />
             </small>
           )}
           <button className="cpl-generate" onClick={generate} disabled={loading} type="button">
