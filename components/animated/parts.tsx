@@ -5,7 +5,14 @@ import { AbsoluteFill, Easing, Sequence, interpolate, useCurrentFrame } from "re
 import { Audio } from "@remotion/media";
 import { loadFont as loadSans } from "@remotion/google-fonts/Inter";
 import { loadFont as loadSerif } from "@remotion/google-fonts/InstrumentSerif";
+import { loadFont as loadCondensed } from "@remotion/google-fonts/Oswald";
+import { loadFont as loadDisplaySerif } from "@remotion/google-fonts/PlayfairDisplay";
+import { loadFont as loadRounded } from "@remotion/google-fonts/Nunito";
+import { loadFont as loadMono } from "@remotion/google-fonts/JetBrainsMono";
+import { loadFont as loadHand } from "@remotion/google-fonts/Caveat";
 import type { CompareHeadline } from "@/lib/animated/spec";
+import type { AnimatedLook } from "@/lib/animated/look";
+import type { FontId } from "@/lib/videoStyle";
 
 /**
  * The sound effects, all synthesised by scripts/animated-sfx.py (nothing to
@@ -34,7 +41,18 @@ export function SoundTrack({ cues }: { cues: SfxCue[] }) {
 export const { fontFamily: SANS } = loadSans("normal", { weights: ["500", "700", "800"], subsets: ["latin"] });
 export const { fontFamily: SERIF } = loadSerif("italic", { subsets: ["latin"] });
 
-export type TemplateColors = { bg: string; fg: string; dim: string; accent: string; light: boolean };
+const { fontFamily: CONDENSED } = loadCondensed("normal", { weights: ["600", "700"], subsets: ["latin"] });
+const { fontFamily: DISPLAY_SERIF } = loadDisplaySerif("normal", { weights: ["700"], subsets: ["latin"] });
+const { fontFamily: ROUNDED } = loadRounded("normal", { weights: ["700", "800"], subsets: ["latin"] });
+export const { fontFamily: MONO } = loadMono("normal", { weights: ["500", "700"], subsets: ["latin"] });
+const { fontFamily: HAND } = loadHand("normal", { weights: ["700"], subsets: ["latin"] });
+
+/** The family for an account's type (lib/videoStyle.ts FontId). */
+export const fontFor = (f: FontId | undefined): string =>
+  f === "condensed" ? CONDENSED : f === "serif" ? DISPLAY_SERIF : f === "rounded" ? ROUNDED : f === "mono" ? MONO : f === "handwritten" ? HAND : SANS;
+
+/** The template's colours; `look` is the account's own look when it has a video style. */
+export type TemplateColors = { bg: string; fg: string; dim: string; accent: string; light: boolean; look?: AnimatedLook | null };
 
 /** State colours: the winner green, a bad result red, finished or neutral grey. */
 export const TONES = {
@@ -59,6 +77,21 @@ export function SwapHeadline({ steps, colors, top = 170 }: { steps: { at: number
   const blur = cur.at > 0 && since < 3 ? [8, 4, 1][since] : 0;
   const shift = cur.at > 0 && since < 3 ? [-18, -6, 0][since] : 0;
   const [a, b] = cur.h.lines;
+  const look = colors.look;
+  if (look) {
+    // The account's own headline: its type family and case, the second line in its key colour.
+    // Sized so the longest line fits on one line across the frame (two lines, never three).
+    const longest = Math.max(a.length, b.length, 8);
+    const perChar = look.font === "condensed" ? 0.5 : 0.56;
+    const big = Math.round(Math.min(look.font === "condensed" ? 104 : 80, 940 / (longest * perChar)));
+    const style = { fontFamily: fontFor(look.font), fontWeight: 700, fontSize: big, lineHeight: 1.02, letterSpacing: look.font === "condensed" ? 0.5 : -1, textTransform: look.upper ? "uppercase" : "none" } as const;
+    return (
+      <div style={{ position: "absolute", left: 70, right: 70, top, textAlign: "left", filter: `blur(${blur}px)`, transform: `translateX(${shift}px)` }}>
+        <div style={{ ...style, color: look.fg }}>{a}</div>
+        <div style={{ ...style, color: look.key }}>{b}</div>
+      </div>
+    );
+  }
   const i = cur.h.key ? b.toLowerCase().indexOf(cur.h.key.toLowerCase()) : -1;
   const line = { fontFamily: SANS, fontWeight: 800, fontSize: 68, lineHeight: 1.08, letterSpacing: -1.5, color: colors.fg } as const;
   return (

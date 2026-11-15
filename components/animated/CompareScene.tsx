@@ -6,7 +6,7 @@
 // short blur; one brighten at the last stop; it ends on a comment question.
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
 import { COMPARE_TIMES, compareCounter, compareStopAt, compareValueText, type AnimatedCompare, type CompareTone } from "@/lib/animated/spec";
-import { CommentPrompt, Flash, SANS, SoundTrack, SwapHeadline, TONES, interpolateEnd, lineOf, stampScale, surfaceOf, type SfxCue, type TemplateColors } from "./parts";
+import { CommentPrompt, Flash, SANS, fontFor, SoundTrack, SwapHeadline, TONES, interpolateEnd, lineOf, stampScale, surfaceOf, type SfxCue, type TemplateColors } from "./parts";
 
 export type CompareColors = TemplateColors;
 
@@ -45,7 +45,7 @@ export function CompareScene({ compare, colors, signoff }: { compare: AnimatedCo
   const glass = lineOf(colors);
 
   return (
-    <AbsoluteFill style={{ background: colors.bg, color: colors.fg, fontFamily: SANS }}>
+    <AbsoluteFill style={{ background: colors.bg, color: colors.fg, fontFamily: colors.look ? fontFor(colors.look.font) : SANS }}>
       <SwapHeadline colors={colors} steps={[
         { at: 0, h: compare.hook },
         { at: Math.round(COMPARE_TIMES.turn * fps), h: compare.turn },
