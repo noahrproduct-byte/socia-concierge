@@ -70,19 +70,34 @@ export const FAST_MODEL = process.env.ANTHROPIC_MODEL_FAST || "claude-sonnet-5-5
  *   studio_clip   per-clip card (pass 1)      ANTHROPIC_MODEL_STUDIO_CLIP   default: fast
  *   studio_batch  batch reasoning (pass 2)    ANTHROPIC_MODEL_STUDIO_BATCH  default: MODEL
  *   studio_edl    EDL + edit guide (pass 3)   ANTHROPIC_MODEL_STUDIO_EDL    default: fast
- *   caption       Generate Caption (composer) ANTHROPIC_MODEL_CAPTION       default: MODEL
  *   ask           Ask SOCIA answers           ANTHROPIC_MODEL_ASK           default: fast (Noah, 2026-11-02: speed first)
+ * The easier, well-bounded writing and sorting tasks run on the fast model,
+ * which costs half as much (Noah, 2026-11-15: "use cheaper AI only for easier
+ * tasks, for example caption generation"). Each keeps an override so one can
+ * be moved back without a deploy of new code:
+ *   caption        Generate Caption (composer)        ANTHROPIC_MODEL_CAPTION
+ *   improve        hook, caption and CTA options      ANTHROPIC_MODEL_IMPROVE
+ *   comment_reply  a short reply to one comment       ANTHROPIC_MODEL_COMMENT_REPLY
+ *   animated_pick  which plan days suit animation     ANTHROPIC_MODEL_ANIMATED_PICK
+ *   animated_fit   whether animation suits an account ANTHROPIC_MODEL_ANIMATED_FIT
+ * Plans, audits, ratings, ideas and the videos themselves stay on MODEL.
  * The EDL pass defaults to the fast model because its output is validated and
  * snapped deterministically afterwards (lib/studioClips/edl.ts).
  */
-export type ModelTask = "default" | "fast" | "studio_clip" | "studio_batch" | "studio_edl" | "caption" | "ask" | "clipper_pick" | "clipper_frame";
+export type ModelTask = "default" | "fast" | "studio_clip" | "studio_batch" | "studio_edl" | "caption" | "improve" | "comment_reply" | "animated_pick" | "animated_fit" | "ask" | "clipper_pick" | "clipper_frame";
+/** The easier tasks that run on the fast model by default. */
+export const EASY_TASKS = ["caption", "improve", "comment_reply", "animated_pick", "animated_fit"] as const satisfies readonly ModelTask[];
 export function modelFor(task: ModelTask): string {
   switch (task) {
     case "fast": return FAST_MODEL;
     case "studio_clip": return process.env.ANTHROPIC_MODEL_STUDIO_CLIP || FAST_MODEL;
     case "studio_batch": return process.env.ANTHROPIC_MODEL_STUDIO_BATCH || MODEL;
     case "studio_edl": return process.env.ANTHROPIC_MODEL_STUDIO_EDL || FAST_MODEL;
-    case "caption": return process.env.ANTHROPIC_MODEL_CAPTION || MODEL;
+    case "caption": return process.env.ANTHROPIC_MODEL_CAPTION || FAST_MODEL;
+    case "improve": return process.env.ANTHROPIC_MODEL_IMPROVE || FAST_MODEL;
+    case "comment_reply": return process.env.ANTHROPIC_MODEL_COMMENT_REPLY || FAST_MODEL;
+    case "animated_pick": return process.env.ANTHROPIC_MODEL_ANIMATED_PICK || FAST_MODEL;
+    case "animated_fit": return process.env.ANTHROPIC_MODEL_ANIMATED_FIT || FAST_MODEL;
     case "ask": return process.env.ANTHROPIC_MODEL_ASK || FAST_MODEL;
     // Picking the moments of a long video is the judgement the clipper is sold on.
     case "clipper_pick": return process.env.ANTHROPIC_MODEL_CLIPPER_PICK || MODEL;

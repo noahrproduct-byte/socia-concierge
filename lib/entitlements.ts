@@ -38,6 +38,8 @@ import {
 } from "./plans";
 import { featureError, limitError, usageError, type PlanError } from "./planErrors";
 import { createServiceClient } from "./supabase/service";
+import { bonusLive, withBonus } from "./referrals/core";
+import { boostLive, withBoost } from "./retention/core";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
@@ -145,6 +147,12 @@ export function mergeConfig(base: PlanConfig, ...layers: (Overrides | null | und
 // ---------------------------------------------------------------------------
 
 export type Entitlements = {
+  /** Invitations counting toward this person's allowances right now (lib/referrals); absent or 0 for none. */
+  invites?: number;
+  /** An invitation is waiting for its friend to connect an account. */
+  invitePending?: boolean;
+  /** The stay boost is on (lib/retention): extra allowance after choosing not to cancel. */
+  boost?: boolean;
   userId: string;
   plan: PlanId;
   /** Defaults merged with any database overrides. */
@@ -198,12 +206,39 @@ async function readPlanOverrides(supabase: Supa, plan: PlanId): Promise<Partial<
   }
 }
 
+/** What this person has from invitations right now (lib/referrals): the saved row, one small lookup. Null when none or unreadable. */
+// The stay boost's column arrives with supabase/cancel-flow.sql; until it has run, the row is read without it.
+let boostColumn = true;
+async function readReferralBonus(supabase: Supa, userId: string): Promise<{ active: number; until: string | null; pending: boolean; updatedAt: string | null; boostUntil: string | null } | null> {
+  try {
+    let { data, error } = await supabase.from("referral_bonuses").select(boostColumn ? "active, until, pending, updated_at, boost_until" : "active, until, pending, updated_at").eq("user_id", userId).maybeSingle();
+    if (error && boostColumn && (error.code === "42703" || error.code === "PGRST204" || /boost_until/.test(error.message ?? ""))) {
+      boostColumn = false;
+      ({ data, error } = await supabase.from("referral_bonuses").select("active, until, pending, updated_at").eq("user_id", userId).maybeSingle());
+    }
+    if (error || !data) return null;
+    const r = data as unknown as Record<string, unknown>;
+    return { active: Number(r.active) || 0, until: (r.until as string | null) ?? null, pending: r.pending === true, updatedAt: (r.updated_at as string | null) ?? null, boostUntil: (r.boost_until as string | null) ?? null };
+  } catch {
+    return null;
+  }
+}
+
 async function getEntitlementsImpl(supabase: Supa, userId: string, now: Date = new Date()): Promise<Entitlements> {
-  const { plan, overrides: userOverrides } = await readProfilePlan(supabase, userId);
+  const [{ plan, overrides: userOverrides }, saved] = await Promise.all([readProfilePlan(supabase, userId), readReferralBonus(supabase, userId)]);
   const planOverrides = await readPlanOverrides(supabase, plan);
-  const config = resolveConfig(plan, planOverrides, userOverrides);
+  // Invitations that count right now add a little allowance on top of the plan's (lib/referrals/core.ts).
+  const invites = bonusLive(saved, now);
+  // An invitation is waiting for its friend to connect an account: look again, at most every ten
+  // minutes, off the request's path. The dynamic import keeps this file free of a cycle.
+  if (saved?.pending && (!saved.updatedAt || now.getTime() - new Date(saved.updatedAt).getTime() > 10 * 60_000)) {
+    void import("./referrals/server").then((m) => m.refreshReferrals(userId, now)).catch(() => {});
+  }
+  // A person who chose to stay when cancelling has a little more for a while (lib/retention/core.ts).
+  const boost = boostLive(saved?.boostUntil, now);
+  const config = withBoost(withBonus(resolveConfig(plan, planOverrides, userOverrides), invites), boost);
   const periods = currentPeriods(now);
-  return { userId, plan, config, period: periods.month, periods, source: "profile" };
+  return { userId, plan, config, period: periods.month, periods, source: "profile", invites, invitePending: saved?.pending === true, boost };
 }
 
 // ---------------------------------------------------------------------------

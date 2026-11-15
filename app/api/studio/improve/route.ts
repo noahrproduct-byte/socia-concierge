@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { humanText } from "@/lib/studioClips/overlay";
 import { LIMITS, clip, clipList } from "@/lib/inputLimits";
-import { anthropic, MODEL, effortFor, AI_UNAVAILABLE_COPY, aiFailure } from "@/lib/anthropic";
+import { anthropic, modelFor, effortFor, AI_UNAVAILABLE_COPY, aiFailure } from "@/lib/anthropic";
 import { recordAiUsage } from "@/lib/aiUsage";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
@@ -74,10 +74,12 @@ export async function POST(req: Request) {
   if (u.denied) return u.denied;
 
   try {
+    // Options for a hook, caption or CTA: an easier task, on the fast model (lib/anthropic.ts).
+    const model = modelFor("improve");
     const params = {
-      model: MODEL, max_tokens: 2500,
+      model, max_tokens: 2500,
       system: `You are SOCIA's content editor. Options only, in the account's voice, specific to this content. Never predict performance, never mention algorithms as rules, never invent facts about the business. Plain text, no markdown, no surrounding quotes.`,
-      output_config: { format: { type: "json_schema", schema }, ...effortFor(MODEL) },
+      output_config: { format: { type: "json_schema", schema }, ...effortFor(model) },
       messages: [{ role: "user", content: `${promptCtx}\n\n# Task\n${TASK[task]}` }],
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

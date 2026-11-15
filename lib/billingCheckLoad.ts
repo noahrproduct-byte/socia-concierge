@@ -3,7 +3,7 @@
 // Read-only; returns no secret. Server only.
 import type Stripe from "stripe";
 import { getStripe, priceIdFor, isProductId, resolvePriceId, type PaidPlan } from "./stripe";
-import { checkoutAvailable } from "./plans";
+import { SALE_ORDER, checkoutAvailable, type PlanId } from "./plans";
 import type { BillingFacts, PriceFacts, PromoFacts } from "./billingCheck";
 
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e)).slice(0, 300);
@@ -41,7 +41,7 @@ export async function loadBillingFacts(appUrl: string): Promise<BillingFacts> {
   };
   if (!stripe) return base;
   const [prices, hooks, portal, promos] = await Promise.all([
-    Promise.all((["starter", "growth", "pro"] as const).map((p) => priceFacts(stripe, p))),
+    Promise.all(SALE_ORDER.filter((p): p is Exclude<PlanId, "free"> => p !== "free").map((p) => priceFacts(stripe, p))),
     stripe.webhookEndpoints.list({ limit: 50 }).then((r) => r.data.map((w) => ({ url: w.url, status: w.status, events: w.enabled_events })), (e) => { base.errors.push(`Webhook endpoints: ${msg(e)}`); return null; }),
     // The product list is left out of the response unless asked for.
     stripe.billingPortal.configurations.list({ active: true, limit: 20, expand: ["data.features.subscription_update.products"] }).then((r) => {

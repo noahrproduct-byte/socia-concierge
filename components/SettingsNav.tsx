@@ -13,6 +13,7 @@ import {
   Sparkles,
   Bell,
   CreditCard,
+  Gift,
   Lock,
   Bot,
   Target,
@@ -58,6 +59,7 @@ const GROUPS: Group[] = [
     label: "Account",
     items: [
       { id: "plan", label: "Plan & Billing", Icon: CreditCard },
+      { id: "invite", label: "Invite a friend", Icon: Gift },
       { id: "security", label: "Security & Privacy", Icon: Lock },
     ],
   },
