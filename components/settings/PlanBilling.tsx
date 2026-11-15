@@ -178,7 +178,7 @@ export default function PlanBilling({
           unknownTitle="Could not be read"
           note={teamSoon ? undefined : "You included, across all your workspaces."}
         />
-        <Meter label="Competitors" used={competitorCount} limit={competitorLimit} unknownTitle="Could not be read" />
+        <Meter label="Competitors per brand" used={competitorCount} limit={competitorLimit} unknownTitle="Could not be read" />
         <Meter label="Analytics history" used={null} limit={historyDays} plain={formatHistory(historyDays)} />
         {METER_ORDER.map((m) => (
           <Meter

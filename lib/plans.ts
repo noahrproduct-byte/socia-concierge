@@ -63,7 +63,7 @@ export const PLATFORM_NAME: Record<WorkspacePlatform, string> = {
 /**
  * Hard caps on how many of something a plan may have active at once.
  *   workspaces             Brand Workspaces (each holds one account per platform)
- *   competitors            tracked competitors, pooled across all workspaces
+ *   competitors            tracked competitors in each Brand Workspace (per brand since 2026-11-15)
  *   team_members           people with access, the owner included
  *   analytics_history_days longest analytics window; HISTORY_ALL_RETAINED = no cap
  */

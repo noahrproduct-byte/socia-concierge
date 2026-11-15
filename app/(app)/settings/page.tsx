@@ -40,7 +40,7 @@ import { YT_WRITE_SCOPES } from "@/lib/publishing/capabilities";
 import type { FbPost } from "@/lib/facebookSync";
 import { getIgSnapshot } from "@/lib/instagramSync";
 import {
-  getEntitlements, getUsage, listConnectedAccountsDetailed, countActiveCompetitors, computeOverLimits,
+  getEntitlements, getUsage, listConnectedAccountsDetailed, competitorCountsByBrand, competitorUsage, computeOverLimits,
   activeAccounts, activeByPlatform, workspacesInUse, getLimit, canUseFeature,
 } from "@/lib/entitlements";
 import { limitError } from "@/lib/planErrors";
@@ -54,7 +54,6 @@ import TeamManager, { type TeamMemberRow, type TeamInviteRow } from "@/component
 import { resolveContext, can, brandWorkspace } from "@/lib/context";
 import { teamEnabled, listMembers, listInvites, seatsUsed } from "@/lib/team";
 import { Users } from "lucide-react";
-import type { KeepCompetitor } from "@/components/settings/PlanKeepChooser";
 import type { BrandDetail } from "@/lib/profile";
 import { workspacesEnabled, listWorkspaces, getActiveWorkspace, activeWorkspaces, scopeToWorkspace, competitorScopeId } from "@/lib/workspaces";
 import { listTracked } from "@/lib/trackedCompetitors";
@@ -80,38 +79,7 @@ function ago(iso: string): string {
   return `${Math.round(hrs / 24)}d ago`;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Supa = any;
 
-/** Every tracked competitor, paused ones included, for the "choose what to keep" state. */
-async function listTrackedCompetitors(supabase: Supa, userId: string): Promise<KeepCompetitor[]> {
-  type Row = { platform: string | null; handle: string | null; is_active?: boolean | null };
-  const shape = (rows: Row[], activeKnown: boolean): KeepCompetitor[] =>
-    rows
-      .filter((r) => r.platform && r.handle)
-      .map((r) => ({ platform: r.platform as string, handle: r.handle as string, active: activeKnown ? r.is_active !== false : true }));
-  try {
-    const { data, error } = await supabase
-      .from("tracked_competitors")
-      .select("platform, handle, is_active")
-      .eq("user_id", userId)
-      .order("added_at", { ascending: true });
-    if (!error) return shape((data ?? []) as Row[], true);
-  } catch {
-    /* is_active may not exist yet */
-  }
-  try {
-    const { data, error } = await supabase
-      .from("tracked_competitors")
-      .select("platform, handle")
-      .eq("user_id", userId)
-      .order("added_at", { ascending: true });
-    if (!error) return shape((data ?? []) as Row[], false);
-  } catch {
-    /* table may not exist */
-  }
-  return [];
-}
 
 
 export default async function SettingsPage({
@@ -247,15 +215,17 @@ export default async function SettingsPage({
       : billingParam === "cancelled"
         ? { tone: "info" as const, text: "Checkout was cancelled. Nothing was charged." }
         : null;
-  const [usage, accountsResult, competitorCount] = await Promise.all([
+  const [usage, accountsResult, competitorsByBrand] = await Promise.all([
     getUsage(supabase, ent),
     listConnectedAccountsDetailed(supabase, user.id),
-    countActiveCompetitors(supabase, user.id),
+    competitorCountsByBrand(supabase, user.id),
   ]);
+  // The competitor limit is per brand: the meter shows the busiest brand against it.
+  const competitorCount = competitorUsage(competitorsByBrand, getLimit(ent, "competitors"))?.busiest ?? null;
   const accountsList = accountsResult.accounts;
   // A platform table that could not be read makes the count unknown (not a lower bound shown as truth).
   const activeCount = accountsResult.complete ? activeAccounts(accountsList).length : null;
-  const overLimits = computeOverLimits(ent, accountsResult.complete ? activeByPlatform(accountsList) : null, competitorCount);
+  const overLimits = computeOverLimits(ent, accountsResult.complete ? activeByPlatform(accountsList) : null, competitorsByBrand);
 
   // Brand Workspaces (only once the migration has run; before that the section is hidden).
   const wsEnabled = await workspacesEnabled(supabase);
@@ -314,7 +284,10 @@ export default async function SettingsPage({
       };
     }
   }
-  const keepCompetitors = overLimits.competitors ? await listTrackedCompetitors(supabase, user.id) : null;
+  // Competitors are trimmed per brand on every plan change (lib/planDowngrade.ts),
+  // so there's no pooled pick-which-to-keep list: one would pause the unticked
+  // handles in every brand. Each brand's list is managed on Discover.
+  const keepCompetitors = null;
   const accountLimitHit = ig === "limit" || fb === "limit" || yt === "limit" || tt === "limit";
   // Accounts paused by a downgrade still have rows (the cards below read those
   // rows directly), so tell each card when its platform is paused.

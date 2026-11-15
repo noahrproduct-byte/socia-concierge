@@ -149,18 +149,25 @@ describe("competitors", () => {
     expect(canAddCompetitor(ent("starter"), 4).ok).toBe(true);
     const r = canAddCompetitor(ent("starter"), 5);
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error.error).toBe("You are using 5 of 5 competitors on Starter.");
+    if (!r.ok) expect(r.error.error).toBe("You are using 5 of 5 competitors in this brand on Starter.");
   });
 });
 
 describe("over-limit state after a downgrade", () => {
   it("reports which platforms exceed the workspaces limit, and nothing when within limits", () => {
     const by = { instagram: 3, facebook: 1, youtube: 2, tiktok: 0 };
-    expect(computeOverLimits(ent("free"), by, 8)).toEqual({
+    const brands = new Map([["a", 8], ["b", 1]]);
+    expect(computeOverLimits(ent("free"), by, brands)).toEqual({
       accounts: { active: 3, limit: 1, excess: 3, byPlatform: { instagram: 3, youtube: 2 } },
       competitors: { active: 8, limit: 2, excess: 6 },
     });
-    expect(computeOverLimits(ent("growth"), by, 8)).toEqual({ accounts: null, competitors: null });
+    expect(computeOverLimits(ent("growth"), by, brands)).toEqual({ accounts: null, competitors: null });
+  });
+  it("applies the competitor limit to each brand on its own", () => {
+    // Starter allows 5 per brand: 5 + 5 + 4 across three brands is within the plan.
+    expect(computeOverLimits(ent("starter"), null, new Map([["a", 5], ["b", 5], ["c", 4]])).competitors).toBeNull();
+    // One brand over by 2, another by 1.
+    expect(computeOverLimits(ent("starter"), null, new Map([["a", 7], ["b", 6], ["c", 1]])).competitors).toEqual({ active: 7, limit: 5, excess: 3 });
   });
   it("never infers an over-limit state from a count it could not read", () => {
     expect(computeOverLimits(ent("free"), null, null)).toEqual({ accounts: null, competitors: null });
@@ -188,7 +195,7 @@ describe("plan errors", () => {
   it("keeps unknown usage as null, never zero", () => {
     expect(usageError("growth", "ask_socia", 250, null, "2026-10-01").used).toBeNull();
     expect(limitError("growth", "competitors", 15, null).used).toBeUndefined();
-    expect(limitError("growth", "competitors", 15, null).error).toBe("Growth includes 15 competitors.");
+    expect(limitError("growth", "competitors", 15, null).error).toBe("Growth includes 15 competitors per brand.");
   });
   it("never uses an em dash", () => {
     const all = [
