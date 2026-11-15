@@ -30,7 +30,35 @@ export const BOARD_SCHEMA = o({
   end: o({ eyebrow: S, title: list(S), rows: list(o({ icon: { type: "string", enum: [...END_ICONS] }, a: S, b: S })) }),
 });
 
+/** The full shape, kept for tests and tools. It is too large for the API to enforce as a strict format, so the writer is shown STORY_SHAPE instead and cleanBoard checks the answer. */
 export const STORY_SCHEMA = o({ board: BOARD_SCHEMA, caption: S, hashtags: list(S) });
+
+/** The answer's shape in words the model can follow without a strict format. */
+export const STORY_SHAPE = `ANSWER FORMAT. Answer with ONE JSON object and nothing else: no markdown, no code fence, no commentary before or after. Its shape (AT means {"ph": integer, "dt": number}; TONE is one of ${TONES.map((t) => `"${t}"`).join(", ")}):
+{
+  "board": {
+    "phrases": [{"text": string, "em": string}],
+    "chapters": [{"ph": integer, "label": string}],
+    "example": string,
+    "counter": {"label": string, "steps": [{"at": AT, "value": number}], "goodAt": AT},
+    "meter": {"label": string, "keys": [{"at": AT, "value": number}], "goodAt": AT},
+    "set": {"floor": boolean, "panels": boolean, "spots": boolean, "scatter": integer},
+    "points": [{"name": string, "x": number, "y": number, "draw": "hold" | "dot" | "none", "tone": TONE}],
+    "figures": [{"id": string, "scale": number, "tone": TONE, "keys": [{"at": AT, "x": number, "y": number, "lean": number, "lh": string, "rh": string, "lf": string, "rf": string, "o": number}]}],
+    "shapes": [{"shape": ${SHAPES.map((x) => `"${x}"`).join(" | ")}, "tone": TONE, "keys": [{"at": AT, "x": number, "y": number, "w": number, "h": number, "rot": number, "o": number}]}],
+    "tags": [{"text": string, "tone": TONE, "x": number, "y": number, "from": AT, "to": AT}],
+    "markers": [{"label": string, "point": string, "at": AT}],
+    "stamps": [{"text": string, "tone": TONE, "x": number, "y": number, "at": AT}],
+    "links": [{"figure": string, "hand": "lh" | "rh", "point": string, "label": string, "tone": TONE, "from": AT, "to": AT}],
+    "cards": [{"title": string, "lines": [string], "x": number, "y": number, "w": number, "from": AT, "to": AT}],
+    "sweep": {"from": AT, "to": AT},
+    "flash": AT,
+    "end": {"eyebrow": string, "title": [string, string], "rows": [{"icon": ${END_ICONS.map((x) => `"${x}"`).join(" | ")}, "a": string, "b": string}]}
+  },
+  "caption": string,
+  "hashtags": [string]
+}
+Every key must be present. A block you don't use is an empty list; an unused counter or meter has "label": "" and an empty list; an unused sweep or flash uses ph -1.`;
 
 export const STORY_SYSTEM = `You direct one short animated vertical video for a social media account. It is drawn in code, with no footage and no photos. You write it as a storyboard in a small scene language; an engine draws it in the account's own colours and type, so you never choose colours or fonts. You decide the story, what is on the stage, and when each thing happens. Compose the format that tells THIS post best for THIS account: build on the account's own kinds of video, its character and its stage when they are described, and on how its competitors hook and pace theirs. Do not reuse a fixed template, and do not copy the example's story.
 
@@ -65,5 +93,5 @@ THE ENDING ("end"): eyebrow (a few words), title (two lines; the second is set i
 
 Rules for every text: sentence case in what you write (the engine sets the case), plain words, no hashtags, no emoji, no em dashes. Every phrase must change something on the stage. The hook is readable in the first second. Also write "caption": one or two sentences in the brand's voice for the post itself, and "hashtags": 3 to 5 without the # sign.
 
-AN EXAMPLE of the language, for a climbing app (learn the language from it, not the story):
+AN EXAMPLE of a "board", for a climbing app (learn the language from it, not the story):
 ${JSON.stringify(EXAMPLE_BOARD)}`;

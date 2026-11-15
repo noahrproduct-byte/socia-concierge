@@ -11,7 +11,7 @@ import { brandLine } from "@/lib/aiStudio/captions";
 import { ACCENTS, cleanSpec, MAX_SCENES, type AnimatedSpec } from "./spec";
 import { lookFromStyle } from "./look";
 import { boardWords, cleanBoard } from "./board";
-import { STORY_SCHEMA, STORY_SYSTEM } from "./boardWrite";
+import { STORY_SHAPE, STORY_SYSTEM } from "./boardWrite";
 import { pitchFromDetail, pitchLines } from "@/lib/brandPitch";
 import { readSavedStyle, type VideoStyle } from "@/lib/videoStyle";
 
@@ -150,6 +150,13 @@ function styleLines(s: VideoStyle, story = false): string {
   ].filter((l, i, a) => l || a[i - 1]).join("\n");
 }
 
+/** The JSON object in a model's answer: the outermost braces, with any code fence or stray words around them ignored. Null when there is none. Pure. */
+export function jsonObject(text: string): unknown {
+  const a = text.indexOf("{"), b = text.lastIndexOf("}");
+  if (a < 0 || b <= a) return null;
+  try { return JSON.parse(text.slice(a, b + 1)); } catch { return null; }
+}
+
 const REVIEW_SCHEMA = {
   type: "object", additionalProperties: false, required: ["passed", "problems"],
   properties: { passed: { type: "boolean" }, problems: { type: "array", items: { type: "string" } } },
@@ -241,15 +248,18 @@ export async function writeAnimatedSpec(ctx: Ctx, post: AnimatedSource, opts: { 
   const writeStory = async (extra: string): Promise<AnimatedSpec | null> => {
     try {
       const res = await anthropic.messages.create({
-        model: MODEL, max_tokens: 14000, system: STORY_SYSTEM,
-        output_config: { format: { type: "json_schema", schema: STORY_SCHEMA }, ...effortFor(MODEL, "medium") },
+        // No strict format: the storyboard's shape is too large for the API to enforce, so it is
+        // described in words and cleanBoard checks every field of what comes back.
+        model: MODEL, max_tokens: 14000, system: `${STORY_SYSTEM}\n\n${STORY_SHAPE}`,
+        output_config: { ...effortFor(MODEL, "medium") },
         messages: [{ role: "user", content: `# Brand\n${brand}\n\n# What the brand sells and wants\n${about}\n${ownStory}\n# The planned post\n${lines.join("\n")}\n\n${opts.change ? ask : "Write the storyboard."}${extra}` }],
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any);
       recordAiUsage(ctx.ownerId, "animated_script", res);
       if (res.stop_reason === "refusal" || res.stop_reason === "max_tokens") return null;
       const block = res.content.find((b: { type: string }) => b.type === "text");
-      const raw = JSON.parse((block && "text" in block ? (block as { text: string }).text : "").replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()) as { board?: unknown; caption?: unknown; hashtags?: unknown };
+      const raw = jsonObject(block && "text" in block ? (block as { text: string }).text : "") as { board?: unknown; caption?: unknown; hashtags?: unknown } | null;
+      if (!raw) { console.error("[animated/story] the answer was not JSON"); return null; }
       const source = `${brand}\n${about}\n${lines.join("\n")}\n${opts.change ?? ""}`;
       const board = cleanBoard(raw.board, source);
       if (!board) return null;
