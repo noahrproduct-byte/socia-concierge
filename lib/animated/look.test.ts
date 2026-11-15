@@ -36,3 +36,13 @@ describe("the account's look", () => {
   });
   it("is null without a style", () => expect(lookFromStyle(null)).toBeNull());
 });
+
+import { compareValueText } from "./spec";
+describe("value text", () => {
+  it("says 1 move, 2 moves, 1 class", () => {
+    expect(compareValueText(1, "number", "moves")).toBe("1 move");
+    expect(compareValueText(2, "number", "moves")).toBe("2 moves");
+    expect(compareValueText(1, "number", "class")).toBe("1 class");
+    expect(compareValueText(1, "number", "$")).toBe("$1");
+  });
+});

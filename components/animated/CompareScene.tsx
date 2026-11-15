@@ -6,7 +6,8 @@
 // short blur; one brighten at the last stop; it ends on a comment question.
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
 import { COMPARE_TIMES, compareCounter, compareStopAt, compareValueText, type AnimatedCompare, type CompareTone } from "@/lib/animated/spec";
-import { CommentPrompt, Flash, SANS, fontFor, SoundTrack, SwapHeadline, TONES, interpolateEnd, lineOf, stampScale, surfaceOf, type SfxCue, type TemplateColors } from "./parts";
+import { ClimbWall, ClimbingFigure } from "./Stage";
+import { CommentPrompt, Flash, MONO, SANS, fontFor, SoundTrack, SwapHeadline, TONES, interpolateEnd, lineOf, stampScale, surfaceOf, type SfxCue, type TemplateColors } from "./parts";
 
 export type CompareColors = TemplateColors;
 
@@ -44,8 +45,72 @@ export function CompareScene({ compare, colors, signoff }: { compare: AnimatedCo
   const surface = surfaceOf(colors);
   const glass = lineOf(colors);
 
+  if (colors.look) {
+    // The account's own layout (lib/animated/look.ts): its stage split into lanes, one character per
+    // option, each going up as its number counts; the stamp lands where it stops.
+    const look = colors.look;
+    const font = fontFor(look.font);
+    const STAGE_TOP = 470, STAGE_H = 700, VAL_Y = STAGE_TOP + STAGE_H + 26;
+    const lane = 1080 / n;
+    const toneOf = (tn: CompareTone) => (tn === "win" ? look.accent : tn === "lose" ? tones.lose : "#9A9AA0");
+    const qOn = compare.question && frame >= qStart;
+    return (
+      <AbsoluteFill style={{ background: look.bg, color: look.fg, fontFamily: font }}>
+        <SoundTrack cues={cues} />
+        <SwapHeadline colors={colors} top={150} steps={[
+          { at: 0, h: compare.hook },
+          { at: Math.round(COMPARE_TIMES.turn * fps), h: compare.turn },
+          { at: Math.round(COMPARE_TIMES.close * fps), h: compare.close },
+        ]} />
+        <div style={{ position: "absolute", left: 70, right: 70, top: 116, display: "flex", gap: 16, alignItems: "center", fontFamily: MONO, fontSize: 24, fontWeight: 500, color: look.dim, textTransform: "uppercase", letterSpacing: 2 }}>
+          {compare.setup && <span>{compare.setup}</span>}
+          {compare.illustrative && <span style={{ padding: "2px 12px", border: `2px solid ${look.dim}`, borderRadius: 6 }}>Example numbers</span>}
+        </div>
+        <ClimbWall look={look} top={STAGE_TOP} height={STAGE_H}>
+          {compare.columns.map((col, i) => {
+            // Each character tops out when its own count stops: fewer moves, sooner at the top.
+            const shown = Math.min(counter, col.value);
+            const done = t >= compareStopAt(col.value, max);
+            return (
+              <g key={i}>
+                {i > 0 && <rect x={lane * i - 3} y={0} width={6} height={STAGE_H - 60} fill={look.bg} />}
+                {look.character === "stick" && <ClimbingFigure progress={col.value > 0 ? shown / col.value : 0} t={t + i * 0.37} held={done} height={STAGE_H} x={lane * (i + 0.5)} size={n <= 2 ? 250 : n === 3 ? 210 : 170} />}
+              </g>
+            );
+          })}
+        </ClimbWall>
+        {compare.columns.map((col, i) => {
+          const x = lane * (i + 0.5);
+          const stopAt = compareStopAt(col.value, max);
+          const done = t >= stopAt;
+          const shown = Math.min(counter, col.value);
+          const tone = toneOf(col.tone as CompareTone);
+          const stampF = frame - (Math.round(stopAt * fps) + 6);
+          const text = compareValueText(done ? col.value : shown, compare.format, compare.unit, decimalsOf(col.value));
+          return (
+            <div key={i}>
+              {/* The option's name on a plate at the top of its lane. */}
+              <div style={{ position: "absolute", left: x - lane / 2 + 12, width: lane - 24, top: STAGE_TOP + 18, textAlign: "center" }}>
+                <span style={{ display: "inline-block", padding: "4px 12px", background: look.bg, borderRadius: 8, fontFamily: MONO, fontSize: n === 4 ? 22 : 26, fontWeight: 700, color: done ? tone : look.fg, textTransform: "uppercase", letterSpacing: 1 }}>{col.label}</span>
+              </div>
+              <div style={{ position: "absolute", left: x - lane / 2, width: lane, top: VAL_Y, textAlign: "center", fontWeight: 700, fontSize: Math.min(n <= 2 ? 110 : 84, (lane - 20) / (0.5 * text.length)), lineHeight: 1, color: done ? tone : look.fg, textTransform: "uppercase", fontVariantNumeric: "tabular-nums", opacity: qOn ? 0 : 1 }}>{text}</div>
+              {col.stamp && stampF >= 0 && (
+                <div style={{ position: "absolute", left: x - lane / 2, width: lane, top: STAGE_TOP + STAGE_H - 170, textAlign: "center", transform: `scale(${stampScale(stampF)}) rotate(${[-6, -4, 5, 3][i]}deg)` }}>
+                  <span style={{ display: "inline-block", padding: "8px 14px", border: `5px solid ${tone}`, borderRadius: 10, color: tone, background: look.bg, fontWeight: 700, fontSize: col.stamp.length > 10 ? 28 : 36, letterSpacing: 2, textTransform: "uppercase" }}>{col.stamp}</span>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {compare.note && <div style={{ position: "absolute", left: 70, right: 70, top: VAL_Y + 110, textAlign: "center", fontSize: 30, fontWeight: 600, color: look.dim, opacity: qOn ? 0 : endIn }}>{compare.note}</div>}
+        <CommentPrompt question={compare.question} startFrame={qStart} answer={answer} colors={colors} top={VAL_Y - 10} />
+        <Flash atFrame={lastStop} colors={colors} />
+      </AbsoluteFill>
+    );
+  }
+
   return (
-    <AbsoluteFill style={{ background: colors.bg, color: colors.fg, fontFamily: colors.look ? fontFor(colors.look.font) : SANS }}>
+    <AbsoluteFill style={{ background: colors.bg, color: colors.fg, fontFamily: SANS }}>
       <SwapHeadline colors={colors} steps={[
         { at: 0, h: compare.hook },
         { at: Math.round(COMPARE_TIMES.turn * fps), h: compare.turn },
