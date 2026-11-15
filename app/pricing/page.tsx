@@ -6,6 +6,7 @@ import HomeNav from "@/components/home/HomeNav";
 import HomeFooter from "@/components/home/HomeFooter";
 import PricingCards from "@/components/pricing/PricingCards";
 import ComparisonTable from "@/components/pricing/ComparisonTable";
+import { LaunchCountdown } from "@/components/pricing/Launch";
 import "@/components/home/home.css";
 import "./pricing.css";
 import { marketingFonts } from "@/components/home/fonts";
@@ -68,6 +69,10 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
             </p>
           )}
         </header>
+
+        <div className="hm-wrap pr-launch">
+          <LaunchCountdown />
+        </div>
 
         <section className="hm-wrap" aria-label="Plans">
           <PricingCards currentPlan={plan} signedIn={signedIn} checkout={checkout} highlight={highlight} />

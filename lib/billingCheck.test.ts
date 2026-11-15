@@ -33,6 +33,16 @@ describe("is Stripe ready to take a payment", () => {
     expect(assessBilling(f).find((l) => l.id === "taxmode-starter")?.detail).toContain("add a new $19.99 monthly price");
     expect(assessBilling(good).find((l) => l.id === "taxmode-pro")?.detail).toContain("plus any sales tax");
   });
+  it("says when launch prices end, and turns red if a plan still sells at its launch price afterwards", () => {
+    const during = Date.parse("2026-12-31T12:00:00-06:00");
+    const after = Date.parse("2027-01-01T00:00:01-06:00");
+    expect(assessBilling(good, during).find((l) => l.id === "launch")).toMatchObject({ state: "info" });
+    expect(assessBilling(good, during).find((l) => l.id === "launch")?.detail).toContain("Starter $29.99");
+    expect(fixes({ ...good })).not.toContain("launch");
+    const line = assessBilling(good, after).find((l) => l.id === "launch");
+    expect(line?.state).toBe("fix");
+    expect(line?.detail).toContain("Starter, Growth, Pro still sell at the launch price");
+  });
   it("flags a webhook missing events and a portal that cancels at once", () => {
     const f = { ...good, webhooks: [{ url: "https://sociaos.com/api/stripe/webhook/", status: "enabled", events: ["checkout.session.completed"] }], portal: { ...good.portal!, cancelMode: "immediately" } };
     expect(fixes(f)).toEqual(["webhook", "portal"]);
