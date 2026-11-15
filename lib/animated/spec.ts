@@ -318,13 +318,22 @@ export function clockText(seconds: number): string {
 }
 
 /** A column's value as shown: m:ss, or the number with its unit (currency before, others after). */
+/** A plain word unit in the singular ("tries" -> "try", "moves" -> "move", "boxes" -> "box"); anything else unchanged. */
+export function singular(unit: string): string {
+  if (!/^[a-z]{3,}$/i.test(unit) || /ss$/i.test(unit)) return unit;
+  if (/ies$/i.test(unit)) return unit.slice(0, -3) + "y";
+  if (/(ches|shes|xes|zes|sses)$/i.test(unit)) return unit.slice(0, -2);
+  if (/s$/i.test(unit)) return unit.slice(0, -1);
+  return unit;
+}
+
 export function compareValueText(value: number, format: "clock" | "number", unit: string, decimals = 0): string {
   if (format === "clock") return clockText(value);
   const n = value.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   if (!unit) return n;
   if (/^[$£€]$/.test(unit)) return `${unit}${n}`;
   // "1 move", not "1 moves": a plain word unit drops its plural s at exactly one.
-  const word = n === "1" && /^[a-z]{3,}s$/i.test(unit) && !/ss$/i.test(unit) ? unit.slice(0, -1) : unit;
+  const word = n === "1" ? singular(unit) : unit;
   return `${n} ${word}`;
 }
 
