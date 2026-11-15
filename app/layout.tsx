@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import ThemeScript from "@/components/ThemeScript";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import SiteAnalytics from "@/components/SiteAnalytics";
+import RefCapture from "@/components/referrals/RefCapture";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -57,6 +58,8 @@ export default function RootLayout({
         {/* Vercel Web Analytics: page views and visitors, cookieless, served from SOCIA's own address.
             Browsers opened once with ?dont-count-me are left out (components/SiteAnalytics.tsx). */}
         <SiteAnalytics />
+        {/* Invite links: a ?ref=code in the address is remembered until sign-up (components/referrals/RefCapture.tsx). */}
+        <RefCapture />
       </body>
     </html>
   );

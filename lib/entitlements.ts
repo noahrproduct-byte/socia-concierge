@@ -38,6 +38,7 @@ import {
 } from "./plans";
 import { featureError, limitError, usageError, type PlanError } from "./planErrors";
 import { createServiceClient } from "./supabase/service";
+import { bonusLive, withBonus } from "./referrals/core";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
@@ -145,6 +146,10 @@ export function mergeConfig(base: PlanConfig, ...layers: (Overrides | null | und
 // ---------------------------------------------------------------------------
 
 export type Entitlements = {
+  /** Invitations counting toward this person's allowances right now (lib/referrals); absent or 0 for none. */
+  invites?: number;
+  /** An invitation is waiting for its friend to connect an account. */
+  invitePending?: boolean;
   userId: string;
   plan: PlanId;
   /** Defaults merged with any database overrides. */
@@ -198,12 +203,30 @@ async function readPlanOverrides(supabase: Supa, plan: PlanId): Promise<Partial<
   }
 }
 
+/** What this person has from invitations right now (lib/referrals): the saved row, one small lookup. Null when none or unreadable. */
+async function readReferralBonus(supabase: Supa, userId: string): Promise<{ active: number; until: string | null; pending: boolean; updatedAt: string | null } | null> {
+  try {
+    const { data, error } = await supabase.from("referral_bonuses").select("active, until, pending, updated_at").eq("user_id", userId).maybeSingle();
+    if (error || !data) return null;
+    return { active: Number(data.active) || 0, until: (data.until as string | null) ?? null, pending: data.pending === true, updatedAt: (data.updated_at as string | null) ?? null };
+  } catch {
+    return null;
+  }
+}
+
 async function getEntitlementsImpl(supabase: Supa, userId: string, now: Date = new Date()): Promise<Entitlements> {
-  const { plan, overrides: userOverrides } = await readProfilePlan(supabase, userId);
+  const [{ plan, overrides: userOverrides }, saved] = await Promise.all([readProfilePlan(supabase, userId), readReferralBonus(supabase, userId)]);
   const planOverrides = await readPlanOverrides(supabase, plan);
-  const config = resolveConfig(plan, planOverrides, userOverrides);
+  // Invitations that count right now add a little allowance on top of the plan's (lib/referrals/core.ts).
+  const invites = bonusLive(saved, now);
+  // An invitation is waiting for its friend to connect an account: look again, at most every ten
+  // minutes, off the request's path. The dynamic import keeps this file free of a cycle.
+  if (saved?.pending && (!saved.updatedAt || now.getTime() - new Date(saved.updatedAt).getTime() > 10 * 60_000)) {
+    void import("./referrals/server").then((m) => m.refreshReferrals(userId, now)).catch(() => {});
+  }
+  const config = withBonus(resolveConfig(plan, planOverrides, userOverrides), invites);
   const periods = currentPeriods(now);
-  return { userId, plan, config, period: periods.month, periods, source: "profile" };
+  return { userId, plan, config, period: periods.month, periods, source: "profile", invites, invitePending: saved?.pending === true };
 }
 
 // ---------------------------------------------------------------------------
