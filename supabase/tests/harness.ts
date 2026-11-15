@@ -61,6 +61,7 @@ export const MIGRATIONS = [
   "own-clipper.sql",
   "clip-crop-path.sql",
   "reel-history.sql",
+  "post-voices.sql",
 ];
 
 const SUPABASE_STANDIN = `

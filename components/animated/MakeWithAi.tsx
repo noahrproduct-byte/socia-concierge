@@ -91,14 +91,17 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
   const [voices, setVoices] = useState<VoiceChoice[] | null>(null);
   const [voiceOff, setVoiceOff] = useState(false);
   const [voiceId, setVoiceId] = useState("");
+  const [pickLine, setPickLine] = useState("");
   const [voicing, setVoicing] = useState(false);
   const [voiceErr, setVoiceErr] = useState<string | null>(null);
   useEffect(() => {
     if (!isBoard || voices) return;
     let alive = true;
-    fetch("/api/studio/voices").then((r) => r.json().catch(() => null)).then((j: { voices?: VoiceChoice[]; notConfigured?: boolean } | null) => {
+    fetch("/api/animated/voice").then((r) => r.json().catch(() => null)).then((j: { voices?: VoiceChoice[]; pick?: { voiceId: string | null; line: string } | null; notConfigured?: boolean } | null) => {
       if (!alive) return;
       setVoices(j?.voices ?? []);
+      // SOCIA's own choice, from how this account's voiced videos performed; the person can pick another.
+      if (j?.pick?.voiceId) { setVoiceId(j.pick.voiceId); setPickLine(j.pick.line); }
       if (j?.notConfigured || !j?.voices?.length) setVoiceOff(true);
     }).catch(() => { if (alive) { setVoices([]); setVoiceOff(true); } });
     return () => { alive = false; };
@@ -150,8 +153,10 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
       await uploadMedia(supabase, "scheduled-media", path, new File([blob], "video.mp4", { type: "video/mp4" }), (sent, all) => setPhase({ kind: "uploading", progress: all ? sent / all : 0 }));
       setPhase({ kind: "saving" });
       const caption = [spec.caption, spec.hashtags.map((t) => `#${t}`).join(" ")].filter(Boolean).join("\n\n");
+      // The voice the video was really rendered with, kept on the post so its result can count for that voice.
+      const voice = spec.board && voiceFits(spec.board, spec.voice) ? { id: spec.voice.voiceId, name: spec.voice.voiceName } : undefined;
       const r = await post<{ href: string; post?: ScheduledPost }>("/api/animated/draft",
-        source.kind === "plan" ? { path, caption, planId: source.planId, planDay: source.day } : { path, postId: source.postId });
+        source.kind === "plan" ? { path, caption, planId: source.planId, planDay: source.day, voice } : { path, postId: source.postId, voice });
       if (r.post) onAttached?.(r.post);
       setPhase({ kind: "done", href: r.href });
     } catch (e) {
@@ -246,6 +251,7 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
                   {voiceErr && <small role="alert">{voiceErr}</small>}
                 </div>
                 {voiceOff && <p className="mwa-note">Voiceovers aren&apos;t available in SOCIA right now.</p>}
+                {!voiceOff && pickLine && !spec.voice && <p className="mwa-note">{pickLine} You can pick another.</p>}
                 {voiceOn && spec.voice && <p className="mwa-note" role="status">Voiceover by {spec.voice.voiceName}. Unmute the preview to hear it.</p>}
                 {spec.voice && !voiceOn && <p className="mwa-note" role="status">The captions changed after the voiceover was made, so it is off. Make it again to match the new words.</p>}
               </div>
