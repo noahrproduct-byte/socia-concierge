@@ -69,7 +69,7 @@ export default function AddCompetitor({ open, onClose, tracked, suggestions }: {
           {platform === "youtube"
             ? "YouTube publishes real statistics for any channel: subscribers, recent uploads, views and engagement all appear once tracked."
             : platform === "instagram"
-              ? "Instagram shares another account's public numbers only through a Facebook Page linked to your account. Until then SOCIA links the profile and flags its posts in niche research."
+              ? "SOCIA reads Business and Creator accounts on Instagram: followers, recent posts and Reel views. A personal account shares nothing, so SOCIA keeps only its link."
               : "Facebook publishes nothing about Pages you don't manage. SOCIA keeps the profile link and never estimates its numbers."}
         </p>
         <form className="cx-add-form" onSubmit={(e) => { e.preventDefault(); track(platform, handle); }}>

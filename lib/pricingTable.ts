@@ -143,7 +143,7 @@ export const COMPARISON: ComparisonCategory[] = [
   {
     category: "Competitors & trends",
     rows: [
-      { label: "Tracked competitors", note: "Pooled across all your workspaces.", cells: limitCell("competitors") },
+      { label: "Tracked competitors", note: "In each brand workspace.", cells: limitCell("competitors") },
       { label: "Niche and trend discovery", cells: all(YES) },
       feature("niche_intelligence", "Working-now patterns, momentum, opportunities and SOCIA readings of top posts."),
       feature("weekly_trend_roundup"),

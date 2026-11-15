@@ -584,6 +584,43 @@ export async function countActiveCompetitors(supabase: Supa, userId: string): Pr
   }
 }
 
+/**
+ * Active competitors per Brand Workspace (Noah, 2026-11-15: the plan's
+ * competitor limit is per brand, not shared). Keys are workspace ids, "" for
+ * rows from before workspaces. Null when the table could not be read.
+ */
+export async function competitorCountsByBrand(supabase: Supa, userId: string): Promise<Map<string, number> | null> {
+  try {
+    const { data, error } = await supabase
+      .from("tracked_competitors")
+      .select("workspace_id")
+      .eq("user_id", userId)
+      .eq("is_active", true);
+    if (error) throw error;
+    const out = new Map<string, number>();
+    for (const r of (data ?? []) as { workspace_id: string | null }[]) {
+      const k = r.workspace_id ?? "";
+      out.set(k, (out.get(k) ?? 0) + 1);
+    }
+    return out;
+  } catch (e) {
+    console.error(`[entitlements] could not count competitors by brand for ${userId}:`, (e as Error)?.message ?? e);
+    return null;
+  }
+}
+
+/** The per-brand view of competitor usage: the busiest brand, and how many sit over the limit across brands. */
+export function competitorUsage(byBrand: Map<string, number> | null, limit: number): { busiest: number; excess: number } | null {
+  if (!byBrand) return null;
+  let busiest = 0;
+  let excess = 0;
+  for (const n of byBrand.values()) {
+    busiest = Math.max(busiest, n);
+    if (n > limit) excess += n - limit;
+  }
+  return { busiest, excess };
+}
+
 /** Callers must resolve an unknown count before asking (refuse with a plain error, not a plan notice). */
 export function canAddCompetitor(ent: Entitlements, active: number): FeatureCheck {
   const max = getLimit(ent, "competitors");
@@ -609,7 +646,8 @@ export type OverLimits = { accounts: AccountsOverLimit | null; competitors: Over
 export function computeOverLimits(
   ent: Entitlements,
   accountsByPlatform: Record<ConnectedPlatform, number> | null,
-  activeCompetitorCount: number | null,
+  /** Active competitors per brand; the limit applies to each brand on its own. */
+  competitorsByBrand: Map<string, number> | null,
 ): OverLimits {
   const ws = getLimit(ent, "workspaces");
   const comp = getLimit(ent, "competitors");
@@ -627,18 +665,17 @@ export function computeOverLimits(
     }
     if (excess > 0) accounts = { active, limit: ws, excess, byPlatform };
   }
+  const used = competitorUsage(competitorsByBrand, comp);
   return {
     accounts,
-    competitors: activeCompetitorCount != null && activeCompetitorCount > comp
-      ? { active: activeCompetitorCount, limit: comp, excess: activeCompetitorCount - comp }
-      : null,
+    competitors: used && used.excess > 0 ? { active: used.busiest, limit: comp, excess: used.excess } : null,
   };
 }
 
 export async function getOverLimits(supabase: Supa, ent: Entitlements): Promise<OverLimits> {
   const [accounts, competitors] = await Promise.all([
     listConnectedAccountsDetailed(supabase, ent.userId),
-    countActiveCompetitors(supabase, ent.userId),
+    competitorCountsByBrand(supabase, ent.userId),
   ]);
   return computeOverLimits(ent, accounts.complete ? activeByPlatform(accounts.accounts) : null, competitors);
 }

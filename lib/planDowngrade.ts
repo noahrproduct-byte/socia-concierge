@@ -7,7 +7,8 @@
 //
 // Defaults when the person hasn't chosen: the default workspace and the
 // oldest others stay; per platform the accounts listed first stay; the
-// earliest-added competitors stay. Server only (service role).
+// earliest-added competitors stay, in each brand on its own (the competitor
+// limit is per brand, Noah 2026-11-15). Server only (service role).
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getEntitlements, getLimit, listConnectedAccounts } from "./entitlements";
@@ -20,7 +21,7 @@ export type DowngradeResult = { workspacesPaused: number; accountsPaused: number
 export type RestoreResult = { workspacesResumed: number; accountsResumed: number; competitorsResumed: number };
 
 type WsRow = { id: string; is_default: boolean | null; plan_suspended_at: string | null; created_at: string };
-type CompRow = { platform: string; handle: string; is_active?: boolean | null; added_at?: string | null };
+type CompRow = { workspace_id?: string | null; platform: string; handle: string; is_active?: boolean | null; added_at?: string | null };
 
 /** Keep the first `n` of `items` per key, in order. */
 export function keepFirstPerKey<T>(items: T[], key: (t: T) => string, n: number): T[] {
@@ -40,6 +41,42 @@ export function keepFirstPerKey<T>(items: T[], key: (t: T) => string, n: number)
  */
 export function resumeWithin<T>(active: T[], paused: T[], limit: number): T[] {
   return paused.slice(0, Math.max(0, limit - active.length));
+}
+
+const byAdded = (a: CompRow, b: CompRow) => (a.added_at ?? "").localeCompare(b.added_at ?? "");
+const brandOf = (c: CompRow) => c.workspace_id ?? "";
+
+/** Active competitors beyond the limit in each brand: the earliest added stay. */
+export function competitorsOverLimit(rows: CompRow[], limit: number): CompRow[] {
+  const active = rows.filter((c) => c.is_active !== false).sort(byAdded);
+  const kept = keepFirstPerKey(active, brandOf, limit);
+  return active.filter((c) => !kept.includes(c));
+}
+
+/** Paused competitors that fit again in their brand, earliest added first. */
+export function competitorsToResume(rows: CompRow[], limit: number): CompRow[] {
+  const out: CompRow[] = [];
+  for (const brand of Array.from(new Set(rows.map(brandOf)))) {
+    const mine = rows.filter((c) => brandOf(c) === brand).sort(byAdded);
+    out.push(...resumeWithin(mine.filter((c) => c.is_active !== false), mine.filter((c) => c.is_active === false), limit));
+  }
+  return out;
+}
+
+/** Set is_active on these rows, one update per brand and platform, never touching another brand's row of the same handle. */
+async function setCompetitorsActive(svc: Supa, userId: string, rows: CompRow[], active: boolean): Promise<void> {
+  const groups = new Map<string, CompRow[]>();
+  for (const c of rows) {
+    const k = `${brandOf(c)}|${c.platform}`;
+    groups.set(k, [...(groups.get(k) ?? []), c]);
+  }
+  for (const list of groups.values()) {
+    const { workspace_id: ws, platform } = list[0];
+    let q = svc.from("tracked_competitors").update({ is_active: active }).eq("user_id", userId).eq("platform", platform);
+    q = ws ? q.eq("workspace_id", ws) : q.is("workspace_id", null);
+    const { error } = await q.in("handle", list.map((c) => c.handle));
+    if (error) throw new Error(`${active ? "resume" : "pause"} competitors: ${error.message}`);
+  }
 }
 
 /** Pause whatever is over the person's current plan. A no-op when everything fits. */
@@ -66,24 +103,21 @@ export async function enforcePlanLimits(svc: Supa, userId: string, now: Date = n
   const keepAccounts = keepFirstPerKey(accounts, (a) => a.platform, wsLimit);
   const accountsOver = keepAccounts.length < accounts.length;
 
-  // Competitors: the earliest added stay.
-  let keepCompetitors: string[] | null = null;
-  const { data: compData, error: compErr } = await svc.from("tracked_competitors").select("platform, handle, is_active, added_at").eq("user_id", userId);
+  // Competitors: in each brand, the earliest added stay.
+  const { data: compData, error: compErr } = await svc.from("tracked_competitors").select("workspace_id, platform, handle, is_active, added_at").eq("user_id", userId);
   if (!compErr) {
-    const activeComps = ((compData ?? []) as CompRow[])
-      .filter((c) => c.is_active !== false)
-      .sort((a, b) => (a.added_at ?? "").localeCompare(b.added_at ?? ""));
-    if (activeComps.length > compLimit) {
-      keepCompetitors = Array.from(new Set(activeComps.slice(0, compLimit).map((c) => `${c.platform}:${c.handle}`)));
-      out.competitorsPaused = activeComps.length - compLimit;
+    const over = competitorsOverLimit((compData ?? []) as CompRow[], compLimit);
+    if (over.length) {
+      await setCompetitorsActive(svc, userId, over, false);
+      out.competitorsPaused = over.length;
     }
   }
 
-  if (accountsOver || keepCompetitors) {
+  if (accountsOver) {
     const { error } = await svc.rpc("socia_apply_plan_keep", {
       p_user: userId,
-      p_accounts: accountsOver ? keepAccounts.map((a) => a.id) : null,
-      p_competitors: keepCompetitors,
+      p_accounts: keepAccounts.map((a) => a.id),
+      p_competitors: null,
       p_account_limit: wsLimit * PLATFORMS_PER_WORKSPACE,
       p_competitor_limit: compLimit,
     });
@@ -125,23 +159,20 @@ export async function restoreWithinPlan(svc: Supa, userId: string): Promise<Rest
     out.accountsResumed += resumed.length;
   }
 
-  let keepCompetitors: string[] | null = null;
-  const { data: compData, error: compErr } = await svc.from("tracked_competitors").select("platform, handle, is_active, added_at").eq("user_id", userId);
+  const { data: compData, error: compErr } = await svc.from("tracked_competitors").select("workspace_id, platform, handle, is_active, added_at").eq("user_id", userId);
   if (!compErr) {
-    const comps = ((compData ?? []) as CompRow[]).sort((a, b) => (a.added_at ?? "").localeCompare(b.added_at ?? ""));
-    const active = comps.filter((c) => c.is_active !== false);
-    const resumed = resumeWithin(active, comps.filter((c) => c.is_active === false), compLimit);
+    const resumed = competitorsToResume((compData ?? []) as CompRow[], compLimit);
     if (resumed.length) {
-      keepCompetitors = Array.from(new Set([...active, ...resumed].map((c) => `${c.platform}:${c.handle}`)));
+      await setCompetitorsActive(svc, userId, resumed, true);
       out.competitorsResumed = resumed.length;
     }
   }
 
-  if (out.accountsResumed || keepCompetitors) {
+  if (out.accountsResumed) {
     const { error } = await svc.rpc("socia_apply_plan_keep", {
       p_user: userId,
-      p_accounts: out.accountsResumed ? keep : null,
-      p_competitors: keepCompetitors,
+      p_accounts: keep,
+      p_competitors: null,
       p_account_limit: wsLimit * PLATFORMS_PER_WORKSPACE,
       p_competitor_limit: compLimit,
     });

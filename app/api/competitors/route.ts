@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { getEntitlements, getLimit, countActiveCompetitors, canAddCompetitor } from "@/lib/entitlements";
+import { getEntitlements, getLimit, countActiveCompetitors, canAddCompetitor, competitorCountsByBrand } from "@/lib/entitlements";
 import { deny, recordEvent } from "@/lib/planGuard";
 import { listTracked, trackedState } from "@/lib/trackedCompetitors";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
@@ -72,12 +72,13 @@ export async function GET() {
   const ent = await getEntitlements(ctx.client, ctx.ownerId);
   const limit = getLimit(ent, "competitors");
   try {
-    // The list is this workspace's competitors; `active` is the POOLED usage
-    // (the plan limit is shared across brands), so the meter reads correctly.
+    // The list is this workspace's competitors, and the limit is per brand
+    // (Noah, 2026-11-15), so `active` is this brand's count.
     const cwid = await competitorScopeId(ctx.client, ctx.workspace?.id);
     const competitors = await listTracked(ctx.client, ctx.ownerId, "platform, handle, added_at", { byAdded: true, workspaceId: cwid });
-    const pooled = await countActiveCompetitors(ctx.client, ctx.ownerId);
-    return NextResponse.json({ competitors, limit, active: pooled ?? competitors.length });
+    const byBrand = cwid ? await competitorCountsByBrand(ctx.client, ctx.ownerId) : null;
+    const active = cwid ? (byBrand ? byBrand.get(cwid) ?? 0 : null) : await countActiveCompetitors(ctx.client, ctx.ownerId);
+    return NextResponse.json({ competitors, limit, active: active ?? competitors.length });
   } catch {
     // Table may not exist yet. The count is unknown, not zero.
     return NextResponse.json({ competitors: [], limit, active: null });
@@ -122,8 +123,17 @@ export async function POST(req: Request) {
   const limit = getLimit(ent, "competitors");
 
   // Unknown is not zero: a list that cannot be read is neither full nor empty.
-  const active = await countActiveCompetitors(ctx.client, ctx.ownerId);
-  if (active == null) return NextResponse.json({ error: UNREADABLE_MESSAGE }, { status: 503 });
+  // The limit is per brand (Noah, 2026-11-15): `active` is this brand's count,
+  // `pooled` every brand's, which the database function still counts.
+  const pooled = await countActiveCompetitors(ctx.client, ctx.ownerId);
+  if (pooled == null) return NextResponse.json({ error: UNREADABLE_MESSAGE }, { status: 503 });
+  let active = pooled;
+  if (wsId) {
+    const byBrand = await competitorCountsByBrand(ctx.client, ctx.ownerId);
+    if (!byBrand) return NextResponse.json({ error: UNREADABLE_MESSAGE }, { status: 503 });
+    active = byBrand.get(wsId) ?? 0;
+  }
+  const otherBrands = pooled - active;
 
   const limitReached = (count: number) => {
     const c = canAddCompetitor(ent, count);
@@ -140,8 +150,11 @@ export async function POST(req: Request) {
   if (svc) {
     // Post-migration the workspace-aware overload owns the insert (its onConflict
     // matches the new per-workspace primary key); pre-migration the 4-arg form.
+    // socia_add_competitor counts every brand against p_limit, under a per-user
+    // lock. Passing the other brands' count plus the plan's limit makes that one
+    // locked check a per-brand cap, with no change to the database function.
     const { data, error } = await svc.rpc("socia_add_competitor", wsId
-      ? { p_user: ctx.ownerId, p_workspace: wsId, p_platform: platform, p_handle: key, p_limit: limit }
+      ? { p_user: ctx.ownerId, p_workspace: wsId, p_platform: platform, p_handle: key, p_limit: otherBrands + limit }
       : { p_user: ctx.ownerId, p_platform: platform, p_handle: key, p_limit: limit });
     if (error && !isMissingFunction(error) && !isConstraintMismatch(error)) {
       return dbErrorResponse("competitors", error);
@@ -149,7 +162,8 @@ export async function POST(req: Request) {
     if (!error) {
       const row = (Array.isArray(data) ? data[0] : data) as { added?: boolean; already?: boolean; active_count?: number } | null;
       if (row?.already || row?.added) return NextResponse.json({ ok: true });
-      return limitReached(typeof row?.active_count === "number" ? row.active_count : active);
+      // The function reports the pooled count: this brand's is that less the other brands'.
+      return limitReached(typeof row?.active_count === "number" ? Math.max(0, row.active_count - otherBrands) : active);
     }
     // Function missing (pre-migration) or the per-workspace key isn't in force
     // yet (partial migration): fall through to the resilient legacy path.
