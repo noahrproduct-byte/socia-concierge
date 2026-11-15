@@ -4,6 +4,7 @@ import { PLANS, SALE_ORDER, FEATURE_LABEL, FEATURE_STATUS, formatPrice, formatHi
 import { MONTHLY_CREDITS, clipMinutesFor } from "@/lib/credits/config";
 import { comingSoonFor } from "@/lib/pricingTable";
 import PlanCta from "./PlanCta";
+import { LaunchWas } from "./Launch";
 
 // Four plan cards. Each card carries the handful of reasons someone picks that
 // plan, not the whole feature list (the comparison table below has that).
@@ -127,6 +128,7 @@ export default function PricingCards({
               <h3 id={`plan-${id}-name`} className="pr-card-name">{p.name}</h3>
               {p.popular && <span className="pr-popular">Recommended</span>}
             </div>
+            <LaunchWas plan={id} price={p.priceMonthly} />
             <div className="pr-price">
               <span className="pr-price-amount">{formatPrice(p)}</span>
               <span className="pr-price-per">/month</span>
