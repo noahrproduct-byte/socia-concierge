@@ -40,7 +40,7 @@ import { YT_WRITE_SCOPES } from "@/lib/publishing/capabilities";
 import type { FbPost } from "@/lib/facebookSync";
 import { getIgSnapshot } from "@/lib/instagramSync";
 import {
-  getEntitlements, getUsage, listConnectedAccountsDetailed, competitorCountsByBrand, competitorUsage, computeOverLimits,
+  getEntitlements, listConnectedAccountsDetailed, competitorCountsByBrand, competitorUsage, computeOverLimits,
   activeAccounts, activeByPlatform, workspacesInUse, getLimit, canUseFeature,
 } from "@/lib/entitlements";
 import { limitError } from "@/lib/planErrors";
@@ -217,8 +217,7 @@ export default async function SettingsPage({
       : billingParam === "cancelled"
         ? { tone: "info" as const, text: "Checkout was cancelled. Nothing was charged." }
         : null;
-  const [usage, accountsResult, competitorsByBrand] = await Promise.all([
-    getUsage(supabase, ent),
+  const [accountsResult, competitorsByBrand] = await Promise.all([
     listConnectedAccountsDetailed(supabase, user.id),
     competitorCountsByBrand(supabase, user.id),
   ]);
@@ -620,7 +619,6 @@ export default async function SettingsPage({
               </div>
               <PlanBilling
                 ent={ent}
-                usage={usage}
                 accounts={accountsList}
                 activeCount={activeCount}
                 competitorCount={competitorCount}

@@ -5,6 +5,7 @@ import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/
 import { listProjects, createProject, copyClipsInto, studioLimits } from "@/lib/studioClips/server";
 import { transcriptionConfigured } from "@/lib/transcribe";
 import { errorResponse } from "@/lib/dbError";
+import { withCredits } from "@/lib/credits/usage";
 
 export const runtime = "nodejs";
 
@@ -18,7 +19,7 @@ export async function GET() {
   const { ctx } = r;
   try {
     const ent = await getEntitlements(ctx.client, ctx.ownerId);
-    const [projects, usage] = await Promise.all([listProjects(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null), getUsage(ctx.client, ent)]);
+    const [projects, usage] = await Promise.all([listProjects(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null), getUsage(ctx.client, ent).then((u) => withCredits(u, ent))]);
     return NextResponse.json({
       projects, limits: studioLimits(ent), usage: usage.content_build, transcription: transcriptionConfigured(),
       // Make This Video (Phase B) is a Growth/Pro feature; the UI shows a plan note otherwise.

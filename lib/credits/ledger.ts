@@ -4,9 +4,11 @@
 import { createServiceClient } from "@/lib/supabase/service";
 import { monthKey } from "@/lib/aiSpend";
 import { MONTHLY_CREDITS } from "./config";
+import { bonusCredits } from "@/lib/referrals/core";
 import type { PlanId } from "@/lib/plans";
 
-export type CreditRef = { kind: "clip_job" | "generation_job"; id: string };
+/** What a spend paid for: a Clipper or AI Studio job, or one AI action (an Ask SOCIA answer, a rating...). */
+export type CreditRef = { kind: "clip_job" | "generation_job" | "action"; id: string };
 
 export class CreditsError extends Error {
   constructor(public code: "insufficient_credits" | "unavailable", message: string, public balance: number | null = null) {
@@ -26,14 +28,19 @@ const svcOrThrow = (): Svc => {
 const isMissing = (e: { message?: string; code?: string } | null | undefined) =>
   Boolean(e && (e.code === "42P01" || e.code === "PGRST202" || /does not exist|Could not find/i.test(e.message ?? "")));
 
+/** This month's credits for a plan, with what counting invitations add (lib/referrals/core.ts). */
+export const monthlyCredits = (plan: PlanId, invites = 0): number => (MONTHLY_CREDITS[plan] ?? 0) + bonusCredits(invites);
+
 /**
- * The owner's balance after this month's allowance has been granted (the
- * grant is idempotent, so reading the balance is also what tops it up on the
- * first of the month). null when the credit tables are not installed.
+ * The owner's balance after this month's credits have been granted (the
+ * grant is idempotent, so reading the balance is also what fills it on the
+ * first of the month; with supabase/credits-monthly.sql it also expires last
+ * month's unused credits and tops the month up after an upgrade). null when
+ * the credit tables are not installed.
  */
-export async function creditBalance(ownerId: string, plan: PlanId, now = new Date()): Promise<number | null> {
+export async function creditBalance(ownerId: string, plan: PlanId, now = new Date(), invites = 0): Promise<number | null> {
   const svc = svcOrThrow();
-  const allowance = MONTHLY_CREDITS[plan] ?? 0;
+  const allowance = monthlyCredits(plan, invites);
   const { data, error } = await svc.rpc("socia_credit_grant", { p_user: ownerId, p_amount: allowance, p_month: monthKey(now) });
   if (error) {
     if (isMissing(error)) return null;

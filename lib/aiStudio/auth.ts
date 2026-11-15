@@ -9,7 +9,8 @@ import { requireFeature } from "@/lib/planGuard";
 import type { Entitlements } from "@/lib/entitlements";
 import type { FeatureKey } from "@/lib/plans";
 import { CreditsError } from "@/lib/credits/ledger";
-import { CREDITS_SHORT_COPY } from "@/lib/credits/config";
+import { creditsShortCopy } from "@/lib/credits/config";
+import { topupsOpen } from "@/lib/credits/topups";
 import { ClipperError } from "@/lib/clipper/provider";
 import { GenerationError } from "@/lib/generation/provider";
 import { APIError } from "@anthropic-ai/sdk";
@@ -42,7 +43,7 @@ const SERVER_ERROR = "SOCIA hit an error on its side. Try again in a moment.";
 export function aiErrorResponse(where: string, e: unknown): NextResponse {
   if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
   if (e instanceof CreditsError) {
-    if (e.code === "insufficient_credits") return NextResponse.json({ error: CREDITS_SHORT_COPY, code: "insufficient_credits", balance: e.balance }, { status: 402 });
+    if (e.code === "insufficient_credits") return NextResponse.json({ error: creditsShortCopy(topupsOpen()), code: "insufficient_credits", balance: e.balance }, { status: 402 });
     console.error(`[${where}]`, e.message);
     return NextResponse.json({ error: "Credits are unavailable right now. Try again in a moment.", code: "credits_unavailable" }, { status: 503 });
   }

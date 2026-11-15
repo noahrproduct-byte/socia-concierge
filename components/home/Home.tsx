@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, Check, Mail } from "lucide-react";
 import { PlatformMark } from "@/components/system/PlatformMark";
 import { PLANS, SALE_ORDER, formatHistory, type PlanId } from "@/lib/plans";
+import { MONTHLY_CREDITS, actionCredits } from "@/lib/credits/config";
 import { CONTACT_EMAIL, awaitingAccessText, offlineReason, openPlatformsText, platformRequestHref, type OfflinePlatform } from "@/lib/platformStatus";
 import HomeNav from "./HomeNav";
 import HomeFooter from "./HomeFooter";
@@ -30,7 +31,11 @@ const FAQ = [
   },
   {
     q: "What does the free plan include?",
-    a: `One Brand Workspace, ${PLANS.free.limits.competitors} competitors, ${formatHistory(PLANS.free.limits.analytics_history_days)} of analytics history, scheduling and publishing, breakout alerts, Content Studio's Build from clips, and read-only access for AI assistants. The pricing page lists every limit.`,
+    a: `One Brand Workspace, ${MONTHLY_CREDITS.free.toLocaleString("en-US")} AI credits a month, ${PLANS.free.limits.competitors} competitors, ${formatHistory(PLANS.free.limits.analytics_history_days)} of analytics history, scheduling and publishing, breakout alerts, Content Studio's Build from clips, and read-only access for AI assistants. The pricing page lists every limit.`,
+  },
+  {
+    q: "How do AI credits work?",
+    a: `Every plan comes with AI credits each month, and every AI feature uses them from the same balance: ${actionCredits("ask_socia")} for an Ask SOCIA question, ${actionCredits("content_studio")} for a video rating, ${actionCredits("animated_videos")} for an animated video. Each feature shows what it uses before you start. Monthly credits refill on the 1st and don't carry over.`,
   },
   {
     q: "Does SOCIA post for me?",
@@ -58,6 +63,7 @@ const PLAN_LINES: Record<PlanId, string[]> = Object.fromEntries(
       id,
       [
         `${l.workspaces} Brand ${l.workspaces === 1 ? "Workspace" : "Workspaces"}`,
+        `${MONTHLY_CREDITS[id].toLocaleString("en-US")} AI credits a month`,
         `${l.competitors} competitors per brand`,
         `${formatHistory(l.analytics_history_days)} of analytics history`,
         l.team_members > 1 ? `${l.team_members} team members` : "Single user",

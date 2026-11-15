@@ -14,12 +14,16 @@
 // exact sentence and the right upgrade CTA. Enforcement lives here, on the
 // server; hiding a button in the UI is never the only gate.
 
+import { randomUUID } from "node:crypto";
 import { NextResponse, after } from "next/server";
 import type { FeatureKey, MeterKey } from "./plans";
-import type { PlanError } from "./planErrors";
+import { creditsError, usageError, type PlanError } from "./planErrors";
 import { getEntitlements, checkFeature, consumeUsage, releaseUsage, type Entitlements, type UsageSnapshot } from "./entitlements";
 import { trackEvent, type ProductEventName } from "./events";
-import { aiBudgetDenied } from "./aiSpend";
+import { aiBudgetDenied, nextMonthStart } from "./aiSpend";
+import { actionCredits, isCreditAction, type CreditAction } from "./credits/config";
+import { CreditsError, creditBalance, refundCredits, spendCredits } from "./credits/ledger";
+import { topupsOpen } from "./credits/topups";
 
 /** Allowances whose use costs SOCIA AI money: they also stop at the plan's monthly AI ceiling. */
 const AI_METERS = new Set<MeterKey>(["ask_socia", "content_studio", "content_generation", "account_audit", "content_plan", "content_ideas", "content_build", "music_tracks", "voiceovers"]);
@@ -98,6 +102,13 @@ export async function requireUsage(
       return { ent, usage: null, denied: deny(check.error), release: noop };
     }
   }
+  // An AI feature is paid with credits (Noah, 2026-11-15): one balance for
+  // everything, a fixed price per action. Before the credit tables exist the
+  // per-feature allowance below still applies.
+  if (isCreditAction(meter)) {
+    const paid = await payWithCredits(supabase, userId, ent, meter);
+    if (paid) return paid;
+  }
   // An AI allowance: the account's month must also be under its plan's AI ceiling (lib/aiSpend.ts).
   if (AI_METERS.has(meter)) {
     const over = await aiBudgetDenied(userId, ent);
@@ -114,4 +125,44 @@ export async function requireUsage(
   }
   recordEvent(supabase, userId, "usage_limit_reached", { meter, plan: ent.plan, limit: r.usage.limit });
   return { ent, usage: r.usage, denied: deny(r.error!), release: noop };
+}
+
+/**
+ * Take one action's credits from the owner's balance. Null when the credit
+ * tables aren't installed, so the caller falls back to the per-feature
+ * allowance. The plan's AI ceiling stays in force as a safety net for work
+ * that isn't paid with credits; it sits above the monthly credits.
+ */
+async function payWithCredits(supabase: Supa, userId: string, ent: Entitlements, action: CreditAction): Promise<UsageGuard | null> {
+  const noop = async () => {};
+  const cost = actionCredits(action);
+  const now = new Date();
+  const resetsOn = nextMonthStart(now).toISOString().slice(0, 10);
+  // A feature the plan doesn't include (an allowance of 0) can't be bought with credits.
+  if ((ent.config.meters[action] ?? 0) <= 0) {
+    return { ent, usage: null, denied: deny(usageError(ent.plan, action, 0, 0, resetsOn)), release: noop };
+  }
+  const snap = (balance: number): UsageSnapshot => ({
+    meter: action, used: null, limit: 0, remaining: Math.floor(balance / cost), resetsOn, credits: { balance, cost },
+  });
+  try {
+    const balance = await creditBalance(userId, ent.plan, now, ent.invites ?? 0);
+    if (balance == null) return null;
+    if (balance < cost) {
+      recordEvent(supabase, userId, "usage_limit_reached", { meter: action, plan: ent.plan, credits: balance, cost });
+      return { ent, usage: snap(balance), denied: deny(creditsError(ent.plan, balance, cost, resetsOn, topupsOpen())), release: noop };
+    }
+    const over = await aiBudgetDenied(userId, ent);
+    if (over) return { ent, usage: null, denied: over, release: noop };
+    const ref = { kind: "action" as const, id: randomUUID() };
+    const after = await spendCredits(userId, cost, ref, action);
+    return { ent, usage: snap(after), denied: null, release: async () => { await refundCredits(userId, ref, "Didn't finish"); } };
+  } catch (e) {
+    if (e instanceof CreditsError && e.code === "insufficient_credits") {
+      const balance = e.balance ?? 0;
+      return { ent, usage: snap(balance), denied: deny(creditsError(ent.plan, balance, cost, resetsOn, topupsOpen())), release: noop };
+    }
+    console.error(`[credits] ${action} could not be paid:`, (e as Error)?.message ?? e);
+    return { ent, usage: null, denied: denyMeteringUnavailable(), release: noop };
+  }
 }

@@ -1,11 +1,28 @@
 import { describe, it, expect } from "vitest";
-import { CREDIT_USD, MARGIN, MONTHLY_CREDITS, GENERATION_MODELS, DEFAULT_MODEL, CLIP_TRANSCRIBE_USD_PER_MINUTE, clipCredits, clipCreditsKept, clipWorkDone, creditsForUsd, formatCredits, modelById } from "./config";
+import { ACTION_USD, CREDIT_USD, MARGIN, MONTHLY_CREDITS, actionCredits, creditsBuy, type CreditAction, GENERATION_MODELS, DEFAULT_MODEL, CLIP_TRANSCRIBE_USD_PER_MINUTE, clipCredits, clipCreditsKept, clipWorkDone, creditsForUsd, formatCredits, modelById } from "./config";
 import { PLAN_ORDER, PLANS } from "@/lib/plans";
 
 describe("credits config", () => {
-  it("gives credits only to plans that have the AI features", () => {
-    for (const p of PLAN_ORDER) expect(MONTHLY_CREDITS[p] > 0).toBe(PLANS[p].features.ai_clipper || PLANS[p].features.ai_studio);
-    expect(MONTHLY_CREDITS.scale).toBeGreaterThan(0);
+  it("gives every plan monthly credits, more on each bigger plan", () => {
+    for (let i = 1; i < PLAN_ORDER.length; i++) expect(MONTHLY_CREDITS[PLAN_ORDER[i]]).toBeGreaterThanOrEqual(MONTHLY_CREDITS[PLAN_ORDER[i - 1]]);
+    expect(MONTHLY_CREDITS.free).toBeGreaterThan(0);
+  });
+
+  it("keeps a full month of credits inside each paid plan's AI ceiling, with room for background work", () => {
+    for (const p of PLAN_ORDER) {
+      if (p === "free" || p === "scale") continue;
+      const costUsd = (MONTHLY_CREDITS[p] * CREDIT_USD) / MARGIN;
+      expect(costUsd).toBeLessThan(PLANS[p].aiSpendCapUsd);
+      // ...and under 65% of the price, so a customer who spends every credit still leaves a margin.
+      expect(costUsd).toBeLessThan(PLANS[p].priceMonthly * 0.65);
+    }
+  });
+
+  it("prices every AI action at its cost with the margin, never below one credit", () => {
+    for (const a of Object.keys(ACTION_USD) as CreditAction[]) {
+      expect(actionCredits(a)).toBe(Math.max(1, Math.ceil((ACTION_USD[a] * MARGIN) / CREDIT_USD)));
+    }
+    expect(creditsBuy(1800)).toMatch(/^about \d+ video ratings, \d+ animated videos or \d+ Ask SOCIA questions$/);
   });
 
   it("prices clipping by whole source minutes with the margin", () => {

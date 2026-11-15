@@ -3,7 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { resolveContext } from "@/lib/context";
 import { getEntitlements, canUseFeature } from "@/lib/entitlements";
 import { creditBalance, recentLedger } from "@/lib/credits/ledger";
-import { CREDIT_PRICES_CONFIRMED, MONTHLY_CREDITS, TOPUP_PACKS } from "@/lib/credits/config";
+import { MONTHLY_CREDITS, TOPUP_PACKS } from "@/lib/credits/config";
+import { topupsOpen } from "@/lib/credits/topups";
 import { aiErrorResponse } from "@/lib/aiStudio/auth";
 
 export const runtime = "nodejs";
@@ -21,7 +22,7 @@ export async function GET() {
       creditBalance(ctx.ownerId, ent.plan).catch(() => null),
       recentLedger(ctx.client, ctx.ownerId),
     ]);
-    return NextResponse.json({ balance, monthly: MONTHLY_CREDITS[ent.plan], packs: TOPUP_PACKS, topups: CREDIT_PRICES_CONFIRMED, ledger, enabled, plan: ent.plan });
+    return NextResponse.json({ balance, monthly: MONTHLY_CREDITS[ent.plan], packs: TOPUP_PACKS, topups: topupsOpen(), ledger, enabled, plan: ent.plan });
   } catch (e) {
     return aiErrorResponse("credits", e);
   }

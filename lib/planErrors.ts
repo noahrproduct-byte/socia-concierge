@@ -8,11 +8,11 @@
 
 import {
   PLANS, FEATURE_LABEL, FEATURE_STATUS, LIMIT_UNIT, METER_LABEL, METER_PERIOD, PRICING_PATH, PLATFORM_NAME, WORKSPACE_PLATFORMS,
-  minPlanWithFeature, minPlanWithLimit, minPlanWithMeter, pricingHref,
+  minPlanWithFeature, minPlanWithLimit, minPlanWithMeter, nextPlan, pricingHref,
   type PlanId, type FeatureKey, type LimitKey, type MeterKey,
 } from "./plans";
 
-export type PlanErrorCode = "feature_locked" | "coming_soon" | "limit_reached" | "usage_exhausted";
+export type PlanErrorCode = "feature_locked" | "coming_soon" | "limit_reached" | "usage_exhausted" | "credits_short";
 
 export type PlanError = {
   /** One sentence for the person, ready to render. */
@@ -31,6 +31,8 @@ export type PlanError = {
   max?: number;
   /** ISO date the metered allowance resets, when the error is about usage. */
   resetsOn?: string;
+  /** The credit balance and what the action costs, when the error is about credits. */
+  credits?: { balance: number; cost: number };
   /** Button label and destination for the contextual upgrade moment. */
   cta: string;
   href: string;
@@ -119,6 +121,21 @@ export function usageError(plan: PlanId, meter: MeterKey, max: number, used: num
     error, code: "usage_exhausted", plan, planName: PLANS[plan].name,
     requiredPlan: required, requiredPlanName: required ? PLANS[required].name : null,
     meter, max, used, resetsOn, cta, href,
+  };
+}
+
+/**
+ * Not enough credits for an AI action. The way out is a top-up when they are
+ * on sale, otherwise the next plan's bigger monthly credits.
+ */
+export function creditsError(plan: PlanId, balance: number, cost: number, resetsOn: string, topups: boolean): PlanError {
+  const required = nextPlan(plan);
+  const { cta, href } = topups ? { cta: "Buy credits", href: "/settings#credits" } : upgradeCta(required, "Upgrade to");
+  const error = `This needs ${cost.toLocaleString("en-US")} ${cost === 1 ? "credit" : "credits"} and you have ${balance.toLocaleString("en-US")} left this month.`;
+  return {
+    error, code: "credits_short", plan, planName: PLANS[plan].name,
+    requiredPlan: required, requiredPlanName: required ? PLANS[required].name : null,
+    resetsOn, credits: { balance, cost }, cta, href,
   };
 }
 
