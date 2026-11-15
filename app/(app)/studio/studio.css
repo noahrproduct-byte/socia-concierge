@@ -1730,3 +1730,27 @@
 .sd-trim-progress { width: 100%; height: 4px; }
 .sd-track-actions { display: flex; align-items: center; gap: var(--sp-1); flex-wrap: wrap; }
 .sd-rename { font: inherit; padding: 2px var(--sp-1); }
+
+/* The editor as a stage (components/studio/ClipBuilder.tsx): the preview in the middle, the timeline right under it,
+   the tools under that; one tool opens as a panel (a drawer beside the stage on a wide screen, a sheet from the
+   bottom on a phone), so the page is never a long scroll. */
+.sd-stage { display: flex; justify-content: center; }
+.sd-stage-player { width: 100%; max-width: 760px; }
+.sd-tools { display: flex; gap: var(--sp-1); padding: var(--sp-1) 0; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.sd-tools::-webkit-scrollbar { display: none; }
+.sd-tool-btn { flex: 0 0 auto; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-width: 4.5rem; padding: var(--sp-2) var(--sp-2); border: 1px solid var(--border); border-radius: var(--r-card); background: var(--surface); color: var(--text-secondary); font: inherit; font-size: var(--fs-meta); line-height: var(--lh-meta); cursor: pointer; }
+.sd-tool-btn.is-on { background: var(--primary); border-color: var(--primary); color: #fff; }
+.sd-tool-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .sd-tool-btn:not(.is-on):hover { background: var(--surface-hover); color: var(--ink); } }
+.sd-tool { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-card); background: var(--surface); }
+.sd-tool-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-2); }
+.sd-tool-head h3 { margin: 0; font-size: var(--fs-section); line-height: var(--lh-section); font-weight: var(--fw-semibold); color: var(--text-primary); }
+.sd-tool-head small { display: block; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--text-muted); }
+.sd-tool-body { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+/* Wide screens: the panel sits beside the stage, the stage stays in view. */
+@media (min-width: 1100px) {
+}
+/* Phones: the panel is a sheet over the bottom of the screen; the tools stay reachable above it. */
+@media (max-width: 1099px) {
+  .sd-tool { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; max-height: 72vh; overflow-y: auto; border-radius: var(--r-card) var(--r-card) 0 0; box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.18); padding-bottom: calc(var(--sp-3) + env(safe-area-inset-bottom)); }
+}

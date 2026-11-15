@@ -11803,12 +11803,8 @@ p.cbm-muted { display: block; }
 .imw-summary { margin: 0; font-size: 13px; color: var(--text-secondary); }
 .imw-follow { margin: 0; font-size: 12px; }
 
-/* Phone: player, then the timeline, then the tabs, in one column (the grid's children become the column's). */
+/* (The phone order of the stage lives with the stage rules below: preview, timeline, tools, notes.) */
 @media (max-width: 960px) {
-  .cbb-grid { display: contents; }
-  .cbb-player-col { order: 1; position: static; }
-  .cbb-tl-card { order: 2; }
-  .cbb-panels { order: 3; }
   .cbb-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
 
@@ -11860,3 +11856,34 @@ p.cbm-muted { display: block; }
   .dsc-accts { grid-template-columns: minmax(0, 1fr); }
   .dsc-acct-top .dsc-actions { flex-direction: column; align-items: flex-end; }
 }
+
+/* The editor stage (components/studio/ClipBuilder.tsx): the preview in the middle with its notes beside it when there is
+   room, the timeline right under it, the tools under that (.sd-main); the open tool panel sits beside all of that on a
+   wide screen and over the bottom of the screen on a phone (the panel's own rules live in app/(app)/studio/studio.css). */
+.sd-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.sd-stage-player { display: flex; flex-direction: column; gap: 14px; }
+.sd-stage-player .cbb-player-card { padding: var(--sp-3); }
+.sd-stage-player .cbb-player { width: min(100%, calc((100vh - 360px) * 0.5625)); min-width: 220px; margin: 0 auto; }
+.sd-stage-side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.cbb-player-notes .cbb-player-meta { margin-top: 0; }
+@media (min-width: 900px) {
+  .sd-stage-player { display: grid; grid-template-columns: minmax(244px, calc((100vh - 360px) * 0.5625 + 24px)) minmax(0, 1fr); column-gap: 14px; align-items: start; }
+  .sd-stage-player .cbb-player { width: 100%; min-width: 0; margin: 0; }
+}
+@media (min-width: 1100px) {
+  .cbb:has(.sd-tool) { display: grid; grid-template-columns: minmax(0, 1fr) 460px; column-gap: var(--sp-3); align-items: start; }
+  .cbb:has(.sd-tool) > .cbb-head, .cbb:has(.sd-tool) > .cbb-err { grid-column: 1 / -1; }
+  .cbb:has(.sd-tool) > .sd-main { grid-column: 1; }
+  .cbb:has(.sd-tool) > .sd-tool { grid-column: 2; position: sticky; top: 72px; max-height: calc(100vh - 96px); overflow-y: auto; }
+}
+@media (max-width: 1099px) { .cbb:has(.sd-tool) { padding-bottom: 40vh; } }
+/* Phones and narrow windows: the preview, then the timeline right under it, then the tools; the notes and the export
+   card come after, the way CapCut keeps its stage together on a phone. */
+@media (max-width: 899px) {
+  .sd-main > .sd-stage, .sd-main .sd-stage-player { display: contents; }
+  .sd-main .cbb-player-card { order: 0; }
+  .sd-main .cbb-tl-card { order: 1; }
+  .sd-main .sd-tools { order: 2; }
+  .sd-main .sd-stage-side { order: 3; }
+}
+

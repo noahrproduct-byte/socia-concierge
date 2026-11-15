@@ -8,10 +8,10 @@
 // captions on/off, undo/redo. The video is rendered HERE
 // in the browser (WebCodecs) and saved as a DRAFT post — nothing is scheduled
 // or published without the person doing it in Create Post.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Player, type PlayerRef } from "@remotion/player";
-import { ChevronLeft, Save, ArrowUp, ArrowDown, Trash2, Captions, Info, RefreshCw, Loader2, AlertTriangle, Clapperboard, ArrowRight, Check, Music, Crop, SkipBack, SkipForward, Palette, Volume2, VolumeX, Type, Download } from "lucide-react";
+import { ChevronLeft, Save, ArrowUp, ArrowDown, Trash2, Captions, Info, RefreshCw, Loader2, AlertTriangle, Clapperboard, ArrowRight, Check, Music, Crop, SkipBack, SkipForward, Palette, Volume2, VolumeX, Type, Download, X, Layers, Scissors, SlidersHorizontal, MessageSquare } from "lucide-react";
 import PlanNotice from "../PlanNotice";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import { createClient } from "@/lib/supabase/client";
@@ -110,19 +110,28 @@ function Finished({ message }: { message: string }) {
 }
 
 /** The tabs, in CapCut's order: the theme first, then what it is made of. */
-type Panel = "theme" | "cut" | "words" | "sound" | "look" | "regenerate";
-/** The one page's sections, in order; the chips jump to them and follow the scroll. */
-const SECTIONS: { id: Panel; label: string }[] = [
-  { id: "theme", label: "Theme" }, { id: "cut", label: "This cut" }, { id: "words", label: "Words" }, { id: "sound", label: "Sound" }, { id: "look", label: "Look" }, { id: "regenerate", label: "Make it again" },
+type Panel = "ask" | "theme" | "cut" | "words" | "sound" | "look" | "regenerate";
+/** The tools under the timeline, in order (the way CapCut lays its tools under the preview); one opens at a time as a panel. */
+const SECTIONS: { id: Panel; label: string; hint: string }[] = [
+  { id: "ask", label: "Tell SOCIA", hint: "Type or say what to change in this cut." },
+  { id: "theme", label: "Theme", hint: "The look, the motion and the joins. Your trims and words stay." },
+  { id: "cut", label: "This cut", hint: "Trim, sound, motion and the join of the cut under the playhead." },
+  { id: "words", label: "Words", hint: "The lines on the video, the captions, the lower third and the ending." },
+  { id: "sound", label: "Sound", hint: "Voice, music and background noise." },
+  { id: "look", label: "Look", hint: "Size, framing, the type, the brand, the theme's look, and measured corrections." },
+  { id: "regenerate", label: "Make it again", hint: "Another first cut, from SOCIA." },
 ];
+const TOOL_ICON: Record<Panel, ReactNode> = {
+  ask: <MessageSquare size={16} />, theme: <Layers size={16} />, cut: <Scissors size={16} />, words: <Type size={16} />, sound: <Music size={16} />, look: <SlidersHorizontal size={16} />, regenerate: <RefreshCw size={16} />,
+};
 const PANEL_FOR: Record<string, Panel> = { themes: "theme", cut: "cut", text: "words", captions: "words", effects: "cut", transitions: "cut", audio: "sound", finish: "look", adjust: "look", regenerate: "regenerate" };
 
 /** A section's heading on the one page: the anchor the chips jump to. */
-function SectionHead({ id, title, hint, active }: { id: Panel; title: string; hint: string; active: boolean }) {
+function ToolHead({ id, title, hint, onClose }: { id: Panel; title: string; hint: string; onClose: () => void }) {
   return (
-    <div id={`sd-sec-${id}`} className={`sd-sec-head${active ? " is-on" : ""}`} data-section={id}>
-      <h3>{title}</h3>
-      <small>{hint}</small>
+    <div className="sd-tool-head">
+      <div><h3 id={`sd-tool-${id}`}>{title}</h3><small>{hint}</small></div>
+      <button type="button" className="sd-iconbtn" aria-label={`Close ${title}`} onClick={onClose}><X size={15} /></button>
     </div>
   );
 }
@@ -149,23 +158,11 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   const [regen, setRegen] = useState<RegenerateDirective | null>(null);
   const [regenErr, setRegenErr] = useState<string | null>(null);
   const [exp, setExp] = useState<ExportState>({ phase: "idle", progress: 0, message: null, postId: null });
-  // One page: the section the chips mark; a chip (or a timeline selection) scrolls to it.
-  const [section, setSection] = useState<Panel>(PANEL_FOR[initialPanel ?? "themes"] ?? "theme");
-  const motionOk = useMotionOk();
-  const setPanel = useCallback((id: Panel | keyof typeof PANEL_FOR) => {
-    const sec = (PANEL_FOR[id as string] ?? id) as Panel;
-    setSection(sec);
-    if (typeof document !== "undefined") document.getElementById(`sd-sec-${sec}`)?.scrollIntoView({ behavior: motionOk ? "smooth" : "auto", block: "start" });
-  }, [motionOk]);
-  // The chips follow the scroll: the section whose heading last crossed the top of the view is the one on.
-  useEffect(() => {
-    if (typeof IntersectionObserver === "undefined") return;
-    const heads = Array.from(document.querySelectorAll<HTMLElement>("[data-section]"));
-    if (!heads.length) return;
-    const io = new IntersectionObserver((entries) => { for (const e of entries) if (e.isIntersecting) setSection(e.target.getAttribute("data-section") as Panel); }, { rootMargin: "-10% 0px -80% 0px" });
-    heads.forEach((h) => io.observe(h));
-    return () => io.disconnect();
-  }, [data?.build.id]);
+  // The stage: the preview, the timeline under it, the tools under that. One tool is open at a time as a panel
+  // (a timeline selection opens the tool for it); none open is the clean stage.
+  const [section, setSection] = useState<Panel | null>(initialPanel ? PANEL_FOR[initialPanel] ?? null : null);
+  const setPanel = useCallback((id: Panel | keyof typeof PANEL_FOR) => { setSection((PANEL_FOR[id as string] ?? id) as Panel); }, []);
+  const toggleTool = useCallback((id: Panel) => setSection((cur) => (cur === id ? null : id)), []);
   const [presets, setPresets] = useState<VideoPresets>({ brand: null, templates: [] });
   const [tplName, setTplName] = useState("");
   const [styleNote, setStyleNote] = useState<string | null>(null);
@@ -803,6 +800,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   keys.current = { edit: Boolean(data?.canEdit) && !regen && !saving && !(exp.phase !== "idle" && exp.phase !== "done" && exp.phase !== "error"), undo, redo, split: splitHere, del: deleteSelected, step, save: () => { if (dirtyRef.current) void save(); } };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { setSection(null); return; }
       if (!editorKey(e.target, e.key)) return;
       const k = keys.current;
       const mod = e.metaKey || e.ctrlKey;
@@ -851,8 +849,9 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
         <p className="cbb-err sd-draft" role="status"><Info size={13} aria-hidden /> An edit of this video was left unsaved in this browser. <button type="button" className="sd-check-go" onClick={takeLocalDraft}>Bring it back</button> <button type="button" className="sd-check-go" onClick={dropLocalDraft}>Discard it</button></p>
       )}
 
-      <div className="cbb-grid">
-        <div className="cbb-player-col">
+      <div className="sd-main">
+      <div className="sd-stage">
+        <div className="sd-stage-player">
           <div className="ov-card cbb-player-card">
             <div className="cbb-player">
               <Player
@@ -868,7 +867,9 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                 style={{ width: "100%", aspectRatio: `${edl.width} / ${edl.height}` }}
               />
             </div>
-            <div className="cbb-player-meta">
+          </div>
+          <div className="sd-stage-side">
+            <div className="ov-card cbb-player-notes"><div className="cbb-player-meta">
               <b>{title}</b>
               <span>{tl.durationSec.toFixed(1)}s, {edl.segments.length} cut{edl.segments.length === 1 ? "" : "s"}, {edl.width}×{edl.height}</span>
               {isEditStyle(edl.editStyle) && <small className="sd-pace-line">Edited as {EDIT_STYLES[edl.editStyle].label.toLowerCase()}: {EDIT_STYLES[edl.editStyle].summary.charAt(0).toLowerCase()}{EDIT_STYLES[edl.editStyle].summary.slice(1)}</small>}
@@ -914,8 +915,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               )}
               {guideAvailable && <label className="cbb-guide"><input type="checkbox" checked={guide} onChange={(e) => setGuide(e.target.checked)} /> Show the text safe zone</label>}
               {missing > 0 && <span className="cb-stale"><AlertTriangle size={12} /> {missing} cut{missing === 1 ? "" : "s"} point{missing === 1 ? "s" : ""} at footage that expired. Replace or remove {missing === 1 ? "it" : "them"}.</span>}
-            </div>
-          </div>
+            </div></div>
 
           <div className="ov-card cbb-export">
             <h3><Clapperboard size={14} /> Make the video</h3>
@@ -976,9 +976,48 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               </>
             )}
           </div>
+          </div>
         </div>
-
-        <div className="cbb-panels">
+      </div>
+      {tracks && (
+        <div className="ov-card cbb-tl-card">
+          <Timeline
+            tracks={tracks}
+            fps={OUTPUT.fps}
+            player={player}
+            canEdit={data.canEdit && !busy}
+            selected={sel}
+            onSelect={select}
+            onTime={onPlayTime}
+            onTextStart={beginLive}
+            onTextLive={(i, at, end) => { setEdl((cur) => (cur ? { ...cur, text: cur.text.map((t, k) => (k === i ? { ...t, at, end } : t)) } : cur)); setDirty(true); }}
+            onCutStart={cutStart}
+            onCutTrimLive={cutTrimLive}
+            onCutMove={cutMove}
+            onBrollLive={brollLive}
+            onSplit={splitHere}
+            onDelete={deleteSelected}
+            onUndo={undo}
+            onRedo={redo}
+            canUndo={past.length > 0 && data.canEdit && !busy}
+            canRedo={future.length > 0 && data.canEdit && !busy}
+            note={hereNote}
+          />
+        </div>
+      )}
+      <nav className="sd-tools" aria-label="Tools">
+        {SECTIONS.filter((x) => x.id !== "regenerate" || !data.manual).map((x) => (
+          <button key={x.id} type="button" className={`sd-tool-btn${section === x.id ? " is-on" : ""}`} aria-pressed={section === x.id} aria-controls={section === x.id ? `sd-tool-${x.id}` : undefined} onClick={() => toggleTool(x.id)}>
+            {TOOL_ICON[x.id]}<span>{x.label}</span>
+          </button>
+        ))}
+      </nav>
+      </div>
+      {section && (
+        <div className="sd-tool" role="region" aria-labelledby={`sd-tool-${section}`}>
+          <ToolHead id={section} title={SECTIONS.find((x) => x.id === section)!.label} hint={SECTIONS.find((x) => x.id === section)!.hint} onClose={() => setSection(null)} />
+        {section === "ask" && (
+          <section className="sd-tool-body" aria-labelledby="sd-tool-ask">
           <AskPanel
             buildId={buildId}
             edl={edl}
@@ -988,14 +1027,17 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
             onApply={(next) => { commit(next); setSel(null); }}
             onRegenerate={(directive) => { if (!data.manual) void regenerate(directive); }}
           />
-          <nav className="sd-nav" aria-label="Sections">
-            {SECTIONS.filter((x) => x.id !== "regenerate" || !data.manual).map((x) => <button key={x.id} type="button" className={`sd-nav-chip${section === x.id ? " is-on" : ""}`} aria-current={section === x.id ? "true" : undefined} onClick={() => setPanel(x.id)}>{x.label}</button>)}
-          </nav>
-          <SectionHead id="theme" title="Theme" hint="The look, the motion and the joins. Your trims and words stay." active={section === "theme"} />
+          </section>
+        )}
+        {section === "theme" && (
+          <section className="sd-tool-body" aria-labelledby="sd-tool-theme">
           {(
             <ThemesPanel edl={edl} sources={sources} ctx={applyCtx} canEdit={data.canEdit} busy={busy} onApply={applyThemeHere} onReset={resetThemeHere} />
           )}
-          <SectionHead id="cut" title="This cut" hint="Trim, sound, motion and the join of the cut under the playhead." active={section === "cut"} />
+          </section>
+        )}
+        {section === "cut" && (
+          <section className="sd-tool-body" aria-labelledby="sd-tool-cut">
           {(() => {
             const k = sel?.kind === "cut" && edl.segments[sel.index] ? sel.index : Math.max(0, Math.min(edl.segments.length - 1, tl.segments.findIndex((x) => playSec >= x.startSec && playSec < x.startSec + x.durationFrames / OUTPUT.fps)));
             const cur = edl.segments[k];
@@ -1104,7 +1146,10 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               )}
             </div>
           </details>
-          <SectionHead id="words" title="Words" hint="The lines on the video, the captions, the lower third and the ending." active={section === "words"} />
+          </section>
+        )}
+        {section === "words" && (
+          <section className="sd-tool-body" aria-labelledby="sd-tool-words">
           {(
             <div className="cbb-text">
               <TextLayersPanel
@@ -1199,7 +1244,10 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               </div>
             </div>
           )}
-          <SectionHead id="sound" title="Sound" hint="Voice, music and background noise." active={section === "sound"} />
+          </section>
+        )}
+        {section === "sound" && (
+          <section className="sd-tool-body" aria-labelledby="sd-tool-sound">
           {(
             <div className="cbb-audio">
               {(
@@ -1248,7 +1296,10 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               <AudioPanel canEdit={data.canEdit && !busy} current={edl.music} onUse={(line) => commit({ ...edl, music: line })} />
             </div>
           )}
-          <SectionHead id="look" title="Look" hint="Size, framing, the type, the brand, the theme's look, and measured corrections." active={section === "look"} />
+          </section>
+        )}
+        {section === "look" && (
+          <section className="sd-tool-body" aria-labelledby="sd-tool-look">
           <EffectsPanel edl={edl} sources={sources} theme={theme} index={0} canEdit={data.canEdit} busy={busy} fixture={Boolean(fixture)} list={false} cut={false} onSelect={() => undefined} onMotion={setMotion} onStabilize={setStabilize} onLook={(grade) => override({ color: { grade } })} onSources={() => undefined} />
           {(
             <div className="cbb-frame cbb-style">
@@ -1332,7 +1383,10 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
           {(
             <FinishPanel edl={edl} sources={sources} canEdit={data.canEdit} busy={busy} initialMeasures={measures} onCommit={(next) => { commit(next); setCompare("after"); }} />
           )}
-          {!data.manual && <SectionHead id="regenerate" title="Make it again" hint="Another first cut, from SOCIA." active={section === "regenerate"} />}
+          </section>
+        )}
+        {section === "regenerate" && !data.manual && (
+          <section className="sd-tool-body" aria-labelledby="sd-tool-regenerate">
           {(
             <div className="cbb-regen">
               <p>A new first cut of the same post with one change. The current cut stays in Undo.</p>
@@ -1356,32 +1410,8 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               <p className="ov-source">{MAX_REGENERATIONS - build.regenerations} of {MAX_REGENERATIONS} regenerations left for this post. Each one is written from the clips&apos; real moments and transcript, then checked the same way as the first.</p>
             </div>
           )}
-        </div>
-      </div>
-      {tracks && (
-        <div className="ov-card cbb-tl-card">
-          <Timeline
-            tracks={tracks}
-            fps={OUTPUT.fps}
-            player={player}
-            canEdit={data.canEdit && !busy}
-            selected={sel}
-            onSelect={select}
-            onTime={onPlayTime}
-            onTextStart={beginLive}
-            onTextLive={(i, at, end) => { setEdl((cur) => (cur ? { ...cur, text: cur.text.map((t, k) => (k === i ? { ...t, at, end } : t)) } : cur)); setDirty(true); }}
-            onCutStart={cutStart}
-            onCutTrimLive={cutTrimLive}
-            onCutMove={cutMove}
-            onBrollLive={brollLive}
-            onSplit={splitHere}
-            onDelete={deleteSelected}
-            onUndo={undo}
-            onRedo={redo}
-            canUndo={past.length > 0 && data.canEdit && !busy}
-            canRedo={future.length > 0 && data.canEdit && !busy}
-            note={hereNote}
-          />
+          </section>
+        )}
         </div>
       )}
     </div>
