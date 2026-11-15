@@ -30,7 +30,7 @@ alter table public.plan_config_overrides
 -- project's own file-size limit) and by type: the video and image formats the
 -- Clipper and AI Studio take in and put out, nothing else.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-  values ('ai-media', 'ai-media', false, 2097152000, array['video/mp4', 'video/quicktime', 'video/3gpp', 'image/jpeg', 'image/png', 'image/webp'])
+  values ('ai-media', 'ai-media', false, 5242880000, array['video/mp4', 'video/quicktime', 'video/3gpp', 'image/jpeg', 'image/png', 'image/webp'])
   on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
 
 do $$

@@ -7,8 +7,8 @@ import { perUserLimit } from "@/lib/rateLimit";
 export const runtime = "nodejs";
 
 const EXT: Record<string, string> = { "video/mp4": "mp4", "video/quicktime": "mov", "video/3gpp": "3gp" };
-/** Largest source upload, MB. Must not exceed the Supabase project's file-size limit. */
-const MAX_SOURCE_MB = Number(process.env.CLIPPER_MAX_FILE_MB ?? 2000);
+/** Largest source upload, MB. Must not exceed the ai-media bucket's file_size_limit (supabase/ai-studio.sql, 5 GB) nor the Supabase project's global limit; a plain (non-resumable) storage upload caps at 5 GB. */
+const MAX_SOURCE_MB = Number(process.env.CLIPPER_MAX_FILE_MB ?? 5000);
 
 // POST { contentType, bytes } -> { path, signedUrl, token }: where the browser PUTs the source video.
 export async function POST(req: Request) {
