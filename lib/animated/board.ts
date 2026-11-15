@@ -113,7 +113,9 @@ const tone = (v: unknown, d: Tone = "fg"): Tone => ((TONES as readonly string[])
  */
 export function cleanBoard(raw: unknown, sourceText: string): Storyboard | null {
   const r = obj(raw);
-  const phrases = arr(r.phrases, 14)
+  // A phrase written as a bare string is still a phrase.
+  const phrases = (Array.isArray(r.phrases) ? r.phrases.slice(0, 14) : [])
+    .map((p) => (typeof p === "string" ? { text: p, em: "" } : obj(p)))
     .map((p) => ({ text: str(p.text, 90).split(" ").slice(0, 9).join(" "), em: str(p.em, 60) }))
     .filter((p) => p.text);
   if (phrases.length < 3) return null;
