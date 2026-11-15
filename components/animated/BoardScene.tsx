@@ -302,8 +302,8 @@ export function BoardScene({ board, look, signoff, voice }: { board: Storyboard;
   const { fps } = useVideoConfig();
   const t = frame / fps;
   const tl = boardTimeline(board, voice?.words, voice?.end);
-  // Under a voice the sound effects sit back so the words stay clear.
-  const sfx = voice?.url ? 0.5 : 1;
+  // Under a voice the sound effects sit back a little so the words stay clear.
+  const sfx = voice?.url ? 0.8 : 1;
   const sec = (a: At) => atSeconds(tl, a);
   const font = fontFor(look.font);
   const up = (s: string) => (look.upper ? s.toUpperCase() : s);

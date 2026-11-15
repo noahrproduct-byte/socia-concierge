@@ -15,7 +15,7 @@ import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import { ACCENTS, ANIMATED_FPS, ANIMATED_SIZE, specTimeline, type AnimatedCompare, type AnimatedCounter, type AnimatedScene, type AnimatedSpec, type AnimatedTheme, type CompareHeadline } from "@/lib/animated/spec";
 import { AnimatedComposition } from "./AnimatedComposition";
 import type { Storyboard } from "@/lib/animated/board";
-import { voiceFits, type BoardVoice } from "@/lib/animated/voice";
+import { voiceFits, voiceLabel, type BoardVoice } from "@/lib/animated/voice";
 import type { VoiceChoice } from "@/lib/studioClips/voiceover";
 
 type Phase =
@@ -114,10 +114,12 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
         phrases: spec.board.phrases.map((p) => p.text), end: { title: spec.board.end.title, rows: spec.board.end.rows.slice(0, 1) }, voiceId: voiceId || voices?.[0]?.id,
       });
       const bytes = Uint8Array.from(atob(r.audio), (c) => c.charCodeAt(0));
-      const url = URL.createObjectURL(new Blob([bytes], { type: "audio/mpeg" }));
+      // Brought up to the level a Reel is heard at before it is played or rendered.
+      const { voiceBlob } = await import("./voiceAudio");
+      const url = URL.createObjectURL(await voiceBlob(bytes));
       if (voiceUrl.current) URL.revokeObjectURL(voiceUrl.current);
       voiceUrl.current = url;
-      const voice: BoardVoice = { url, words: r.words, end: r.end, text: r.text, voiceId: r.voice.id, voiceName: r.voice.name };
+      const voice: BoardVoice = { url, words: r.words, end: r.end, text: r.text, voiceId: r.voice.id, voiceName: voiceLabel(r.voice).name };
       setSpec((x) => (x ? { ...x, voice } : x));
     } catch (e) {
       setVoiceErr((e as Error).message);
@@ -235,7 +237,7 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
                 <Field label="Voiceover" hint="A voice reads the captions and the ending, and the captions follow it word by word. Each one you make uses one voiceover from your plan.">
                   <Select value={voiceId || voices?.[0]?.id || ""} disabled={busy || voicing || voiceOff || !voices?.length} onChange={(e) => setVoiceId(e.target.value)}>
                     {!voices?.length && <option value="">{voices ? "No voices available" : "Loading voices"}</option>}
-                    {voices?.map((v) => <option key={v.id} value={v.id}>{v.description ? `${v.name}: ${v.description.split(",")[0]}` : v.name}</option>)}
+                    {voices?.map((v) => <option key={v.id} value={v.id}>{voiceLabel(v).label}</option>)}
                   </Select>
                 </Field>
                 <div className="mwa-change">
