@@ -63,6 +63,7 @@ export const MIGRATIONS = [
   "reel-history.sql",
   "post-voices.sql",
   "referrals.sql",
+  "cancel-flow.sql",
 ];
 
 const SUPABASE_STANDIN = `
