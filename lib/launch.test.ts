@@ -3,10 +3,10 @@ import { FULL_PRICE, LAUNCH_ENDS_AT, launchFullPrice, launchOn, timeLeft } from 
 import { PLANS } from "./plans";
 
 describe("launch prices", () => {
-  it("ends at the end of December 31, 2026, Central time", () => {
-    expect(launchOn(Date.parse("2026-12-31T23:59:59-06:00"))).toBe(true);
-    expect(launchOn(Date.parse("2027-01-01T00:00:00-06:00"))).toBe(false);
-    expect(new Date(LAUNCH_ENDS_AT).toISOString()).toBe("2027-01-01T06:00:00.000Z");
+  it("ends at the end of December 15, 2026, Central time", () => {
+    expect(launchOn(Date.parse("2026-12-15T23:59:59-06:00"))).toBe(true);
+    expect(launchOn(Date.parse("2026-12-16T00:00:00-06:00"))).toBe(false);
+    expect(new Date(LAUNCH_ENDS_AT).toISOString()).toBe("2026-12-16T06:00:00.000Z");
   });
 
   it("crosses out a full price that is really higher, never on Free or after the end", () => {

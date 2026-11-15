@@ -14,9 +14,9 @@ import type { PlanId } from "@/lib/plans";
 /**
  * False until the provider prices below are confirmed against the Vizard and
  * Higgsfield consoles after the first live test (docs/ai-studio-test-plan.md).
- * While false, Scale is not sold (no pricing card, upgrade offer or checkout)
- * and credit top-ups are closed; an account set to Scale by hand still works,
- * so the test can run. Set to true in the same change that enters the real prices.
+ * While false, credit top-ups are closed and running short says the credits
+ * refill on the 1st. Scale itself is sold on its own switch (lib/plans.ts
+ * SCALE_ON_SALE). Set to true in the same change that enters the real prices.
  */
 export const CREDIT_PRICES_CONFIRMED = false;
 

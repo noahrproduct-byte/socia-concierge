@@ -21,6 +21,7 @@
   background: var(--hm-badge);
   border-radius: var(--hm-r-badge);
   padding: 2px 8px;
+  white-space: nowrap;
 }
 
 /* ---- the countdown band --------------------------------------------------- */

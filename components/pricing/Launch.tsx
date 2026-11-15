@@ -4,7 +4,7 @@
 // real end of the launch. Both read the clock in the browser, so a page that
 // was rendered earlier still drops them the moment the launch ends.
 import { useEffect, useState } from "react";
-import { LAUNCH_END_LONG, LAUNCH_END_TEXT, LAUNCH_ENDS_AT, launchFullPrice, launchOn, timeLeft, usdText } from "@/lib/launch";
+import { FULL_PRICE_FROM_TEXT, LAUNCH_END_LONG, LAUNCH_END_TEXT, LAUNCH_ENDS_AT, launchFullPrice, launchOn, timeLeft, usdText } from "@/lib/launch";
 import type { PlanId } from "@/lib/plans";
 import "./launch.css";
 
@@ -94,7 +94,7 @@ export function LaunchCountdown({ className }: { className?: string }) {
     <section className={["ln-band", className].filter(Boolean).join(" ")} aria-labelledby="ln-title">
       <div className="ln-copy">
         <h2 id="ln-title" className="ln-title">Launch prices end {LAUNCH_END_TEXT}</h2>
-        <p className="ln-sub">Join before then and keep your launch price for as long as you stay subscribed. From January 1, new members pay the full price.</p>
+        <p className="ln-sub">Join before then and keep your launch price for as long as you stay subscribed. From {FULL_PRICE_FROM_TEXT}, new members pay the full price.</p>
       </div>
       <div className="ln-clock" role="timer" aria-label={`Launch prices end ${LAUNCH_END_LONG}`}>
         <Unit value={left.days} label="days" live={live} />

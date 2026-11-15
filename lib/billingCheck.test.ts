@@ -34,8 +34,8 @@ describe("is Stripe ready to take a payment", () => {
     expect(assessBilling(good).find((l) => l.id === "taxmode-pro")?.detail).toContain("plus any sales tax");
   });
   it("says when launch prices end, and turns red if a plan still sells at its launch price afterwards", () => {
-    const during = Date.parse("2026-12-31T12:00:00-06:00");
-    const after = Date.parse("2027-01-01T00:00:01-06:00");
+    const during = Date.parse("2026-12-15T12:00:00-06:00");
+    const after = Date.parse("2026-12-16T00:00:01-06:00");
     expect(assessBilling(good, during).find((l) => l.id === "launch")).toMatchObject({ state: "info" });
     expect(assessBilling(good, during).find((l) => l.id === "launch")?.detail).toContain("Starter $29.99");
     expect(fixes({ ...good })).not.toContain("launch");
