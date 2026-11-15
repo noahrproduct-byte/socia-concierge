@@ -4,7 +4,8 @@
 // authenticated. Server only.
 import type Stripe from "stripe";
 import { createServiceClient } from "@/lib/supabase/service";
-import { BOOST_DAYS, canOfferBoost, type ReasonId } from "./core";
+import { topupCredits } from "@/lib/credits/ledger";
+import { BOOST_DAYS, STAY_CREDITS, canOfferBoost, type ReasonId } from "./core";
 
 const missing = (e: { code?: string; message?: string } | null | undefined): boolean =>
   Boolean(e && (e.code === "42P01" || e.code === "42703" || e.code === "PGRST205" || e.code === "PGRST204" || /does not exist|Could not find/i.test(e.message ?? "")));
@@ -32,12 +33,24 @@ export async function recordFeedback(userId: string, plan: string, reason: Reaso
   }
 }
 
-/** Turns the stay boost on for BOOST_DAYS, if this account can have it. Returns when it runs until, or null. */
+/**
+ * Gives the stay offer, if this account can have it: the credits go onto the
+ * balance (keyed by the day, so a repeat adds nothing), then the row is
+ * marked and the month's AI ceiling gets room for BOOST_DAYS. If the credits
+ * can't be added nothing is marked. Returns when the ceiling's room runs
+ * until, or null when the offer wasn't given.
+ */
 export async function giveBoost(userId: string, now: Date = new Date()): Promise<string | null> {
   const svc = createServiceClient();
   if (!svc) return null;
   const h = await boostHistory(userId);
   if (!h.ready || !canOfferBoost(h.givenAt, now)) return null;
+  try {
+    await topupCredits(userId, STAY_CREDITS, `stay:${userId}:${now.toISOString().slice(0, 10)}`, "For staying");
+  } catch (e) {
+    console.error("[cancel] stay credits not added:", (e as Error)?.message ?? e);
+    return null;
+  }
   const until = new Date(now.getTime() + BOOST_DAYS * 86_400_000).toISOString();
   const patch = { boost_until: until, boost_given_at: now.toISOString(), updated_at: now.toISOString() };
   // The row may already hold this person's invitations: change only the boost.

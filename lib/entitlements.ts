@@ -39,7 +39,7 @@ import {
 import { featureError, limitError, usageError, type PlanError } from "./planErrors";
 import { createServiceClient } from "./supabase/service";
 import { bonusLive, withBonus } from "./referrals/core";
-import { boostLive, withBoost } from "./retention/core";
+import { boostLive } from "./retention/core";
 import { perkLive } from "./perks/core";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -234,12 +234,13 @@ async function getEntitlementsImpl(supabase: Supa, userId: string, now: Date = n
   if (saved?.pending && (!saved.updatedAt || now.getTime() - new Date(saved.updatedAt).getTime() > 10 * 60_000)) {
     void import("./referrals/server").then((m) => m.refreshReferrals(userId, now)).catch(() => {});
   }
-  // A person who chose to stay when cancelling has a little more for a while (lib/retention/core.ts).
+  // A person who chose to stay when cancelling got extra credits; while this is on, the month's AI
+  // ceiling has the room to use them (lib/retention/core.ts, lib/aiSpend.ts).
   const boost = boostLive(saved?.boostUntil, now);
   // Finishing the first week's steps or a four-week posting streak gives a few credits and, while this
   // is on, the room in the month's AI ceiling to use them (lib/perks/core.ts, lib/aiSpend.ts).
   const perk = perkLive(saved?.perkUntil, now);
-  const config = withBoost(withBonus(resolveConfig(plan, planOverrides, userOverrides), invites), boost);
+  const config = withBonus(resolveConfig(plan, planOverrides, userOverrides), invites);
   const periods = currentPeriods(now);
   return { userId, plan, config, period: periods.month, periods, source: "profile", invites, invitePending: saved?.pending === true, boost, perk };
 }
