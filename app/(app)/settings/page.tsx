@@ -48,8 +48,9 @@ import PlanNotice from "@/components/PlanNotice";
 import PlanBilling from "@/components/settings/PlanBilling";
 import CreditsPanel from "@/components/settings/CreditsPanel";
 import InviteFriends from "@/components/settings/InviteFriends";
+import CancelPlan from "@/components/settings/CancelPlan";
 import { PLANS, checkoutAvailable } from "@/lib/plans";
-import { readBillingInfo, syncCheckoutSession } from "@/lib/billing";
+import { hasLiveSubscription, readBillingInfo, syncCheckoutSession } from "@/lib/billing";
 import WorkspacesManager, { type WorkspaceRow } from "@/components/settings/WorkspacesManager";
 import TeamManager, { type TeamMemberRow, type TeamInviteRow } from "@/components/settings/TeamManager";
 import { resolveContext, can, brandWorkspace } from "@/lib/context";
@@ -629,6 +630,8 @@ export default async function SettingsPage({
                 notice={billingNotice}
               />
               <CreditsPanel checkout={checkoutAvailable()} />
+              {/* cancelling asks why and offers a little more for staying, then hands over to Stripe's own page */}
+              {hasLiveSubscription(billing) && !billing.cancelAt && <CancelPlan />}
             </section>
 
             {/* Invite a friend */}

@@ -16,6 +16,7 @@ import { createServiceClient } from "./supabase/service";
 import { getEntitlements, type Entitlements } from "./entitlements";
 import { PLANS, formatPrice, nextPlan, pricingHref } from "./plans";
 import { bonusCapUsd } from "./referrals/core";
+import { BOOST_CAP_USD } from "./retention/core";
 
 /** USD per million input / output tokens, by model family. */
 const TOKEN_PRICES: { match: RegExp; input: number; output: number }[] = [
@@ -83,8 +84,9 @@ export type SpendState = { spentUsd: number; capUsd: number; over: boolean };
 export async function spendState(ownerId: string, ent: Entitlements, now = new Date()): Promise<SpendState | null> {
   const svc = createServiceClient();
   if (!svc) return null;
-  // The plan's ceiling, plus a little room for each invitation that counts right now (lib/referrals/core.ts).
-  const capUsd = (PLANS[ent.plan]?.aiSpendCapUsd ?? 0) + bonusCapUsd(ent.invites ?? 0);
+  // The plan's ceiling, plus a little room for each invitation that counts right now (lib/referrals/core.ts)
+  // and for a stay boost that is on (lib/retention/core.ts).
+  const capUsd = (PLANS[ent.plan]?.aiSpendCapUsd ?? 0) + bonusCapUsd(ent.invites ?? 0) + (ent.boost ? BOOST_CAP_USD : 0);
   const { data, error } = await svc.from("ai_spend").select("micro_usd").eq("user_id", ownerId).eq("month", monthKey(now)).maybeSingle();
   if (error) {
     if (!missing(error)) console.error("[ai-spend] can't read:", error.message);

@@ -223,12 +223,15 @@ describe("comparison table", () => {
   });
 });
 
-describe("Scale before its credit prices are confirmed", () => {
-  it("is not sold or offered, but a plan set by hand still has its features", async () => {
+describe("Scale on sale", () => {
+  it("is sold and offered above Pro while on sale, and otherwise not, with its features either way", async () => {
     const { SCALE_ON_SALE, SALE_ORDER, nextPlan, minPlanWithMeter, planIncludes } = await import("./plans");
-    const { CREDIT_PRICES_CONFIRMED } = await import("./credits/config");
-    expect(SCALE_ON_SALE).toBe(CREDIT_PRICES_CONFIRMED);
-    if (SCALE_ON_SALE) return;
+    expect(planIncludes("scale", "ai_clipper")).toBe(true);
+    if (SCALE_ON_SALE) {
+      expect(SALE_ORDER).toContain("scale");
+      expect(nextPlan("pro")).toBe("scale");
+      return;
+    }
     expect(SALE_ORDER).not.toContain("scale");
     expect(nextPlan("pro")).toBeNull();
     expect(minPlanWithMeter("ask_socia", 1_000_000)).toBeNull();

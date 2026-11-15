@@ -521,3 +521,17 @@
 .invite-row { display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap; }
 .invite-row > :first-child { flex: 1 1 240px; min-width: 0; }
 .invite-note { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink-2); }
+/* Settings, cancelling a plan */
+.cancel-link { align-self: flex-start; margin-top: var(--sp-3); padding: 0; border: 0; background: none; color: var(--ink-2); font-size: var(--fs-meta); line-height: var(--lh-meta); text-decoration: underline; cursor: pointer; }
+.cancel-link:hover { color: var(--ink); }
+.cancel-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cancel-reasons { display: flex; flex-direction: column; gap: var(--sp-1); margin: 0 0 var(--sp-3); padding: 0; border: 0; min-width: 0; }
+.cancel-reasons legend { padding: 0; margin-bottom: var(--sp-2); font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink); }
+.s-dialog.cancel { max-height: calc(100dvh - 2 * var(--sp-4)); overflow-y: auto; }
+.cancel-reasons label { display: flex; align-items: center; gap: var(--sp-2); margin: 0; font-weight: 400; padding: var(--sp-2) var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-control); font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink); cursor: pointer; }
+.cancel-reasons label:has(input:checked) { border-color: var(--border-strong); background: var(--surface-raised); }
+.cancel-reasons label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cancel-reasons input { margin: 0; accent-color: var(--ink); }
+.cancel-note { margin: 0 0 var(--sp-2); font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink-2); }
+.cancel-offer { margin: 0 0 var(--sp-3); padding-left: var(--sp-4); font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink); }
+.cancel-err { margin: var(--sp-2) 0 0; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--danger-text); }

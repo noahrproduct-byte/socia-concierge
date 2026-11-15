@@ -1754,3 +1754,7 @@
 @media (max-width: 1099px) {
   .sd-tool { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; max-height: 72vh; overflow-y: auto; border-radius: var(--r-card) var(--r-card) 0 0; box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.18); padding-bottom: calc(var(--sp-3) + env(safe-area-inset-bottom)); }
 }
+.sd-wave-all { height: 48px; }
+.sd-wave-detail { height: 88px; }
+.sd-wave-note { font-size: var(--fs-meta); color: var(--text-muted); }
+.sd-nudge { min-width: 2rem; font-size: var(--fs-meta); font-variant-numeric: tabular-nums; }

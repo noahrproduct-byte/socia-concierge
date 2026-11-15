@@ -33,7 +33,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const edl = { ...row.edl, soundtrack };
     const { error } = await scopeToWorkspace(ctx.client.from("studio_builds").update({ edl, updated_at: new Date().toISOString() }).eq("id", id).eq("user_id", ctx.ownerId), wsId);
     if (error) throw error;
-    await touchTrack(ctx.client, ctx.ownerId, trackId).catch(() => null);
+    await touchTrack(ctx.client, ctx.ownerId, wsId, trackId);
     const urls = await signUrls(ctx.client, [track.path]).catch(() => ({}) as Record<string, string>);
     return NextResponse.json({ soundtrack, url: urls[track.path] ?? null });
   } catch (e) {

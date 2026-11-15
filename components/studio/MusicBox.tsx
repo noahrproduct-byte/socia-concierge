@@ -23,7 +23,7 @@ const MAX_SEC = 180, MIN_SEC = 2, DEFAULT_SEC = 30;
 const BARS = 480;
 const MAX_FILE_MB = 600;
 
-type Loaded = { name: string; buffer: AudioBuffer; peaks: Float32Array };
+type Loaded = { name: string; buffer: AudioBuffer; peaks: Float32Array; top: number };
 type Phase = { kind: "idle" } | { kind: "reading"; note: string } | { kind: "saving"; note: string; progress: number };
 
 /** Peaks for the waveform: the loudest sample in each of BARS slices, 0..1. */
@@ -39,6 +39,23 @@ function peaksOf(buf: AudioBuffer): Float32Array {
   }
   const top = out.reduce((a, v) => Math.max(a, v), 0) || 1;
   for (let b = 0; b < BARS; b++) out[b] = out[b] / top;
+  return out;
+}
+const loudest = (buf: AudioBuffer): number => { let m = 0; for (let c = 0; c < buf.numberOfChannels; c++) { const ch = buf.getChannelData(c); for (let i = 0; i < ch.length; i += 4) { const v = Math.abs(ch[i]); if (v > m) m = v; } } return m || 1; };
+
+/** Peaks for one stretch of the sound (the close-up under the overview), 0..1 against the whole file's loudest. */
+function peaksBetween(buf: AudioBuffer, fromSec: number, toSec: number, bars: number, top: number): Float32Array {
+  const out = new Float32Array(bars);
+  const rate = buf.sampleRate, from = Math.max(0, Math.floor(fromSec * rate)), to = Math.min(buf.length, Math.floor(toSec * rate));
+  const per = Math.max(1, (to - from) / bars);
+  const chans = Array.from({ length: buf.numberOfChannels }, (_, c) => buf.getChannelData(c));
+  for (let b = 0; b < bars; b++) {
+    let m = 0;
+    const a = Math.floor(from + b * per), z = Math.min(to, Math.floor(from + (b + 1) * per));
+    const step = Math.max(1, Math.floor((z - a) / 64));
+    for (const ch of chans) for (let i = a; i < z; i += step) { const v = Math.abs(ch[i]); if (v > m) m = v; }
+    out[b] = m / (top || 1);
+  }
   return out;
 }
 
@@ -137,7 +154,17 @@ export default function MusicBox({ buildId, edl, canEdit, fixture, speechPct = 0
   const srcRef = useRef<AudioBufferSourceNode | null>(null);
   const raf = useRef(0);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const drag = useRef<{ anchor: number } | null>(null);
+  const detail = useRef<HTMLCanvasElement>(null);
+  /** A drag: a new part from an anchor, or one edge of the part being moved. */
+  const drag = useRef<{ kind: "new"; anchor: number } | { kind: "from" } | { kind: "to" } | null>(null);
+  // The close-up shows the part with room either side: a long file keeps a short part draggable.
+  const win = useMemo(() => {
+    const dur = loaded?.buffer.duration ?? 0;
+    const len = Math.max(MIN_SEC, sel.to - sel.from);
+    const pad = Math.max(6, len * 0.6);
+    const from = Math.max(0, sel.from - pad), to = Math.min(dur, sel.to + pad);
+    return { from, to };
+  }, [loaded, sel]);
   const fileInput = useRef<HTMLInputElement>(null);
   const audioEls = useRef<Record<string, HTMLAudioElement | null>>({});
   const [listening, setListening] = useState<string | null>(null);
@@ -167,7 +194,7 @@ export default function MusicBox({ buildId, edl, canEdit, fixture, speechPct = 0
     try {
       const buffer = await decodeFile(file, audioCtx(), (note) => setPhase({ kind: "reading", note }));
       if (buffer.duration < MIN_SEC) { setError(`That sound is ${buffer.duration.toFixed(1)} s long; it needs at least ${MIN_SEC} s.`); setPhase({ kind: "idle" }); return; }
-      setLoaded({ name: file.name, buffer, peaks: peaksOf(buffer) });
+      setLoaded({ name: file.name, buffer, peaks: peaksOf(buffer), top: loudest(buffer) });
       setSel({ from: 0, to: Math.min(buffer.duration, DEFAULT_SEC) });
       setName(file.name.replace(/\.[a-z0-9]+$/i, "").replace(/[_-]+/g, " ").trim().slice(0, 80) || "Untitled sound");
       setPhase({ kind: "idle" });
@@ -177,30 +204,40 @@ export default function MusicBox({ buildId, edl, canEdit, fixture, speechPct = 0
     }
   };
 
-  // The waveform, the chosen part shaded, the playhead while listening.
+  // The waveforms: the whole file (the part shaded, a window outline), and the close-up of the window with the
+  // part shaded and its edges drawn as handles; the playhead on both while listening.
   useEffect(() => {
-    const c = canvas.current; if (!c || !loaded) return;
-    const dpr = window.devicePixelRatio || 1;
-    const w = c.clientWidth, h = c.clientHeight;
-    if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
-    const g = c.getContext("2d"); if (!g) return;
-    g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    g.clearRect(0, 0, w, h);
+    if (!loaded) return;
     const dur = loaded.buffer.duration;
-    const x0 = (sel.from / dur) * w, x1 = (sel.to / dur) * w;
-    const styles = getComputedStyle(c);
-    const ink = styles.getPropertyValue("--ink").trim() || "#111", muted = styles.getPropertyValue("--border").trim() || "#ccc", accent = styles.getPropertyValue("--accent").trim() || "#2a5bd7";
-    g.fillStyle = accent; g.globalAlpha = 0.12; g.fillRect(x0, 0, x1 - x0, h); g.globalAlpha = 1;
-    const bw = w / BARS;
-    for (let b = 0; b < BARS; b++) {
-      const x = b * bw, inSel = x + bw / 2 >= x0 && x + bw / 2 <= x1;
-      const ph = Math.max(2, loaded.peaks[b] * (h - 6));
-      g.fillStyle = inSel ? ink : muted;
-      g.fillRect(x + 0.5, (h - ph) / 2, Math.max(1, bw - 1), ph);
-    }
-    g.fillStyle = accent; g.fillRect(x0 - 1, 0, 2, h); g.fillRect(x1 - 1, 0, 2, h);
-    if (playhead != null) { g.fillStyle = accent; g.fillRect((playhead / dur) * w - 1, 0, 2, h); }
-  }, [loaded, sel, playhead]);
+    const draw = (c: HTMLCanvasElement | null, from: number, to: number, peaks: Float32Array, handles: boolean, outline: { from: number; to: number } | null) => {
+      if (!c) return;
+      const dpr = window.devicePixelRatio || 1;
+      const w = c.clientWidth, h = c.clientHeight;
+      if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+      const g = c.getContext("2d"); if (!g) return;
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.clearRect(0, 0, w, h);
+      const span = Math.max(0.001, to - from);
+      const X = (t: number) => ((t - from) / span) * w;
+      const styles = getComputedStyle(c);
+      const ink = styles.getPropertyValue("--ink").trim() || "#111", muted = styles.getPropertyValue("--border").trim() || "#ccc", accent = styles.getPropertyValue("--accent").trim() || "#2a5bd7";
+      const x0 = X(sel.from), x1 = X(sel.to);
+      g.fillStyle = accent; g.globalAlpha = 0.12; g.fillRect(x0, 0, x1 - x0, h); g.globalAlpha = 1;
+      const n = peaks.length, bw = w / n;
+      for (let b = 0; b < n; b++) {
+        const x = b * bw, inSel = x + bw / 2 >= x0 && x + bw / 2 <= x1;
+        const ph = Math.max(2, Math.min(1, peaks[b]) * (h - 6));
+        g.fillStyle = inSel ? ink : muted;
+        g.fillRect(x + 0.5, (h - ph) / 2, Math.max(1, bw - 1), ph);
+      }
+      if (outline) { g.strokeStyle = ink; g.globalAlpha = 0.35; g.lineWidth = 1; g.strokeRect(X(outline.from) + 0.5, 0.5, X(outline.to) - X(outline.from) - 1, h - 1); g.globalAlpha = 1; }
+      g.fillStyle = accent;
+      if (handles) { g.fillRect(x0 - 4, 0, 8, h); g.fillRect(x1 - 4, 0, 8, h); } else { g.fillRect(x0 - 1, 0, 2, h); g.fillRect(x1 - 1, 0, 2, h); }
+      if (playhead != null && playhead >= from && playhead <= to) { g.fillStyle = ink; g.fillRect(X(playhead) - 1, 0, 2, h); }
+    };
+    draw(canvas.current, 0, dur, loaded.peaks, false, dur > win.to - win.from + 0.5 ? win : null);
+    draw(detail.current, win.from, win.to, peaksBetween(loaded.buffer, win.from, win.to, BARS, loaded.top), true, null);
+  }, [loaded, sel, playhead, win]);
 
   const clampSel = (from: number, to: number) => {
     const dur = loaded?.buffer.duration ?? 0;
@@ -210,10 +247,29 @@ export default function MusicBox({ buildId, edl, canEdit, fixture, speechPct = 0
     if (to - from < MIN_SEC) to = Math.min(dur, from + MIN_SEC);
     return { from: Math.round(from * 10) / 10, to: Math.round(to * 10) / 10 };
   };
-  const secAt = (e: React.PointerEvent<HTMLCanvasElement>) => { const r = e.currentTarget.getBoundingClientRect(); return ((e.clientX - r.left) / r.width) * (loaded?.buffer.duration ?? 0); };
-  const onDown = (e: React.PointerEvent<HTMLCanvasElement>) => { if (!loaded) return; stop(); const s = secAt(e); drag.current = { anchor: s }; e.currentTarget.setPointerCapture(e.pointerId); setSel(clampSel(s, s + MIN_SEC)); };
-  const onMove = (e: React.PointerEvent<HTMLCanvasElement>) => { if (!drag.current) return; setSel(clampSel(drag.current.anchor, secAt(e))); };
+  /** Seconds under the pointer on a canvas that shows `from`..`to`. */
+  const secAt = (e: React.PointerEvent<HTMLCanvasElement>, from: number, to: number) => { const r = e.currentTarget.getBoundingClientRect(); return from + ((e.clientX - r.left) / r.width) * (to - from); };
+  const pxPerSec = (e: React.PointerEvent<HTMLCanvasElement>, from: number, to: number) => e.currentTarget.getBoundingClientRect().width / Math.max(0.001, to - from);
+  const onDown = (from: number, to: number) => (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!loaded) return;
+    stop();
+    const t = secAt(e, from, to), near = 10 / pxPerSec(e, from, to);
+    e.currentTarget.setPointerCapture(e.pointerId);
+    // Near an edge of the part: that edge moves. Anywhere else: a new part from here.
+    if (Math.abs(t - sel.from) <= near) { drag.current = { kind: "from" }; return; }
+    if (Math.abs(t - sel.to) <= near) { drag.current = { kind: "to" }; return; }
+    drag.current = { kind: "new", anchor: t };
+    setSel(clampSel(t, t + MIN_SEC));
+  };
+  const onMove = (from: number, to: number) => (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const d = drag.current; if (!d) return;
+    const t = secAt(e, from, to);
+    if (d.kind === "new") setSel(clampSel(d.anchor, t));
+    else if (d.kind === "from") setSel(clampSel(Math.min(t, sel.to - MIN_SEC), sel.to));
+    else setSel(clampSel(sel.from, Math.max(t, sel.from + MIN_SEC)));
+  };
   const onUp = () => { drag.current = null; };
+  const nudge = (edge: "from" | "to", by: number) => { stop(); setSel(edge === "from" ? clampSel(sel.from + by, sel.to) : clampSel(sel.from, sel.to + by)); };
 
   const listen = () => {
     if (!loaded) return;
@@ -325,13 +381,15 @@ export default function MusicBox({ buildId, edl, canEdit, fixture, speechPct = 0
         <div className="sd-trim">
           <div className="sd-trim-head">
             <b>{loaded.name}</b>
-            <small>{fmtClock(loaded.buffer.duration)} long. Drag across the wave to choose the part, up to {fmtClock(MAX_SEC)}.</small>
+            <small>{fmtClock(loaded.buffer.duration)} long. Drag across the top wave to choose a part (up to {fmtClock(MAX_SEC)}), then trim it on the close-up.</small>
             <button type="button" className="sd-iconbtn" aria-label="Put this sound away" onClick={() => { stop(); setLoaded(null); }}><X size={14} /></button>
           </div>
-          <canvas ref={canvas} className="sd-wave" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} aria-label="The sound's waveform; drag to choose the part" />
+          <canvas ref={canvas} className="sd-wave sd-wave-all" onPointerDown={onDown(0, loaded.buffer.duration)} onPointerMove={onMove(0, loaded.buffer.duration)} onPointerUp={onUp} onPointerCancel={onUp} aria-label="The whole sound; drag to choose a part" />
+          <small className="sd-wave-note">Close-up of {fmtClock(win.from)} to {fmtClock(win.to)}: drag the blue edges to trim the part exactly.</small>
+          <canvas ref={detail} className="sd-wave sd-wave-detail" onPointerDown={onDown(win.from, win.to)} onPointerMove={onMove(win.from, win.to)} onPointerUp={onUp} onPointerCancel={onUp} aria-label="Close-up of the part; drag an edge to trim it" />
           <div className="sd-trim-row">
-            <label>From <input type="number" min={0} max={loaded.buffer.duration} step={0.1} value={sel.from} onChange={(e) => setSel(clampSel(Number(e.target.value), sel.to))} /></label>
-            <label>To <input type="number" min={0} max={loaded.buffer.duration} step={0.1} value={sel.to} onChange={(e) => setSel(clampSel(sel.from, Number(e.target.value)))} /></label>
+            <label>From <button type="button" className="sd-iconbtn sd-nudge" aria-label="Start 1 second earlier" onClick={() => nudge("from", -1)}>&minus;1</button><input type="number" min={0} max={loaded.buffer.duration} step={0.1} value={sel.from} onChange={(e) => setSel(clampSel(Number(e.target.value), sel.to))} /><button type="button" className="sd-iconbtn sd-nudge" aria-label="Start 1 second later" onClick={() => nudge("from", 1)}>+1</button></label>
+            <label>To <button type="button" className="sd-iconbtn sd-nudge" aria-label="End 1 second earlier" onClick={() => nudge("to", -1)}>&minus;1</button><input type="number" min={0} max={loaded.buffer.duration} step={0.1} value={sel.to} onChange={(e) => setSel(clampSel(sel.from, Number(e.target.value)))} /><button type="button" className="sd-iconbtn sd-nudge" aria-label="End 1 second later" onClick={() => nudge("to", 1)}>+1</button></label>
             <span className="sd-trim-len">{partSec.toFixed(1)} s</span>
             <button type="button" className="ov-btn ghost small" onClick={listen}>{playing ? <Pause size={13} /> : <Play size={13} />} {playing ? "Stop" : "Listen to the part"}</button>
           </div>

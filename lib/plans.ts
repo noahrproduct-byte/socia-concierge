@@ -26,7 +26,6 @@
 // (per plan) and profiles.entitlement_overrides (per user, for custom deals)
 // on top, so limits can be tuned from the database without touching code.
 
-import { CREDIT_PRICES_CONFIRMED } from "./credits/config";
 
 export type PlanId = "free" | "starter" | "growth" | "pro" | "scale";
 
@@ -34,11 +33,13 @@ export type PlanId = "free" | "starter" | "growth" | "pro" | "scale";
 export const PLAN_ORDER: PlanId[] = ["free", "starter", "growth", "pro", "scale"];
 
 /**
- * Scale is sold once its credit prices are confirmed (lib/credits/config.ts).
- * Until then it is left off pricing, upgrade offers and checkout; a plan set
- * by hand still works.
+ * Scale is on sale (Noah, 2026-11-15): pricing, upgrade offers, checkout and
+ * the AI Studio nav entry. Credit top-ups stay closed until the credit prices
+ * are confirmed (lib/credits/config.ts CREDIT_PRICES_CONFIRMED); AI Studio
+ * jobs are priced from Higgsfield's live estimate either way. Set to false to
+ * take Scale off sale again; a plan set by hand still works.
  */
-export const SCALE_ON_SALE = CREDIT_PRICES_CONFIRMED;
+export const SCALE_ON_SALE: boolean = true;
 
 /** The plans offered for sale, ascending: PLAN_ORDER without Scale until it is on sale. */
 export const SALE_ORDER: PlanId[] = SCALE_ON_SALE ? PLAN_ORDER : PLAN_ORDER.filter((p) => p !== "scale");

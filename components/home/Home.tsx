@@ -16,6 +16,7 @@ import IntroGate from "@/components/intro/IntroGate";
 import { AskDemo, Engine, Orbit, Problem, Results, Steps } from "./HomeStory";
 import Transform from "./Transform";
 import Evidence from "./Evidence";
+import { LaunchCountdown, LaunchWas } from "@/components/pricing/Launch";
 import "./home.css";
 
 // The public homepage. Every screen shown is an HTML example of a real SOCIA
@@ -309,6 +310,7 @@ export default function Home({ signedIn, intro = false }: { signedIn: boolean; i
                 Monthly plans. <em>No lock-in.</em>
               </h2>
             </div>
+            <LaunchCountdown className="hm-launch" />
             <div className="hm-plans" data-reveal="children" style={{ "--plans": SALE_ORDER.length } as React.CSSProperties}>
               {SALE_ORDER.map((id) => {
                 const p = PLANS[id];
@@ -316,9 +318,12 @@ export default function Home({ signedIn, intro = false }: { signedIn: boolean; i
                 return (
                   <div key={id} className="hm-plan">
                     <h3>{p.name}</h3>
-                    <div className="hm-price">
-                      <b>${p.priceMonthly}</b>
-                      <span>per month</span>
+                    <div>
+                      <LaunchWas plan={id} price={p.priceMonthly} />
+                      <div className="hm-price">
+                        <b>${p.priceMonthly}</b>
+                        <span>per month</span>
+                      </div>
                     </div>
                     <p>{p.tagline}</p>
                     <ul>
