@@ -26,6 +26,9 @@ export default function PlanNotice({
         {error.resetsOn && error.code === "usage_exhausted" && (
           <small>Resets on {formatResetDate(error.resetsOn)}.</small>
         )}
+        {error.resetsOn && error.code === "credits_short" && (
+          <small>Your monthly credits refill on {formatResetDate(error.resetsOn)}.</small>
+        )}
       </div>
       <Link href={error.href} className="pn-cta" onClick={onCta}>
         {error.cta}
@@ -47,6 +50,7 @@ export function UsageLine({
   always = false,
   threshold = 0.8,
   className,
+  credits,
 }: {
   meter: MeterKey;
   used: number | null;
@@ -56,7 +60,21 @@ export function UsageLine({
   always?: boolean;
   threshold?: number;
   className?: string;
+  /** Set when the feature is paid with credits: the balance and what one use costs. Replaces the per-feature count. */
+  credits?: { balance: number; cost: number } | null;
 }) {
+  if (credits) {
+    // Shown once the balance pays for five or fewer more uses, or always when asked.
+    const uses = Math.floor(credits.balance / credits.cost);
+    const near = uses <= 5;
+    if (!always && !near) return null;
+    return (
+      <span className={`usage-line${near ? " near" : ""}${uses === 0 ? " out" : ""}${className ? ` ${className}` : ""}`}>
+        {credits.balance.toLocaleString("en-US")} credits left · this uses {credits.cost}
+        {resetsOn && near ? ` · refills ${formatResetDate(resetsOn)}` : ""}
+      </span>
+    );
+  }
   if (used == null || limit <= 0) return null;
   const near = used >= Math.ceil(limit * threshold);
   if (!always && !near) return null;

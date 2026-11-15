@@ -74,7 +74,7 @@ export default function VideoIdeasCard() {
 
   return (
     <Card className="dash-ideas">
-      <CardHeader title={<><Lightbulb size={15} aria-hidden /> Video ideas</>} actions={usage ? <UsageLine meter="content_ideas" used={usage.used} limit={usage.limit} resetsOn={usage.resetsOn} /> : null} />
+      <CardHeader title={<><Lightbulb size={15} aria-hidden /> Video ideas</>} actions={usage ? <UsageLine meter="content_ideas" used={usage.used} limit={usage.limit} resetsOn={usage.resetsOn} credits={usage.credits} /> : null} />
       <p className="dash-ideas-lead">What to film next, following the theme of your own posts: every shot, what to say, the sound and the length.</p>
 
       {styles.some((s) => s !== "animation") && <PlaceScan variant="inline" />}

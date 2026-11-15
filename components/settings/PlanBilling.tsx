@@ -9,13 +9,12 @@
 import Link from "next/link";
 import "@/app/(app)/settings/plan-billing.css";
 import {
-  FEATURE_STATUS, METER_LABEL, METER_PERIOD, PRICING_PATH, checkoutAvailable, contactHref, formatHistory, formatPrice,
-  type MeterKey,
+  FEATURE_STATUS, PRICING_PATH, checkoutAvailable, contactHref, formatHistory, formatPrice,
 } from "@/lib/plans";
 import { formatResetDate } from "@/lib/planErrors";
 import {
   getLimit, workspacesInUse,
-  type ConnectedAccount, type Entitlements, type OverLimits, type UsageSnapshot,
+  type ConnectedAccount, type Entitlements, type OverLimits,
 } from "@/lib/entitlements";
 import PlanKeepChooser, { type KeepAccount, type KeepCompetitor } from "./PlanKeepChooser";
 import ManageBillingButton from "./ManageBillingButton";
@@ -36,7 +35,6 @@ function billingLine(b: BillingInfo, cfg: PlanConfig): string | null {
   return null;
 }
 
-const METER_ORDER: MeterKey[] = ["ask_socia", "content_studio", "content_build", "video_builds", "animated_videos", "voiceovers", "content_ideas", "content_plan", "content_generation", "account_audit"];
 
 function Meter({
   label,
@@ -83,7 +81,6 @@ function Meter({
 
 export default function PlanBilling({
   ent,
-  usage,
   accounts,
   activeCount,
   competitorCount,
@@ -95,7 +92,6 @@ export default function PlanBilling({
   notice = null,
 }: {
   ent: Entitlements;
-  usage: Record<MeterKey, UsageSnapshot>;
   accounts: ConnectedAccount[];
   /** Active connected accounts; null when a platform table could not be read (the list is then a lower bound). */
   activeCount: number | null;
@@ -140,8 +136,6 @@ export default function PlanBilling({
     ? { limit: overLimits.competitors.limit, active: overLimits.competitors.active, items: competitors }
     : null;
 
-  const weekly = METER_ORDER.filter((m) => METER_PERIOD[m] === "week" && usage[m].limit > 0);
-  const weekReset = weekly.length ? usage[weekly[0]].resetsOn : null;
 
   return (
     <>
@@ -180,20 +174,9 @@ export default function PlanBilling({
         />
         <Meter label="Competitors per brand" used={competitorCount} limit={competitorLimit} unknownTitle="Could not be read" />
         <Meter label="Analytics history" used={null} limit={historyDays} plain={formatHistory(historyDays)} />
-        {METER_ORDER.map((m) => (
-          <Meter
-            key={m}
-            label={METER_LABEL[m]}
-            used={usage[m].used}
-            limit={usage[m].limit}
-            note={METER_PERIOD[m] === "week" ? "Per week" : undefined}
-          />
-        ))}
       </ul>
-      <p className="pb-reset">
-        Monthly usage resets on {formatResetDate(ent.periods.month.end)}.
-        {weekReset ? ` Weekly usage resets on ${formatResetDate(weekReset)}.` : ""}
-      </p>
+      {/* Every AI feature is paid from one credit balance, shown under this section (CreditsPanel). */}
+      <p className="pb-reset">Your monthly AI credits refill on {formatResetDate(ent.periods.month.end)}.</p>
 
       <div className="pb-actions">
         <Link href={PRICING_PATH} className="btn-secondary">{ent.plan === "free" && checkoutAvailable() ? "Upgrade" : "Compare plans"}</Link>

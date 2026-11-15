@@ -8,6 +8,7 @@ import { getEntitlements, getUsage } from "@/lib/entitlements";
 import { perUserLimit } from "@/lib/rateLimit";
 import { recordTranscription } from "@/lib/aiUsage";
 import { MAX_TRANSCRIBE_SECONDS, isExpectedWav, wavSeconds } from "@/lib/transcribe/limits";
+import { withCredits } from "@/lib/credits/usage";
 
 export const runtime = "nodejs";
 export const maxDuration = 90;
@@ -41,7 +42,8 @@ export async function POST(req: Request) {
   // used up, don't pay to transcribe (the next step says why it stopped).
   const ctx = await resolveContext(supabase, user.id);
   // Usage that can't be read is treated as used up: transcription is billed per minute.
-  const usage = await getUsage(ctx.client, await getEntitlements(ctx.client, ctx.ownerId)).catch(() => null);
+  const ent = await getEntitlements(ctx.client, ctx.ownerId);
+  const usage = await getUsage(ctx.client, ent).then((u) => withCredits(u, ent)).catch(() => null);
   const left = usage?.[purpose === "caption" ? "content_generation" : "content_studio"]?.remaining;
   if (usage == null || left == null || left === 0) return skip("limit");
   // Counted on the account that pays (the owner), so a team's members share one ceiling, and its monthly AI ceiling applies.

@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Film, Lightbulb, Loader2 } from "lucide-react";
-import { DEFAULT_MODEL, GENERATION_MODELS, modelById, type GenerationKind, CREDITS_SHORT_COPY } from "@/lib/credits/config";
+import { DEFAULT_MODEL, GENERATION_MODELS, modelById, type GenerationKind } from "@/lib/credits/config";
 import { ConfirmDialog } from "@/components/system";
-import { api, errorText, isCreditsShort, usePolling, uploadToSigned, CreditsLine, StatusChip, MediaCard } from "./shared";
+import { api, errorText, usePolling, uploadToSigned, CreditsLine, StatusChip, MediaCard } from "./shared";
 
 type Idea = { id: string; hook: string; concept: string; shot: string; kind: GenerationKind; caption: string; hashtags: string[] };
 type Job = { id: string; status: "queued" | "processing" | "done" | "failed" | "cancelled"; kind: GenerationKind; model: string; prompt: string; credits_reserved: number; credits_charged: number | null; error: string | null; created_at: string; idea: Idea | null };
@@ -117,7 +117,7 @@ export default function AiStudioPage({ initialBalance, canMutate, aiReady }: { i
       });
       setJobs((js) => [r.job, ...js]); setBalance(r.balance);
     } catch (e) {
-      setErr(isCreditsShort(e) ? CREDITS_SHORT_COPY : errorText(e));
+      setErr(errorText(e));
     } finally { setBusy(null); }
   }
 

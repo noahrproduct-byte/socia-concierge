@@ -1,8 +1,11 @@
-// Credits: the one place every AI Clipper and AI Studio price lives.
+// Credits: the one place every AI price lives.
 //
-// Credits exist because Vizard and Higgsfield charge SOCIA per use. Each plan
-// gets a monthly allowance; every action costs credits set from what it costs
-// SOCIA (CREDIT_USD is what one credit is worth to us), with a margin. Tune the
+// Every AI action (Ask SOCIA, ratings, Content Plans, captions, animated
+// videos, voiceovers, footage analyses, the Clipper, AI Studio) is paid from
+// one monthly credit balance (Noah, 2026-11-15: "they can just use on
+// everything they want ... once they hit those, that's it"). Each action costs
+// credits set from what it costs SOCIA (CREDIT_USD is what one credit is worth
+// to us), with a margin. Monthly credits don't roll over; top-ups do. Tune the
 // numbers here.
 //
 // AI Studio generations are priced from Higgsfield's live estimate for the
@@ -27,18 +30,63 @@ export const CREDIT_USD = 0.01;
 export const MARGIN = 1.5;
 
 /**
- * Credits a plan gets on the first of every month. Starter, Growth and Pro
- * spend theirs on SOCIA's own clipper (Noah, 2026-11-11); Scale also on AI
- * Studio. Free gets none.
+ * Credits a plan gets on the first of every month, for every AI action. Sized
+ * so a customer who spends them all costs SOCIA about 60% of the plan's price
+ * (Starter 1,800 credits = $12 of AI at the margin above). Scale adds 6,000
+ * for AI Studio (about $40 of provider cost). Unused monthly credits expire
+ * at the end of the month (supabase/credits-monthly.sql); top-ups don't.
  */
 export const MONTHLY_CREDITS: Record<PlanId, number> = {
-  free: 0,
-  starter: 150,
-  growth: 400,
-  pro: 800,
-  // $79.99 a month: about $40 of provider cost at the margin above.
-  scale: 6000,
+  free: 300,
+  starter: 1800,
+  growth: 3300,
+  pro: 4800,
+  scale: 10800,
 };
+
+/**
+ * What one use of each AI feature costs SOCIA, in US dollars (estimates from
+ * prompt sizes and list prices, 2026-11-15; every call's real cost is
+ * recorded by lib/aiSpend.ts, so these can be checked against it).
+ */
+export const ACTION_USD = {
+  ask_socia: 0.035,
+  content_studio: 0.25,
+  content_generation: 0.04,
+  account_audit: 0.03,
+  content_plan: 0.3,
+  content_ideas: 0.05,
+  content_build: 0.34,
+  video_builds: 0.02,
+  animated_videos: 0.26,
+  music_tracks: 0.1,
+  voiceovers: 0.07,
+} as const;
+export type CreditAction = keyof typeof ACTION_USD;
+
+export const isCreditAction = (m: string): m is CreditAction => Object.prototype.hasOwnProperty.call(ACTION_USD, m);
+
+/** Credits one use of an AI feature costs. Fixed per action, so people can see what something will cost before they press it. */
+export const actionCredits = (a: CreditAction): number => creditsForUsd(ACTION_USD[a]);
+
+/** The few examples shown beside a credit amount, so "1,800 credits" means something. */
+export const CREDIT_EXAMPLES: { action: CreditAction; one: string; many: string }[] = [
+  { action: "content_studio", one: "video rating", many: "video ratings" },
+  { action: "animated_videos", one: "animated video", many: "animated videos" },
+  { action: "ask_socia", one: "Ask SOCIA question", many: "Ask SOCIA questions" },
+];
+
+/**
+ * "about 47 video ratings, 46 animated videos or 300 Ask SOCIA questions".
+ * `includes` leaves out actions the plan doesn't have (Free has no animated videos).
+ */
+export function creditsBuy(credits: number, includes: (a: CreditAction) => boolean = () => true): string {
+  const parts = CREDIT_EXAMPLES.filter((e) => includes(e.action)).map((e) => {
+    const n = Math.floor(credits / actionCredits(e.action));
+    return `${n.toLocaleString("en-US")} ${n === 1 ? e.one : e.many}`;
+  });
+  return parts.length === 1 ? `about ${parts[0]}` : `about ${parts.slice(0, -1).join(", ")} or ${parts[parts.length - 1]}`;
+}
 
 /** Top-up packs (one-off Stripe payments). The Price ids come from STRIPE_PRICE_TOPUP_<KEY>. */
 export const TOPUP_PACKS = [
@@ -179,7 +227,7 @@ export function clipMinutesFor(credits: number): number {
   return Math.floor(credits / clipCredits(15, "clip_v1", "socia")) * 15;
 }
 
-/** What to say when credits run short: top-ups only while they are on sale. */
-export const CREDITS_SHORT_COPY = CREDIT_PRICES_CONFIRMED
-  ? "Not enough credits for this. Buy a top-up in Settings or wait for next month's allowance."
+/** What to say when credits run short. Top-ups are mentioned only when they are on sale. */
+export const creditsShortCopy = (topups: boolean): string => topups
+  ? "Not enough credits for this. Buy a top-up in Settings or wait for next month's credits."
   : "Not enough credits for this. Your credits refill on the 1st of next month.";

@@ -20,20 +20,21 @@ import { buildActivity, displayTitle, type Activity } from "@/lib/overview";
 import { getAlerts, unreadAlertCount } from "@/lib/alerts";
 import type { ScheduledPost } from "@/lib/scheduling";
 import { offlineFor } from "@/lib/platformAccess";
+import { MONTHLY_CREDITS } from "@/lib/credits/config";
 
 // One quiet line per step up, read from the plan config so the numbers never
 // drift from what the plan actually includes. Only built features are named.
 function nextPlanLine(p: PlanId): string {
   const L = PLANS[p].limits;
-  const M = PLANS[p].meters;
   const ws = `${L.workspaces} Brand ${L.workspaces === 1 ? "Workspace" : "Workspaces"}`;
+  const credits = `${MONTHLY_CREDITS[p].toLocaleString("en-US")} AI credits a month`;
   switch (p) {
     case "starter":
-      return `${ws}, deeper analytics, ${M.content_plan} Content Plans, ${M.video_builds} AI-made videos and ${M.ask_socia} Ask SOCIA questions a month.`;
+      return `${ws}, deeper analytics, animated videos and ${credits}.`;
     case "growth":
-      return `${ws}, cross-platform analytics, ${L.competitors} competitors and ${M.ask_socia} Ask SOCIA questions a month.`;
+      return `${ws}, cross-platform analytics, ${L.competitors} competitors per brand and ${credits}.`;
     case "pro":
-      return `${ws}, ${L.competitors} competitors, ${L.team_members} team members and ${M.ask_socia} Ask SOCIA questions a month.`;
+      return `${ws}, ${L.competitors} competitors per brand, ${L.team_members} team members and ${credits}.`;
     default:
       return "";
   }

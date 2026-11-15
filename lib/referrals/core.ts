@@ -14,6 +14,8 @@ export const MAX_ACTIVE = 5;
 export const BONUS_DAYS = 30;
 /** Room added to the month's AI ceiling per counting invitation, so the extra allowance can be used. */
 export const BONUS_CAP_USD = 0.5;
+/** Credits one counting invitation adds to the month (what BONUS_CAP_USD buys at the credit margin, lib/credits/config.ts). */
+export const BONUS_CREDITS_PER_INVITE = 75;
 /** An invite link must be used within this many days of the new account being made. */
 export const CLAIM_WINDOW_DAYS = 7;
 /** An invitation that hasn't counted after this long is no longer waited for. */
@@ -71,6 +73,9 @@ export function withBonus(config: PlanConfig, active: number): PlanConfig {
   return { ...config, meters };
 }
 
+/** The credits `active` counting invitations add to the month. */
+export const bonusCredits = (active: number): number => Math.max(0, Math.min(MAX_ACTIVE, active)) * BONUS_CREDITS_PER_INVITE;
+
 /** The room `active` counting invitations add to the month's AI ceiling, in dollars. */
 export const bonusCapUsd = (active: number): number => Math.max(0, Math.min(MAX_ACTIVE, active)) * BONUS_CAP_USD;
 
@@ -79,4 +84,4 @@ export const canClaim = (createdAt: string | null | undefined, now: Date = new D
   Boolean(createdAt) && now.getTime() - new Date(createdAt as string).getTime() < CLAIM_WINDOW_DAYS * DAY;
 
 /** The reward in words, for the screen. */
-export const REWARD_WORDS = "10 more Ask SOCIA questions and 1 more Content Plan";
+export const REWARD_WORDS = `${BONUS_CREDITS_PER_INVITE} extra AI credits a month`;

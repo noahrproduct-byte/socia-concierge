@@ -287,6 +287,12 @@ export type UsageSnapshot = {
   remaining: number | null;
   /** ISO date. */
   resetsOn: string;
+  /**
+   * Set when the feature is paid with credits (lib/credits/config.ts): the
+   * balance after this use and what one use costs. `remaining` is then how
+   * many more uses the balance pays for.
+   */
+  credits?: { balance: number; cost: number };
 };
 
 const METERS = Object.keys(PLANS.free.meters) as MeterKey[];

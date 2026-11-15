@@ -1,7 +1,7 @@
 import { Check } from "lucide-react";
 import { openPlatformsText } from "@/lib/platformStatus";
 import { PLANS, SALE_ORDER, FEATURE_LABEL, FEATURE_STATUS, formatPrice, formatHistory, type PlanId, type PlanConfig } from "@/lib/plans";
-import { MONTHLY_CREDITS, clipMinutesFor } from "@/lib/credits/config";
+import { MONTHLY_CREDITS, creditsBuy } from "@/lib/credits/config";
 import { comingSoonFor } from "@/lib/pricingTable";
 import PlanCta from "./PlanCta";
 
@@ -16,12 +16,11 @@ const n = (count: number, one: string, many: string) => `${count} ${count === 1 
 
 function highlightsFor(p: PlanConfig): (string | null)[] {
   const L = p.limits;
-  const M = p.meters;
   const workspaces = n(L.workspaces, "Brand Workspace", "Brand Workspaces");
-  const askSocia = `${M.ask_socia} Ask SOCIA questions/month`;
-  // Listed under "Everything in <the plan below>, plus" only when it's more than that plan's.
-  const below = SALE_ORDER[SALE_ORDER.indexOf(p.id) - 1];
-  const studio = below && PLANS[below].meters.content_studio >= M.content_studio ? null : `${M.content_studio} Content Studio analyses/month`;
+  // Every AI feature runs on one monthly credit balance (lib/credits/config.ts):
+  // the card says how many credits and what they buy, not a list of per-feature counts.
+  const credits = `${MONTHLY_CREDITS[p.id].toLocaleString("en-US")} AI credits a month, for any AI feature`;
+  const buys = `That's ${creditsBuy(MONTHLY_CREDITS[p.id], (a) => p.meters[a] > 0)}`;
   const competitors = `${n(L.competitors, "competitor", "competitors")} per brand`;
   // Team members are a headline only once invites exist; until then the seat
   // count would be a promise about a feature that is not built, so it lives in
@@ -34,9 +33,8 @@ function highlightsFor(p: PlanConfig): (string | null)[] {
         workspaces,
         `Connect ${openPlatformsText()}`,
         `${formatHistory(L.analytics_history_days)} of analytics`,
-        `${M.content_ideas} batches of video ideas/week`,
-        askSocia,
-        studio,
+        credits,
+        buys,
         `Build from clips: ${L.studio_clips_per_project} clips, ${L.studio_footage_minutes} minutes per project`,
         competitors,
         "Scheduling and publishing included",
@@ -44,14 +42,11 @@ function highlightsFor(p: PlanConfig): (string | null)[] {
     case "starter":
       return [
         workspaces,
-        `AI Clipper: about ${clipMinutesFor(MONTHLY_CREDITS.starter)} minutes of video a month`,
+        credits,
+        buys,
         `${formatHistory(L.analytics_history_days)} of analytics, posting-time and growth analysis`,
         "What Changed, What's Working, What's Missing, What To Do Next",
-        `${M.content_plan} weekly Content Plans/month`,
-        `${M.video_builds} AI-made videos, ${M.animated_videos} animated videos a month`,
-        `${M.content_ideas} batches of video ideas/week`,
-        askSocia,
-        studio,
+        "Animated videos, voiceovers and the AI Clipper",
         competitors,
         "Full niche intelligence",
         members,
@@ -59,14 +54,11 @@ function highlightsFor(p: PlanConfig): (string | null)[] {
     case "growth":
       return [
         workspaces,
-        `AI Clipper: about ${clipMinutesFor(MONTHLY_CREDITS.growth)} minutes of video a month`,
+        credits,
+        buys,
         `${formatHistory(L.analytics_history_days)} of analytics`,
         "Cross-platform analytics",
-        "AI comment replies",
-        `${M.video_builds} AI-made videos, ${M.animated_videos} animated videos a month`,
-        `${M.content_ideas} batches of video ideas/week`,
-        askSocia,
-        studio,
+        "AI comment replies and daily recommendations",
         competitors,
         members,
         "Priority support",
@@ -74,26 +66,21 @@ function highlightsFor(p: PlanConfig): (string | null)[] {
     case "pro":
       return [
         workspaces,
-        `AI Clipper: about ${clipMinutesFor(MONTHLY_CREDITS.pro)} minutes of video a month`,
+        credits,
+        buys,
         formatHistory(L.analytics_history_days),
         "Cross-brand analytics, client reports and approvals",
-        `${M.video_builds} AI-made videos, ${M.animated_videos} animated videos a month`,
-        `${M.content_ideas} batches of video ideas/week`,
-        askSocia,
-        studio,
         competitors,
         members,
         "Priority support and dedicated onboarding",
       ];
     case "scale":
       return [
-        "AI Clipper: long videos cut into captioned clips",
         "AI Studio: AI-made videos and images from your ideas",
-        `${MONTHLY_CREDITS.scale.toLocaleString("en-US")} AI credits/month, top-ups available`,
+        credits,
+        buys,
         workspaces,
         formatHistory(L.analytics_history_days),
-        `${M.video_builds} AI-made videos, ${M.animated_videos} animated videos a month`,
-        askSocia,
         competitors,
         members,
         "Priority support and dedicated onboarding",
