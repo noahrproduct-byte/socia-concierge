@@ -1,13 +1,17 @@
 // Two small things that reward using SOCIA (Noah, 2026-11-15): finishing the
 // first week's four real steps, and posting through SOCIA four weeks in a row.
-// Both give the same modest perk for 30 days: a little more allowance and the
-// room in the month's AI ceiling to use it. Everything shown is counted from
+// Both give the same modest perk: a few extra AI credits, and room in the
+// month's AI ceiling to use them. Everything shown is counted from
 // what the account has really done; nothing here is a score or a prediction.
 // Pure and browser-safe.
-import { METER_UNIT, type MeterKey, type PlanConfig } from "@/lib/plans";
 
-/** What the perk adds on top of a plan, only where the plan includes it. */
-export const PERK: Partial<Record<MeterKey, number>> = { ask_socia: 10, content_generation: 10, content_plan: 1 };
+/**
+ * The perk: extra AI credits, added once to the account's balance. Like a
+ * top-up they don't expire at the end of the month. About 100 credits is what
+ * PERK_CAP_USD of AI costs SOCIA at the credit margin (lib/credits/config.ts).
+ */
+export const PERK_CREDITS = 100;
+/** How long the month's AI ceiling has the extra room, so the credits can be used. */
 export const PERK_DAYS = 30;
 /** Room added to the month's AI ceiling while the perk is on. */
 export const PERK_CAP_USD = 0.75;
@@ -16,26 +20,10 @@ const DAY = 86_400_000;
 
 export const perkLive = (until: string | null | undefined, now: Date = new Date()): boolean => Boolean(until) && new Date(until as string).getTime() > now.getTime();
 
-/** A plan's allowances with the perk added. A meter the plan doesn't include (0) stays 0. */
-export function withPerk(config: PlanConfig, on: boolean): PlanConfig {
-  if (!on) return config;
-  const meters = { ...config.meters };
-  for (const [k, n] of Object.entries(PERK) as [MeterKey, number][]) if (meters[k] > 0) meters[k] += n;
-  return { ...config, meters };
-}
+/** The perk in words: "100 extra AI credits". */
+export const PERK_WORDS = `${PERK_CREDITS} extra AI credits`;
 
-const NAME: Partial<Record<MeterKey, { one: string; many: string }>> = {
-  ask_socia: { one: "Ask SOCIA question", many: "Ask SOCIA questions" },
-  content_generation: { one: "hook or caption", many: "hooks and captions" },
-  content_plan: { one: "Content Plan", many: "Content Plans" },
-};
-/** The perk in words: "10 more Ask SOCIA questions, 10 more hooks and captions and 1 more Content Plan". */
-export function perkWords(config: PlanConfig): string {
-  const parts = (Object.entries(PERK) as [MeterKey, number][]).filter(([k]) => config.meters[k] > 0).map(([k, n]) => { const u = NAME[k] ?? METER_UNIT[k]; return `${n} more ${n === 1 ? u.one : u.many}`; });
-  return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0] ?? "";
-}
-
-/** When a perk that is extended now runs until: 30 days from now, or its current end if that is later. */
+/** When the ceiling's extra room runs until, for a perk given now: 30 days from now, or its current end if that is later. */
 export function perkUntil(current: string | null | undefined, now: Date = new Date()): string {
   const next = now.getTime() + PERK_DAYS * DAY;
   return new Date(Math.max(next, current ? new Date(current).getTime() : 0)).toISOString();

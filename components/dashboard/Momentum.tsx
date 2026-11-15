@@ -16,10 +16,8 @@ type Data = {
   off?: boolean;
   firstWeek?: { show: boolean; steps: Step[]; done: boolean; left: number; rewarded: boolean };
   streak?: { weeks: number; strip: boolean[]; thisWeek: boolean; goal: number; rewarded: boolean };
-  perk?: { on: boolean; until: string | null; words: string; days: number };
+  perk?: { words: string; buys: string };
 };
-
-const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric" });
 
 export default function Momentum() {
   const [d, setD] = useState<Data | null>(null);
@@ -47,9 +45,9 @@ export default function Momentum() {
             ))}
           </ul>
           <p className="mom-note">
-            {fw.done && fw.rewarded && perk.until
-              ? `All four are done, so you have ${perk.words} until ${day(perk.until)}.`
-              : `Finish all four and you get ${perk.words} for ${perk.days} days.`}
+            {fw.done && fw.rewarded
+              ? `All four are done, so ${perk.words} were added to your balance.`
+              : `Finish all four and you get ${perk.words} (${perk.buys}).`}
           </p>
         </Card>
       )}
@@ -61,13 +59,13 @@ export default function Momentum() {
           </ol>
           <p className="mom-note">
             A week counts when at least one post is published through SOCIA.{" "}
-            {streak.rewarded && perk.until
-              ? `${streak.goal} in a row: you have ${perk.words} until ${day(perk.until)}.`
+            {streak.rewarded
+              ? `${streak.goal} in a row: ${perk.words} were added to your balance.`
               : streak.weeks >= streak.goal
                 ? streak.thisWeek ? "Keep it going next week." : "Post this week to keep it going."
                 : !streak.thisWeek && streak.weeks > 0
-                  ? `Post this week to keep it going. ${toGo} more ${toGo === 1 ? "week" : "weeks"} and you get ${perk.words} for ${perk.days} days.`
-                  : `${toGo} more ${toGo === 1 ? "week" : "weeks"} in a row and you get ${perk.words} for ${perk.days} days.`}
+                  ? `Post this week to keep it going. ${toGo} more ${toGo === 1 ? "week" : "weeks"} and you get ${perk.words}.`
+                  : `${toGo} more ${toGo === 1 ? "week" : "weeks"} in a row and you get ${perk.words}.`}
           </p>
         </Card>
       )}

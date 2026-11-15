@@ -5,7 +5,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient } from "@/lib/supabase/service";
 import { activeAccounts, listConnectedAccounts } from "@/lib/entitlements";
-import { firstWeek, firstWeekRewardDue, perkUntil, streakFrom, streakRewardDue, type FirstSignals, type FirstWeek, type Streak } from "./core";
+import { topupCredits } from "@/lib/credits/ledger";
+import { PERK_CREDITS, firstWeek, firstWeekRewardDue, perkUntil, streakFrom, streakRewardDue, type FirstSignals, type FirstWeek, type Streak } from "./core";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
@@ -43,8 +44,20 @@ async function perkRow(svc: Supa, ownerId: string): Promise<{ ready: boolean; ro
   return { ready: true, row: (data as Row | null) ?? empty };
 }
 
-/** Turns the perk on (or extends it) and notes what earned it. Returns the saved row, or null when it couldn't be written. */
+/**
+ * Gives the perk and notes what earned it: the credits go onto the balance
+ * (keyed, so a repeat adds nothing), then the row is marked. If the credits
+ * can't be added nothing is marked, so it is tried again next time. Returns
+ * the saved row, or null when it couldn't be done.
+ */
 async function give(svc: Supa, ownerId: string, row: Row, why: "first_week_at" | "streak_at", now: Date): Promise<Row | null> {
+  const key = why === "first_week_at" ? `perk:first-week:${ownerId}` : `perk:streak:${ownerId}:${now.toISOString().slice(0, 10)}`;
+  try {
+    await topupCredits(ownerId, PERK_CREDITS, key, why === "first_week_at" ? "First week finished" : "Posting streak");
+  } catch (e) {
+    console.error("[perks] credits not added:", (e as Error)?.message ?? e);
+    return null;
+  }
   const next: Row = { ...row, perk_until: perkUntil(row.perk_until, now), [why]: now.toISOString() };
   const patch = { perk_until: next.perk_until, [why]: next[why], updated_at: now.toISOString() };
   // The row may already hold this person's invitations or stay boost: change only the perk.

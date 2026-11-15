@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PLANS } from "@/lib/plans";
-import { FIRST_STEPS, PERK_DAYS, STREAK_GOAL, firstWeek, firstWeekRewardDue, perkLive, perkUntil, perkWords, streakFrom, streakRewardDue, withPerk, type FirstSignals } from "./core";
+import { FIRST_STEPS, PERK_CREDITS, PERK_DAYS, PERK_WORDS, STREAK_GOAL, firstWeek, firstWeekRewardDue, perkLive, perkUntil, streakFrom, streakRewardDue, type FirstSignals } from "./core";
 
 // A Wednesday.
 const now = new Date("2026-11-18T12:00:00Z");
@@ -9,18 +8,11 @@ const none: FirstSignals = { connect: false, plan: false, video: false, schedule
 const all: FirstSignals = { connect: true, plan: true, video: true, schedule: true };
 
 describe("the perk", () => {
-  it("adds a little on top of the plan and never opens what the plan lacks", () => {
-    const s = withPerk(PLANS.starter, true);
-    expect(s.meters.ask_socia).toBe(PLANS.starter.meters.ask_socia + 10);
-    expect(s.meters.content_plan).toBe(PLANS.starter.meters.content_plan + 1);
-    expect(s.meters.animated_videos).toBe(PLANS.starter.meters.animated_videos);
-    expect(withPerk(PLANS.free, true).meters.voiceovers).toBe(0);
-    expect(withPerk(PLANS.free, false)).toBe(PLANS.free);
+  it("is a few credits, said plainly", () => {
+    expect(PERK_CREDITS).toBe(100);
+    expect(PERK_WORDS).toBe("100 extra AI credits");
   });
-  it("says what it adds", () => {
-    expect(perkWords(PLANS.free)).toBe("10 more Ask SOCIA questions, 10 more hooks and captions and 1 more Content Plan");
-  });
-  it("runs thirty days, or keeps a later end it already had", () => {
+  it("keeps its ceiling room thirty days, or a later end it already had", () => {
     expect(new Date(perkUntil(null, now)).getTime()).toBe(now.getTime() + PERK_DAYS * 86_400_000);
     expect(perkUntil(ago(-60), now)).toBe(ago(-60));
     expect(perkLive(ago(-1), now)).toBe(true);

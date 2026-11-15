@@ -40,7 +40,7 @@ import { featureError, limitError, usageError, type PlanError } from "./planErro
 import { createServiceClient } from "./supabase/service";
 import { bonusLive, withBonus } from "./referrals/core";
 import { boostLive, withBoost } from "./retention/core";
-import { perkLive, withPerk } from "./perks/core";
+import { perkLive } from "./perks/core";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
@@ -154,7 +154,7 @@ export type Entitlements = {
   invitePending?: boolean;
   /** The stay boost is on (lib/retention): extra allowance after choosing not to cancel. */
   boost?: boolean;
-  /** The perk is on (lib/perks): a little more after the first week's steps or a posting streak. */
+  /** The perk's ceiling room is on (lib/perks): after the first week's steps or a posting streak. */
   perk?: boolean;
   userId: string;
   plan: PlanId;
@@ -236,9 +236,10 @@ async function getEntitlementsImpl(supabase: Supa, userId: string, now: Date = n
   }
   // A person who chose to stay when cancelling has a little more for a while (lib/retention/core.ts).
   const boost = boostLive(saved?.boostUntil, now);
-  // Finishing the first week's steps or a four-week posting streak adds a small perk (lib/perks/core.ts).
+  // Finishing the first week's steps or a four-week posting streak gives a few credits and, while this
+  // is on, the room in the month's AI ceiling to use them (lib/perks/core.ts, lib/aiSpend.ts).
   const perk = perkLive(saved?.perkUntil, now);
-  const config = withPerk(withBoost(withBonus(resolveConfig(plan, planOverrides, userOverrides), invites), boost), perk);
+  const config = withBoost(withBonus(resolveConfig(plan, planOverrides, userOverrides), invites), boost);
   const periods = currentPeriods(now);
   return { userId, plan, config, period: periods.month, periods, source: "profile", invites, invitePending: saved?.pending === true, boost, perk };
 }

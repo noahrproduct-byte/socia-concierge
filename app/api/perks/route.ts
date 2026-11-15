@@ -3,7 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { resolveContext } from "@/lib/context";
 import { getEntitlements } from "@/lib/entitlements";
 import { PLANS } from "@/lib/plans";
-import { PERK_DAYS, STREAK_GOAL, perkLive, perkWords } from "@/lib/perks/core";
+import { creditsBuy, type CreditAction } from "@/lib/credits/config";
+import { PERK_CREDITS, PERK_WORDS, STREAK_GOAL } from "@/lib/perks/core";
 import { perkStatus } from "@/lib/perks/server";
 
 export const runtime = "nodejs";
@@ -25,6 +26,7 @@ export async function GET() {
   return NextResponse.json({
     firstWeek: { ...s.firstWeek, rewarded: s.firstWeekRewarded },
     streak: { ...s.streak, goal: STREAK_GOAL, rewarded: s.streakRewarded },
-    perk: { on: perkLive(s.perkUntil), until: s.perkUntil, words: perkWords(PLANS[ent.plan]), days: PERK_DAYS },
+    // What the credits buy on this person's plan, so the number means something.
+    perk: { words: PERK_WORDS, buys: creditsBuy(PERK_CREDITS, (a: CreditAction) => (PLANS[ent.plan].meters[a] ?? 0) > 0) },
   });
 }
