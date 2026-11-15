@@ -322,7 +322,10 @@ export function compareValueText(value: number, format: "clock" | "number", unit
   if (format === "clock") return clockText(value);
   const n = value.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   if (!unit) return n;
-  return /^[$£€]$/.test(unit) ? `${unit}${n}` : `${n} ${unit}`;
+  if (/^[$£€]$/.test(unit)) return `${unit}${n}`;
+  // "1 move", not "1 moves": a plain word unit drops its plural s at exactly one.
+  const word = n === "1" && /^[a-z]{3,}s$/i.test(unit) && !/ss$/i.test(unit) ? unit.slice(0, -1) : unit;
+  return `${n} ${word}`;
 }
 
 /**
