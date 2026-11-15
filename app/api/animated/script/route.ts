@@ -4,8 +4,7 @@ import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 import { requireUsage } from "@/lib/planGuard";
 import { perUserLimit } from "@/lib/rateLimit";
 import { scopeToWorkspace } from "@/lib/workspaces";
-import { writeAnimatedSpec, type AnimatedSource } from "@/lib/animated/write";
-import { cleanSpec } from "@/lib/animated/spec";
+import { readSpec, writeAnimatedSpec, type AnimatedSource } from "@/lib/animated/write";
 import { aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/aiStatus";
 import type { Deliverable } from "@/lib/schema";
 
@@ -33,7 +32,7 @@ export async function POST(req: Request) {
   try { b = JSON.parse(raw); } catch { b = null; }
   const change = typeof b?.change === "string" ? b.change.replace(/\s+/g, " ").trim().slice(0, 300) : "";
   // The version they saw, only as context for the change, cleaned like any model answer.
-  const current = change && b?.current ? cleanSpec(b.current, JSON.stringify(b.current).slice(0, 20_000)) : null;
+  const current = change && b?.current ? readSpec(b.current, JSON.stringify(b.current).slice(0, 20_000)) : null;
   const uuid = (v: unknown) => (typeof v === "string" && /^[0-9a-f-]{36}$/i.test(v) ? v : null);
   const planId = uuid(b?.planId);
   const postId = uuid(b?.postId);

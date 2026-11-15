@@ -8,7 +8,7 @@ import { recordAiUsage } from "@/lib/aiUsage";
 import { getProfile } from "@/lib/profile";
 import { brandWorkspace, type Ctx } from "@/lib/context";
 import { brandLine } from "@/lib/aiStudio/captions";
-import { ACCENTS, cleanSpec, MAX_SCENES, type AnimatedSpec } from "./spec";
+import { ACCENTS, boardSpec, cleanSpec, MAX_SCENES, type AnimatedSpec } from "./spec";
 import { lookFromStyle } from "./look";
 import { boardWords, cleanBoard } from "./board";
 import { STORY_SHAPE, STORY_SYSTEM } from "./boardWrite";
@@ -157,6 +157,32 @@ export function jsonObject(text: string): unknown {
   try { return JSON.parse(text.slice(a, b + 1)); } catch { return null; }
 }
 
+/**
+ * The storyboard video in a model's answer, or why there isn't one. The board
+ * goes through cleanBoard and the caption and hashtags through the same checks
+ * as every other video's. A board written at the top level instead of under
+ * "board" is still read. Pure.
+ */
+export function storyFromAnswer(text: string, sourceText: string, signoff: string | null = null): { spec: AnimatedSpec; why?: undefined } | { spec: null; why: string } {
+  const raw = jsonObject(text) as { board?: unknown; phrases?: unknown; caption?: unknown; hashtags?: unknown } | null;
+  if (!raw || typeof raw !== "object") return { spec: null, why: "the answer was not JSON" };
+  const inner = raw.board && typeof raw.board === "object" ? raw.board : Array.isArray(raw.phrases) ? raw : null;
+  if (!inner) return { spec: null, why: `the answer had no board (keys: ${Object.keys(raw).slice(0, 8).join(", ") || "none"})` };
+  const board = cleanBoard(inner, sourceText);
+  if (!board) return { spec: null, why: "the board had fewer than three captions" };
+  return { spec: boardSpec(board, raw, sourceText, { signoff }) };
+}
+
+/** A spec from the wire, storyboard or template, cleaned like any model answer. Null when nothing usable is left. Pure. */
+export function readSpec(raw: unknown, sourceText: string): AnimatedSpec | null {
+  const r = raw && typeof raw === "object" ? (raw as { board?: unknown; caption?: unknown; hashtags?: unknown; signoff?: unknown }) : null;
+  if (r?.board && typeof r.board === "object") {
+    const board = cleanBoard(r.board, sourceText);
+    if (board) return boardSpec(board, r, sourceText, { signoff: typeof r.signoff === "string" ? r.signoff : null });
+  }
+  return cleanSpec(raw, sourceText);
+}
+
 const REVIEW_SCHEMA = {
   type: "object", additionalProperties: false, required: ["passed", "problems"],
   properties: { passed: { type: "boolean" }, problems: { type: "array", items: { type: "string" } } },
@@ -256,16 +282,12 @@ export async function writeAnimatedSpec(ctx: Ctx, post: AnimatedSource, opts: { 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any);
       recordAiUsage(ctx.ownerId, "animated_script", res);
-      if (res.stop_reason === "refusal" || res.stop_reason === "max_tokens") return null;
+      // Every way a storyboard is dropped says why, so a fallback to the templates is never silent.
+      if (res.stop_reason === "refusal" || res.stop_reason === "max_tokens") { console.error(`[animated/story] dropped: the answer stopped early (${res.stop_reason})`); return null; }
       const block = res.content.find((b: { type: string }) => b.type === "text");
-      const raw = jsonObject(block && "text" in block ? (block as { text: string }).text : "") as { board?: unknown; caption?: unknown; hashtags?: unknown } | null;
-      if (!raw) { console.error("[animated/story] the answer was not JSON"); return null; }
-      const source = `${brand}\n${about}\n${lines.join("\n")}\n${opts.change ?? ""}`;
-      const board = cleanBoard(raw.board, source);
-      if (!board) return null;
-      // The caption and hashtags go through the same checks as every other video's.
-      const shell = cleanSpec({ format: "words", scenes: [{ type: "hook", text: board.phrases[0].text }], caption: raw.caption, hashtags: raw.hashtags }, source, { signoff: profile?.brand_name ?? null });
-      return shell ? { ...shell, scenes: [], board } : null;
+      const out = storyFromAnswer(block && "text" in block ? (block as { text: string }).text : "", `${brand}\n${about}\n${lines.join("\n")}\n${opts.change ?? ""}`, profile?.brand_name ?? null);
+      if (!out.spec) console.error(`[animated/story] dropped: ${out.why}`);
+      return out.spec;
     } catch (e) {
       console.error("[animated/story]", (e as Error)?.message ?? e);
       return null;

@@ -129,6 +129,25 @@ function sceneText(s: AnimatedScene): string {
 }
 
 /**
+ * A storyboard video's spec: the board (already cleaned by cleanBoard) with a
+ * caption and hashtags that pass the same checks as every other video's. It
+ * has no scenes of its own; the board is the whole video. Pure.
+ */
+export function boardSpec(board: import("./board").Storyboard, raw: { caption?: unknown; hashtags?: unknown } | null | undefined, sourceText: string, opts: { signoff?: string | null } = {}): AnimatedSpec {
+  const caption = clean(raw?.caption, 2200);
+  return {
+    version: 1, theme: "ink", accent: ACCENTS[0], scenes: [], board,
+    caption: inventsNumbers(caption, numberTokens(sourceText)) ? "" : caption,
+    cta: null,
+    signoff: opts.signoff ? clean(opts.signoff, 40) || null : null,
+    hashtags: cleanHashtags(raw?.hashtags),
+  };
+}
+
+const cleanHashtags = (v: unknown): string[] =>
+  (Array.isArray(v) ? v : []).filter((t): t is string => typeof t === "string").map((t) => t.replace(/^#/, "").replace(/[^\p{L}\p{N}_]/gu, "").slice(0, 40)).filter(Boolean).slice(0, 5);
+
+/**
  * The model's scenes, made safe: known types only, short lines, no em dashes,
  * no number the plan didn't contain (no invented prices, stats or results),
  * an emphasis word that is really in its line, at most MAX_SCENES, and a hook
@@ -144,7 +163,7 @@ export function cleanSpec(raw: unknown, sourceText: string, opts: { signoff?: st
   const extras = {
     cta,
     signoff: opts.signoff ? clean(opts.signoff, 40) || null : null,
-    hashtags: (Array.isArray(r.hashtags) ? r.hashtags : []).filter((t): t is string => typeof t === "string").map((t) => t.replace(/^#/, "").replace(/[^\p{L}\p{N}_]/gu, "").slice(0, 40)).filter(Boolean).slice(0, 5),
+    hashtags: cleanHashtags(r.hashtags),
   };
   const accent = ACCENTS.includes(r.accent as (typeof ACCENTS)[number]) ? (r.accent as string) : ACCENTS[0];
   const caption = clean(r.caption, 2200);

@@ -50,9 +50,43 @@ describe("the storyboard", () => {
   it("gives the meaning check every line", () => expect(boardWords(board)).toContain("Their beta isn't your beta."));
 });
 
-import { jsonObject } from "./write";
+import { jsonObject, readSpec, storyFromAnswer } from "./write";
 import { STORY_SHAPE } from "./boardWrite";
 describe("the writer's answer", () => {
+  const answer = JSON.stringify({ board: EXAMPLE_BOARD, caption: "Read the route before you pull on.", hashtags: ["#bouldering", "climbing tips"] });
+  it("becomes a storyboard video, end to end", () => {
+    const out = storyFromAnswer(answer, "190 cm 175 cm", "Beta Twin");
+    expect(out.why).toBeUndefined();
+    expect(out.spec?.board?.phrases).toHaveLength(10);
+    expect(out.spec?.scenes).toEqual([]);
+    expect(out.spec?.caption).toBe("Read the route before you pull on.");
+    expect(out.spec?.hashtags).toEqual(["bouldering", "climbingtips"]);
+    expect(out.spec?.signoff).toBe("Beta Twin");
+  });
+  it("reads a fenced answer and a board written at the top level", () => {
+    expect(storyFromAnswer("```json\n" + answer + "\n```", "190 cm 175 cm").spec?.board).toBeTruthy();
+    expect(storyFromAnswer(JSON.stringify({ ...EXAMPLE_BOARD, caption: "x", hashtags: [] }), "190 cm 175 cm").spec?.board?.phrases).toHaveLength(10);
+  });
+  it("keeps phrases written as bare strings", () => {
+    const out = storyFromAnswer(JSON.stringify({ board: { phrases: ["You guess what to post", "Every single week", "Read your own numbers"] }, caption: "", hashtags: [] }), "");
+    expect(out.spec?.board?.phrases.map((p) => p.text)).toEqual(["You guess what to post", "Every single week", "Read your own numbers"]);
+  });
+  it("says why when there is no storyboard", () => {
+    expect(storyFromAnswer("sorry, I can't", "").why).toBe("the answer was not JSON");
+    expect(storyFromAnswer('{"caption":"x"}', "").why).toContain("no board");
+    expect(storyFromAnswer('{"board":{"phrases":[{"text":"One","em":""}]}}', "").why).toContain("fewer than three");
+  });
+  it("drops a caption with a number the brand never wrote, but keeps the video", () => {
+    const out = storyFromAnswer(JSON.stringify({ board: EXAMPLE_BOARD, caption: "Send 40% more routes.", hashtags: [] }), "190 cm 175 cm");
+    expect(out.spec?.board).toBeTruthy();
+    expect(out.spec?.caption).toBe("");
+  });
+  it("reads a storyboard video back from the wire", () => {
+    const spec = storyFromAnswer(answer, "190 cm 175 cm", "Beta Twin").spec!;
+    const back = readSpec(JSON.parse(JSON.stringify(spec)), JSON.stringify(spec));
+    expect(back?.board?.phrases).toHaveLength(10);
+    expect(back?.signoff).toBe("Beta Twin");
+  });
   it("is read from plain JSON, a code fence or stray words around it", () => {
     expect(jsonObject('{"board":{"phrases":[]}}')).toEqual({ board: { phrases: [] } });
     expect(jsonObject('```json\n{"a":1}\n```')).toEqual({ a: 1 });
