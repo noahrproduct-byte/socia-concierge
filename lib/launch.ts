@@ -1,9 +1,9 @@
-// Launch prices (Noah, 2026-11-15). Until the end of December 31, 2026
+// Launch prices (Noah, 2026-11-15; shortened the same day to one month). Until the end of December 15, 2026
 // (Central time, where SOCIA LLC is), each paid plan sells at its launch price
 // (PLANS[plan].priceMonthly, what Stripe charges today) and the pricing shows
 // the full price crossed out next to it, with a countdown to the end.
 //
-// This is only honest if the full price really starts on January 1: on that
+// This is only honest if the full price really starts on December 16: on that
 // day new sign-ups pay FULL_PRICE (a new default price in Stripe and
 // priceMonthly raised to match), while subscriptions started before then keep
 // their launch price. The billing check (lib/billingCheck.ts) turns red once
@@ -11,14 +11,16 @@
 // After the end, nothing here shows any more. Client-safe.
 import type { PlanId } from "./plans";
 
-/** The first moment after the launch: midnight starting January 1, 2027, Central time (UTC-6). */
-export const LAUNCH_ENDS_AT = Date.parse("2027-01-01T00:00:00-06:00");
+/** The first moment after the launch: midnight starting December 16, 2026, Central time (UTC-6). */
+export const LAUNCH_ENDS_AT = Date.parse("2026-12-16T00:00:00-06:00");
 
 /** How the end reads in copy. */
-export const LAUNCH_END_TEXT = "December 31";
-export const LAUNCH_END_LONG = "December 31, 2026 at 11:59 PM Central time";
+export const LAUNCH_END_TEXT = "December 15";
+/** The day the full prices start. */
+export const FULL_PRICE_FROM_TEXT = "December 16";
+export const LAUNCH_END_LONG = "December 15, 2026 at 11:59 PM Central time";
 
-/** The full monthly price from January 1, 2027, in USD. */
+/** The full monthly price from December 16, 2026, in USD. */
 export const FULL_PRICE: Record<Exclude<PlanId, "free">, number> = {
   starter: 29.99,
   growth: 49.99,

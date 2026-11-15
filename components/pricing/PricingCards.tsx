@@ -1,7 +1,7 @@
 import { Check } from "lucide-react";
 import { openPlatformsText } from "@/lib/platformStatus";
 import { PLANS, SALE_ORDER, FEATURE_LABEL, FEATURE_STATUS, formatPrice, formatHistory, type PlanId, type PlanConfig } from "@/lib/plans";
-import { MONTHLY_CREDITS, clipMinutesFor } from "@/lib/credits/config";
+import { CREDIT_PRICES_CONFIRMED, MONTHLY_CREDITS, clipMinutesFor } from "@/lib/credits/config";
 import { comingSoonFor } from "@/lib/pricingTable";
 import PlanCta from "./PlanCta";
 import { LaunchWas } from "./Launch";
@@ -90,7 +90,7 @@ function highlightsFor(p: PlanConfig): (string | null)[] {
       return [
         "AI Clipper: long videos cut into captioned clips",
         "AI Studio: AI-made videos and images from your ideas",
-        `${MONTHLY_CREDITS.scale.toLocaleString("en-US")} AI credits/month, top-ups available`,
+        `${MONTHLY_CREDITS.scale.toLocaleString("en-US")} AI credits/month${CREDIT_PRICES_CONFIRMED ? ", top-ups available" : ""}`,
         workspaces,
         formatHistory(L.analytics_history_days),
         `${M.video_builds} AI-made videos, ${M.animated_videos} animated videos a month`,

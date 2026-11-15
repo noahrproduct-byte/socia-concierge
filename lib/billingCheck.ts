@@ -4,7 +4,7 @@
 // the key's mode comes from its prefix, and ids are Stripe object ids. Pure.
 
 import { PLANS, type PlanId } from "./plans";
-import { FULL_PRICE, LAUNCH_END_LONG, launchOn } from "./launch";
+import { FULL_PRICE, FULL_PRICE_FROM_TEXT, LAUNCH_END_LONG, launchOn } from "./launch";
 
 export type CheckState = "ok" | "fix" | "info";
 export type CheckLine = { id: string; state: CheckState; label: string; detail: string };
@@ -93,10 +93,10 @@ export function assessBilling(f: BillingFacts, now: number = Date.now()): CheckL
       tax ? `Product tax code ${tax}${tax === SAAS_TAX_CODE ? " (SaaS, business use)" : ""}.` : `Managed Payments needs a tax code on the product. Set ${SAAS_TAX_CODE} (Software as a service, business use) on "${p.product?.name ?? name}".`);
   }
 
-  // Launch prices (lib/launch.ts): the crossed-out full price is a promise that it really starts on January 1.
+  // Launch prices (lib/launch.ts): the crossed-out full price is a promise that it really starts the day after.
   const still = f.prices.filter((p) => PLANS[p.plan].priceMonthly < FULL_PRICE[p.plan]);
   if (launchOn(now)) {
-    line("launch", "info", "Launch prices", `Pricing shows the full prices crossed out until ${LAUNCH_END_LONG}. On January 1, new sign-ups must pay ${f.prices.map((p) => `${PLANS[p.plan].name} ${usd(Math.round(FULL_PRICE[p.plan] * 100))}`).join(", ")}.`);
+    line("launch", "info", "Launch prices", `Pricing shows the full prices crossed out until ${LAUNCH_END_LONG}. On ${FULL_PRICE_FROM_TEXT}, new sign-ups must pay ${f.prices.map((p) => `${PLANS[p.plan].name} ${usd(Math.round(FULL_PRICE[p.plan] * 100))}`).join(", ")}.`);
   } else if (still.length) {
     line("launch", "fix", "Launch prices ended", `The launch ended ${LAUNCH_END_LONG}, but ${still.map((p) => PLANS[p.plan].name).join(", ")} still ${still.length === 1 ? "sells" : "sell"} at the launch price. In Stripe, add each full monthly price (tax not included) on the same product and make it the default; keep the old price so current members keep theirs. Then raise priceMonthly in lib/plans.ts to match.`);
   }
