@@ -570,6 +570,8 @@ export type BuildSource = {
   recordedAt?: string | null;
   /** the clip has a sound track (measured at upload); words may still be on their way */
   hasAudio?: boolean;
+  /** its words are still being transcribed (no transcript yet and the clip's card is not built): the editor asks again in a while. A clip transcribed with no speech has words [] and is not. */
+  transcribing?: boolean;
 };
 
 export type BuildPlayerData = {

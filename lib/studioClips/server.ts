@@ -359,11 +359,16 @@ export async function buildPlayerData(client: Supa, ownerId: string, wsId: strin
         clipId: r.id, position: r.position, name: r.name, url: urls[r.source_path!],
         thumb: r.frames?.[0] ? urls[r.frames[0].path] ?? null : null,
         durationSec: r.duration_s ?? 0, width: r.width, height: r.height,
-        words: r.transcript?.words?.length ? r.transcript.words : null,
+        // A transcript with no words (camera sound, no speech) is [] so the editor knows the words are in; null means
+        // none was made. Before 2026-11-15 both were null and the editor polled the build every 5 s for 5 minutes,
+        // re-signing every link each time, so the player reloaded every clip over and over (the "lag after export").
+        words: r.transcript ? (r.transcript.words ?? []) : null,
         moments: r.card?.moments ?? [],
         ...(Object.keys(stable).length ? { stable } : {}),
         recordedAt: r.recorded_at,
         hasAudio: r.facts?.audio?.hasAudio ?? Boolean(r.audio_path),
+        // Transcription runs before the card is built (lib/studioClips/job.ts): a clip with a card and no transcript is not getting one.
+        transcribing: Boolean((r.facts?.audio?.hasAudio ?? Boolean(r.audio_path)) && !r.transcript && !r.card && r.status !== "failed" && r.status !== "expired"),
       };
     });
   const voicePaths = (row.edl?.voiceover?.lines ?? []).map((l) => l.path).filter((p): p is string => Boolean(p) && ownsVoicePath(ownerId, row.project_id, buildId)(p!));

@@ -216,11 +216,23 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   useEffect(() => () => { abort.current?.abort(); releaseCleanSounds(); }, []);
 
   /** The clips' links signed again (the same cut, fresh URLs), so a long session never plays or renders an expired link. */
-  const refreshSources = useCallback(async (): Promise<boolean> => {
+  const refreshSources = useCallback(async (opts: { keepLinks?: boolean } = {}): Promise<boolean> => {
     if (fixture) return true;
     const res = await fetch(`/api/studio/builds/${buildId}`).catch(() => null);
     const j = res?.ok ? ((await res.json().catch(() => null)) as BuildPlayerData | null) : null;
     if (!j) return false;
+    if (opts.keepLinks) {
+      // Only what may have changed (the words, the moments, the transcribing flag) is taken: the links stay as they
+      // are, so the player and every thumbnail keep what they have loaded. New links every few seconds made every
+      // clip reload each time (2026-11-15).
+      setData((d) => {
+        if (!d) return j;
+        const old = new Map(d.sources.map((x) => [x.clipId, x]));
+        const sources = j.sources.map((n) => { const o = old.get(n.clipId); return o ? { ...o, words: n.words, moments: n.moments, hasAudio: n.hasAudio, transcribing: n.transcribing } : n; });
+        return { ...d, sources };
+      });
+      return true;
+    }
     signedAt.current = Date.now();
     setData((d) => (d ? { ...d, sources: j.sources, music: j.music, voice: j.voice } : j));
     if (j.music) setTrackUrls((u) => ({ ...u, ...j.music }));
@@ -234,11 +246,13 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   }, [fixture, refreshSources]);
   // Clips with sound whose words are still being transcribed (the person's own edit): the sources are read
   // again every few seconds for up to five minutes; captions come on by themselves once the words are in.
-  const transcribing = useMemo(() => Boolean(data && !fixture && data.sources.some((x) => x.hasAudio && !x.words)), [data, fixture]);
+  // The server says which clips are still at the transcription service (a clip heard with no speech has words []
+  // and is done); an older server without the flag is read the old way.
+  const transcribing = useMemo(() => Boolean(data && !fixture && data.sources.some((x) => (x.transcribing != null ? x.transcribing : x.hasAudio && !x.words))), [data, fixture]);
   const transcribePolls = useRef(0);
   useEffect(() => {
     if (!transcribing || transcribePolls.current >= 60) return;
-    const t = setTimeout(async () => { transcribePolls.current += 1; await refreshSources(); }, 5000);
+    const t = setTimeout(async () => { transcribePolls.current += 1; await refreshSources({ keepLinks: true }); }, 5000);
     return () => clearTimeout(t);
   }, [transcribing, data, refreshSources]);
   // Words in (at open, or when the transcription lands): captions come on unless the person switched them off.
