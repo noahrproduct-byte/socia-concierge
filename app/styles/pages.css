@@ -532,6 +532,14 @@
 .mom-strip li { flex: 1 1 0; height: 10px; border-radius: var(--r-pill); background: var(--surface-raised); border: 1px solid var(--border); }
 .mom-strip li.is-on { background: var(--ink); border-color: var(--ink); }
 .mom-note { margin: 0; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+/* Dashboard, posts that beat the usual */
+.wins { list-style: none; margin: 0 0 var(--sp-3); padding: 0; display: flex; flex-direction: column; }
+.wins li { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); padding: var(--sp-2) 0; border-top: 1px solid var(--border); }
+.wins li:first-child { border-top: 0; padding-top: 0; }
+.wins-what { display: flex; flex-direction: column; min-width: 0; }
+.wins-what b { font-size: var(--fs-body); line-height: var(--lh-body); font-weight: 600; color: var(--ink); }
+.wins-what small { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wins li > a { flex: none; font-size: var(--fs-meta); }
 /* Settings, cancelling a plan */
 .cancel-link { align-self: flex-start; margin-top: var(--sp-3); padding: 0; border: 0; background: none; color: var(--ink-2); font-size: var(--fs-meta); line-height: var(--lh-meta); text-decoration: underline; cursor: pointer; }
 .cancel-link:hover { color: var(--ink); }
