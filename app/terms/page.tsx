@@ -6,7 +6,7 @@ export default function TermsPage() {
   return (
     <main className="legal-page">
       <h1>Terms of Service</h1>
-      <p className="legal-date">Last updated: September 4, 2026</p>
+      <p className="legal-date">Last updated: November 14, 2026</p>
 
       <p>
         These terms govern your use of SOCIA, an AI social media strategist.
@@ -51,6 +51,12 @@ export default function TermsPage() {
         violates the rules of the platforms it posts to, don&apos;t attempt to
         access other users&apos; data, and don&apos;t resell access without an
         agreement with us.
+      </p>
+      <p>
+        Don&apos;t use SOCIA to create, edit or publish sexual or intimate
+        images or video of any person, whether real or AI-generated, or any
+        image of a real person without their consent. SOCIA&apos;s AI video
+        tools decline these requests, and we may close accounts that make them.
       </p>
 
       <h2>Termination</h2>
