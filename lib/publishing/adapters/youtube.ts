@@ -20,6 +20,7 @@ import { effectiveCaption, publishedMedia } from "../validate";
 import { YT_WRITE_SCOPES } from "../capabilities";
 import { youtubeAccessToken, type YouTubeAccess } from "../../youtubeData";
 import { sealSession } from "../youtubeRelay";
+import { resolveSupabaseUrl } from "../../supabase/env";
 
 const UPLOAD = "https://www.googleapis.com/upload/youtube/v3";
 const DATA = "https://www.googleapis.com/youtube/v3";
@@ -264,11 +265,15 @@ async function publish(ctx: PublishContext): Promise<PublishOutcome> {
 export const THUMBNAIL_LIMIT_BYTES = 50 * 1024 * 1024;
 const MEDIA_BUCKET = "scheduled-media";
 
-/** Origin of the project's Supabase storage, or null when the env is not set. */
+/**
+ * Origin of the project's Supabase storage. Resolved the way the Supabase
+ * clients resolve their URL (lib/supabase/env.ts): a quoted, padded or
+ * missing NEXT_PUBLIC_SUPABASE_URL still names this project, so a file the
+ * browser just uploaded to the scheduled-media bucket is never refused as
+ * "not in SOCIA's storage" while every other read of the bucket works.
+ */
 export function storageOrigin(env: Record<string, string | undefined> = process.env): string | null {
-  const raw = env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  if (!raw) return null;
-  try { return new URL(raw).origin; } catch { return null; }
+  try { return new URL(resolveSupabaseUrl(env.NEXT_PUBLIC_SUPABASE_URL)).origin; } catch { return null; }
 }
 
 /**
