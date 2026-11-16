@@ -16,7 +16,8 @@ import { updateWorkspace } from "../workspaces";
 import type { BrandDetail } from "../profile";
 import type { TtVideo } from "../tiktokAuth";
 import { buildAccountSample, sampleIsEnough } from "./accountSample";
-import { readOwnReels } from "./reelRead";
+import { pickReels, readOwnReels } from "./reelRead";
+import { accountLines, postLines, profileLines, readItems, reelLines, type ReadEvent } from "./readStages";
 import { UNDERSTAND_SYSTEM, normalizeUnderstanding, understandPrompt, understandingSchema, type Understanding } from "./understanding";
 
 export type UnderstandResult =
@@ -55,10 +56,16 @@ export async function saveUnderstanding(ctx: Ctx, u: Understanding): Promise<boo
   return !error;
 }
 
-export async function runUnderstanding(ctx: Ctx): Promise<UnderstandResult> {
+/**
+ * `emit` is told when each step really starts and ends, with what it found
+ * (lib/intel/readStages.ts), so the onboarding screen can show the read as it
+ * happens. It changes nothing about the read itself.
+ */
+export async function runUnderstanding(ctx: Ctx, emit: (e: ReadEvent) => void = () => undefined): Promise<UnderstandResult> {
   const usage = await requireUsage(ctx.client, ctx.ownerId, "account_audit");
   if (usage.denied) return { status: "denied", response: usage.denied };
   try {
+    emit({ type: "stage", id: "accounts", state: "start" });
     const src = await loadSources(ctx, usage.ent, { days: 90 });
     const sample = buildAccountSample({
       now: src.now,
@@ -68,10 +75,14 @@ export async function runUnderstanding(ctx: Ctx): Promise<UnderstandResult> {
       tt: src.tt ? { username: (src.tt.username as string | null) ?? null, followers: (src.tt.follower_count as number | null) ?? null, videos: Array.isArray(src.tt.videos) ? (src.tt.videos as TtVideo[]) : [] } : null,
     });
     if (!sample.facts.length) {
+      emit({ type: "stage", id: "accounts", state: "done", ok: false, lines: ["None of your connected accounts returned anything to read."] });
       await usage.release();
       return { status: "no_accounts" };
     }
+    emit({ type: "stage", id: "accounts", state: "done", ok: true, lines: accountLines(sample.facts) });
+    emit({ type: "stage", id: "posts", state: "done", ok: sample.posts.length > 0, lines: postLines(sample), items: readItems(src.ig?.media.filter((m) => !m.collab_owner) ?? []) });
     if (!sampleIsEnough(sample) || !process.env.ANTHROPIC_API_KEY) {
+      emit({ type: "stage", id: "profile", state: "done", ok: false, lines: ["Too few posts with captions to work out the niche or audience. You can fill them in yourself."] });
       await usage.release();
       // Facts alone are still true and worth keeping.
       const facts = normalizeUnderstanding({}, sample.facts, src.now);
@@ -87,12 +98,21 @@ export async function runUnderstanding(ctx: Ctx): Promise<UnderstandResult> {
       messages: [{ role: "user", content: understandPrompt(sample) }],
     };
     // Watching the Reels runs beside the caption read; if it fails, the caption read still stands.
+    const toWatch = src.ig ? pickReels(src.ig.media) : [];
+    const watching = readItems(toWatch, 6);
+    if (!src.ig) emit({ type: "stage", id: "reels", state: "done", ok: false, lines: ["Reels are watched on Instagram, which isn't connected for this brand."] });
+    else if (toWatch.length < 2) emit({ type: "stage", id: "reels", state: "done", ok: false, lines: ["Fewer than two Reels on the account, so there was nothing to watch."] });
+    else emit({ type: "stage", id: "reels", state: "start", lines: [`Watching ${toWatch.length} of your Reels.`], items: watching });
     const visualP = src.ig
       ? readOwnReels({ ownerId: ctx.ownerId, handle: src.ig.snap.username, bio: src.ig.snap.biography, media: src.ig.media, now: src.now }).catch((e) => {
           console.error("[understand] reel read failed:", e instanceof Error ? e.message : e);
           return null;
+        }).then((v) => {
+          if (toWatch.length >= 2) emit({ type: "stage", id: "reels", state: "done", ok: Boolean(v), lines: reelLines(v), items: watching });
+          return v;
         })
       : Promise.resolve(null);
+    emit({ type: "stage", id: "profile", state: "start" });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = await anthropic.messages.create(params as any);
     recordAiUsage(ctx.ownerId, "account_audit", res);
@@ -112,6 +132,7 @@ export async function runUnderstanding(ctx: Ctx): Promise<UnderstandResult> {
     u.visual = await visualP;
     if (src.ig && !u.visual) u.limitations = [...u.limitations, "SOCIA couldn't watch your Reels this time, so this is read from captions only."].slice(0, 5);
     if (!(await saveUnderstanding(ctx, u))) return { status: "failed", reason: "Couldn't save the analysis. Try again." };
+    emit({ type: "stage", id: "profile", state: "done", ok: true, lines: profileLines(u) });
     return { status: "done", understanding: u };
   } catch (e) {
     await usage.release();

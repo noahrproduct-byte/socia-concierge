@@ -12,7 +12,7 @@ export type Step = (typeof STEPS)[number];
 export const STEP_LABEL: Record<Step, string> = {
   connect: "Connect",
   profile: "Your account",
-  goal: "Main goal",
+  goal: "Your goals",
   strategy: "Your strategy",
   plan: "Your plan",
 };

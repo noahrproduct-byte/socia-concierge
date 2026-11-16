@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dueFor, dueIn, goalStepError, goalStepSummary, targetNumber } from "./goalStep";
+import { dueFor, dueIn, goalStepError, goalStepSummary, suggestRule, suggestTarget, targetNumber } from "./goalStep";
 
 const today = "2026-11-15";
 const ok = { metric: "followers" as const, target: "10,000", frame: 90 as const, custom: "", today, now: 2450 };
@@ -17,6 +17,32 @@ describe("the goal step", () => {
     expect(targetNumber(" 2 500 ")).toBe(2500);
     expect(targetNumber("")).toBeNull();
     expect(targetNumber("lots")).toBeNull();
+    // Words after the number are fine (Noah typed "50 paying users" and was told to set a target above zero).
+    expect(targetNumber("50 paying users")).toBe(50);
+    expect(targetNumber("4.5%")).toBe(4.5);
+    expect(targetNumber("about 1,200 followers")).toBe(1200);
+    expect(targetNumber("10k")).toBe(10000);
+    expect(targetNumber("1.2m views")).toBe(1200000);
+    expect(goalStepError({ ...ok, metric: "bookings", target: "50 paying users", frame: 30, now: null })).toBeNull();
+  });
+  it("fills in a target from where the account is now, as a plain rule", () => {
+    expect(suggestTarget("followers", 12091, 30)).toBe(13300);
+    expect(suggestTarget("followers", 12091, 90)).toBe(15700);
+    expect(suggestTarget("bookings", 20, 30)).toBe(22);
+    expect(suggestTarget("bookings", 3, 30)).toBe(4);
+    expect(suggestTarget("engagement_rate", 4.1, 30)).toBe(4.5);
+    expect(suggestTarget("engagement_rate", 99.9, 90)).toBe(100);
+    // Nothing to work from: no starting number, or zero.
+    expect(suggestTarget("followers", null, 30)).toBeNull();
+    expect(suggestTarget("bookings", 0, 30)).toBeNull();
+    // Whatever it fills in passes the step's own check.
+    for (const now of [1, 7, 48, 250, 999, 4321, 12091, 250000]) {
+      const t = suggestTarget("followers", now, 30)!;
+      expect(t).toBeGreaterThan(now);
+      expect(goalStepError({ ...ok, target: String(t), frame: 30, now })).toBeNull();
+    }
+    expect(suggestRule(30)).toBe("10% above where you are now");
+    expect(suggestRule(60)).toBe("20% above where you are now");
   });
   it("accepts a real target with a timeframe", () => {
     expect(goalStepError(ok)).toBeNull();

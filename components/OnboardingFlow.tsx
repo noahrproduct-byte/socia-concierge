@@ -11,12 +11,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { NICHES } from "@/lib/niches";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import { STEPS, STEP_LABEL, nextStep, prevStep, type Step } from "@/lib/onboarding";
-import { ACCOUNT_TYPES, GOAL_PLATFORM_NAME, MAIN_GOALS, formatGoalValue, goalMetric, type AccountType, type GoalMetricId, type GoalPlatform, type MainGoalId } from "@/lib/growth";
-import { TIMEFRAMES, dueFor, goalStepError, goalStepSummary, targetNumber, type Timeframe } from "@/lib/goalStep";
+import { ACCOUNT_TYPES, GOAL_PLATFORM_NAME, type AccountType, type GoalPlatform } from "@/lib/growth";
 import { confidenceLabel, type Understanding } from "@/lib/intel/understanding";
 import type { BrandDetail } from "@/lib/profile";
 import { Field, Input } from "@/components/system";
@@ -27,6 +26,9 @@ import BrandMark from "./BrandMark";
 import ReadReveal from "./ReadReveal";
 import StrategyStep from "./onboarding/StrategyStep";
 import PlanStep from "./onboarding/PlanStep";
+import GoalStep, { type GoalStepHandle } from "./onboarding/GoalStep";
+import StageList, { afterEvent, readLines, waiting, type StageState } from "./onboarding/StageList";
+import { READ_STAGES, type ReadEvent, type ReadStageId } from "@/lib/intel/readStages";
 import AnimatedChoice from "@/components/animated/AnimatedChoice";
 import BrandRead, { brandReadToSave, seedBrandRead, type BrandReadValue } from "@/components/brand/BrandRead";
 
@@ -54,6 +56,8 @@ type Initial = {
   detail: BrandDetail | null;
 };
 
+const freshRead = (): Record<ReadStageId, StageState> => ({ accounts: waiting(), posts: waiting(), reels: waiting(), profile: waiting() });
+
 /** How sure SOCIA is about an inferred value, and what it rests on. */
 function Inferred({ confidence, evidence }: { confidence: number; evidence: string[] }) {
   return (
@@ -70,6 +74,7 @@ export default function OnboardingFlow({
   returned = [],
   initial,
   planNotice = null,
+  igInterrupted = false,
   brands = [],
 }: {
   /** Real connection state per platform, read on the server. */
@@ -80,6 +85,8 @@ export default function OnboardingFlow({
   initial: Initial;
   /** Said on the plan step, e.g. after a checkout that was cancelled. */
   planNotice?: string | null;
+  /** An Instagram connection was started and didn't come back. */
+  igInterrupted?: boolean;
   /** The brands this person can open; a switcher shows when there are several. */
   brands?: { id: string; name: string; active: boolean }[];
 }) {
@@ -106,14 +113,11 @@ export default function OnboardingFlow({
   const [specific, setSpecific] = useState(g0.niche_path?.specific ?? "");
   const [audience, setAudience] = useState(g0.audience?.who ?? "");
   const [location, setLocation] = useState(d.location ?? "");
-  const [mainGoal, setMainGoal] = useState<MainGoalId | "">(g0.main_goal ?? "");
   // What the account is about and the kinds of video it posts, from watching its Reels; the person confirms or changes it.
   const [brandRead, setBrandRead] = useState<BrandReadValue>(() => seedBrandRead(g0.understanding?.visual, d));
-  const [target, setTarget] = useState("");
-  const [due, setDue] = useState("");
-  // The timeframe for the target, and where the account stands now on each goal SOCIA can measure.
-  const [frame, setFrame] = useState<Timeframe | null>(null);
-  const [nowValues, setNowValues] = useState<Partial<Record<GoalMetricId, { value: number; platforms: GoalPlatform[] }>> | null>(null);
+  // The goal step keeps its own fields and saves them when asked (components/onboarding/GoalStep.tsx).
+  const goalRef = useRef<GoalStepHandle>(null);
+  const [goalCount, setGoalCount] = useState(g0.main_goal ? 1 : 0);
   const today = new Date().toISOString().slice(0, 10);
 
   const [saving, setSaving] = useState(false);
@@ -121,6 +125,7 @@ export default function OnboardingFlow({
   // The strategy step says when its build has ended (done or failed), so "Open SOCIA" waits for it.
   const [strategyReady, setStrategyReady] = useState(false);
   const readStarted = useRef(false);
+  const [readStages, setReadStages] = useState(freshRead);
   const headRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
@@ -139,7 +144,6 @@ export default function OnboardingFlow({
     if (x.geography?.value.place) setLocation((v) => v || x.geography!.value.place || "");
     const h = x.facts.find((f) => f.handle)?.handle;
     if (h) setBrandName((v) => v || h);
-    if (x.suggested_goal) setMainGoal((v) => v || x.suggested_goal!.goal);
   }
 
   // Seed once from an analysis that already exists.
@@ -151,13 +155,26 @@ export default function OnboardingFlow({
   const post = (url: string, body: unknown) =>
     fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
-  // The account read: the real request, shown for as long as it takes.
+  // The account read: the real request, shown step by step as the server reports each one.
   async function readAccounts() {
     setReading(true);
     setReadError(null);
+    setReadStages(freshRead());
     try {
-      const r = await post("/api/understand", {});
-      const j = await r.json().catch(() => null);
+      const res = await post("/api/understand?stream=1", {});
+      let r: { ok: boolean } = res;
+      let j: { understanding?: Understanding; error?: string } | null = null;
+      if (res.ok && res.body && (res.headers.get("content-type") ?? "").includes("ndjson")) {
+        let ended = false;
+        await readLines<ReadEvent>(res, (e) => {
+          if (e.type === "stage") setReadStages((cur) => ({ ...cur, [e.id]: afterEvent(cur[e.id], e) }));
+          else if (e.type === "result") { ended = true; r = { ok: e.status >= 200 && e.status < 300 }; j = e.body as typeof j; }
+        });
+        // The connection ended without an answer: say so instead of waiting forever.
+        if (!ended) throw new Error("dropped");
+      } else {
+        j = await res.json().catch(() => null);
+      }
       if (!r.ok) {
         if (isPlanError(j)) setPlanError(j);
         else setReadError(j?.error ?? "SOCIA couldn't read your accounts just now.");
@@ -183,14 +200,6 @@ export default function OnboardingFlow({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
-  // The goal step reads where the account stands now, so the target is set against a real number.
-  useEffect(() => {
-    if (step !== "goal" || nowValues || !connected.length) return;
-    let alive = true;
-    fetch("/api/goals/now").then((r) => (r.ok ? r.json() : null)).then((j) => { if (alive) setNowValues(j?.now ?? {}); }).catch(() => { if (alive) setNowValues({}); });
-    return () => { alive = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step]);
 
   async function saveProfile(): Promise<boolean> {
     const r = await post("/api/profile", {
@@ -216,32 +225,8 @@ export default function OnboardingFlow({
     return true;
   }
 
-  async function saveGoal(): Promise<boolean> {
-    const choice = MAIN_GOALS.find((m) => m.id === mainGoal);
-    if (!choice) return false;
-    // A goal has a target and a timeframe (when the goals table is there to hold them).
-    if (initial.tableReady) {
-      const problem = goalStepError({ metric: choice.metric, target, frame, custom: due, today, now: nowValues?.[choice.metric]?.value ?? null });
-      if (problem) { setErr(problem); return false; }
-    }
-    // Without a target the goal is still the brand's stated goal; with one it becomes a measured goal.
-    const r = await post("/api/profile", { brand_detail: { growth: { main_goal: choice.id } }, ...(target ? {} : { goals: `Main goal: ${choice.label}.` }) }).catch(() => null);
-    if (!r?.ok) {
-      setErr("Couldn't save your goal. Try again.");
-      return false;
-    }
-    if (target && initial.tableReady) {
-      const m = goalMetric(choice.metric)!;
-      const where = m.measuredOn.filter((p) => connectedPlatforms.includes(p));
-      const gr = await post("/api/goals", { metric: choice.metric, target: targetNumber(target), due_date: dueFor(frame, due, today), platforms: where.length ? where : m.measuredOn.slice(0, 1), kind: "primary" }).catch(() => null);
-      if (!gr?.ok) {
-        const gj = await gr?.json().catch(() => null);
-        setErr(gj?.error || "Couldn't save the target. Try again.");
-        return false;
-      }
-    }
-    return true;
-  }
+  /** The goal step validates and saves its own goals; the flow only shows what went wrong. */
+  const saveGoal = async (): Promise<boolean> => (await goalRef.current?.save()) ?? false;
 
   async function go(to: Step, save: boolean) {
     setErr(null);
@@ -272,9 +257,7 @@ export default function OnboardingFlow({
   }
 
   const i = STEPS.indexOf(step);
-  const canNext = step === "profile" ? Boolean(niche && accountType) : step === "goal" ? Boolean(mainGoal) : true;
-  const chosenGoal = MAIN_GOALS.find((m) => m.id === mainGoal);
-  const chosenMetric = chosenGoal ? goalMetric(chosenGoal.metric) : null;
+  const canNext = step === "profile" ? Boolean(niche && accountType) : step === "goal" ? goalCount > 0 : true;
 
   const nav = (next = "Continue") => (
     <>
@@ -324,10 +307,12 @@ export default function OnboardingFlow({
         </div>
 
         {reading ? (
-          <div className="ob-stage ob-reading" role="status" aria-live="polite">
-            <Loader2 size={22} className="spin" aria-hidden />
-            <h1 ref={headRef} tabIndex={-1}>Reading your accounts</h1>
-            <p>SOCIA is reading your profile, watching your recent Reels and reading their captions on {connected.join(", ")}, to work out what the account is about and how you post. This takes about a minute.</p>
+          <div className="ob-stage">
+            <div className="ob-head">
+              <h1 ref={headRef} tabIndex={-1}>Reading your accounts</h1>
+              <p>SOCIA is working out what the account is about and how you post, from {connected.join(", ")}. Each step below is real work on your account. It takes about a minute.</p>
+            </div>
+            <StageList stages={READ_STAGES} states={readStages} busy />
           </div>
         ) : revealing && u ? (
           <ReadReveal understanding={u} onContinue={() => setRevealing(false)} />
@@ -340,6 +325,9 @@ export default function OnboardingFlow({
                   <p>SOCIA reads your profile and recent posts from each account you connect, so you don&apos;t have to describe them.</p>
                 </div>
                 {igStatus && igStatus !== "connected" && RETURN_ERRORS[igStatus] && <div className="ob-err">Instagram {RETURN_ERRORS[igStatus]}</div>}
+                {igInterrupted && !connected.includes("Instagram") && (
+                  <p className="obp-notice" role="status">Instagram didn&apos;t send you back to SOCIA. That happens when it stops to confirm it&apos;s you. You&apos;re signed in to Instagram now, so connect it again and it goes straight through.</p>
+                )}
                 {returned.filter((r) => RETURN_ERRORS[r.code]).map((r) => (
                   <div className="ob-err" key={r.name}>{r.name} {RETURN_ERRORS[r.code]}</div>
                 ))}
@@ -454,52 +442,10 @@ export default function OnboardingFlow({
               <>
                 <div className="ob-head">
                   <h1 ref={headRef} tabIndex={-1}>What are we working toward?</h1>
-                  <p>Tell SOCIA what success looks like. It builds your strategy around this goal and measures against it. You can change it later in Settings.</p>
+                  <p>Tell SOCIA what success looks like. It builds your strategy around what you pick and measures against it. You can change it later in Settings.</p>
                 </div>
-                <div className="ob-fields">
-                  <Choices label="Main goal" options={MAIN_GOALS} value={mainGoal} onChange={(v) => setMainGoal(v as MainGoalId)} />
-                  {u?.suggested_goal && u.suggested_goal.goal === mainGoal && (
-                    <p className="gp-note">Suggested from your account: {u.suggested_goal.reason} Confirm it or pick another.</p>
-                  )}
-                  {chosenMetric && chosenGoal && (
-                    <>
-                      <p className="gp-note">{chosenMetric.note}</p>
-                      {initial.tableReady && (() => {
-                        const now = nowValues?.[chosenGoal.metric] ?? null;
-                        const t = targetNumber(target);
-                        const dueDate = dueFor(frame, due, today);
-                        return (
-                          <>
-                            {chosenMetric.measuredOn.length > 0 && (
-                              <p className="gp-note" role="status">
-                                {now
-                                  ? `Where you are now: ${formatGoalValue(chosenGoal.metric, now.value)} (${now.platforms.map((x) => GOAL_PLATFORM_NAME[x]).join(" and ")}).`
-                                  : nowValues ? "SOCIA couldn't read where you are now for this goal. It records your starting point as soon as the numbers arrive." : "Reading where you are now."}
-                              </p>
-                            )}
-                            <div className="gp-row">
-                              <Field label={chosenMetric.unit === "percent" ? "Target (%)" : chosenMetric.unit === "per_week" ? "Target (posts a week)" : "Target"}>
-                                <Input inputMode="decimal" value={target} onChange={(e) => { setTarget(e.target.value); setErr(null); }} />
-                              </Field>
-                            </div>
-                            <Choices label="By when" columns={4} options={[...TIMEFRAMES.map((d) => ({ id: String(d), label: `${d} days` })), { id: "custom", label: "Pick a date" }]} value={frame == null ? "" : String(frame)}
-                              onChange={(v) => { setFrame(v === "custom" ? "custom" : (Number(v) as Timeframe)); setErr(null); }} />
-                            {frame === "custom" && (
-                              <div className="gp-row">
-                                <Field label="Date">
-                                  <Input type="date" min={today} value={due} onChange={(e) => { setDue(e.target.value); setErr(null); }} />
-                                </Field>
-                              </div>
-                            )}
-                            {t != null && dueDate && dueDate > today && (
-                              <p className="gp-note" role="status">Your goal: {chosenGoal.label.toLowerCase()}, {goalStepSummary(chosenGoal.metric, now?.value ?? null, t, dueDate, today)}. SOCIA measures against it and never promises a result.</p>
-                            )}
-                          </>
-                        );
-                      })()}
-                    </>
-                  )}
-                </div>
+                <GoalStep ref={goalRef} tableReady={initial.tableReady} connectedPlatforms={connectedPlatforms} today={today} onChosen={setGoalCount}
+                  initial={{ main: g0.main_goal, others: g0.other_goals }} suggested={u?.suggested_goal ?? null} />
                 <AnimatedChoice autoScan />
                 {nav("Build my strategy")}
               </>
