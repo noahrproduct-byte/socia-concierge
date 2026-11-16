@@ -38,6 +38,7 @@ import { cancelPost, pickAccounts, settingsFor } from "../api/write";
 import { recordAlerts } from "../alerts";
 import { listMembers } from "../team";
 import { approvalTime, plannedTime, type DayWindow } from "./schedule";
+import { planHeadline } from "../planHeadline";
 
 type Supa = SupabaseClient;
 
@@ -160,7 +161,7 @@ export async function videosToMake(ctx: Ctx, ent: Entitlements): Promise<Record<
     };
   });
   return {
-    plan: { id: plan.id, created_at: plan.created_at, headline: plan.data.headline ?? null },
+    plan: { id: plan.id, created_at: plan.created_at, headline: planHeadline(plan.data.headline) || null },
     time_zone: tz,
     brand: {
       name: brand?.brand_name || ctx.workspace?.name || null,

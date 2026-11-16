@@ -251,7 +251,7 @@ export default function Dashboard({ d }: { d: DashboardData }) {
   // ---- the score ring -------------------------------------------------------
   const score = d.score ?? null;
   const tone = score ? scoreTone(score.score) : null;
-  const ringLabel = score ? `Content score ${score.score} of 100, ${tone!.word.toLowerCase()}` : nothingConnected ? "No content score: nothing connected" : "No content score yet: needs five posts on Instagram";
+  const ringLabel = score ? `Content score ${score.score} of 100, ${score.verdict.toLowerCase()}` : nothingConnected ? "No content score: nothing connected" : "No content score yet: needs five posts on Instagram";
 
   // ---- stat cards with their own trend -------------------------------------------
   const rangeDays = d.series?.views.current.length ?? 30;
@@ -337,7 +337,11 @@ export default function Dashboard({ d }: { d: DashboardData }) {
             {score ? <b><CountUp value={score.score} /></b> : <b className="is-na">{DASH}</b>}
             <small>{score ? "of 100" : "no score"}</small>
           </Ring>
-          <span className={`dash-hero-word is-${tone?.tone ?? "none"}`}>{score ? tone!.word : nothingConnected ? "Nothing connected" : "Needs 5 posts"}</span>
+          {/* What the number is, said on the screen (it was only in the ring's hidden label), and one word for it, not two. */}
+          <span className="dash-hero-tag">
+            <span className="dash-hero-what">Content score</span>
+            <span className={`dash-hero-word is-${tone?.tone ?? "none"}`}>{score ? score.verdict : nothingConnected ? "Nothing connected" : "Needs 5 posts"}</span>
+          </span>
         </div>
         <div className="dash-hero-body">
           <span className="dash-eyebrow"><CalendarDays aria-hidden /> Today</span>
@@ -347,7 +351,6 @@ export default function Dashboard({ d }: { d: DashboardData }) {
               <p>{priority.sub}</p>
               <div className="dash-hero-actions">
                 <ButtonLink href={priority.href} variant="primary" size="sm">{priority.cta} <ArrowRight aria-hidden /></ButtonLink>
-                {score && <span className="dash-hero-verdict">{score.verdict}</span>}
               </div>
             </>
           ) : (

@@ -38,6 +38,7 @@ import type { TtVideo } from "../tiktokAuth";
 import { appOrigin } from "../oauth/config";
 import { ApiFailure } from "./context";
 import { loadSources, PLATFORM_KEYS, type PlatformKey, type Sources } from "./sources";
+import { planHeadline } from "../planHeadline";
 
 const NAME: Record<PlatformKey, string> = { instagram: "Instagram", facebook: "Facebook", youtube: "YouTube", tiktok: "TikTok" };
 const link = (path: string) => `${appOrigin()}${path}`;
@@ -355,7 +356,7 @@ export async function getContentPlan(ctx: Ctx) {
   const d = row.data;
   return {
     plan: {
-      id: row.id, created_at: row.created_at, headline: d.headline, summary: d.auditSummary,
+      id: row.id, created_at: row.created_at, headline: planHeadline(d.headline), summary: d.auditSummary,
       top_fixes: (d.topFixes ?? []).map((f) => ({ fix: f.fix, why: f.why })),
       posts: (d.weeklyPlan ?? []).map((it, i) => {
         const o = outcome?.items[i];

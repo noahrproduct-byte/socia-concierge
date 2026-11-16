@@ -158,6 +158,18 @@
   font-size: var(--fs-meta);
   line-height: var(--lh-meta);
 }
+.dash-hero-tag {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+}
+.dash-hero-what {
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-weight: var(--fw-medium);
+  color: var(--ink-2);
+}
 .dash-hero-word {
   display: inline-flex;
   align-items: center;
@@ -1133,6 +1145,9 @@ button.dash-stat {
     flex-direction: row;
     justify-content: flex-start;
     gap: var(--sp-3);
+  }
+  .dash-hero-tag {
+    align-items: flex-start;
   }
   .dash-hero-body h2 {
     font-size: var(--fs-section);

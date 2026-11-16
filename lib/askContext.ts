@@ -25,6 +25,7 @@ import { FORMATS_PRODUCER, formatsEvidence } from "./nicheFormats";
 import { listTracked } from "./trackedCompetitors";
 import { nicheVetted } from "./discovery";
 import type { SavedPlan } from "./schema";
+import { planHeadline } from "./planHeadline";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
@@ -202,7 +203,7 @@ export async function buildAskEvidence(supabase: Supa, userId: string, ctx: AskC
     } catch { plan = null; }
     if (plan) {
       const d = plan.data;
-      parts.push(`# The Content Plan on screen (plan id ${plan.id}, created ${day(plan.created_at)})`, `Headline: ${d.headline}`, `Top fixes: ${(d.topFixes ?? []).map((f) => f.fix).join(" | ")}`,
+      parts.push(`# The Content Plan on screen (plan id ${plan.id}, created ${day(plan.created_at)})`, `Headline: ${planHeadline(d.headline)}`, `Top fixes: ${(d.topFixes ?? []).map((f) => f.fix).join(" | ")}`,
         `Weekly plan (index · day · format · concept · hook):`, ...(d.weeklyPlan ?? []).map((p, i) => `${i} · ${p.day} · ${p.format} · ${p.concept} · hook "${p.hook}" · rationale: ${p.rationale}`));
       if (ctx.planDay) parts.push(`The user is focused on: ${ctx.planDay}.`);
     } else {
