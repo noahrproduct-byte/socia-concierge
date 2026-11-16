@@ -3,10 +3,10 @@
 
 // Kept short on purpose: SOCIA reads what it can from the connected
 // accounts, the person confirms it and sets one main goal with a target, then
-// watches SOCIA build the strategy for it and sees that strategy (Noah,
-// 2026-11-15). The detailed questions (audience, voice, resources) are
+// watches SOCIA build the strategy for it, sees that strategy and chooses the
+// plan to follow it with (Noah, 2026-11-15). The detailed questions (audience, voice, resources) are
 // optional, in Settings.
-export const STEPS = ["connect", "profile", "goal", "strategy"] as const;
+export const STEPS = ["connect", "profile", "goal", "strategy", "plan"] as const;
 export type Step = (typeof STEPS)[number];
 
 export const STEP_LABEL: Record<Step, string> = {
@@ -14,6 +14,7 @@ export const STEP_LABEL: Record<Step, string> = {
   profile: "Your account",
   goal: "Main goal",
   strategy: "Your strategy",
+  plan: "Your plan",
 };
 
 export const isStep = (v: unknown): v is Step => typeof v === "string" && (STEPS as readonly string[]).includes(v);

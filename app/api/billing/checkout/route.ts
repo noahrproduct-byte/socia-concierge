@@ -28,7 +28,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Checkout is not available yet." }, { status: 503 });
   }
 
-  const body = (await req.json().catch(() => null)) as { plan?: unknown; interval?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as { plan?: unknown; interval?: unknown; from?: unknown } | null;
+  // A plan chosen at the end of onboarding comes back to onboarding, which finishes setup and opens the dashboard.
+  const fromOnboarding = body?.from === "onboarding";
   const plan = typeof body?.plan === "string" ? body.plan : "";
   const interval = typeof body?.interval === "string" ? body.interval : "month";
   if (!isPaidPlan(plan) || !isBillingInterval(interval)) {
@@ -85,8 +87,10 @@ export async function POST(req: Request) {
       },
       allow_promotion_codes: true,
       managed_payments: { enabled: true },
-      success_url: `${origin}/settings?billing=success&session_id={CHECKOUT_SESSION_ID}#plan`,
-      cancel_url: `${origin}/pricing?billing=cancelled&plan=${plan}`,
+      success_url: fromOnboarding
+        ? `${origin}/onboarding?billing=success&session_id={CHECKOUT_SESSION_ID}`
+        : `${origin}/settings?billing=success&session_id={CHECKOUT_SESSION_ID}#plan`,
+      cancel_url: fromOnboarding ? `${origin}/onboarding?billing=cancelled` : `${origin}/pricing?billing=cancelled&plan=${plan}`,
     });
   } catch (e) {
     // Stripe's own words (no secret in them) go to the logs; the person gets a plain sentence.

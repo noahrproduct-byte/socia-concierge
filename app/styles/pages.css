@@ -554,6 +554,25 @@
 .obs-pillars small, .obs-based { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
 .obs-based { list-style: disc; margin: 0; padding-left: var(--sp-5); }
 .ob-linkbtn { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }
+/* Onboarding, plan step: one row per plan, the fitting one outlined with its reasons */
+.obp-notice, .obp-wait, .obp-current { margin: 0 0 var(--sp-4); font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink-2); }
+.obp-notice { padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-card); background: var(--surface-raised); color: var(--ink); }
+.obp-wait { display: flex; align-items: center; gap: var(--sp-2); }
+.obp-plans { list-style: none; margin: 0 0 var(--sp-4); padding: 0; display: flex; flex-direction: column; gap: var(--sp-3); }
+.obp-plans > li { display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; padding: var(--sp-4); border: 1px solid var(--border); border-radius: var(--r-card); background: var(--surface); }
+.obp-plans > li.is-rec { border-color: var(--ink); }
+.obp-badge { align-self: flex-start; padding: 0 var(--sp-2); border-radius: var(--r-pill); background: var(--ink); color: var(--surface); font-size: var(--fs-meta); line-height: var(--lh-meta); font-weight: var(--fw-semibold); }
+.obp-top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--sp-2) var(--sp-4); }
+.obp-top > b { font-size: var(--fs-title); line-height: var(--lh-title); font-weight: var(--fw-semibold); color: var(--ink); }
+.obp-price { display: flex; flex-direction: column; align-items: flex-end; font-variant-numeric: tabular-nums; }
+.obp-price b { font-size: var(--fs-title); line-height: var(--lh-title); font-weight: var(--fw-semibold); color: var(--ink); }
+.obp-price small { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+.obp-price .ln-was { min-height: 0; margin-bottom: 0; gap: var(--sp-2); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.obp-price .ln-was s { font-size: inherit; color: var(--ink-3); text-decoration-color: currentColor; }
+.obp-price .ln-was-tag { padding: 0; border-radius: 0; background: none; font: inherit; color: var(--ink-2); }
+.obp-line { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink-2); }
+.obp-why { list-style: disc; margin: var(--sp-1) 0 0; padding-left: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-1); font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink); }
+.obp-plans .ob-btn { align-self: flex-start; margin-top: var(--sp-2); }
 /* Dashboard, first week and posting streak */
 .mom { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--sp-4); }
 .mom-steps { list-style: none; margin: 0 0 var(--sp-3); padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
