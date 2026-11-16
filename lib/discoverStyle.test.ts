@@ -84,22 +84,25 @@ describe("niche fit", () => {
   const now = new Date("2026-11-15T12:00:00Z");
   it("keeps valid verdicts and drops bad ones", () => {
     const m = sanitizeMemory({ fit: {
-      "instagram:ClarkGary": { ok: false, at: "2026-11-15T10:00:00Z" },
+      "instagram:ClarkGary": { ok: false, at: "2026-11-15T10:00:00Z", v: 2 },
       "instagram:kristina": { ok: true, at: "2026-11-15T10:00:00Z" },
       "instagram:x": { ok: "yes", at: "2026-11-15T10:00:00Z" },
       "bad key": { ok: true, at: "2026-11-15T10:00:00Z" },
     } });
     expect(m.fit).toEqual({
-      "instagram:clarkgary": { ok: false, at: "2026-11-15T10:00:00Z" },
+      "instagram:clarkgary": { ok: false, at: "2026-11-15T10:00:00Z", v: 2 },
       "instagram:kristina": { ok: true, at: "2026-11-15T10:00:00Z" },
     });
   });
   it("reads a verdict for a month, then asks again", () => {
     const m = sanitizeMemory({ fit: {
-      "instagram:a": { ok: false, at: new Date(now.getTime() - FIT_TTL_MS + 60_000).toISOString() },
-      "instagram:b": { ok: true, at: new Date(now.getTime() - FIT_TTL_MS - 60_000).toISOString() },
+      "instagram:a": { ok: false, at: new Date(now.getTime() - FIT_TTL_MS + 60_000).toISOString(), v: 2 },
+      "instagram:b": { ok: true, at: new Date(now.getTime() - FIT_TTL_MS - 60_000).toISOString(), v: 2 },
+      "instagram:old": { ok: true, at: now.toISOString() },
     } });
     expect(fitOf(m, "instagram:a", now)).toBe(false);
+    // Made under an older rule: judged again.
+    expect(fitOf(m, "instagram:old", now)).toBeNull();
     expect(fitOf(m, "instagram:b", now)).toBeNull();
     expect(fitOf(m, "instagram:c", now)).toBeNull();
   });

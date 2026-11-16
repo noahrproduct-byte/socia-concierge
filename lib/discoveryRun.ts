@@ -11,6 +11,7 @@
 // connection and the stored results are the workspace owner's (lib/context).
 // Caching, refresh rights and rate limits stay with the caller. Server only.
 
+import { brandKind, competitorWords, researchRules } from "./discoverRules";
 import { isSocialContentUrl } from "./fetchGuard";
 import { getActiveConnection } from "./instagramSync";
 import { isOwnAccount, ownAccounts, type OwnAccounts } from "./ownAccounts";
@@ -246,6 +247,8 @@ export async function runFreshDiscovery(ctx: Ctx, inputs: DiscoveryInputs): Prom
     }
   }
 
+  // Who counts as a competitor for this kind of account (lib/discoverRules.ts, Discover training).
+  const kind = brandKind({ accountType: profile.accountType ?? null, name: brandName, niche: nicheLine0(profile), about: [profile.focus, profile.goalText] });
   const who = profile.accountType === "creator" ? "creator" : profile.accountType === "personal_brand" ? "personal brand" : profile.accountType === "organization" ? "organisation" : "business";
   const nicheLine = [profile.niche, profile.subNiche, profile.specific].filter(Boolean).join(" > ");
   const facts = [
@@ -284,15 +287,16 @@ export async function runFreshDiscovery(ctx: Ctx, inputs: DiscoveryInputs): Prom
     const prompt = `A ${who}${brandName ? ` called ${brandName}` : ""} wants to know which ${webPlatforms} accounts to study, and which recent posts are worth learning from.
 ${facts}
 
-Relevant does not mean biggest. Look for, in this order:
-${seeds.length ? "- accounts like the ones they chose to follow: the same kind of business or product, doing well\n" : ""}- accounts like theirs: the same specific niche${locationMatters(profile) ? ", ideally competing for the same local customers" : ""}
-${locationMatters(profile) ? "- successful accounts in the same area, even in a neighbouring category\n" : ""}- creators in this niche whose content formats they could adapt${ownStyle ? `\n- within those, accounts whose videos are made the same way as theirs (${ownStyle}) come first` : ""}
+${researchRules(kind, ownStyle)}
 
+Relevant does not mean biggest. Look for, in this order:
+${seeds.length ? "- accounts like the ones they chose to follow: the same kind of business or product, doing well\n" : ""}- ${competitorWords(kind)}: the same specific niche${locationMatters(profile) ? ", ideally competing for the same local customers" : ""}
+${locationMatters(profile) ? "- successful accounts in the same area, even in a neighbouring category\n" : ""}
 Every account and post must be about this niche or made for the same audience. An account that only shares the video style but is about something unrelated (sports, celebrities, news, comedy about other things) does not count, however well it does.
 
 Search the web and return BOTH:
 1. Up to 10 real ${webPlatforms} ACCOUNTS from those groups, doing well: posting regularly with an engaged audience.
-2. Up to 5 real recent ${main === "instagram" ? "Instagram Reels" : main === "facebook" ? "Facebook videos" : "Instagram Reels or Facebook videos"} in this niche.
+2. Up to 5 real recent ${main === "instagram" ? "Instagram Reels" : main === "facebook" ? "Facebook videos" : "Instagram Reels or Facebook videos"} posted by ${competitorWords(kind)} like those in 1, that they could make their own version of.
 
 ${own.handles.length || ownHandle ? `These are their own accounts; never return them: ${[...new Set([...own.handles, ...(ownHandle ? [ownHandle] : [])])].map((h) => `"@${h}"`).join(", ")}.` : ""}
 
@@ -510,3 +514,6 @@ export async function readStoredDiscovery(supabase: any, userId: string, workspa
     return null;
   }
 }
+
+/** The niche as one line, for the brand-kind check. */
+const nicheLine0 = (p: { niche?: string | null; subNiche?: string | null; specific?: string | null }) => [p.niche, p.subNiche, p.specific].filter(Boolean).join(" > ");

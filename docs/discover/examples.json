@@ -1,0 +1,30 @@
+{
+  "about": "Discover training: Noah's verdicts on what SOCIA suggested, used to write the rules in lib/discoverRules.ts. Add a round each time a brand's suggestions are reviewed.",
+  "rounds": [
+    {
+      "date": "2026-11-16",
+      "brand": { "name": "SOCIA (fresh onboarding, brand 'My brand')", "accountType": "business", "kind": "app", "ownStyle": "Animated" },
+      "verdict": "none of these are good since this is an app i have to look for other apps that is kinda similar to or posts similar videos (animated videos that i can copy for myself)",
+      "rule": "A business competes with businesses of its own kind: for an app, other apps and software products, preferring ones whose Reels are animated product videos. Coaches, educators, agencies and influencers are wrong for a business.",
+      "accounts": [
+        { "handle": "holler.academy", "what": "Instagram and content coach", "right": false, "why": "coach, not an app" },
+        { "handle": "jasminestar", "what": "entrepreneur and marketing coach", "right": false, "why": "coach, not an app" },
+        { "handle": "kristina.social", "what": "Instagram growth and marketing educator", "right": false, "why": "educator, not an app" },
+        { "handle": "createcontent.club", "what": "content creation education", "right": false, "why": "educator, not an app" },
+        { "handle": "thedigitalbuzz", "what": "digital marketer", "right": false, "why": "marketer, not an app" },
+        { "handle": "brock11johnson", "what": "Instagram growth coach", "right": false, "why": "coach, not an app" },
+        { "handle": "smallbusinessgrowthclub", "what": "small-business growth", "right": false, "why": "coach, not an app" },
+        { "handle": "thesocialista", "what": "social media marketing", "right": false, "why": "marketer, not an app" }
+      ],
+      "reels": [
+        { "url": "https://www.instagram.com/reel/Dd2gFFxTPp-/", "account": "kristina.social", "right": false, "why": "personal story from a coach" },
+        { "url": "https://www.instagram.com/reel/DfxaLtwk9OT/", "account": "createcontent.club", "right": false, "why": "educator; also posted twice" },
+        { "url": "https://www.instagram.com/reel/Dfxanb2gLU_/", "account": "createcontent.club", "right": false, "why": "duplicate of the one above" },
+        { "url": "https://www.instagram.com/reel/DfxEyp_icRA/", "account": "brock11johnson", "right": false, "why": "coach" },
+        { "url": "https://www.instagram.com/reel/DfkVHBlxwdm/", "account": "jasminestar", "right": false, "why": "coach" },
+        { "url": "https://www.instagram.com/reel/DfcZm5NRYC-/", "account": "jasminestar", "right": false, "why": "personal life, off topic" }
+      ],
+      "earlier": "2026-11-15: an NFL commentator (Clark Gary) appeared in Socia's From your niche Reels because only the video style matched (fixed in PR #336)."
+    }
+  ]
+}

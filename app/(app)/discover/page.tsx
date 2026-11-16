@@ -211,7 +211,7 @@ export default async function Page() {
   const allReels = rankTrendingReels(competitors.map((r) => ({ platform: r.platform, name: r.name, handle: r.handle, avatar: r.avatar, posts: r.posts })), [], now);
   // Reels made the way the brand makes its own come first (Noah: "if an account is posting only animated videos, then it should look for animated videos").
   const same = new Set(competitors.filter((c) => c.sameStyle).map((c) => c.handle.toLowerCase()));
-  const ordered = [...allReels.filter((r) => same.has((r.accountHandle ?? "").toLowerCase())), ...allReels.filter((r) => !same.has((r.accountHandle ?? "").toLowerCase()))];
+  const ordered = dedupeReels([...allReels.filter((r) => same.has((r.accountHandle ?? "").toLowerCase())), ...allReels.filter((r) => !same.has((r.accountHandle ?? "").toLowerCase()))]);
   const tookOff = provenReels(ordered, { max: 12, perAccount: 3 });
   const reelsToCopy = tookOff.length >= 4 ? tookOff : provenReels(ordered, { max: 9, perAccount: 3, fill: true });
 
@@ -239,8 +239,9 @@ export default async function Page() {
     fitting.map((r) => ({ platform: r.platform, name: r.name, handle: r.handle, avatar: r.avatar, posts: r.posts })),
     content.filter((c) => c.accountHandle && fittingHandles.has(c.accountHandle.replace(/^@/, "").toLowerCase())), now,
   ).filter((r) => notOurs(r.accountHandle, r.accountName));
-  const nicheTookOff = provenReels(nicheAll, { max: NICHE_REELS, perAccount: 2 });
-  const nicheReels = (nicheTookOff.length >= 3 ? nicheTookOff : provenReels(nicheAll, { max: NICHE_REELS, perAccount: 2, fill: true }))
+  const nicheList = dedupeReels(nicheAll);
+  const nicheTookOff = provenReels(nicheList, { max: NICHE_REELS, perAccount: 2 });
+  const nicheReels = (nicheTookOff.length >= 3 ? nicheTookOff : provenReels(nicheList, { max: NICHE_REELS, perAccount: 2, fill: true }))
     .map((r, i) => ({ ...r, id: `N${i + 1}` }));
 
   const ownStale = Boolean(snap?.media?.length) && styleStale(memory.own, now) && !triedRecently(memory, "own", now);
@@ -262,4 +263,17 @@ export default async function Page() {
   };
 
   return <DiscoverPage d={data} />;
+}
+
+/** One Reel per account and opening line: an account that posts the same video twice shows once (the first, best ranked). */
+function dedupeReels<T extends { accountHandle: string | null; accountName: string; title: string | null }>(reels: T[]): T[] {
+  const seen = new Set<string>();
+  return reels.filter((r) => {
+    const line = (r.title ?? "").toLowerCase().replace(/\s+/g, " ").trim().slice(0, 60);
+    if (!line) return true;
+    const key = `${(r.accountHandle ?? r.accountName).toLowerCase()}|${line}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }

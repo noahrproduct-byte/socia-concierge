@@ -10,6 +10,7 @@ import type { BrandDetail } from "@/lib/profile";
 import { anthropic, FAST_MODEL, effortFor } from "@/lib/anthropic";
 import { recordAiUsage } from "@/lib/aiUsage";
 import { coverImage } from "@/lib/nicheScan/study";
+import { brandKind, fitRules } from "./discoverRules";
 import { accountStyle, isStyle, sanitizeMemory, STYLES, STYLE_MEANS, type AccountStyle, type Style, type StyleMemory } from "./discoverStyle";
 
 /** Covers sent in one model call. */
@@ -104,7 +105,7 @@ export async function styleAccounts(ownerId: string, accounts: { key: string; th
 // ---------------------------------------------------------------- niche fit ----
 
 export type FitCandidate = { key: string; handle: string; name: string | null; bio: string | null; captions: string[] };
-export type BrandForFit = { name: string | null; niche: string | null; description: string | null };
+export type BrandForFit = { name: string | null; niche: string | null; description: string | null; accountType?: string | null; offer?: string | null };
 
 const FIT_PER_CALL = 12;
 const fitSchema = {
@@ -122,9 +123,8 @@ const fitSchema = {
   required: ["accounts"],
 } as const;
 
-const FIT_SYSTEM = `You decide whether other Instagram accounts are worth a business studying as competitors or examples.
-An account fits when it is in the same niche as the business, or makes content for the same audience (for example, for a social media app: other social media tools, creator coaches and marketing accounts).
-An account does NOT fit when only its video style is similar but its subject is unrelated (sports, celebrities, news, comedy about something else).
+const FIT_SYSTEM = `You decide whether other Instagram accounts are this account's competitors: accounts worth studying and copying.
+Follow the rule you are given about who fits. An account whose video style is similar but whose subject is unrelated (sports, celebrities, news, comedy about something else) never fits.
 Judge only from the bio and captions given. Return every id you were given.`;
 
 /**
@@ -134,7 +134,12 @@ Judge only from the bio and captions given. Return every id you were given.`;
  */
 export async function judgeFit(ownerId: string, brand: BrandForFit, accounts: FitCandidate[]): Promise<Map<string, boolean>> {
   const out = new Map<string, boolean>();
-  const about = [brand.name ? `Business: ${brand.name}` : null, brand.niche ? `Niche: ${brand.niche}` : null, brand.description ? `What it does: ${brand.description.slice(0, 400)}` : null].filter(Boolean).join("\n");
+  const kind = brandKind({ accountType: brand.accountType ?? null, name: brand.name, niche: brand.niche, about: [brand.description, brand.offer] });
+  const about = [
+    brand.name ? `Account: ${brand.name}` : null, brand.niche ? `Niche: ${brand.niche}` : null,
+    brand.offer ? `What it offers: ${brand.offer.slice(0, 200)}` : null, brand.description ? `What it does: ${brand.description.slice(0, 400)}` : null,
+    `Who fits: ${fitRules(kind)}`,
+  ].filter(Boolean).join("\n");
   if (!about) return out;
   for (let i = 0; i < accounts.length; i += FIT_PER_CALL) {
     const batch = accounts.slice(i, i + FIT_PER_CALL);

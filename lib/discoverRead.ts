@@ -13,7 +13,7 @@ import { getIgSnapshot } from "@/lib/instagramSync";
 import { igCompetitorRows } from "@/lib/igCompetitorData";
 import { createServiceClient } from "@/lib/supabase/service";
 import { dismissedHandles } from "@/lib/competitorAutoPick";
-import { COVERS_PER_ACCOUNT, fitOf, missKind, styleKey, styleStale, triedRecently, type AccountStyle, type Fit, type Tried } from "./discoverStyle";
+import { COVERS_PER_ACCOUNT, FIT_VERSION, fitOf, missKind, styleKey, styleStale, triedRecently, type AccountStyle, type Fit, type Tried } from "./discoverStyle";
 import { judgeFit, readStyleMemory, saveStyleMemory, styleAccounts, type FitCandidate } from "./discoverStyleLoad";
 import { getProfile } from "@/lib/profile";
 import { brandWorkspace } from "@/lib/context";
@@ -99,8 +99,12 @@ export async function readDiscoverAccounts(ctx: Ctx, now: Date): Promise<{ read:
         captions: (c.media ?? []).map((m) => m.caption ?? "").filter(Boolean),
       }));
       if (candidates.length && profile) {
-        const verdicts = await judgeFit(ctx.ownerId, { name: profile.brand_name, niche: profile.niche, description: profile.brand_detail?.description ?? null }, candidates);
-        for (const [key, ok] of verdicts) fit[key] = { ok, at };
+        const g = profile.brand_detail?.growth;
+        const verdicts = await judgeFit(ctx.ownerId, {
+          name: profile.brand_name, niche: profile.niche, description: profile.brand_detail?.description ?? null,
+          accountType: g?.account_type ?? null, offer: g?.business?.offer ?? null,
+        }, candidates);
+        for (const [key, ok] of verdicts) fit[key] = { ok, at, v: FIT_VERSION };
       }
     }
   }

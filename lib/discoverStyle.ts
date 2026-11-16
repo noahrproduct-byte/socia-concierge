@@ -70,9 +70,15 @@ export const TRY_TTL_MS = 86_400_000;
  * captions (lib/discoverStyleLoad.ts judgeFit); only accounts that fit are
  * suggested or give "From your niche" Reels.
  */
-export type Fit = { ok: boolean; at: string };
+export type Fit = { ok: boolean; at: string; v?: number };
 /** A fit verdict is looked at again after a month. */
 export const FIT_TTL_MS = 30 * 86_400_000;
+/**
+ * The rule a verdict was made under (lib/discoverRules.ts). Raising it makes
+ * every older verdict count as not judged, so a better rule applies at once.
+ * 2: a business's competitors are businesses of its own kind (2026-11-16).
+ */
+export const FIT_VERSION = 2;
 
 export type StyleMemory = { own: AccountStyle | null; accounts: Record<string, AccountStyle>; tried: Record<string, Tried>; fit: Record<string, Fit> };
 
@@ -118,7 +124,7 @@ export function sanitizeMemory(v: unknown): StyleMemory {
     .map(([k, v]) => {
       const f = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
       const at = typeof f.at === "string" && !Number.isNaN(Date.parse(f.at)) ? f.at : null;
-      return [k.toLowerCase(), at && typeof f.ok === "boolean" ? { ok: f.ok, at } : null] as const;
+      return [k.toLowerCase(), at && typeof f.ok === "boolean" ? { ok: f.ok, at, ...(typeof f.v === "number" ? { v: f.v } : {}) } : null] as const;
     })
     .filter((e): e is readonly [string, Fit] => KEY_RE.test(e[0]) && e[1] != null)
     .sort((a, b) => Date.parse(b[1].at) - Date.parse(a[1].at))
@@ -171,6 +177,6 @@ export const PLATFORM_WORD: Record<Platform, string> = { instagram: "Instagram",
 /** The saved verdict on whether an account fits the brand's niche: true, false, or null when not judged or a month old. */
 export function fitOf(m: StyleMemory, key: string, now: Date): boolean | null {
   const f = m.fit[key];
-  if (!f || now.getTime() - Date.parse(f.at) > FIT_TTL_MS) return null;
+  if (!f || f.v !== FIT_VERSION || now.getTime() - Date.parse(f.at) > FIT_TTL_MS) return null;
   return f.ok;
 }
