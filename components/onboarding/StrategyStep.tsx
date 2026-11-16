@@ -8,14 +8,10 @@
 // and the tools that fit. Coming back to this step asks again; a strategy
 // that is already written is read back, not written twice.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Loader2, Minus } from "lucide-react";
-import { STAGES, type BuildEvent, type Reveal, type StageId, type StageItem } from "@/lib/onboardingBuild";
+import { STAGES, type BuildEvent, type Reveal, type StageId } from "@/lib/onboardingBuild";
+import StageList, { afterEvent, readLines, waiting, type StageState } from "./StageList";
 
-type StageState = { state: "wait" | "run" | "done"; ok: boolean; lines: string[]; items: StageItem[] };
-const fresh = (): Record<StageId, StageState> => {
-  const waiting = (): StageState => ({ state: "wait", ok: true, lines: [], items: [] });
-  return { accounts: waiting(), content: waiting(), niche: waiting(), strategy: waiting() };
-};
+const fresh = (): Record<StageId, StageState> => ({ accounts: waiting(), content: waiting(), niche: waiting(), strategy: waiting() });
 
 export default function StrategyStep({ onReady, headRef }: { onReady: (ready: boolean) => void; headRef: React.RefObject<HTMLHeadingElement | null> }) {
   const [stages, setStages] = useState(fresh);
@@ -31,26 +27,12 @@ export default function StrategyStep({ onReady, headRef }: { onReady: (ready: bo
         const j = await res.json().catch(() => null);
         throw new Error(j?.error || "SOCIA couldn't start reading your accounts. Try again in a minute.");
       }
-      const reader = res.body.getReader();
-      const dec = new TextDecoder();
-      let buf = "", finished = false;
-      const take = (line: string) => {
-        if (!line.trim()) return;
-        const e = JSON.parse(line) as BuildEvent;
-        if (e.type === "stage") {
-          setStages((cur) => ({ ...cur, [e.id]: e.state === "start" ? { ...cur[e.id], state: "run" } : { state: "done", ok: e.ok, lines: e.lines, items: e.items ?? [] } }));
-        } else if (e.type === "done") { finished = true; setReveal(e.reveal); onReady(true); }
+      let finished = false;
+      await readLines<BuildEvent>(res, (e) => {
+        if (e.type === "stage") setStages((cur) => ({ ...cur, [e.id]: afterEvent(cur[e.id], e) }));
+        else if (e.type === "done") { finished = true; setReveal(e.reveal); onReady(true); }
         else if (e.type === "error") { finished = true; setError(e.message); onReady(true); }
-      };
-      for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buf += dec.decode(value, { stream: true });
-        const lines = buf.split("\n");
-        buf = lines.pop() ?? "";
-        for (const l of lines) take(l);
-      }
-      if (buf) take(buf);
+      });
       // The connection ended without an answer: say so instead of waiting forever.
       if (!finished) throw new Error("The connection dropped before SOCIA finished. Try again.");
     } catch (e) {
@@ -73,34 +55,7 @@ export default function StrategyStep({ onReady, headRef }: { onReady: (ready: bo
         <p>{reveal ? "Built from your own account and what SOCIA could read about your niche. Nothing here is a promise of results." : "Each step below is real work on your accounts. It usually takes under a minute."}</p>
       </div>
 
-      <ol className="obs-stages" aria-live="polite" aria-busy={building}>
-        {STAGES.map((s) => {
-          const st = stages[s.id];
-          return (
-            <li key={s.id} className={`is-${st.state}${st.state === "done" && !st.ok ? " is-none" : ""}`}>
-              <span className="obs-mark" aria-hidden>
-                {st.state === "run" ? <Loader2 size={14} className="spin" /> : st.state === "done" ? (st.ok ? <Check size={14} /> : <Minus size={14} />) : null}
-              </span>
-              <div className="obs-body">
-                <b>{s.label}{st.state === "done" && <span className="sr-only">{st.ok ? " (done)" : " (nothing to read)"}</span>}</b>
-                {st.lines.map((l, i) => <p key={i}>{l}</p>)}
-                {st.items.length > 0 && (
-                  <ul className="obs-items">
-                    {st.items.map((it, i) => (
-                      <li key={i}>
-                        {/* The person's own post, from the platform: a plain img, since the address is the platform's. */}
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        {it.thumb ? <img src={it.thumb} alt="" loading="lazy" referrerPolicy="no-referrer" onError={(e) => { e.currentTarget.hidden = true; }} /> : <span className="obs-nothumb" aria-hidden />}
-                        <span><b>{it.label}</b><small>{it.note}</small></span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </li>
-          );
-        })}
-      </ol>
+      <StageList stages={STAGES} states={stages} busy={building} />
 
       {error && (
         <div className="ob-err" role="alert">

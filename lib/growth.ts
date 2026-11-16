@@ -108,6 +108,8 @@ export type MainGoalId = (typeof MAIN_GOALS)[number]["id"];
 export type GrowthProfile = {
   account_type?: AccountType;
   main_goal?: MainGoalId;
+  /** Further goals chosen beside the main one, in the order picked. */
+  other_goals?: MainGoalId[];
   /** What SOCIA inferred from the connected accounts (lib/intel/understanding.ts); confirmed fields above win. */
   understanding?: Understanding;
   /** What the account is about, in the person's words (narrower than the niche category). */
@@ -164,6 +166,7 @@ export function normalizeGrowth(input: unknown): GrowthProfile {
     compact({
       account_type: oneOf(i.account_type, ACCOUNT_TYPES),
       main_goal: oneOf(i.main_goal, MAIN_GOALS),
+      other_goals: manyOf(i.other_goals, MAIN_GOALS)?.filter((g) => g !== i.main_goal),
       focus: str(i.focus, 120),
       niche_path: compact({ subcategory: str(obj(i.niche_path).subcategory, 60), specific: str(obj(i.niche_path).specific, 80) }),
       business: compact({ offer: str(b.offer), customer_action: oneOf(b.customer_action, CUSTOMER_ACTIONS), service_area: oneOf(b.service_area, REACH_SCOPES) }),
@@ -203,6 +206,7 @@ export function growthLines(g: GrowthProfile | null | undefined): string[] {
   const lines: (string | null)[] = [
     g.account_type ? `Account type: ${labelOf(ACCOUNT_TYPES, g.account_type)}` : null,
     g.main_goal ? `Main goal: ${labelOf(MAIN_GOALS, g.main_goal)}` : null,
+    g.other_goals?.length ? `Other goals: ${g.other_goals.map((x) => labelOf(MAIN_GOALS, x)).join(", ")}` : null,
     g.niche_path?.subcategory || g.niche_path?.specific ? `Niche in detail: ${[g.niche_path.subcategory, g.niche_path.specific].filter(Boolean).join(" > ")}` : null,
     g.focus ? `What the account is about: ${g.focus}` : null,
     g.business?.offer ? `What they sell or offer: ${g.business.offer}` : null,
