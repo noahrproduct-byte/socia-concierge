@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PLANS } from "./plans";
-import { MONTHLY_CREDITS, actionCredits } from "./credits/config";
+import { actionCredits, creditsOnSale } from "./credits/config";
 import { creditsForStrategy, recommendPlan, type PlanNeed } from "./planRecommend";
 
 const need = (o: Partial<PlanNeed> = {}): PlanNeed => ({ postsPerWeek: 3, competitors: 0, platforms: 1, brands: 1, mainGoal: "followers", ...o });
@@ -20,10 +20,10 @@ describe("the plan recommended for a strategy", () => {
   it("is the cheapest plan that covers it, never the biggest by default", () => {
     const r = rec();
     expect(r.plan).toBe("starter");
-    expect(MONTHLY_CREDITS.starter).toBeGreaterThanOrEqual(r.credits);
-    expect(MONTHLY_CREDITS.free).toBeLessThan(r.credits);
+    expect(creditsOnSale("starter")).toBeGreaterThanOrEqual(r.credits);
+    expect(creditsOnSale("free")).toBeLessThan(r.credits);
     expect(r.reasons[0]).toContain("3 posts a week");
-    expect(r.reasons[0]).toContain(`Starter includes ${MONTHLY_CREDITS.starter.toLocaleString("en-US")}`);
+    expect(r.reasons[0]).toContain(`Starter includes ${creditsOnSale("starter").toLocaleString("en-US")}`);
     expect(r.short).toBe(false);
     expect(rec({ postsPerWeek: 7 }).plan).toBe("starter");
   });
@@ -50,7 +50,7 @@ describe("the plan recommended for a strategy", () => {
   });
   it("says so when no plan covers the credits, instead of pretending one does", () => {
     const r = rec({ postsPerWeek: 21 });
-    if (MONTHLY_CREDITS.pro < r.credits) {
+    if (creditsOnSale("pro") < r.credits) {
       expect(r.short).toBe(true);
       expect(r.plan).toBe("pro");
       expect(r.reasons[0]).toContain("more than any plan includes");
