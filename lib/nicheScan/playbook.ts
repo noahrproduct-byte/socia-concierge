@@ -280,6 +280,17 @@ export function readPlaybook(v: unknown): Playbook | null {
 
 /** A playbook is refreshed after this long. */
 export const PLAYBOOK_FRESH_DAYS = 7;
+/** A read that reached no accounts at all: there was nothing to learn from, and nothing to count. */
+export const nothingRead = (p: Playbook | null | undefined): boolean => Boolean(p) && p!.scanned.accounts === 0 && p!.scanned.reels === 0;
+
+/**
+ * Whether a stored playbook still stands. One that read nothing because the
+ * brand had no niche yet stops standing the moment the brand has one (the
+ * read on connect runs before the niche is confirmed at onboarding).
+ */
+export const standsFor = (p: Playbook | null, now: Date, nicheNow: string | null | undefined): boolean =>
+  isFresh(p, now) && !(nothingRead(p) && !p!.niche && Boolean(nicheNow));
+
 export const isFresh = (p: Playbook | null, now: Date): boolean => Boolean(p && now.getTime() - Date.parse(p.builtAt) < PLAYBOOK_FRESH_DAYS * 86_400_000);
 
 /** One studied Reel from a model's answer, checked: only known enums, words trimmed, never a number. */

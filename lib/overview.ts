@@ -13,6 +13,7 @@ import { buildWindows, relText, type TimedPost } from "./postingTimes";
 import type { CalPost } from "./audience";
 import type { Deliverable } from "./schema";
 import type { ScheduledPost } from "./scheduling";
+import { planHeadline } from "./planHeadline";
 
 export const DAY_MS = 86400000;
 
@@ -693,7 +694,7 @@ export function buildFocus(plan: { id: string; data: Deliverable; created_at: st
     /reel|video/i.test(s) ? "REELS" : /local|location|geotag/i.test(s) ? "LOCAL" : /people|staff|face|customer|team/i.test(s) ? "PEOPLE" : /hook|caption|first line/i.test(s) ? "HOOKS" : /cta|order|book|link/i.test(s) ? "ORDERS" : "FOCUS";
   return {
     planId: plan.id,
-    headline: plan.data.headline,
+    headline: planHeadline(plan.data.headline),
     createdAt: plan.created_at,
     tiles: plan.data.topFixes.slice(0, 3).map((f) => ({ icon: iconFor(f.fix + " " + f.why), label: labelFor(f.fix + " " + f.why), title: f.fix, detail: f.why })),
   };

@@ -170,7 +170,7 @@ Use the competitors' Reels first, then the other niche Reels. Start with the hig
     );
   }
   parts.push(
-    `\n# Task\nProduce the full deliverable: a health score with a one-line diagnosis, an honest audit, the account's strengths, its concrete problems (with the evidence and the impact of each), the top 3 fixes ranked by expected impact, competitor insights with the specific gap this account should close, and ${input.onCamera != null ? `a plan of exactly ${input.onCamera} post${input.onCamera === 1 ? "" : "s"}` : "a 5-7 post plan"} for the coming week where each post has a written hook and cites its evidence.`,
+    `\n# Task\nProduce the full deliverable: a one-line diagnosis in plain words (no score, grade or rating out of 100: nothing here is measured), an honest audit, the account's strengths, its concrete problems (with the evidence and the impact of each), the top 3 fixes ranked by expected impact, competitor insights with the specific gap this account should close, and ${input.onCamera != null ? `a plan of exactly ${input.onCamera} post${input.onCamera === 1 ? "" : "s"}` : "a 5-7 post plan"} for the coming week where each post has a written hook and cites its evidence.`,
   );
 
   return parts.join("\n");

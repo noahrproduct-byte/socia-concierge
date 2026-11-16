@@ -14,6 +14,7 @@ import { ArrowRight } from "lucide-react";
 import type { Deliverable } from "@/lib/schema";
 import type { GrowthStrategy } from "@/lib/strategy";
 import { weekdayIndex } from "@/lib/scheduling";
+import { planHeadline } from "@/lib/planHeadline";
 
 // The week comes first: the Content Plan answers "what do I post this
 // week?" (redesign brief, 2026-11-03); the reasoning behind it follows.
@@ -90,7 +91,7 @@ export function OverviewSection({ data, onCalendar, onOpen }: { data: Deliverabl
     <>
       <section className="cpl-rsec">
         <h3>Account diagnosis</h3>
-        <p className="cpl-lede">{data.headline}</p>
+        <p className="cpl-lede">{planHeadline(data.headline)}</p>
         <p className="cpl-body">{data.auditSummary}</p>
       </section>
 
