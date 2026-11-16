@@ -1,9 +1,9 @@
 "use client";
 
-// Onboarding's last step: the plans, with the one that fits this brand's
-// strategy marked "Recommended for your goal" and the reasons under it
-// (lib/planRecommend.ts picks the cheapest plan that covers the strategy; it
-// is never "most popular"). Free stays as easy to choose as any other. A paid
+// Onboarding's last step: the plans, with the recommended one marked and the
+// reasons under it (lib/planRecommend.ts: Growth, or a bigger plan when the
+// brand already needs one; the reasons are built from the strategy and the
+// plan's own numbers). Free stays as easy to choose as any other. A paid
 // plan goes to Stripe Checkout and comes back here to finish; nothing is
 // charged or switched on from this screen itself.
 import { useEffect, useState } from "react";
@@ -68,7 +68,7 @@ export default function PlanStep({ headRef, onFree, busy, notice }: { headRef: R
               const disabled = busy || going !== null || (p.id !== "free" && !d.checkout);
               return (
                 <li key={p.id} className={rec ? "is-rec" : undefined}>
-                  {rec && <span className="obp-badge">{d.assumed != null ? `Recommended for ${d.assumed} posts a week` : "Recommended for your goal"}</span>}
+                  {rec && <span className="obp-badge">Recommended</span>}
                   <div className="obp-top">
                     <b>{p.name}</b>
                     <span className="obp-price">
