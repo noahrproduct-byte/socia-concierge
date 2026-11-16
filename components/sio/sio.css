@@ -1,0 +1,82 @@
+/* SIO, SOCIA's assistant character (components/sio/Sio.tsx). The character's
+   own colours are fixed: it is the same object on a light or a dark page. The
+   idle motion here (float, blink, the scan while a real job runs) is the
+   recorded exception in the anti-slop standard, section 18.1: small, on the
+   character only, and off with reduced motion or `still`. */
+.sio {
+  --sio-eye: #d9f1ff;
+  --sio-halo: #2f7bff;
+  --sio-shade: #1b2440;
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  flex: none;
+  line-height: 0;
+  user-select: none;
+}
+.sio-float { position: relative; display: block; animation: sio-float 5.6s ease-in-out infinite; }
+.sio-pose { position: relative; display: block; width: 100%; height: 100%; transform-origin: 50% 70%; transition: transform var(--t-panel) ease; }
+.sio-shell { display: block; width: 100%; height: 100%; }
+.sio-face { position: absolute; inset: 0; overflow: visible; }
+
+.sio-core { fill: var(--sio-eye); stroke: var(--sio-eye); stroke-linejoin: round; }
+.sio-halo { fill: var(--sio-halo); stroke: var(--sio-halo); stroke-linejoin: round; opacity: 0.7; }
+.sio-core rect, .sio-core ellipse, .sio-halo rect, .sio-halo ellipse { stroke: none; }
+.sio-cheeks { fill: var(--sio-halo); opacity: 0.75; }
+
+/* Eyes close and open about their own middle: the blink, and the change of expression. */
+.sio-eye { transform-box: fill-box; transform-origin: center; transition: transform 140ms ease-out; animation: sio-blink 7.4s linear infinite; }
+.sio.is-swap .sio-eye { transform: scaleY(0.08); transition-duration: 90ms; animation: none; }
+.sio-mouth { transition: opacity 140ms ease-out; }
+.sio.is-swap .sio-mouth { opacity: 0; transition-duration: 90ms; }
+/* Smiling eyes are already closed arcs, and the analysing bars are not eyelids: neither blinks. */
+.sio[data-expr="happy"] .sio-eye, .sio[data-expr="celebrating"] .sio-eye, .sio[data-expr="analyzing"] .sio-eye { animation: none; }
+
+/* How SIO holds its head for each state. */
+.sio[data-expr="thinking"] .sio-pose { transform: rotate(-4deg); }
+.sio[data-expr="listening"] .sio-pose { transform: scale(1.03) translateY(1%); }
+.sio[data-expr="concerned"] .sio-pose { transform: rotate(2.5deg) translateY(1.5%); }
+.sio[data-expr="celebrating"] .sio-pose { animation: sio-hop 620ms ease-out 1; }
+
+/* A real job is running: one soft line passes down the glass. */
+.sio-scan { fill: var(--sio-halo); opacity: 0.32; animation: sio-scan 2.4s ease-in-out infinite; }
+
+.sio-shadow { display: block; margin-top: -2%; }
+.sio-shadow ellipse { fill: var(--sio-shade); opacity: 0.22; transform-box: fill-box; transform-origin: center; animation: sio-shadow 5.6s ease-in-out infinite; }
+
+.sio.is-small .sio-halo { display: none; }
+.sio.is-small .sio-float, .sio.is-small .sio-eye { animation: none; }
+
+.sio.is-still .sio-float, .sio.is-still .sio-eye, .sio.is-still .sio-scan, .sio.is-still .sio-shadow ellipse, .sio.is-still .sio-pose { animation: none; }
+.sio.is-still .sio-scan { opacity: 0; }
+
+@keyframes sio-float {
+  0%, 100% { transform: translateY(0) rotate(-0.5deg); }
+  50% { transform: translateY(-2.2%) rotate(0.5deg); }
+}
+@keyframes sio-shadow {
+  0%, 100% { transform: scaleX(1); opacity: 0.22; }
+  50% { transform: scaleX(0.9); opacity: 0.16; }
+}
+/* Two blinks at uneven spacing, one of them double, in a cycle long enough not to read as a rhythm. */
+@keyframes sio-blink {
+  0%, 38%, 41.4%, 71%, 73.4%, 75%, 77.4%, 100% { transform: scaleY(1); }
+  39.7%, 72.2%, 76.2% { transform: scaleY(0.08); }
+}
+@keyframes sio-scan {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(360px); }
+}
+@keyframes sio-hop {
+  0% { transform: translateY(0) scale(1); }
+  35% { transform: translateY(-7%) scale(1.03); }
+  70% { transform: translateY(0.8%) scale(0.995); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sio-float, .sio-eye, .sio-scan, .sio-shadow ellipse, .sio[data-expr="celebrating"] .sio-pose { animation: none; }
+  .sio-eye, .sio-mouth, .sio-pose { transition: none; }
+  .sio-scan { opacity: 0; }
+}

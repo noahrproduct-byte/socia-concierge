@@ -76,6 +76,16 @@ function files(dir: string, ext: RegExp, out: string[] = []): string[] {
 
 type Counts = Record<string, Record<string, number>>;
 
+/**
+ * Recorded exceptions (the standard, section 18.1): one file, one sign, and
+ * the most of it that file may carry. Kept out of the baseline, so it is
+ * written down here and cannot grow by re-recording.
+ */
+const EXCEPTIONS: Counts = {
+  // SIO, the assistant character: its float, its blink, the scan while a real job runs, and its shadow.
+  "loop-animation": { "components/sio/sio.css": 4 },
+};
+
 function scan(): Counts {
   const tsx = [...files("app", /\.tsx$/), ...files("components", /\.tsx$/)];
   const css = [...files("app", /\.css$/), ...files("components", /\.css$/)];
@@ -85,7 +95,8 @@ function scan(): Counts {
     for (const f of list) {
       const raw = readFileSync(join(ROOT, f), "utf8");
       const n = rule.count(rule.kind === "tsx" ? stripComments(raw) : raw.replace(/\/\*[\s\S]*?\*\//g, ""));
-      if (n) (out[rule.id] ??= {})[f] = n;
+      const over = Math.max(0, n - (EXCEPTIONS[rule.id]?.[f] ?? 0));
+      if (over) (out[rule.id] ??= {})[f] = over;
     }
   }
   return out;
