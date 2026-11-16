@@ -262,6 +262,8 @@ export const TRANSITIONS = [
   { id: "tape", label: "Tape roll" },
   // The picture slides in from the right over the shot before.
   { id: "slide", label: "Slide" },
+  // A warm light-leak wash across the join (the owner's act change in the Osh reel, 2026-11-16).
+  { id: "leak", label: "Light leak" },
 ] as const;
 export type TransitionKind = (typeof TRANSITIONS)[number]["id"];
 export const isTransition = (v: unknown): v is TransitionKind => TRANSITIONS.some((t) => t.id === v);
@@ -568,7 +570,11 @@ export type BuildSource = {
   hasAudio?: boolean;
   /** its words are still being transcribed (no transcript yet and the clip's card is not built): the editor asks again in a while. A clip transcribed with no speech has words [] and is not. */
   transcribing?: boolean;
+  /** what the clip shows, from its card (for the two-act auto-edit): the subject, where, the action, and the tags */
+  story?: ClipStory;
 };
+/** What a clip shows, in a few words each, from its card. */
+export type ClipStory = { subject: string; setting: string; action: string; tags: string[]; people: ClipCard["people"] };
 
 export type BuildPlayerData = {
   build: StudioBuild;

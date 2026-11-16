@@ -13,6 +13,7 @@ import { TEXT_PRESETS, fitLine, isTextPresetId, type TextPresetId } from "@/lib/
 import { deepDiff, withOverrides, type Theme } from "./schema";
 import { themeById } from "./index";
 import { cleanPunches } from "../punch";
+import { THEMES } from "./index";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}$%]/gu, "");
@@ -114,6 +115,10 @@ export function applyTheme(edl: Edl, theme: Theme, ctx: ApplyContext = {}): Edl 
     return { ...rest, text: fit.text, presetId: fit.preset.id, ...(fit.slot ? { slot: fit.slot } : {}), ...(fit.shortened ? { shortened: true as const } : {}) };
   });
   const out: Edl = { ...edl, segments, text, style: styleFromTheme(theme), theme: { id: theme.id } };
+  // A theme without captions keeps them off (the switch the person has); leaving one for a theme with captions
+  // gives the switch back, and the auto-edit puts them on where there is speech.
+  if (theme.typography.captions === false) { out.captions = null; out.captionsOff = true; }
+  else if (edl.captionsOff && edl.theme?.id && THEMES.find((t) => t.id === edl.theme!.id)?.typography.captions === false) delete out.captionsOff;
   if (out.soundtrack) out.soundtrack = theme.audio.duck < 1 ? { ...out.soundtrack, duck: true } : (({ duck: _d, ...st }) => { void _d; return st; })(out.soundtrack);
   return out;
 }

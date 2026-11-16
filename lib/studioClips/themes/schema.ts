@@ -47,6 +47,8 @@ export const themeSchema = z.object({
     titleAnimation: z.enum(["pop", "rise", "wipe", "settle", "letters"]).default("settle"),
     /** A second face the key word of a caption page is set in (the "script" caption style); absent = the caption face. */
     scriptFont: z.enum(fontIds).optional(),
+    /** Word-by-word captions of the speech: off for a theme whose words are chapter lines only. */
+    captions: z.boolean().default(true),
   }),
   color: z.object({
     primary: hex,
@@ -113,6 +115,8 @@ export const themeSchema = z.object({
   pacing: z.object({
     /** Pull the strongest spoken line to the front as a big text hook. */
     hook: z.boolean(),
+    /** Two acts: the making first (fire, hands, raw food), then the enjoying (plates, pours, the room), a chapter line over each and a light leak at the change. */
+    acts: z.boolean().default(false),
     /** No cut runs longer than this before the next. */
     maxClipSec: z.number().min(1).max(20),
     /** A pause longer than this is trimmed out of speech. */

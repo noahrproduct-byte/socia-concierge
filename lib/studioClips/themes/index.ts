@@ -1,4 +1,4 @@
-// The eleven shipped themes. To add one: drop a JSON file in this folder that
+// The twelve shipped themes. To add one: drop a JSON file in this folder that
 // follows schema.ts, import it below and add it to THEMES (docs/editor/THEMES.md).
 import { parseTheme, type Theme } from "./schema";
 import cleanMinimal from "./clean-minimal.json";
@@ -12,8 +12,9 @@ import sociaBrand from "./socia-brand.json";
 import showroom from "./showroom.json";
 import mograph from "./mograph.json";
 import editorial from "./editorial.json";
+import story from "./story.json";
 
-export const THEMES: Theme[] = [showroom, mograph, editorial, cleanMinimal, boldHook, cinematic, luxury, energetic, talkingHead, retro, sociaBrand].map(parseTheme);
+export const THEMES: Theme[] = [showroom, story, mograph, editorial, cleanMinimal, boldHook, cinematic, luxury, energetic, talkingHead, retro, sociaBrand].map(parseTheme);
 
 export const themeById = (id: string | null | undefined): Theme | null => THEMES.find((t) => t.id === id) ?? null;
 export const isThemeId = (v: unknown): v is string => typeof v === "string" && THEMES.some((t) => t.id === v);

@@ -85,7 +85,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         await release?.();
         return NextResponse.json({ error: "SOCIA couldn't break that reference down. Try a clearer or shorter video." }, { status: 422 });
       }
-      ref = { name: reference.name, breakdown, brief: referenceBrief(breakdown, reference.durationSec, shotStats(reference)) };
+      ref = { name: reference.name, breakdown, brief: referenceBrief(breakdown, reference.durationSec, shotStats(reference), reference.cuts) };
     }
     const preset = (await readPresets(ctx).catch(() => null))?.brand ?? null;
     const build = await buildFromBrief(ctx.client, { ownerId: ctx.ownerId, wsId: ctx.workspace?.id ?? null, project, acct, prompt, reference: ref, preset, voiceover });

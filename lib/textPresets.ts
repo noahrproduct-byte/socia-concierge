@@ -34,8 +34,8 @@ export const frameScale = (width: number, height: number): number => Math.min(wi
 export type TextSlot = "top" | "middle" | "bottom";
 export const TEXT_SLOTS: { id: TextSlot; label: string }[] = [{ id: "top", label: "Top" }, { id: "middle", label: "Middle" }, { id: "bottom", label: "Bottom" }];
 
-export type TextPresetId = "hook_pair" | "step_label" | "hook_title" | "caption_bar" | "callout_box" | "lower_third" | "big_stat" | "subtitle" | "clip_headline";
-export const TEXT_PRESET_IDS: TextPresetId[] = ["hook_pair", "step_label", "hook_title", "caption_bar", "callout_box", "lower_third", "big_stat", "subtitle"];
+export type TextPresetId = "hook_pair" | "step_label" | "hook_title" | "caption_bar" | "callout_box" | "lower_third" | "big_stat" | "subtitle" | "clip_headline" | "chapter";
+export const TEXT_PRESET_IDS: TextPresetId[] = ["hook_pair", "step_label", "hook_title", "caption_bar", "callout_box", "lower_third", "big_stat", "subtitle", "chapter"];
 
 export type TextAnimation = "fade" | "pop";
 
@@ -176,6 +176,15 @@ export const TEXT_PRESETS: Record<TextPresetId, TextPreset> = {
     box: OUTLINE,
     align: "center", widthPct: 0.9, slot: "middle", time: { start: 0, end: 3 }, animation: "pop",
     lead: { font: { family: "anton", weight: 400 }, size: { min: 120, max: 190 }, color: BRAND.yellow, gap: 10 },
+  },
+  // The owner's own chapter line (the Osh "We make it" / "You enjoy it" reel, 2026-11-16): a small, thin serif
+  // in the middle of the frame, white with a soft shadow, that stays up through an act and changes with it.
+  chapter: {
+    id: "chapter", label: "Chapter", hint: "A small serif line in the middle that stays up through a part of the video.", sample: "We make it",
+    font: { family: "serif", weight: 400 }, size: { min: 30, max: 40 }, lineHeight: 1.2, letterSpacing: 0.02,
+    maxLines: 1, maxChars: 24, color: BRAND.white,
+    box: SHADOW,
+    align: "center", widthPct: 0.8, slot: "middle", time: { start: 0, end: 12 }, animation: "fade",
   },
   subtitle: {
     id: "subtitle", label: "Plain Subtitle", hint: "Smaller white words with a black outline at the bottom. Fits over anything.", sample: "we start the dough at 5am",

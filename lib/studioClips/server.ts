@@ -370,6 +370,7 @@ export async function buildPlayerData(client: Supa, ownerId: string, wsId: strin
         hasAudio: r.facts?.audio?.hasAudio ?? Boolean(r.audio_path),
         // Transcription runs before the card is built (lib/studioClips/job.ts): a clip with a card and no transcript is not getting one.
         transcribing: Boolean((r.facts?.audio?.hasAudio ?? Boolean(r.audio_path)) && !r.transcript && !r.card && r.status !== "failed" && r.status !== "expired"),
+        ...(r.card ? { story: { subject: r.card.subject, setting: r.card.setting, action: r.card.action, tags: r.card.tags ?? [], people: r.card.people } } : {}),
       };
     });
   const voicePaths = (row.edl?.voiceover?.lines ?? []).map((l) => l.path).filter((p): p is string => Boolean(p) && ownsVoicePath(ownerId, row.project_id, buildId)(p!));

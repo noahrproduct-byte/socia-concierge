@@ -19,7 +19,7 @@ import { cleanPunches } from "../punch";
 import { findTakes } from "../takes";
 import { settleCut } from "../cutCheck";
 import { muteSilentShots, shotSoundNote } from "../shotSound";
-import type { BrollItem, BuildSource, Edl, EdlSegment, EdlText, TranscriptWord } from "../types";
+import type { BrollItem, BuildSource, ClipStory, Edl, EdlSegment, EdlText, TranscriptWord } from "../types";
 import { MIN_CUT_SEC } from "../tracks";
 import { TEXT_PRESETS, fitLine, isTextPresetId, type TextPresetId } from "@/lib/textPresets";
 import type { Theme } from "./schema";
@@ -201,14 +201,69 @@ export function dropRepeatTakes(edl: Edl, ctx: AutoEditContext): { edl: Edl; dro
 }
 
 /** The theme's edit of the raw footage (see the file's header). */
+/** The owner's own two chapter lines (the Osh reel, 2026-11-16); the person can retype them. */
+export const ACT_LINES = ["We make it", "You enjoy it"] as const;
+const MAKING = /\b(kitchen|cook|cooking|chef|stove|flame|flames|fire|grill|grilling|pan|wok|skillet|pot|boil|fry|frying|sizzl|chop|chopping|slice|slicing|knead|dough|fold|folding|raw|prep|preparing|skewer|oven|charcoal|coals|smoke|ingredients|hands|mixing|stir|pour(?:ing)? (?:batter|oil|sauce|soup|broth)|roll(?:ing)?|cutting|baking|bake|tray|wrap|dumpling|manti)\b/i;
+const ENJOYING = /\b(plate|plated|plating|served|serving|table|dining|diner|diners|guest|guests|customer|customers|restaurant|interior|room|seating|seats|decor|lamp|wall|art|tea|teapot|cup|bowl of|drink|drinking|eating|eat|bite|tasting|taste|enjoy|cheers|toast|dessert|coffee|latte|glass|menu|front of house|counter|dish on|finished dish|ready to eat|garnish(?:ed)?|presentation)\b/i;
+/** Which act a clip belongs to from its card: the making, the enjoying, or neither. */
+export function actOf(story: ClipStory | undefined): "making" | "enjoying" | null {
+  if (!story) return null;
+  const text = [story.subject, story.setting, story.action, ...(story.tags ?? [])].join(" ");
+  const m = (text.match(new RegExp(MAKING.source, "gi")) ?? []).length;
+  const e = (text.match(new RegExp(ENJOYING.source, "gi")) ?? []).length + (story.people === "several" ? 1 : 0);
+  if (!m && !e) return null;
+  return m >= e ? "making" : "enjoying";
+}
+
+/**
+ * Two acts, the way the owner cut the Osh reel: every shot of the making first (fire, hands, raw food, the
+ * kitchen) in the order they came, then every shot of the enjoying (plates, pours, the room, the guests); a
+ * chapter line over each act; a light leak on the first shot of the second act. Shots whose clip says nothing
+ * stay with the act they sit in. Nothing happens when the footage has only one act.
+ */
+export function twoActs(edl: Edl, clips: ClipForEdl[]): { edl: Edl; applied: boolean } {
+  const byId = new Map(clips.map((c) => [c.id, c]));
+  const acts = edl.segments.map((s) => actOf(byId.get(s.clipId)?.story));
+  if (!acts.includes("making") || !acts.includes("enjoying")) return { edl, applied: false };
+  // A shot with no act takes the act of the nearest labelled shot before it (the first ones go with the making).
+  let last: "making" | "enjoying" = "making";
+  const labelled = acts.map((a) => { if (a) last = a; return last; });
+  const making = edl.segments.filter((_, i) => labelled[i] === "making");
+  const enjoying = edl.segments.filter((_, i) => labelled[i] === "enjoying");
+  if (!making.length || !enjoying.length) return { edl, applied: false };
+  const segments = [...making, ...enjoying].map((s, i) => {
+    const next: EdlSegment = { ...s };
+    if (i === 0) delete next.transition;
+    else if (i === making.length) next.transition = "leak";
+    else delete next.transition;
+    return next;
+  });
+  const secOf = (s: EdlSegment) => Math.max(0, s.out - s.in) / (s.motion?.speed?.rate ?? 1);
+  const act1 = making.reduce((a, s) => a + secOf(s), 0);
+  const total = segments.reduce((a, s) => a + secOf(s), 0);
+  const r1 = (n: number) => Math.round(n * 10) / 10;
+  const kept = edl.text.filter((t) => t.role === "cta");
+  const text: EdlText[] = [
+    { id: "act1", at: 0, end: r1(act1), text: ACT_LINES[0], role: "opening", presetId: "chapter", slot: "middle" },
+    { id: "act2", at: r1(act1), end: r1(total), text: ACT_LINES[1], role: "mid", presetId: "chapter", slot: "middle" },
+    ...kept,
+  ];
+  return { edl: { ...edl, segments, text }, applied: true };
+}
+
 export function autoEdit(edl: Edl, theme: Theme, ctx: AutoEditContext): AutoEditResult {
   const notes: string[] = [];
   let out: Edl = edl;
+  if (theme.pacing.acts) {
+    const acts = twoActs(out, ctx.clips);
+    if (acts.applied) { out = acts.edl; notes.push(`Two acts: the making first, then the enjoying, a chapter line over each (“${ACT_LINES[0]}”, “${ACT_LINES[1]}”), a light leak at the change.`); }
+    else notes.push("The clips don't show both the making and the enjoying, so the cut keeps its order; retype the chapter line in Words.");
+  }
   // Two takes of one line never both play: the cleanest stays.
   const takes = dropRepeatTakes(out, ctx);
   if (takes.dropped.length) { out = takes.edl; notes.push(`${takes.dropped.join("; ")}: only the cleanest take is in.`); }
   const anyWords = out.segments.some((s) => (ctx.words[s.clipId] ?? []).length);
-  if (anyWords && !out.captions && !out.captionsOff) out = { ...out, captions: { source: "transcript" } };
+  if (anyWords && !out.captions && !out.captionsOff && theme.typography.captions !== false) out = { ...out, captions: { source: "transcript" } };
   const dead = trimSilences(out, ctx.words, theme.pacing.silenceSec);
   if (dead.count) { out = dead.edl; notes.push(`${dead.seconds}s of dead air trimmed (${dead.count} pause${dead.count === 1 ? "" : "s"}).`); }
   if (theme.pacing.hook) {

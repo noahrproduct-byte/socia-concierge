@@ -481,6 +481,7 @@ function SegmentLayer({ s, index, into, out, effects, theme, softenFrom, childre
     <AbsoluteFill style={{ opacity: look.opacity, transform: css.transform, transformOrigin: css.transformOrigin }}>
       {children({ effects: fx.length ? fx : undefined, frame: f, cssFilter })}
       {look.flash > 0 ? <AbsoluteFill style={{ background: "#fff", opacity: look.flash, pointerEvents: "none" }} /> : null}
+      {look.leak > 0 ? <AbsoluteFill style={{ background: "linear-gradient(115deg, rgba(255,140,40,0.95) 0%, rgba(255,232,190,1) 55%, rgba(255,110,30,0.9) 100%)", opacity: Math.min(1, look.leak * 1.05), mixBlendMode: "screen", pointerEvents: "none" }} /> : null}
       {soft > 0 && <AbsoluteFill style={{ background: "linear-gradient(to top, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.25) 45%, rgba(0,0,0,0) 70%)", opacity: soft }} />}
     </AbsoluteFill>
   );

@@ -108,6 +108,10 @@ export type ReferenceBreakdown = {
   beats: { start: number; end: number; shows: string; onscreen: string; spoken: string }[];
   text: { position: "top" | "middle" | "bottom" | "none"; box: "dark" | "light" | "accent" | "none"; uppercase: boolean; size: "s" | "m" | "l"; font: FontId; accent: string };
   captions: boolean;
+  /** how the shots join, as seen ("hard cuts; one warm light leak at 12 s") */
+  transitions: string;
+  /** one line per shot, one line per part (a chapter), or no text */
+  textPattern: "per_shot" | "chapter" | "none";
 };
 
 export const BREAKDOWN_SCHEMA = {
@@ -135,8 +139,10 @@ export const BREAKDOWN_SCHEMA = {
       required: ["position", "box", "uppercase", "size", "font", "accent"],
     },
     captions: { type: "boolean" },
+    transitions: { type: "string" },
+    textPattern: { type: "string", enum: ["per_shot", "chapter", "none"] },
   },
-  required: ["summary", "hook", "pace", "ending", "beats", "text", "captions"],
+  required: ["summary", "hook", "pace", "ending", "beats", "text", "captions", "transitions", "textPattern"],
 } as const;
 
 const clip = (s: unknown, n: number) => (typeof s === "string" ? s.replace(/\s*\u2014\s*/g, ", ").replace(/\s+/g, " ").trim().slice(0, n) : "");
@@ -165,11 +171,16 @@ export function cleanBreakdown(raw: unknown, durationSec: number): ReferenceBrea
       accent: typeof t.accent === "string" && /^#[0-9a-fA-F]{6}$/.test(t.accent) ? t.accent.toLowerCase() : "",
     },
     captions: Boolean(o.captions),
+    transitions: clip(o.transitions, 200),
+    textPattern: pick(o.textPattern, ["per_shot", "chapter", "none"] as const, "per_shot"),
   };
 }
 
 /** The breakdown as the instructions the cut follows (stored with the build, shown back to the person). */
-export function referenceBrief(b: ReferenceBreakdown, durationSec: number, stats: ReturnType<typeof shotStats>): string {
+export function referenceBrief(b: ReferenceBreakdown, durationSec: number, stats: ReturnType<typeof shotStats>, cuts?: number[] | null): string {
+  // The shots' lengths in order, from the measured cuts: the cut follows them, not just their average.
+  const edges = [0, ...(cuts ?? []).filter((c) => c > 0.2 && c < durationSec - 0.2).sort((a, b) => a - b), durationSec];
+  const lengths = edges.slice(1).map((e, i) => Math.round((e - edges[i]) * 10) / 10).filter((l) => l >= 0.2);
   const lines = [
     `Recreate the structure, pacing and on-screen text style of a reference video, using only these clips (never its footage).`,
     `Reference: ${durationSec}s${stats.shots ? `, ${stats.shots} shots, a cut about every ${stats.medianShotSec}s` : ""}${stats.firstCutSec ? `, first cut at ${stats.firstCutSec}s` : ""}. ${b.summary}`,
@@ -178,6 +189,9 @@ export function referenceBrief(b: ReferenceBreakdown, durationSec: number, stats
     `Beats, in order:`,
     ...b.beats.map((x) => `- ${x.start}–${x.end}s: ${x.shows}${x.onscreen ? `. On screen: "${x.onscreen}"` : ""}${x.spoken ? `. Said: "${x.spoken}"` : ""}`),
     `Ending: ${b.ending}`,
+    ...(lengths.length > 1 && lengths.length <= 24 ? [`Shot lengths in order: ${lengths.map((l) => `${l}s`).join(", ")}. Give your shots these lengths in this order where the footage allows (the longest held shot is the one that matters most).`] : []),
+    ...(b.transitions ? [`Joins: ${b.transitions}. Use the same kinds at the same places ("leak" for a warm light wash, "flash" for a white frame, "fade" for a dissolve, "cut" otherwise).`] : []),
+    ...(b.textPattern === "chapter" ? [`Text pattern: chapter lines. One short line stays up through each part of the video and changes at the part change; put the same pattern here, a line per part, on from the part's first frame to its last, nothing else on screen.`] : b.textPattern === "none" ? [`Text pattern: none. No lines on screen.`] : []),
     `Match its length (within about 20%), its number of shots where the footage allows, and put on-screen lines at the same moments in the same pattern, rewritten for this account's own content. Reuse a line word for word only when it is generic ("wait for it", "part 2").`,
   ];
   return lines.join("\n").slice(0, 3000);

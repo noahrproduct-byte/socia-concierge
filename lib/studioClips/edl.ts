@@ -2,7 +2,7 @@
 // then rendered as a plain-language edit guide. The same EDL feeds the Player
 // in Phase B, so the guide and the preview can never disagree.
 import { cleanPunches } from "./punch";
-import type { AudioFacts, Edl, EdlAudio, EdlEnhance, EdlSegment, EdlText, GuideStep, SegmentFrame, TranscriptWord } from "./types";
+import type { AudioFacts, Edl, EdlAudio, EdlEnhance, EdlSegment, EdlText, GuideStep, SegmentFrame, TranscriptWord, ClipStory } from "./types";
 import { MAX_TEXT_LAYERS, TEXT_PRESETS, fitLine, isTextPresetId, isTextSlot, presetForLine } from "@/lib/textPresets";
 import { aspectOf, clipLabel, fmtClock, isSegmentPurpose, isStabilizeStrength, isTransition, type StabilizeStrength } from "./types";
 import { isHouseGenre } from "./houseStyle";
@@ -31,6 +31,8 @@ export type ClipForEdl = {
   position: number;
   durationSec: number;
   words: TranscriptWord[] | null;
+  /** what the clip shows, from its card, when known (the two-act auto-edit reads it) */
+  story?: ClipStory;
   silences: { start: number; end: number }[] | null;
   medianLuma: number | null;
   warmth: number | null;

@@ -33,6 +33,8 @@ export type TransitionLook = {
   whip: boolean;
   /** white wash over the frame, 0..1 (a flash transition's first frames) */
   flash: number;
+  /** warm light-leak wash over the join, 0..1, peaking at the cut (a leak transition) */
+  leak: number;
   /** the cut's sound level through its transitions, 0..1 */
   sound: number;
 };
@@ -59,7 +61,7 @@ export function transitionSound(frame: number, frames: number, overlapIn: number
 
 export function transitionLook(a: { frame: number; frames: number; into?: TransitionKind; overlapIn: number; out?: TransitionKind; overlapOut: number }): TransitionLook {
   const { inP, outP } = progress(a.frame, a.frames, a.into ? a.overlapIn : 0, a.out ? a.overlapOut : 0);
-  const look: TransitionLook = { opacity: 1, scale: 1, x: 0, y: 0, noise: 0, zoomBlur: 0, blur: 0, whip: false, flash: 0, sound: Math.min(1 - inP, 1 - outP) };
+  const look: TransitionLook = { opacity: 1, scale: 1, x: 0, y: 0, noise: 0, zoomBlur: 0, blur: 0, whip: false, flash: 0, leak: 0, sound: Math.min(1 - inP, 1 - outP) };
   switch (a.into) {
     case "fade": look.opacity = 1 - inP; break;
     // Slide: the incoming picture comes in from the right over the shot before, opaque the whole way.
@@ -70,8 +72,12 @@ export function transitionLook(a: { frame: number; frames: number; into?: Transi
     // The incoming whip is opaque for most of the move, so the frame never looks empty.
     case "whip": look.opacity = clamp01((1 - inP) / 0.4); look.x += 35 * inP; look.blur += 40 * inP; look.whip = true; break;
     case "flash": look.flash = a.frame === 0 ? 1 : a.frame === 1 ? 0.55 : 0; break;
+    // Leak: the incoming shot is there from its first frame; a warm wash over it fades out through the overlap.
+    case "leak": look.leak = Math.max(look.leak, inP); break;
   }
   switch (a.out) {
+    // Leak: the wash builds over the outgoing shot's last frames, so it peaks on the cut itself.
+    case "leak": look.leak = Math.max(look.leak, outP); break;
     case "zoom": look.scale *= 1 + 0.08 * outP; look.zoomBlur += 20 * outP; break;
     // slide: the outgoing cut stays as it is under the incoming one.
     case "whip": look.x -= 35 * outP; look.blur += 40 * outP; look.whip = true; break;

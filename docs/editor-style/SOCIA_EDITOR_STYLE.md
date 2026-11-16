@@ -78,6 +78,13 @@ One dish per cream card, lower-left, 1.4–1.8 s each: dish name in serif caps, 
 ### saas_demo / motion_animation (Socia)
 Open on the product claim in kinetic type. Screen recordings or stick-figure animation with wipes and zooms, no hard cuts, 60 fps for animation. Palette: black, grey, neon blue only. CTA while pre-launch: "comment SOCIA for early access" — no URL.
 
+### two_act_story (Osh "We make it / You enjoy it", 2026-11-16)
+- 18–24 s, 8–10 shots, median 2.2 s, hard cuts; one warm light-leak wash at the act change (~12 s of 21).
+- Act one, the making: open on the most alive continuous move (a wok toss with flames) for 3–4 s, already moving; kitchen shots 1.3–3 s; the hands at work held longest (5–6 s).
+- Act two, the enjoying: plates, a pour, the room, the guests, 1.5–2.5 s each; end on the room 2–3 s.
+- Text: one small, thin, white serif line in the middle of the frame per act, on from the act's first frame to its last; nothing else; no captions.
+- No grade, no motion, no lower third, no ending card. Music from the platform.
+
 ## 5. Don't
 
 - No jump cuts in talking-head reels.

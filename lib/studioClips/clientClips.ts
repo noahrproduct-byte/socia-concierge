@@ -6,5 +6,5 @@ import type { BuildSource } from "./types";
 
 export function clipsForEdl(sources: Record<string, BuildSource> | BuildSource[]): ClipForEdl[] {
   const list = Array.isArray(sources) ? sources : Object.values(sources);
-  return list.map((s) => ({ id: s.clipId, position: s.position, durationSec: s.durationSec, words: s.words?.length ? s.words : null, silences: null, medianLuma: null, warmth: null, brightness: null, contrastLevel: null, rmsDb: null, audioLevel: null, hasSpeech: Boolean(s.words?.length) }));
+  return list.map((s) => ({ id: s.clipId, position: s.position, durationSec: s.durationSec, words: s.words?.length ? s.words : null, ...(s.story ? { story: s.story } : {}), silences: null, medianLuma: null, warmth: null, brightness: null, contrastLevel: null, rmsDb: null, audioLevel: null, hasSpeech: Boolean(s.words?.length) }));
 }

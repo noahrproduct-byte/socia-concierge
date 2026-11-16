@@ -7,7 +7,7 @@ A theme is one declarative object that fully describes an edit: typography, colo
 | Path | What |
 | --- | --- |
 | `lib/studioClips/themes/schema.ts` | The `Theme` zod schema (the single source of truth for every field and its bounds), `parseTheme`, `deepMerge`, `deepDiff`, `withOverrides` |
-| `lib/studioClips/themes/*.json` | The eleven shipped themes; `showroom.json` is the default every new cut gets; `mograph.json` and `editorial.json` are the owner's own hand edits as themes (2026-11-15) |
+| `lib/studioClips/themes/*.json` | The twelve shipped themes; `showroom.json` is the default every new cut gets; `mograph.json` and `editorial.json` are the owner's own hand edits as themes (2026-11-15) |
 | `lib/studioClips/themes/index.ts` | The registry (`THEMES`, `themeById`, `isThemeId`) |
 | `lib/studioClips/themes/apply.ts` | `applyTheme`, `setThemeOverride`, `resetToTheme`, `resolveTheme`, `styleFromTheme` |
 | `lib/studioClips/themes/autoEdit.ts` | The edit a theme makes from the raw footage (captions, dead air, hook, B-roll pacing and overlay, beat) |
@@ -121,4 +121,16 @@ Two themes written from the owner's own Remotion edits, so a cut can start the w
 - **Editorial** (the Vox-style explainer and the newspaper piece): Playfair Display, captions lower left in sentence case with the yellow marker sweeping under each word (the `vox` caption style), a slow push into every shot, a 5% step on emphasis, titles that rise and settle, a bar lower third, a CTA ending; warm paper tones, grain and vignette; cinematic music, no pops.
 
 Both keep the house rules the theme test holds every theme to: captions of at most five words, a key-word highlight, no logo-first intro, cuts by default.
+
+## Two acts (2026-11-16): the owner's Osh reel, studied
+
+The owner cut a 21 s reel for Osh Restaurant by hand and sent it to be learned from. Measured: 2160×3840 at 60 fps, 9 shots, hard cuts, median shot 2.2 s. It opens on one continuous wok toss with flames for 3.9 s (the scene detector read the flares as cuts; they are not), the hands folding manti hold 5.5 s (the longest shot), it ends on the dining room for 2.2 s. The only transition is a warm light-leak wash at 12.2 s, where the kitchen gives way to the front of house. The only text is one small, thin, white serif line in the middle of the frame: "We make it" through the kitchen shots, "You enjoy it" through the plates, the tea pour and the room. No captions, no grade, no motion; the music comes from the platform.
+
+What it became:
+
+- **Theme `story` ("Two acts")**: `titlePreset: "chapter"` (a new text preset: small Instrument Serif, white, soft shadow, middle slot, fade), `typography.captions: false` (captions stay off), no motion, cuts, `transitionFrames: 14` for the leak, no lower third, no ending card, lo-fi music, no pops, `pacing.acts: true`.
+- **The two-act auto-edit** (`twoActs` in `autoEdit.ts`): each clip's card (`story` on the source: subject, setting, action, tags, people) says whether it is the making (fire, hands, raw food, the kitchen) or the enjoying (plates, pours, the table, the room, guests). The making shots come first in their order, the enjoying after; a chapter line over each act ("We make it", "You enjoy it", retypable in Words); a `leak` join on the first shot of the second act. Footage with only one act is left in its order.
+- **The `leak` transition**: a warm wash that builds over the outgoing shot's last frames and fades off the incoming one (`transitions.ts`, drawn as a screen-blended gradient in the composition; the overlap is the theme's `transitionFrames`).
+- **The brief model**: a `two_act_story` house genre with the measured numbers, the chapter-line rule and the leak at the act change (`houseStyle.ts`), so a cut made from a brief or a reference can be built this way from the start.
+- **References**: the breakdown now records the joins seen and the text pattern (per shot, chapter, or none), and the brief lists every shot length in order, so a cut follows the reference shot for shot, not just on average.
 

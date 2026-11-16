@@ -17,9 +17,10 @@ export type HouseGenre =
   | "food_reel_text_led"
   | "product_ab"
   | "talking_head_reel"
-  | "saas_demo";
+  | "saas_demo"
+  | "two_act_story";
 
-export const HOUSE_GENRE_IDS: readonly HouseGenre[] = ["one_take_skit", "before_after_match", "sports_montage", "food_reel", "food_reel_text_led", "product_ab", "talking_head_reel", "saas_demo"] as const;
+export const HOUSE_GENRE_IDS: readonly HouseGenre[] = ["one_take_skit", "before_after_match", "sports_montage", "food_reel", "food_reel_text_led", "product_ab", "talking_head_reel", "saas_demo", "two_act_story"] as const;
 export const isHouseGenre = (v: unknown): v is HouseGenre => HOUSE_GENRE_IDS.includes(v as HouseGenre);
 
 /** Measured pacing per genre: median shot length and cuts per 10 s. */
@@ -35,6 +36,8 @@ export const HOUSE_PACING: Record<HouseGenre, { medianShotSec: [number, number];
   product_ab: { medianShotSec: [1.6, 2.4], cutsPer10s: [2.7, 3.3], lengthSec: [15, 22], heroHoldSec: [8, 8] },
   talking_head_reel: { medianShotSec: [41, 45], cutsPer10s: [0, 0], lengthSec: [40, 45], heroHoldSec: [0, 0] },
   saas_demo: { medianShotSec: [45, 47], cutsPer10s: [0, 0], lengthSec: [45, 125], heroHoldSec: [0, 0] },
+  // The owner's Osh reel (2026-11-16): 21 s, 9 shots, median 2.2 s, the hands at work held 5.5 s.
+  two_act_story: { medianShotSec: [1.8, 2.6], cutsPer10s: [3, 4.5], lengthSec: [18, 24], heroHoldSec: [5, 6] },
 };
 
 /**
@@ -52,6 +55,7 @@ First decide which genre the footage and brief are, then cut to that genre's num
 - food_reel_text_led (one named dish per shot): about 32 s, one text line per dish for 1.4–1.8 s each, hold the last three 3 s.
 - product_ab (owner comparing two products, rugs, furniture): 15–22 s. Owner's question on camera in the first 2–3 s ("which one would you take?"). Label the options A and B in text. Detail shots 1.6–1.8 s; one side-by-side hold up to 8 s. End on the product, no closing card.
 - talking_head_reel (one speaker, one take): 40–45 s. Start on the strongest line, mid-sentence if needed. No jump cuts: one continuous segment, or segments that pick up exactly where the last left off; zoom to punch in. Text: 2–4 words per line that follow the speech, at most three lines.
+- two_act_story (a kitchen or workshop AND the front of house in the footage, nobody talking): 18–24 s, 8–10 segments. Act one, the making: open on the most alive continuous move (flames, a toss, a pour) for 3–4 s already moving, then the kitchen in 1.3–3 s shots, the hands at work held longest (5–6 s). Act two, the enjoying: plates, a pour, the room, the guests, 1.5–2.5 s each, end on the room 2–3 s. One small chapter line per act in the middle of the frame, 3 words, on from the act's first frame to its last ("We make it" / "You enjoy it" is the pattern; write the business's own pair), nothing else on screen, no captions. The act change is a "leak" transition; every other join is a cut.
 - saas_demo (screen recordings, product UI): 45 s. Open on the product claim as a text line. "zoom" and "fade" only, no hard cuts. While SOCIA is pre-launch its ask is "comment SOCIA for early access", never a URL.
 Rules that hold in every genre:
 - A text line at 0 s is mandatory for every business genre except a visual one-take reveal: a POV line, a quoted line, a question ("Can you guess the price?") or a label. Never the brand name, never ad copy. 27 of the 50 top reels open this way.
@@ -85,13 +89,14 @@ export const HOUSE_TRANSITIONS: Record<HouseGenre, readonly TransitionKind[]> = 
   product_ab: ["cut", "fade"],
   talking_head_reel: ["cut", "zoom"],
   saas_demo: ["zoom", "fade"],
+  two_act_story: ["cut", "leak"],
 };
 
 /** Genres whose ask belongs in the caption, never on screen (49 of 50 top reels). */
-const CTA_IN_CAPTION: ReadonlySet<HouseGenre> = new Set<HouseGenre>(["one_take_skit", "before_after_match", "sports_montage", "food_reel", "food_reel_text_led", "product_ab", "talking_head_reel"]);
+const CTA_IN_CAPTION: ReadonlySet<HouseGenre> = new Set<HouseGenre>(["one_take_skit", "before_after_match", "sports_montage", "food_reel", "food_reel_text_led", "product_ab", "talking_head_reel", "two_act_story"]);
 
 /** Genres that open on a text line (a POV, a quote, a question or a label) at 0 s. */
-const OPENING_LINE: ReadonlySet<HouseGenre> = new Set<HouseGenre>(["before_after_match", "food_reel", "food_reel_text_led", "product_ab", "talking_head_reel", "saas_demo"]);
+const OPENING_LINE: ReadonlySet<HouseGenre> = new Set<HouseGenre>(["before_after_match", "food_reel", "food_reel_text_led", "product_ab", "talking_head_reel", "saas_demo", "two_act_story"]);
 
 export type HouseChange = { rule: "length" | "transition" | "cta" | "opening" | "one_take" | "before_after"; what: string };
 
