@@ -9,6 +9,7 @@
 // that is already written is read back, not written twice.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { STAGES, type BuildEvent, type Reveal, type StageId } from "@/lib/onboardingBuild";
+import { toolCount } from "@/lib/onboardingTools";
 import StageList, { afterEvent, readLines, waiting, type StageState } from "./StageList";
 
 const fresh = (): Record<StageId, StageState> => ({ accounts: waiting(), content: waiting(), niche: waiting(), strategy: waiting() });
@@ -94,10 +95,31 @@ export default function StrategyStep({ onReady, headRef }: { onReady: (ready: bo
               )}
             </section>
           )}
-          <section>
-            <h2>What you will use in SOCIA</h2>
-            <ul className="obs-pillars">{reveal.tools.map((x) => <li key={x.name}><b>{x.name}</b><small>{x.what}</small></li>)}</ul>
-          </section>
+          {reveal.tools.length > 0 && (() => {
+            const count = toolCount(reveal.tools);
+            return (
+              <section className="obt">
+                <h2>What you get in SOCIA</h2>
+                <p className="obs-lead">{count.all} tools, all working from the strategy above.</p>
+                <p className="obs-note">
+                  {count.included === count.all ? "All of them are on your plan." : `${count.included} are on your plan now. The rest are marked with the plan they start on, and you choose a plan on the next step.`}
+                </p>
+                {reveal.tools.map((g) => (
+                  <div key={g.group} className="obt-group">
+                    <h3>{g.group}</h3>
+                    <ul className="obt-list">
+                      {g.tools.map((t) => (
+                        <li key={t.name}>
+                          <div className="obt-top"><b>{t.name}</b><span className={t.included ? "obt-from" : "obt-from is-up"}>{t.from}</span></div>
+                          <small>{t.what}</small>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </section>
+            );
+          })()}
           {reveal.basedOn.length > 0 && (
             <section>
               <h2>What this is based on</h2>

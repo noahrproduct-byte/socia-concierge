@@ -7,6 +7,8 @@
 // nothing is predicted and no result is promised. Pure and browser-safe.
 import { GOAL_PLATFORM_NAME, MAIN_GOALS, formatGoalValue, goalMetric, type Goal, type GoalMetricId, type GoalPlatform, type MainGoalId } from "./growth";
 import type { GrowthStrategy } from "./strategy";
+import { toolGroups, type ToolGroup } from "./onboardingTools";
+import type { PlanId } from "./plans";
 
 export const STAGES = [
   { id: "accounts", label: "Reading your accounts" },
@@ -35,7 +37,8 @@ export type Reveal = {
   start: { label: string; value: string; where: string }[];
   priorities: string[];
   week: { posts: number; why: string; pillars: { name: string; why: string }[] } | null;
-  tools: { name: string; what: string; href: string }[];
+  /** Every SOCIA tool, grouped by job, each marked with the plan it starts on (lib/onboardingTools.ts). */
+  tools: ToolGroup[];
   basedOn: string[];
 };
 
@@ -83,24 +86,6 @@ export function feasibility(input: { metric: GoalMetricId; now: number | null; t
   return { level: "very_ambitious", line: `${facts} That is ${Math.round(ratio)} times your recent pace: very ambitious.` };
 }
 
-/** The SOCIA tools that fit a goal, each a real screen. Three at most: what this person would use first. */
-export function toolsFor(goal: MainGoalId | null | undefined, has: { animated: boolean; competitors: boolean }): Reveal["tools"] {
-  const plan = { name: "Content Plan", what: "Writes each week's posts from your goal, your own results and your niche.", href: "/plan" };
-  const rater = { name: "Content Rater", what: "Scores a video before you post it and says what to fix in the opening.", href: "/studio" };
-  const calendar = { name: "Calendar", what: "Schedules the week so posts go out when your audience is there.", href: "/plan/calendar" };
-  const discover = { name: "Discover", what: "Shows what is working for accounts like yours, with the Reels to learn from.", href: "/discover" };
-  const animated = { name: "Animated videos", what: "Makes videos for plan posts that need no filming.", href: "/plan" };
-  const analytics = { name: "Analytics", what: "Tracks your numbers against the goal you just set.", href: "/analytics" };
-  const byGoal: Record<MainGoalId, Reveal["tools"]> = {
-    views: [plan, rater, has.competitors ? discover : analytics],
-    followers: [plan, has.competitors ? discover : rater, analytics],
-    engagement: [plan, rater, analytics],
-    local_customers: [plan, calendar, has.animated ? animated : rater],
-    bookings_orders: [plan, calendar, has.animated ? animated : rater],
-  };
-  return (goal && byGoal[goal]) || [plan, rater, analytics];
-}
-
 const where = (ps: GoalPlatform[]) => ps.map((p) => GOAL_PLATFORM_NAME[p]).join(" and ");
 
 /** Everything the reveal shows, from what was read and written. */
@@ -111,7 +96,9 @@ export function buildReveal(input: {
   strategy: GrowthStrategy | null;
   gained: number | null;
   gainedDays: number;
-  has: { animated: boolean; competitors: boolean };
+  /** The plan the person is on, and how many competitors the brand tracks: what the tools list is marked against. */
+  plan: PlanId;
+  competitors: number;
   today: string;
 }): Reveal {
   const main = MAIN_GOALS.find((m) => m.id === input.mainGoal) ?? null;
@@ -133,7 +120,7 @@ export function buildReveal(input: {
     start,
     priorities: (s?.priorities ?? []).slice(0, 3),
     week: s ? { posts: s.frequency.posts_per_week, why: s.frequency.why, pillars: s.pillars.slice(0, 4) } : null,
-    tools: toolsFor(input.mainGoal, input.has),
+    tools: toolGroups({ plan: input.plan, posts: s?.frequency.posts_per_week ?? null, target: g ? `${formatGoalValue(g.metric, g.target)}${unit}`.trim() : null, competitors: input.competitors }),
     basedOn: (s?.based_on ?? []).slice(0, 6),
   };
 }
