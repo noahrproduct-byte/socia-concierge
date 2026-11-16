@@ -2,13 +2,14 @@
 
 // Onboarding's goal step (Noah, 2026-11-15): pick one or more goals. Each
 // shows where the account is now (read from the connected accounts when SOCIA
-// can measure it, typed when it can't) and a target that is filled in as a
-// plain rule above that number (lib/goalStep.ts suggestTarget) for the person
-// to change. One timeframe covers all of them, 30 days unless changed. The
-// first goal picked is the main goal. Nothing here says a target will be met.
+// can measure it, typed when it can't) and a target the person sets
+// themselves: SOCIA doesn't fill one in (Noah, 2026-11-16: it offered 37
+// followers when he wanted 5,000). One timeframe covers all of them, 30 days
+// unless changed. The first goal picked is the main goal. Nothing here says a
+// target will be met.
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { GOAL_PLATFORM_NAME, MAIN_GOALS, formatGoalValue, goalMetric, type Goal, type GoalMetricId, type GoalPlatform, type MainGoalId } from "@/lib/growth";
-import { TIMEFRAMES, daysUntil, dueFor, dueIn, goalStepError, goalStepSummary, suggestRule, suggestTarget, targetNumber, type Timeframe } from "@/lib/goalStep";
+import { TIMEFRAMES, daysUntil, dueFor, dueIn, goalStepError, goalStepSummary, targetNumber, type Timeframe } from "@/lib/goalStep";
 import { Field, Input } from "@/components/system";
 import { Choices } from "@/components/growth/GrowthFields";
 
@@ -44,9 +45,8 @@ const GoalStep = forwardRef<GoalStepHandle, Props>(function GoalStep({ tableRead
     const start = [initial.main, ...(initial.others ?? [])].filter((g): g is MainGoalId => Boolean(g));
     return start.length ? [...new Set(start)] : suggested ? [suggested.goal] : [];
   });
-  // What the person typed, per goal. A target they haven't touched follows the rule.
+  // What the person typed, per goal.
   const [targets, setTargets] = useState<Partial<Record<MainGoalId, string>>>({});
-  const [edited, setEdited] = useState<Partial<Record<MainGoalId, boolean>>>({});
   const [typedNow, setTypedNow] = useState<Partial<Record<MainGoalId, string>>>({});
   const [frame, setFrame] = useState<Timeframe>(30);
   const [due, setDue] = useState("");
@@ -75,15 +75,15 @@ const GoalStep = forwardRef<GoalStepHandle, Props>(function GoalStep({ tableRead
       seeded.current = true;
       const goals = (Array.isArray(j?.goals) ? j.goals : []) as Goal[];
       setSaved(goals);
-      const t: Partial<Record<MainGoalId, string>> = {}, e: Partial<Record<MainGoalId, boolean>> = {}, n: Partial<Record<MainGoalId, string>> = {};
+      const t: Partial<Record<MainGoalId, string>> = {}, n: Partial<Record<MainGoalId, string>> = {};
       for (const m of MAIN_GOALS) {
         const g = goals.find((x) => x.metric === m.metric);
         if (!g) continue;
-        t[m.id] = show(m.metric, g.target); e[m.id] = true;
+        t[m.id] = show(m.metric, g.target);
         const at = g.current_value ?? g.baseline;
         if (!goalMetric(m.metric)?.measuredOn.length && at != null) n[m.id] = show(m.metric, at);
       }
-      setTargets((v) => ({ ...t, ...v })); setEdited((v) => ({ ...e, ...v })); setTypedNow((v) => ({ ...n, ...v }));
+      setTargets((v) => ({ ...t, ...v })); setTypedNow((v) => ({ ...n, ...v }));
       const primary = goals.find((g) => g.kind === "primary" && g.due_date && g.due_date > today);
       if (primary?.due_date) {
         const preset = TIMEFRAMES.find((d) => dueIn(d, today) === primary.due_date);
@@ -103,9 +103,7 @@ const GoalStep = forwardRef<GoalStepHandle, Props>(function GoalStep({ tableRead
     const metric = goalMetric(goal.metric)!;
     const read = nowValues?.[goal.metric] ?? null;
     const now = read ? read.value : targetNumber(typedNow[id] ?? "");
-    const rule = days ? suggestTarget(goal.metric, now, days) : null;
-    const target = edited[id] ? targets[id] ?? "" : rule != null ? show(goal.metric, rule) : "";
-    return { goal, metric, read, now, rule, target, manual: !metric.measuredOn.length };
+    return { goal, metric, read, now, target: targets[id] ?? "", manual: !metric.measuredOn.length };
   }
 
   useImperativeHandle(ref, () => ({
@@ -195,21 +193,16 @@ const GoalStep = forwardRef<GoalStepHandle, Props>(function GoalStep({ tableRead
                   )}
                   <Field label={`Target${unit}`} error={bad ? err!.text : undefined}>
                     <Input inputMode="decimal" value={v.target} aria-invalid={bad || undefined}
-                      onChange={(e) => { setTargets((x) => ({ ...x, [id]: e.target.value })); setEdited((x) => ({ ...x, [id]: true })); setErr(null); }} />
+                      onChange={(e) => { setTargets((x) => ({ ...x, [id]: e.target.value })); setErr(null); }} />
                   </Field>
                 </div>
-                <p className="gp-note" role="status">
-                  {v.rule != null && !edited[id] ? `Target filled in at ${suggestRule(days!)}. Change it to the number you want.`
-                    : v.rule != null && edited[id] && targetNumber(v.target) !== v.rule ? (
-                      <>Your own target. <button type="button" className="ob-linkbtn" onClick={() => setEdited((x) => ({ ...x, [id]: false }))}>Use {show(v.goal.metric, v.rule)} ({suggestRule(days!)})</button></>
-                    )
-                    : v.rule != null ? `That is ${suggestRule(days!)}.`
-                    : v.now === 0 ? "You're starting from zero, so set the number you want to reach."
-                    : !days ? "Choose when you want to reach it and SOCIA fills in a target you can change."
-                    : v.manual ? "Type where you are now and SOCIA fills in a target you can change."
-                    : nowValues ? "SOCIA couldn't read where you are now for this goal. Type it to get a target filled in, or set your own. Your starting point is recorded from the account when the numbers arrive."
-                    : "Reading where you are now."}
-                </p>
+                {!v.read && (
+                  <p className="gp-note" role="status">
+                    {v.manual ? "Type where you are now, so progress is measured from it."
+                      : nowValues ? "SOCIA couldn't read where you are now for this goal. You can type it; your starting point is recorded from the account when the numbers arrive."
+                      : "Reading where you are now."}
+                  </p>
+                )}
               </>
             )}
           </section>
