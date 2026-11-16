@@ -26,7 +26,7 @@ export default async function AiStudio() {
       </>
     );
   }
-  const balance = await creditBalance(ctx.ownerId, ent.plan).catch(() => null);
+  const balance = await creditBalance(ctx.ownerId, ent).catch(() => null);
   return (
     <>
       <PageHeader title="AI Studio" sub="Ideas from your brand, made into AI videos and images." />

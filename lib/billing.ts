@@ -44,6 +44,8 @@ export type SubscriptionState = {
   customerId: string | null;
   subscriptionId: string;
   priceId: string | null;
+  /** What the subscriber pays a month, in cents (lib/credits: Pro's credits follow it). Null when unknown. */
+  priceCents: number | null;
 };
 
 const iso = (unix: number | null | undefined): string | null => (unix ? new Date(unix * 1000).toISOString() : null);
@@ -76,6 +78,7 @@ export function stateFromSubscription(sub: Stripe.Subscription): SubscriptionSta
     customerId: typeof sub.customer === "string" ? sub.customer : sub.customer?.id ?? null,
     subscriptionId: sub.id,
     priceId,
+    priceCents: typeof price?.unit_amount === "number" ? (recurring === "year" ? Math.round(price.unit_amount / 12) : price.unit_amount) : null,
   };
 }
 
@@ -94,7 +97,10 @@ export async function applySubscription(svc: Supa, userId: string, sub: Stripe.S
   };
   if (s.plan != null) row.plan = s.plan;
   if (s.customerId) row.stripe_customer_id = s.customerId;
-  const { error } = await svc.from("profiles").update(row).eq("user_id", userId);
+  // The monthly price paid (supabase/subscription-price.sql). Before that file runs the
+  // column doesn't exist, so the update is retried without it rather than failing.
+  let { error } = await svc.from("profiles").update({ ...row, subscription_price_cents: s.priceCents }).eq("user_id", userId);
+  if (error && /subscription_price_cents/.test(error.message ?? "")) ({ error } = await svc.from("profiles").update(row).eq("user_id", userId));
   if (error) throw new Error(`[billing] profile update failed: ${error.message}`);
   return s;
 }

@@ -87,3 +87,28 @@ describe("credits kept when one of SOCIA's own clip jobs stops early", () => {
     for (const minutes of [1, 5, 60, 600]) expect(clipCreditsKept(minutes, 1e6, "transcription") * CREDIT_USD).toBeGreaterThanOrEqual(minutes * CLIP_TRANSCRIBE_USD_PER_MINUTE);
   });
 });
+
+describe("Pro's credits follow the price paid", () => {
+  it("gives full-price Pro subscribers more, and launch-price or unknown ones the launch amount", async () => {
+    const { planCredits, FULL_PRICE_CREDITS } = await import("./config");
+    const { FULL_PRICE } = await import("@/lib/launch");
+    expect(planCredits("pro", Math.round(FULL_PRICE.pro * 100))).toBe(FULL_PRICE_CREDITS.pro);
+    expect(planCredits("pro", 4999)).toBe(MONTHLY_CREDITS.pro);
+    expect(planCredits("pro", null)).toBe(MONTHLY_CREDITS.pro);
+    expect(planCredits("starter", Math.round(FULL_PRICE.starter * 100))).toBe(MONTHLY_CREDITS.starter);
+  });
+
+  it("keeps a full month of full-price Pro credits under 65% of the full price", async () => {
+    const { FULL_PRICE_CREDITS } = await import("./config");
+    const { FULL_PRICE } = await import("@/lib/launch");
+    expect(((FULL_PRICE_CREDITS.pro ?? 0) * CREDIT_USD) / MARGIN).toBeLessThan(FULL_PRICE.pro * 0.65);
+  });
+
+  it("sells the launch amounts until the launch ends, the full-price amounts after", async () => {
+    const { creditsOnSale, FULL_PRICE_CREDITS } = await import("./config");
+    const { LAUNCH_ENDS_AT } = await import("@/lib/launch");
+    expect(creditsOnSale("pro", LAUNCH_ENDS_AT - 1)).toBe(MONTHLY_CREDITS.pro);
+    expect(creditsOnSale("pro", LAUNCH_ENDS_AT)).toBe(FULL_PRICE_CREDITS.pro);
+    expect(creditsOnSale("growth", LAUNCH_ENDS_AT)).toBe(MONTHLY_CREDITS.growth);
+  });
+});

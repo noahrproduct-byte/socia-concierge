@@ -158,6 +158,8 @@ export type Entitlements = {
   perk?: boolean;
   userId: string;
   plan: PlanId;
+  /** What the subscriber pays a month, in cents, as Stripe last reported (supabase/subscription-price.sql). Null when unknown or not paying. */
+  priceCents?: number | null;
   /** Defaults merged with any database overrides. */
   config: PlanConfig;
   /** The monthly period. Most meters run on it; kept as `period` for older call sites. */
@@ -173,7 +175,21 @@ export function meterPeriod(ent: Entitlements, meter: MeterKey): UsagePeriod {
   return ent.periods[METER_PERIOD[meter]];
 }
 
-async function readProfilePlan(supabase: Supa, userId: string): Promise<{ plan: PlanId; overrides: unknown }> {
+async function readProfilePlan(supabase: Supa, userId: string): Promise<{ plan: PlanId; overrides: unknown; priceCents?: number | null }> {
+  // The price paid arrives with supabase/subscription-price.sql; until then this first select errors and the next one runs.
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("plan, entitlement_overrides, subscription_price_cents")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!error) {
+      const cents = (data as { subscription_price_cents?: unknown } | null)?.subscription_price_cents;
+      return { plan: normalizePlan(data?.plan), overrides: data?.entitlement_overrides ?? null, priceCents: typeof cents === "number" ? cents : null };
+    }
+  } catch {
+    /* fall through */
+  }
   try {
     const { data, error } = await supabase
       .from("profiles")
@@ -225,7 +241,7 @@ async function readReferralBonus(supabase: Supa, userId: string): Promise<{ acti
 }
 
 async function getEntitlementsImpl(supabase: Supa, userId: string, now: Date = new Date()): Promise<Entitlements> {
-  const [{ plan, overrides: userOverrides }, saved] = await Promise.all([readProfilePlan(supabase, userId), readReferralBonus(supabase, userId)]);
+  const [{ plan, overrides: userOverrides, priceCents }, saved] = await Promise.all([readProfilePlan(supabase, userId), readReferralBonus(supabase, userId)]);
   const planOverrides = await readPlanOverrides(supabase, plan);
   // Invitations that count right now add a little allowance on top of the plan's (lib/referrals/core.ts).
   const invites = bonusLive(saved, now);
@@ -242,7 +258,7 @@ async function getEntitlementsImpl(supabase: Supa, userId: string, now: Date = n
   const perk = perkLive(saved?.perkUntil, now);
   const config = withBonus(resolveConfig(plan, planOverrides, userOverrides), invites);
   const periods = currentPeriods(now);
-  return { userId, plan, config, period: periods.month, periods, source: "profile", invites, invitePending: saved?.pending === true, boost, perk };
+  return { userId, plan, priceCents: priceCents ?? null, config, period: periods.month, periods, source: "profile", invites, invitePending: saved?.pending === true, boost, perk };
 }
 
 // ---------------------------------------------------------------------------

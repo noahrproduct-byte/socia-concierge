@@ -17,7 +17,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     if (!job) return NextResponse.json({ error: "That job does not exist." }, { status: 404 });
     const cancelled = await cancelClipJob(job);
     if (!cancelled) return NextResponse.json({ error: "This job can't be cancelled any more. Reload the page to see where it is." }, { status: 409 });
-    const balance = await creditBalance(r.ctx.ownerId, r.ent.plan).catch(() => null);
+    const balance = await creditBalance(r.ctx.ownerId, r.ent).catch(() => null);
     return NextResponse.json({ job: cancelled, balance });
   } catch (e) {
     return aiErrorResponse("clipper/jobs/[id]/cancel", e);

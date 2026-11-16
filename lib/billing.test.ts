@@ -47,6 +47,12 @@ describe("price mapping", () => {
 });
 
 describe("stateFromSubscription", () => {
+  it("records the monthly price paid, so Pro's credits can follow it", () => {
+    expect(stateFromSubscription(sub({}, { price: { id: "price_growth_m", unit_amount: 7999, recurring: { interval: "month" } } })).priceCents).toBe(7999);
+    expect(stateFromSubscription(sub({}, { price: { id: "price_growth_m", unit_amount: 60000, recurring: { interval: "year" } } })).priceCents).toBe(5000);
+    expect(stateFromSubscription(sub()).priceCents).toBeNull();
+  });
+
   it("derives the plan from the live price, with the renewal date from the item", () => {
     const s = stateFromSubscription(sub());
     expect(s.plan).toBe("growth");

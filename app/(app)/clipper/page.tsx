@@ -29,7 +29,7 @@ export default async function Clipper() {
       </>
     );
   }
-  const balance = await creditBalance(ctx.ownerId, ent.plan).catch(() => null);
+  const balance = await creditBalance(ctx.ownerId, ent).catch(() => null);
   return (
     <>
       <PageHeader title="AI Clipper" sub="Turn a long video into short clips with captions." />

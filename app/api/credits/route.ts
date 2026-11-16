@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resolveContext } from "@/lib/context";
 import { getEntitlements, canUseFeature } from "@/lib/entitlements";
-import { creditBalance, recentLedger } from "@/lib/credits/ledger";
-import { MONTHLY_CREDITS, TOPUP_PACKS } from "@/lib/credits/config";
+import { creditBalance, monthlyCredits, recentLedger } from "@/lib/credits/ledger";
+import { TOPUP_PACKS } from "@/lib/credits/config";
 import { topupsOpen } from "@/lib/credits/topups";
 import { aiErrorResponse } from "@/lib/aiStudio/auth";
 
@@ -19,10 +19,10 @@ export async function GET() {
     const ent = await getEntitlements(ctx.client, ctx.ownerId);
     const enabled = canUseFeature(ent, "ai_clipper") || canUseFeature(ent, "ai_studio");
     const [balance, ledger] = await Promise.all([
-      creditBalance(ctx.ownerId, ent.plan).catch(() => null),
+      creditBalance(ctx.ownerId, ent).catch(() => null),
       recentLedger(ctx.client, ctx.ownerId),
     ]);
-    return NextResponse.json({ balance, monthly: MONTHLY_CREDITS[ent.plan], packs: TOPUP_PACKS, topups: topupsOpen(), ledger, enabled, plan: ent.plan });
+    return NextResponse.json({ balance, monthly: monthlyCredits(ent), packs: TOPUP_PACKS, topups: topupsOpen(), ledger, enabled, plan: ent.plan });
   } catch (e) {
     return aiErrorResponse("credits", e);
   }
