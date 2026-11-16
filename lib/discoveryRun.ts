@@ -145,7 +145,10 @@ export async function loadDiscoveryInputs(ctx: Ctx): Promise<DiscoveryInputs> {
     .then((rows) => rows.filter((r) => r.added_by !== "socia" && (!main || r.platform === main)).map((r) => r.handle).slice(0, 10))
     .catch(() => [] as string[]);
   const memory = await readStyleMemory(ctx).catch(() => null);
-  const ownStyle = memory?.own && memory.own.style !== "mixed" ? STYLE_MEANS[memory.own.style] : null;
+  // The brand's own style, read from its covers; before SOCIA has read any (or with no account connected),
+  // the person's own choice to post animated videos (brand_detail.animated) stands in for it.
+  const animatedChosen = (prof?.brand_detail as { animated?: { on?: boolean } } | null)?.animated?.on === true;
+  const ownStyle = memory?.own && memory.own.style !== "mixed" ? STYLE_MEANS[memory.own.style] : animatedChosen ? STYLE_MEANS.animated : null;
   return { profile, own, ownHandle, profileGaps, wsId, main, seeds, ownStyle };
 }
 
