@@ -16,7 +16,10 @@ describe("who counts as a competitor", () => {
     expect(r).toMatch(/NOT competitors for a business/);
     expect(r).toMatch(/Coaches, educators/);
     expect(r).toMatch(/animated or motion-graphics product videos/);
-    expect(fitRules(k)).toMatch(/do NOT fit/);
+    expect(fitRules(k)).toMatch(/^competitor: .*OWN app/m);
+    expect(fitRules(k)).toMatch(/^niche: .*AI tools in action/m);
+    expect(fitRules(k)).toMatch(/^off: coaches/m);
+    expect(r).toMatch(/founder's or creator's account that sells its OWN app/);
   });
   it("keeps creators competing with other creators", () => {
     const k = brandKind({ accountType: "creator" });

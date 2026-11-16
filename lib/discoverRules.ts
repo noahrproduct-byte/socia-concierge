@@ -54,18 +54,35 @@ export function researchRules(k: BrandKind, ownStyle: string | null): string {
   return [
     `They are a business, so their competitors are ${kind}: the brand accounts of products or businesses like theirs, ideally solving a similar problem for a similar customer.`,
     "Coaches, educators, consultants, agencies and influencers who only talk about the topic are NOT competitors for a business. Leave them out, however popular they are.",
-    k.app ? "For an app, look especially for apps whose Reels are animated or motion-graphics product videos, screen-recorded walkthroughs and feature explainers: those are videos they can make for themselves." : "",
+    k.app ? "For an app: other apps and software products in the same space, including a founder's or creator's account that sells its OWN app (a link to the app, the app's screens in its videos). Look especially for ones whose Reels are animated or motion-graphics product videos, screen walkthroughs and feature explainers: videos they can make for themselves. Example: for an AI app for Instagram growth, vidIQ, Metricool, Predis.ai, OpusClip, and a founder posting animated explainers of his own AI growth app." : "",
     ownStyle ? `Among those, accounts whose videos are made the same way as theirs (${ownStyle}) come first.` : "",
   ].filter(Boolean).join("\n");
 }
 
-/** What the niche-fit check is told about who fits. */
+/**
+ * What the fit check is told, from Noah's examples (docs/discover/examples.json):
+ * for SOCIA, an AI app for Instagram growth, the right competitors were vidiq,
+ * metricool, predis.ai, opusclip and jayantcreates.ai (a founder selling his
+ * own app, ootto.ai); nick_saraev (a creator showing AI tools on screen) was
+ * right for Reels but sells no app; eight marketing coaches were wrong.
+ */
 export function fitRules(k: BrandKind): string {
   if (!k.business) {
-    return "The account fits when it is a creator or brand in the same niche, or makes content for the same audience.";
+    return [
+      "competitor: a creator or brand in the same niche, making content for the same audience.",
+      "niche: an account in a neighbouring subject whose videos this creator could adapt.",
+    ].join("\n");
+  }
+  if (k.app) {
+    return [
+      `competitor: ${competitorWords(k)} in the same space, or a founder's or creator's account that sells or shows its OWN app (a link to the app, the app's screens in its videos). Example: an AI app for Instagram growth competes with vidIQ, Metricool, Predis.ai, OpusClip and a founder posting about his own AI growth app.`,
+      "niche: does not sell an app, but its videos show apps or AI tools in action (screens, animated demos), so its Reels are worth copying. Example: a creator who demos Claude and other AI tools.",
+      "off: coaches, educators, consultants, agencies and influencers giving general marketing or growth tips with no product on screen, personal-life content, and anything on an unrelated subject.",
+    ].join("\n");
   }
   return [
-    `The account fits only when it is itself one of ${competitorWords(k)}: the official account of a product or business like this one.`,
-    "Coaches, educators, consultants, agencies and influencers who only talk about the topic do NOT fit, even in the same niche.",
-  ].join(" ");
+    `competitor: ${competitorWords(k)}: the official account of a product or business like this one.`,
+    "niche: not a business like this one, but its videos are about the same subject and worth copying.",
+    "off: coaches, educators, consultants, agencies and influencers who only talk about the topic, and anything on an unrelated subject.",
+  ].join("\n");
 }

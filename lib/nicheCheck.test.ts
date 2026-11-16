@@ -46,3 +46,15 @@ describe("stored YouTube search results count only once checked", () => {
     expect(nicheVetted({ data_source: "youtube_api", relevance_reasons: scoreContent(video, profile).relevanceReasons })).toBe(false);
   });
 });
+
+describe("style sources (viral Reels in the brand's style, any topic)", () => {
+  it("are marked so they give Reels to copy and are never suggested", async () => {
+    const { STYLE_SOURCE, isStyleSource, scoreAccount } = await import("./discovery");
+    const c = { platform: "instagram" as const, platformAccountId: "anim", handle: "anim", displayName: "Anim", profileImage: null, profileUrl: null, followers: null, location: null, category: null, dataSource: "web_research" as const, note: null };
+    const p = { niche: "Social media" } as never;
+    expect(scoreAccount({ ...c, styleSource: true }, p).relevanceReasons).toContain(STYLE_SOURCE);
+    expect(scoreAccount(c, p).relevanceReasons).not.toContain(STYLE_SOURCE);
+    expect(isStyleSource({ relevance_reasons: [STYLE_SOURCE] })).toBe(true);
+    expect(isStyleSource({ relevance_reasons: ["Same niche"] })).toBe(false);
+  });
+});

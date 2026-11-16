@@ -7,7 +7,7 @@ import type { DiscoverAccount, DiscoverData } from "@/components/discover/types"
 import { getIgSnapshot } from "@/lib/instagramSync";
 import { channelStats, ytConfigured, type YtStats } from "@/lib/youtube";
 import { youtubeRecentUploads } from "@/lib/youtubeData";
-import { nicheVetted } from "@/lib/discovery";
+import { isStyleSource, nicheVetted } from "@/lib/discovery";
 import { cell, absent } from "@/lib/competitorRollup";
 import { competitorScopeId } from "@/lib/workspaces";
 import { type CompetitorRow } from "@/lib/competitorIntel";
@@ -24,7 +24,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { dismissedHandles } from "@/lib/competitorAutoPick";
 import { fitOf, mainPlatform, sameStyle, styleKey, styleStale, styleWord, triedRecently, type AccountStyle, type StyleMemory } from "@/lib/discoverStyle";
 import { readStyleMemory } from "@/lib/discoverStyleLoad";
-import { SUGGESTIONS_READ } from "@/lib/discoverRead";
+import { STYLE_SOURCES_READ, SUGGESTIONS_READ } from "@/lib/discoverRead";
 import { signRefUrl } from "@/lib/studioClips/refToken";
 import { isPlatformMediaUrl } from "@/lib/fetchGuard";
 
@@ -41,6 +41,8 @@ export const metadata = { title: "Discover | SOCIA" };
 const SUGGESTIONS_SHOWN = 12;
 /** Niche Reels under the competitors': a few, so the competitors' stay the most. */
 const NICHE_REELS = 6;
+/** Viral Reels in the brand's own style, any topic. */
+const STYLE_REELS = 6;
 
 export default async function Page() {
   const { supabase, user } = await getViewer();
@@ -116,13 +118,15 @@ export default async function Page() {
   ]);
   const tracked = trackedAll.filter((t) => !isOwnAccount(mine, { handle: t.handle })).slice(0, Math.max(limit, 1));
   const trackedKeys = new Set(tracked.map((t) => `${t.platform}:${t.handle.toLowerCase()}`));
-  const suggested = suggestedRows
+  const candidates = suggestedRows
     .filter((r) => r.handle && !trackedKeys.has(`${r.platform}:${String(r.handle).toLowerCase()}`) && !dismissed.has(String(r.handle).toLowerCase()))
-    .filter((r) => !isOwnAccount(mine, { handle: r.handle as string, name: (r.display_name as string) ?? null }))
-    .slice(0, SUGGESTIONS_READ);
+    .filter((r) => !isOwnAccount(mine, { handle: r.handle as string, name: (r.display_name as string) ?? null }));
+  const suggested = candidates.filter((r) => !isStyleSource(r)).slice(0, SUGGESTIONS_READ);
+  // Accounts research found for their Reels' style, any topic (Noah, 2026-11-16): Reels to copy, never suggested.
+  const styleRows = candidates.filter((r) => isStyleSource(r) && r.platform === "instagram").slice(0, STYLE_SOURCES_READ);
 
   // ---- what the platforms say about them -----------------------------------
-  const igHandles = [...tracked.filter((t) => t.platform === "instagram").map((t) => t.handle), ...suggested.filter((r) => r.platform === "instagram").map((r) => String(r.handle))];
+  const igHandles = [...tracked.filter((t) => t.platform === "instagram").map((t) => t.handle), ...suggested.filter((r) => r.platform === "instagram").map((r) => String(r.handle)), ...styleRows.map((r) => String(r.handle))];
   const ytHandles = [...tracked.filter((t) => t.platform === "youtube").map((t) => t.handle), ...suggested.filter((r) => r.platform === "youtube").map((r) => String(r.handle))].slice(0, 20);
   const [igRes, ytRes] = await Promise.all([
     igHandles.length
@@ -198,13 +202,15 @@ export default async function Page() {
 
   const competitors = tracked.map((t) => build(t.platform, t.handle, suggestedRows.find((r) => r.platform === t.platform && String(r.handle).toLowerCase() === t.handle.toLowerCase()) ?? null, t));
   // Suggestions SOCIA could read and that are doing well lead; ones it couldn't read follow, never above them.
-  // Niche fit (lib/discoverStyle.ts Fit): an account judged off-niche from its bio and captions is never
-  // suggested (Noah, 2026-11-15: an NFL commentator was suggested to a social media app). Not yet judged
-  // still shows; the background read judges it.
+  // Fit (lib/discoverStyle.ts, from Noah's training examples): each suggested account is judged a
+  // competitor (suggested, Reels shown), niche (Reels shown, never suggested: a creator showing tools
+  // like the brand's) or off (neither: an NFL commentator for a social media app). Not yet judged still
+  // shows as a suggestion; the background read judges it.
   const fitFor = (a: { platform: string; handle: string }) => fitOf(memory, styleKey(a.platform, a.handle), now);
-  const suggestions = suggested.map((r) => build(String(r.platform), String(r.handle), r, null))
-    .filter((a) => fitFor(a) !== false)
-    .sort((a, b) => Number(fitFor(b) === true) - Number(fitFor(a) === true) || Number(b.posts.length > 0) - Number(a.posts.length > 0) || Number(b.sameStyle) - Number(a.sameStyle) || (b.match ?? 0) - (a.match ?? 0))
+  const judged = suggested.map((r) => build(String(r.platform), String(r.handle), r, null));
+  const suggestions = judged
+    .filter((a) => { const v = fitFor(a); return v === "competitor" || v == null; })
+    .sort((a, b) => Number(fitFor(b) === "competitor") - Number(fitFor(a) === "competitor") || Number(b.posts.length > 0) - Number(a.posts.length > 0) || Number(b.sameStyle) - Number(a.sameStyle) || (b.match ?? 0) - (a.match ?? 0))
     .slice(0, SUGGESTIONS_SHOWN);
 
   // ---- the Reels worth copying: only from the competitors tracked --------
@@ -233,7 +239,7 @@ export default async function Page() {
       why: null, dataSource: String(r.data_source ?? "web_research"),
     }));
   // Only from accounts judged to fit the niche: a Reel from research is kept only when its account is one of them.
-  const fitting = suggestions.filter((a) => a.posts.length && fitFor(a) === true && notOurs(a.handle, a.name));
+  const fitting = judged.filter((a) => { const v = fitFor(a); return a.posts.length > 0 && (v === "competitor" || v === "niche") && notOurs(a.handle, a.name); });
   const fittingHandles = new Set(fitting.map((a) => a.handle.toLowerCase()));
   const nicheAll = rankTrendingReels(
     fitting.map((r) => ({ platform: r.platform, name: r.name, handle: r.handle, avatar: r.avatar, posts: r.posts })),
@@ -243,6 +249,17 @@ export default async function Page() {
   const nicheTookOff = provenReels(nicheList, { max: NICHE_REELS, perAccount: 2 });
   const nicheReels = (nicheTookOff.length >= 3 ? nicheTookOff : provenReels(nicheList, { max: NICHE_REELS, perAccount: 2, fill: true }))
     .map((r, i) => ({ ...r, id: `N${i + 1}` }));
+
+  // Viral Reels in the brand's own video style, any topic: only from accounts whose covers read as that
+  // style, and only Reels that took off for their account (no filling with the rest).
+  const styleAccounts = styleRows.map((r) => build(String(r.platform), String(r.handle), r, null));
+  const usedHandles = new Set([...competitors, ...fitting].map((a) => a.handle.toLowerCase()));
+  const styleAll = dedupeReels(rankTrendingReels(
+    styleAccounts.filter((a) => a.posts.length && a.sameStyle && !usedHandles.has(a.handle.toLowerCase()) && notOurs(a.handle, a.name))
+      .map((r) => ({ platform: r.platform, name: r.name, handle: r.handle, avatar: r.avatar, posts: r.posts })),
+    [], now,
+  ));
+  const styleReels = provenReels(styleAll, { max: STYLE_REELS, perAccount: 2 }).map((r, i) => ({ ...r, id: `S${i + 1}` }));
 
   const ownStale = Boolean(snap?.media?.length) && styleStale(memory.own, now) && !triedRecently(memory, "own", now);
   // "Make a video like this": a Reel whose file official data gives is offered as the reference, its link signed for this viewer.
@@ -254,8 +271,9 @@ export default async function Page() {
     tracked, competitors, suggestions,
     reelsToCopy: withRef(reelsToCopy),
     nicheReels: withRef(nicheReels),
+    styleReels: withRef(styleReels),
     reelsRead: { reels: allReels.length, accounts: new Set(allReels.map((r) => (r.accountHandle ?? r.accountName).toLowerCase())).size },
-    needsRead: igRes.enabled && (ownStale || [...competitors, ...suggestions].some((a) => a.reading) || suggestions.some((a) => a.posts.length > 0 && fitFor(a) == null)),
+    needsRead: igRes.enabled && (ownStale || [...competitors, ...suggestions, ...styleAccounts].some((a) => a.reading) || judged.some((a) => a.posts.length > 0 && fitFor(a) == null)),
     lastRun: runAt,
     niche: profile?.niche ?? null,
     nicheAccess: canUseFeature(ent, "niche_intelligence"),

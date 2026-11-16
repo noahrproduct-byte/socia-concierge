@@ -294,9 +294,10 @@ ${seeds.length ? "- accounts like the ones they chose to follow: the same kind o
 ${locationMatters(profile) ? "- successful accounts in the same area, even in a neighbouring category\n" : ""}
 Every account and post must be about this niche or made for the same audience. An account that only shares the video style but is about something unrelated (sports, celebrities, news, comedy about other things) does not count, however well it does.
 
-Search the web and return BOTH:
+Search the web and return ${ownStyle ? "ALL THREE" : "BOTH"}:
 1. Up to 10 real ${webPlatforms} ACCOUNTS from those groups, doing well: posting regularly with an engaged audience.
-2. Up to 5 real recent ${main === "instagram" ? "Instagram Reels" : main === "facebook" ? "Facebook videos" : "Instagram Reels or Facebook videos"} posted by ${competitorWords(kind)} like those in 1, that they could make their own version of.
+2. Up to 5 real recent ${main === "instagram" ? "Instagram Reels" : main === "facebook" ? "Facebook videos" : "Instagram Reels or Facebook videos"} posted by ${competitorWords(kind)} like those in 1${kind.app ? ", or by creators showing apps or AI tools in action on screen" : ""}, that they could make their own version of.${ownStyle ? `
+3. Up to 6 real Instagram accounts on ANY topic whose Reels are made the same way as theirs (${ownStyle}: for animated, that means motion graphics, animated explainers, kinetic text, illustrated or 3D characters) and often go viral. Their subject does not matter: these are for copying the animation style, not the topic, so the niche rule above does not apply to this list. Never a talking head or filmed footage.` : ""}
 
 ${own.handles.length || ownHandle ? `These are their own accounts; never return them: ${[...new Set([...own.handles, ...(ownHandle ? [ownHandle] : [])])].map((h) => `"@${h}"`).join(", ")}.` : ""}
 
@@ -307,7 +308,8 @@ STRICT HONESTY RULES:
 
 Output ONLY this JSON, no other text:
 [{"kind":"account","platform":"instagram"|"facebook","handle":"...","name":"...","why":"..."},
- {"kind":"content","platform":"instagram"|"facebook","url":"...","creator":"...","title":"...","why":"..."}]`;
+ {"kind":"content","platform":"instagram"|"facebook","url":"...","creator":"...","title":"...","why":"..."}${ownStyle ? `,
+ {"kind":"style","platform":"instagram","handle":"...","name":"...","why":"..."}` : ""}]`;
 
     try {
       type MsgParam = { role: "user" | "assistant"; content: unknown };
@@ -334,7 +336,7 @@ Output ONLY this JSON, no other text:
       for (const raw of parseJsonArray(text)) {
         const r = raw as Record<string, unknown>;
         const platform = r.platform === "facebook" ? "facebook" : "instagram";
-        if (r.kind === "account") {
+        if (r.kind === "account" || (r.kind === "style" && ownStyle)) {
           const handle = typeof r.handle === "string" ? r.handle.trim().replace(/^@/, "") : "";
           if (!/^[a-zA-Z0-9._-]{1,40}$/.test(handle)) continue;
           if ((ownHandle && handle.toLowerCase() === ownHandle.toLowerCase()) || isOwnAccount(own, { handle, name: typeof r.name === "string" ? r.name : null })) continue;
@@ -353,6 +355,8 @@ Output ONLY this JSON, no other text:
             category: null,
             dataSource: "web_research",
             note: typeof r.why === "string" ? r.why : null,
+            // Found for its Reels' style, any topic (lib/discovery.ts STYLE_SOURCE): Reels to copy, never a competitor.
+            ...(r.kind === "style" ? { styleSource: true } : {}),
           });
         } else if (r.kind === "content" && typeof r.url === "string") {
           // Only real Instagram and Facebook links, over https: the URL comes
