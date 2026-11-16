@@ -50,6 +50,7 @@ export default function RoutineStep({
   startAtEnd = false,
   questions = ROUTINE_QUESTIONS,
   corner = false,
+  fromStart = false,
   lastLabel = "Build my strategy",
 }: {
   initial: Routine | null | undefined;
@@ -68,11 +69,13 @@ export default function RoutineStep({
   questions?: readonly RoutineQuestion[];
   /** Asked from the corner of an app page: a small SIO, "Not now" in place of Back. */
   corner?: boolean;
+  /** Open on the first question even when it is answered (changing the routine in Settings). */
+  fromStart?: boolean;
   /** The button on the last question. */
   lastLabel?: string;
 }) {
   const [r, setR] = useState<Routine>(initial ?? {});
-  const [q, setQ] = useState<RoutineQuestion>(() => (startAtEnd ? questions[questions.length - 1] : firstUnanswered(initial, questions)));
+  const [q, setQ] = useState<RoutineQuestion>(() => (startAtEnd ? questions[questions.length - 1] : fromStart ? questions[0] : firstUnanswered(initial, questions)));
   const [ack, setAck] = useState<string | null>(null);
   const [mood, setMood] = useState<SioExpression>("neutral");
   const [saving, setSaving] = useState(false);
@@ -233,7 +236,7 @@ export default function RoutineStep({
       {err && <div className="ob-err" role="alert">{err}</div>}
       <div className="ob-actions">
         <button className="ob-btn ob-btn-ghost" onClick={back} disabled={saving}>
-          {corner && i === 0 ? "Not now" : <><ArrowLeft size={17} /> Back</>}
+          {corner && i === 0 ? (fromStart ? "Cancel" : "Not now") : <><ArrowLeft size={17} /> Back</>}
         </button>
         <button className="ob-btn ob-btn-primary" onClick={() => void next()} disabled={saving}>
           {saving ? "Saving…" : i === questions.length - 1 ? lastLabel : "Continue"} {!saving && <ArrowRight size={17} />}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FIRST_QUESTIONS, LATER_QUESTIONS, ROUTINE_QUESTIONS, answered, filmTime, firstUnanswered, makesNoCameraOnly, normalizeRoutine, postDaysNote, routineLines, unanswered } from "./routine";
+import { routineSummary, FIRST_QUESTIONS, LATER_QUESTIONS, ROUTINE_QUESTIONS, answered, filmTime, firstUnanswered, makesNoCameraOnly, normalizeRoutine, postDaysNote, routineLines, unanswered } from "./routine";
 
 describe("the creator routine", () => {
   it("keeps only real answers, in week order, inside the limits", () => {
@@ -54,6 +54,17 @@ describe("the creator routine", () => {
     expect(answered("publish", { publish_mode: "days", publish_days: ["mon"] })).toBe(true);
     expect(answered("publish", { publish_mode: "flexible" })).toBe(true);
     expect(firstUnanswered({ post_days: 4, filming: [{ day: "wed", minutes: 60 }], style: "daily", formats: ["vlogs"], publish_mode: "recommend" })).toBe("publish");
+  });
+  it("shows the routine back as the person set it, one row per answer", () => {
+    expect(routineSummary({ post_days: 5, formats: ["talking_head", "other"], formats_other: "Skits", filming: [{ day: "wed", minutes: 120 }], style: "batch", publish_mode: "recommend" })).toEqual([
+      { label: "Posting target", value: "5 days a week" },
+      { label: "What you make", value: "Talking-head videos and Skits" },
+      { label: "Filming", value: "Wednesday (2 hours)" },
+      { label: "How you work", value: "Batch creator" },
+      { label: "Posting days", value: "SOCIA recommends them" },
+    ]);
+    expect(routineSummary({ post_days: 1 })).toEqual([{ label: "Posting target", value: "1 day a week" }]);
+    expect(routineSummary(null)).toEqual([]);
   });
   it("splits the questions: two at onboarding, three later from the corner", () => {
     expect([...FIRST_QUESTIONS, ...LATER_QUESTIONS].sort()).toEqual([...ROUTINE_QUESTIONS].sort());
