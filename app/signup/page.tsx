@@ -7,6 +7,7 @@ import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import BrandMark from "@/components/BrandMark";
 import AuthShell, { GoogleIcon } from "@/components/AuthShell";
+import { RESEND_WAIT, alreadyRegistered, sendProblem } from "@/lib/authEmail";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -18,6 +19,15 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // The address a confirmation link was sent to: the form gives way to "check your email".
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  // Seconds until another link may be sent (the email service allows one a minute per address).
+  const [wait, setWait] = useState(0);
+  useEffect(() => {
+    if (wait <= 0) return;
+    const t = setTimeout(() => setWait((w) => Math.max(0, w - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [wait]);
 
   // Already signed in? Straight to the app instead of a signup form.
   useEffect(() => {
@@ -43,17 +53,34 @@ export default function SignupPage() {
     });
     setLoading(false);
     if (error) {
-      setErr(error.message);
+      setErr(sendProblem(error) ?? error.message);
       return;
     }
     if (data.session) {
       router.push("/onboarding");
       router.refresh();
+    } else if (alreadyRegistered(data.user)) {
+      // Nothing was sent: this address already has an account.
+      setErr("That email already has a SOCIA account. Log in instead, or reset your password from the log-in page.");
     } else {
-      setMsg(
-        `Almost there. We sent a confirmation link to ${email}. Click it to finish signing up.`,
-      );
+      setSentTo(email);
+      setWait(RESEND_WAIT);
     }
+  }
+
+  async function resend() {
+    if (!sentTo || wait > 0) return;
+    setLoading(true);
+    setErr(null);
+    setMsg(null);
+    const { error } = await supabase.auth.resend({ type: "signup", email: sentTo, options: { emailRedirectTo: `${window.location.origin}/auth/callback` } });
+    setLoading(false);
+    if (error) {
+      setErr(sendProblem(error) ?? "We couldn't send the link just now. Try again in a minute.");
+      return;
+    }
+    setMsg(`Sent again to ${sentTo}.`);
+    setWait(RESEND_WAIT);
   }
 
   async function signUpWithGoogle() {
@@ -63,6 +90,37 @@ export default function SignupPage() {
       options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
     if (error) setErr(error.message);
+  }
+
+  if (sentTo) {
+    return (
+      <AuthShell>
+        <div className="auth-mobilelogo">
+          <BrandMark size={32} />SOCIA
+        </div>
+
+        <h1>Check your email</h1>
+        <p className="auth-sub">
+          We sent a confirmation link to <b>{sentTo}</b>. Open it to confirm your address and finish signing up. It can take a minute to arrive, and it may be in your spam folder.
+        </p>
+
+        <button className="authbtn" type="button" onClick={resend} disabled={loading || wait > 0}>
+          {loading ? "Sending…" : wait > 0 ? `Send it again in ${wait}s` : "Send the link again"}
+        </button>
+        <button className="linkbtn" type="button" onClick={() => { setSentTo(null); setMsg(null); setErr(null); }}>
+          Use a different email
+        </button>
+
+        {msg && <div className="authmsg ok" role="status">{msg}</div>}
+        {err && <div className="authmsg err" role="alert">{err}</div>}
+
+        <div className="authfoot">
+          <span>
+            Already confirmed?<Link href="/login">Log in</Link>
+          </span>
+        </div>
+      </AuthShell>
+    );
   }
 
   return (
