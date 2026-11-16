@@ -23,6 +23,15 @@ describe("the strategy is held to the person's time and their own goal", () => {
     expect(s.frequency.why).not.toMatch(/about 3 a week now/);
   });
 
+  it("follows the posting target the person chose, whatever the draft said (lib/routine.ts)", () => {
+    const s = normalizeStrategy(raw, { growth: { routine: { post_days: 4 }, resources: { hours_per_week: "2to5" } }, goalLine: null, basedOn: [], now });
+    expect(s.frequency.posts_per_week).toBe(4);
+    expect(s.frequency.why).toBe("You chose 4 posting days a week, so the plan is built around that.");
+    // The draft's own reasoning is kept when it argued for the same number.
+    const same = normalizeStrategy({ ...raw, posts_per_week: 5, frequency_why: "Your own target of 5, up from about 3 a week now." }, { growth: { routine: { post_days: 5 } }, goalLine: null, basedOn: [], now });
+    expect(same.frequency).toEqual({ posts_per_week: 5, why: "Your own target of 5, up from about 3 a week now." });
+  });
+
   it("keeps the model's pace when it fits, and uses the person's goal as the primary objective", () => {
     const s = normalizeStrategy(raw, { growth: { main_goal: "followers", resources: { hours_per_week: "gt10" } }, goalLine: "Followers or subscribers to 2,000 by 2026-12-31 (Instagram)", basedOn: ["Your Growth Profile"], now });
     expect(s.frequency.posts_per_week).toBe(6);

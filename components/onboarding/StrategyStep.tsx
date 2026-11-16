@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { STAGES, type BuildEvent, type Reveal, type StageId } from "@/lib/onboardingBuild";
 import { toolCount } from "@/lib/onboardingTools";
+import SioSays from "@/components/sio/SioSays";
 import StageList, { afterEvent, readLines, waiting, type StageState } from "./StageList";
 
 const fresh = (): Record<StageId, StageState> => ({ accounts: waiting(), content: waiting(), niche: waiting(), strategy: waiting() });
@@ -51,10 +52,10 @@ export default function StrategyStep({ onReady, headRef }: { onReady: (ready: bo
   const building = !reveal && !error;
   return (
     <>
-      <div className="ob-head">
-        <h1 ref={headRef} tabIndex={-1}>{reveal ? (reveal.target ? `Your path to ${reveal.target}` : "Your strategy") : "SOCIA is building your strategy"}</h1>
-        <p>{reveal ? "Built from your own account and what SOCIA could read about your niche. Nothing here is a promise of results." : "Each step below is real work on your accounts. It usually takes under a minute."}</p>
-      </div>
+      <SioSays expression={error ? "concerned" : reveal ? "happy" : "analyzing"} headRef={headRef}
+        title={reveal ? (reveal.target ? `Your path to ${reveal.target}` : "Your strategy is ready") : "I'm building your strategy"}>
+        {reveal ? "Built from your own account, your routine and what I could read about your niche. Nothing here is a promise of results." : "Each step below is real work on your accounts. It usually takes under a minute."}
+      </SioSays>
 
       <StageList stages={STAGES} states={stages} busy={building} />
 

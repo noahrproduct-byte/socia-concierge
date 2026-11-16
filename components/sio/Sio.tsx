@@ -55,8 +55,11 @@ function Eye({ expr, side }: { expr: SioExpression; side: -1 | 1 }) {
   }
 }
 
-function Mouth({ expr }: { expr: SioExpression }) {
+function Mouth({ expr, talk }: { expr: SioExpression; talk?: "open" | "closed" }) {
   const line = { fill: "none", strokeWidth: 13, strokeLinecap: "round" as const };
+  // Speaking: the mouth opens on each word and rests between them, whatever the expression.
+  if (talk === "open") return <ellipse rx={17} ry={13} />;
+  if (talk === "closed") return <path d="M-20,0 Q0,7 20,0" {...line} />;
   switch (expr) {
     case "happy":
       return <path d="M-38,-8 Q0,22 38,-8" {...line} />;
@@ -95,6 +98,9 @@ export default function Sio({
   size = 160,
   still = false,
   shadow = true,
+  speaking = false,
+  mouthOpen = false,
+  nods = 0,
   label,
   priority = false,
   className,
@@ -106,6 +112,11 @@ export default function Sio({
   still?: boolean;
   /** The soft shadow SIO floats over. Off for an avatar in a tight row. */
   shadow?: boolean;
+  /** SIO is saying something: the mouth follows `mouthOpen` (components/sio/useSioSpeech.ts). */
+  speaking?: boolean;
+  mouthOpen?: boolean;
+  /** Sentences begun so far; SIO gives a small nod as each one starts. */
+  nods?: number;
   /** Said to screen readers. Without it SIO is decoration and is skipped. */
   label?: string;
   /** Load the body layer early (the first screen of onboarding). */
@@ -126,17 +137,20 @@ export default function Sio({
   const small = size < SMALL;
   const eyeScale = small ? 1.3 : 1;
   const height = Math.round((size * H) / W);
+  // The width is a CSS variable, so a layout can make SIO smaller on a phone without a second render.
+  const box = { "--sio-size": `${size}px` } as React.CSSProperties;
   return (
     <span
       className={["sio", small ? "is-small" : "", still ? "is-still" : "", swapping ? "is-swap" : "", className].filter(Boolean).join(" ")}
       data-expr={shown}
-      style={{ width: size, height: shadow && !small ? Math.round(height * 1.16) : height }}
+      data-nod={speaking && nods > 0 ? (nods % 2 ? "a" : "b") : undefined}
+      style={box}
       {...(label ? { role: "img", "aria-label": label } : { "aria-hidden": true })}
     >
-      <span className="sio-float" style={{ width: size, height }}>
+      <span className="sio-float">
         <span className="sio-pose">
           <Image src="/sio/sio-body.webp" alt="" width={size} height={height} sizes={`${size}px`} priority={priority} draggable={false} className="sio-shell" />
-          <svg className="sio-face" viewBox={`0 0 ${W} ${H}`} width={size} height={height} focusable="false">
+          <svg className="sio-face" viewBox={`0 0 ${W} ${H}`} focusable="false">
             <defs>
               <clipPath id={`${id}-glass`}><path d={GLASS} /></clipPath>
               <filter id={`${id}-glow`} x="-40%" y="-60%" width="180%" height="220%">
@@ -157,7 +171,7 @@ export default function Sio({
                   </g>
                 ))}
                 {!small && (
-                  <g transform={`translate(${MOUTH.x} ${MOUTH.y}) rotate(-3)`} className="sio-mouth"><Mouth expr={shown} /></g>
+                  <g transform={`translate(${MOUTH.x} ${MOUTH.y}) rotate(-3)`} className="sio-mouth"><Mouth expr={shown} talk={speaking ? (mouthOpen ? "open" : "closed") : undefined} /></g>
                 )}
               </g>
             ))}
@@ -166,7 +180,7 @@ export default function Sio({
         </span>
       </span>
       {shadow && !small && (
-        <svg className="sio-shadow" viewBox="0 0 200 40" width={size} height={Math.round(size * 0.2)} focusable="false">
+        <svg className="sio-shadow" viewBox="0 0 200 40" focusable="false">
           <defs><filter id={`${id}-soft`} x="-20%" y="-150%" width="140%" height="400%"><feGaussianBlur stdDeviation="6" /></filter></defs>
           <ellipse cx={100} cy={20} rx={58} ry={7} filter={`url(#${id}-soft)`} />
         </svg>

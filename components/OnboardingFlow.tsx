@@ -27,6 +27,9 @@ import ReadReveal from "./ReadReveal";
 import StrategyStep from "./onboarding/StrategyStep";
 import PlanStep from "./onboarding/PlanStep";
 import GoalStep, { type GoalStepHandle } from "./onboarding/GoalStep";
+import RoutineStep from "./onboarding/RoutineStep";
+import SioSays from "./sio/SioSays";
+import { FIRST_QUESTIONS, type Routine } from "@/lib/routine";
 import { customerGoalFor } from "@/lib/goalWording";
 import StageList, { afterEvent, readLines, waiting, type StageState } from "./onboarding/StageList";
 import { READ_STAGES, type ReadEvent, type ReadStageId } from "@/lib/intel/readStages";
@@ -55,6 +58,8 @@ type Initial = {
   niche: string | null;
   brandName: string | null;
   detail: BrandDetail | null;
+  /** SIO has already introduced itself to this brand's owner. */
+  introSeen?: boolean;
 };
 
 const freshRead = (): Record<ReadStageId, StageState> => ({ accounts: waiting(), posts: waiting(), reels: waiting(), profile: waiting() });
@@ -119,6 +124,20 @@ export default function OnboardingFlow({
   // The goal step keeps its own fields and saves them when asked (components/onboarding/GoalStep.tsx).
   const goalRef = useRef<GoalStepHandle>(null);
   const [goalCount, setGoalCount] = useState(g0.main_goal ? 1 : 0);
+  // SIO's first hello, shown once, before anything is connected.
+  const [intro, setIntro] = useState(initial.step === "connect" && !initial.introSeen && !connected.length && !igStatus && !returned.length);
+  // The routine as last saved, so going on and coming back shows the person's own answers.
+  const [routine, setRoutine] = useState<Routine | null>(g0.routine ?? null);
+  const [routineFromEnd, setRoutineFromEnd] = useState(false);
+  // Posts a week lately, read from the account, for SIO's note on the posting target.
+  const [recentPerWeek, setRecentPerWeek] = useState<number | null>(null);
+  useEffect(() => {
+    if (step !== "routine" || !connected.length) return;
+    let alive = true;
+    fetch("/api/goals/now").then((x) => (x.ok ? x.json() : null)).then((j) => { const v = j?.now?.posts_per_week?.value; if (alive && typeof v === "number") setRecentPerWeek(v); }).catch(() => undefined);
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
   const today = new Date().toISOString().slice(0, 10);
 
   const [saving, setSaving] = useState(false);
@@ -309,22 +328,34 @@ export default function OnboardingFlow({
 
         {reading ? (
           <div className="ob-stage">
-            <div className="ob-head">
-              <h1 ref={headRef} tabIndex={-1}>Reading your accounts</h1>
-              <p>SOCIA is working out what the account is about and how you post, from {connected.join(", ")}. Each step below is real work on your account. It takes about a minute.</p>
-            </div>
+            <SioSays expression="analyzing" title="Reading your accounts" headRef={headRef}>
+              I&apos;m looking at your recent content on {connected.join(", ")} to understand what the account is about and how you post. Each step below is real work on your account. It takes about a minute.
+            </SioSays>
             <StageList stages={READ_STAGES} states={readStages} busy />
           </div>
         ) : revealing && u ? (
           <ReadReveal understanding={u} onContinue={() => setRevealing(false)} />
         ) : (
           <div className="ob-stage" key={step}>
-            {step === "connect" && (
+            {step === "connect" && intro && (
               <>
-                <div className="ob-head">
-                  <h1 ref={headRef} tabIndex={-1}>Connect your accounts</h1>
-                  <p>SOCIA reads your profile and recent posts from each account you connect, so you don&apos;t have to describe them.</p>
+                <SioSays large expression="happy" speakAs="happy" title="Hey, I'm SIO." headRef={headRef}>
+                  I&apos;ll help you build a content strategy that fits your goals and your schedule. First, I have a few questions so I can personalize SOCIA for you.
+                </SioSays>
+                <div className="ob-actions">
+                  <span />
+                  <button className="ob-btn ob-btn-primary" onClick={() => { setIntro(false); void post("/api/onboarding", { mark: { sio_intro: true } }).catch(() => null); }}>
+                    Let&apos;s get started <ArrowRight size={17} />
+                  </button>
                 </div>
+              </>
+            )}
+
+            {step === "connect" && !intro && (
+              <>
+                <SioSays title="Connect your accounts" headRef={headRef}>
+                  I read your profile and recent posts from each account you connect, so you don&apos;t have to describe them.
+                </SioSays>
                 {igStatus && igStatus !== "connected" && RETURN_ERRORS[igStatus] && <div className="ob-err">Instagram {RETURN_ERRORS[igStatus]}</div>}
                 {igInterrupted && !connected.includes("Instagram") && (
                   <p className="obp-notice" role="status">Instagram didn&apos;t send you back to SOCIA. That happens when it stops to confirm it&apos;s you. You&apos;re signed in to Instagram now, so connect it again and it goes straight through.</p>
@@ -349,16 +380,13 @@ export default function OnboardingFlow({
 
             {step === "profile" && (
               <>
-                <div className="ob-head">
-                  <h1 ref={headRef} tabIndex={-1}>{u?.niche || u?.account_type ? "Here's what SOCIA found" : "Tell SOCIA about the account"}</h1>
-                  <p>
-                    {u?.niche || u?.account_type
+                <SioSays title={u?.niche || u?.account_type ? "Here's what I found" : "Tell me about the account"} headRef={headRef}>
+                  {u?.niche || u?.account_type
                       ? "Read from your posts. Check each line and change anything that's wrong."
                       : connected.length
                         ? "SOCIA couldn't infer these from your posts, so fill them in."
                         : "No account is connected yet, so fill these in. SOCIA reads more once you connect one."}
-                  </p>
-                </div>
+                </SioSays>
                 {planError && <PlanNotice error={planError} compact />}
                 {readError && (
                   <div className="ob-err" role="alert">
@@ -441,16 +469,20 @@ export default function OnboardingFlow({
 
             {step === "goal" && (
               <>
-                <div className="ob-head">
-                  <h1 ref={headRef} tabIndex={-1}>What are we working toward?</h1>
-                  <p>Tell SOCIA what success looks like. It builds your strategy around what you pick and measures against it. You can change it later in Settings.</p>
-                </div>
+                <SioSays title="What are we working toward?" headRef={headRef}>
+                  Choose what matters most. I&apos;ll build your strategy around it and measure against it. You can change it later in Settings.
+                </SioSays>
                 <GoalStep ref={goalRef} tableReady={initial.tableReady} connectedPlatforms={connectedPlatforms} today={today} onChosen={setGoalCount}
                   initial={{ main: g0.main_goal, others: g0.other_goals }} suggested={u?.suggested_goal ?? null}
                   customerGoal={customerGoalFor({ action: g0.business?.customer_action, texts: [brandRead.description, u?.visual?.about?.product, u?.visual?.about?.value, specific, subcategory, niche] })} />
                 <AnimatedChoice autoScan />
-                {nav("Build my strategy")}
+                {nav()}
               </>
+            )}
+
+            {step === "routine" && (
+              <RoutineStep initial={routine} recentPerWeek={recentPerWeek} headRef={headRef} startAtEnd={routineFromEnd} questions={FIRST_QUESTIONS}
+                onSaved={setRoutine} onBack={() => go("goal", false)} onDone={() => { setRoutineFromEnd(false); void go("strategy", false); }} />
             )}
 
             {step === "strategy" && (
@@ -458,7 +490,7 @@ export default function OnboardingFlow({
                 <StrategyStep onReady={setStrategyReady} headRef={headRef} />
                 {err && <div className="ob-err" role="alert">{err}</div>}
                 <div className="ob-actions">
-                  <button className="ob-btn ob-btn-ghost" onClick={() => go("goal", false)} disabled={saving}>
+                  <button className="ob-btn ob-btn-ghost" onClick={() => { setRoutineFromEnd(true); void go("routine", false); }} disabled={saving}>
                     <ArrowLeft size={17} /> Back
                   </button>
                   <button className="ob-btn ob-btn-primary" onClick={() => go("plan", false)} disabled={saving || !strategyReady}>
