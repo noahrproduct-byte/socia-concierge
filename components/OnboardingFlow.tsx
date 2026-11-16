@@ -27,6 +27,7 @@ import ReadReveal from "./ReadReveal";
 import StrategyStep from "./onboarding/StrategyStep";
 import PlanStep from "./onboarding/PlanStep";
 import GoalStep, { type GoalStepHandle } from "./onboarding/GoalStep";
+import { customerGoalFor } from "@/lib/goalWording";
 import StageList, { afterEvent, readLines, waiting, type StageState } from "./onboarding/StageList";
 import { READ_STAGES, type ReadEvent, type ReadStageId } from "@/lib/intel/readStages";
 import AnimatedChoice from "@/components/animated/AnimatedChoice";
@@ -445,7 +446,8 @@ export default function OnboardingFlow({
                   <p>Tell SOCIA what success looks like. It builds your strategy around what you pick and measures against it. You can change it later in Settings.</p>
                 </div>
                 <GoalStep ref={goalRef} tableReady={initial.tableReady} connectedPlatforms={connectedPlatforms} today={today} onChosen={setGoalCount}
-                  initial={{ main: g0.main_goal, others: g0.other_goals }} suggested={u?.suggested_goal ?? null} />
+                  initial={{ main: g0.main_goal, others: g0.other_goals }} suggested={u?.suggested_goal ?? null}
+                  customerGoal={customerGoalFor({ action: g0.business?.customer_action, texts: [brandRead.description, u?.visual?.about?.product, u?.visual?.about?.value, specific, subcategory, niche] })} />
                 <AnimatedChoice autoScan />
                 {nav("Build my strategy")}
               </>

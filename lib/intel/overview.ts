@@ -10,7 +10,7 @@
 //                   longer hold
 // Pure.
 
-import { GOAL_PLATFORM_NAME, MAIN_GOALS, type GoalPlatform, type GrowthProfile } from "../growth";
+import { GOAL_PLATFORM_NAME, mainGoalLabel, type GoalPlatform, type GrowthProfile } from "../growth";
 import type { AccountSample } from "./accountSample";
 import { confidenceWord, type StoredInsight } from "./insight";
 import { FORMATS_PRODUCER } from "../nicheFormats";
@@ -160,9 +160,9 @@ export function growthBriefing(input: {
 
 /** "Main goal: Gain followers. 1,240 now, 760 to go by Dec 31." from the goal and its current reading. */
 export function goalLine(growth: GrowthProfile | null, progress: { label: string; current: string | null; remaining: string | null; due: string | null } | null): string | null {
-  const main = MAIN_GOALS.find((m) => m.id === growth?.main_goal);
+  const main = mainGoalLabel(growth?.main_goal, growth);
   if (!main && !progress) return null;
-  const head = `Main goal: ${progress?.label ?? main!.label}.`;
+  const head = `Main goal: ${progress?.label ?? main!}.`;
   if (!progress || progress.current == null) return head;
   return `${head} ${progress.current} now${progress.remaining ? `, ${progress.remaining} to go` : ""}${progress.due ? ` by ${progress.due}` : ""}.`;
 }

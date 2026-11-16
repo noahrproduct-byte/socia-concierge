@@ -8,7 +8,7 @@ import { brandWorkspace } from "./context";
 import { scopeToWorkspace } from "./workspaces";
 import { getProfile } from "./profile";
 import { brandContext } from "./prompt";
-import { MAIN_GOALS } from "./growth";
+import { mainGoalLabel as labelFor } from "./growth";
 import { readFormatsDoc } from "./nicheFormatsLoad";
 import { anthropic, FAST_MODEL, effortFor } from "./anthropic";
 import { recordAiUsage } from "./aiUsage";
@@ -17,8 +17,8 @@ import { GUIDE_SYSTEM, conceptFromFormat, conceptFromPlanItem, conceptPrompt, gu
 
 async function mainGoalLabel(ctx: Ctx): Promise<string | null> {
   const profile = await getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null);
-  const id = profile?.brand_detail?.growth?.main_goal;
-  return MAIN_GOALS.find((m) => m.id === id)?.label ?? null;
+  const growth = profile?.brand_detail?.growth;
+  return labelFor(growth?.main_goal, growth);
 }
 
 type PlanRow = { id: string; data: Deliverable };

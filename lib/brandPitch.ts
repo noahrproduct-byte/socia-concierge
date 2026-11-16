@@ -3,7 +3,7 @@
 // meaning behind it. It doesn't go towards the goal of getting more bookings.
 // It doesn't even mention Beta Twin"). Everything comes from what the person
 // confirmed or from the account's own words; nothing is invented. Pure.
-import { MAIN_GOALS } from "./growth";
+import { MAIN_GOALS, mainGoalLabel } from "./growth";
 import type { BrandDetail } from "./profile";
 
 export type BrandPitch = {
@@ -49,7 +49,7 @@ export function pitchFromDetail(detail: BrandDetail | null | undefined, opts: { 
     name: clean(opts.name, 60) || null,
     what: clean(detail?.description, 400) || clean(u?.visual?.about?.value, 300) || clean(g?.niche_path?.specific, 200) || null,
     product: clean(u?.visual?.about?.product, 80) || null,
-    goal: goal?.label ?? (clean(opts.goals, 160) || null),
+    goal: mainGoalLabel(goal?.id, g) ?? (clean(opts.goals, 160) || null),
     converts: goal ? goal.id === "bookings_orders" || goal.id === "local_customers" : /book|order|sign.?up|waitlist|sale|customer|lead/i.test(opts.goals ?? ""),
     cta: ownCallToAction([bio, ...standouts]),
     proof: standouts.slice(0, 3).map((s) => clean(s, 160)),

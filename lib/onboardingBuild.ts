@@ -5,7 +5,7 @@
 // reveal: where the account stands, the goal, three priorities, the week, and
 // the SOCIA tools that fit. Every number is one the platforms returned;
 // nothing is predicted and no result is promised. Pure and browser-safe.
-import { GOAL_PLATFORM_NAME, MAIN_GOALS, formatGoalValue, goalMetric, type Goal, type GoalMetricId, type GoalPlatform, type MainGoalId } from "./growth";
+import { GOAL_PLATFORM_NAME, formatGoalValue, goalMetric, mainGoalsFor, type CustomerGoalId, type Goal, type GoalMetricId, type GoalPlatform, type MainGoalId } from "./growth";
 import type { GrowthStrategy } from "./strategy";
 import { toolGroups, type ToolGroup } from "./onboardingTools";
 import type { PlanId } from "./plans";
@@ -99,9 +99,11 @@ export function buildReveal(input: {
   /** The plan the person is on, and how many competitors the brand tracks: what the tools list is marked against. */
   plan: PlanId;
   competitors: number;
+  /** How the customer goal is worded for this brand (lib/growth.ts CUSTOMER_GOALS). */
+  customerGoal?: CustomerGoalId | null;
   today: string;
 }): Reveal {
-  const main = MAIN_GOALS.find((m) => m.id === input.mainGoal) ?? null;
+  const main = mainGoalsFor(input.customerGoal).find((m) => m.id === input.mainGoal) ?? null;
   const g = input.goal;
   const start = (["followers", "views_30d", "posts_per_week", "engagement_rate"] as const)
     .filter((id) => input.nowValues[id])

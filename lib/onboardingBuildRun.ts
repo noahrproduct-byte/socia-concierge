@@ -85,6 +85,7 @@ export async function runStrategyBuild(ctx: Ctx, emit: Emit, now: Date = new Dat
   const growth = (src.profile?.brand_detail?.growth ?? null) as GrowthProfile | null;
   return buildReveal({
     mainGoal: growth?.main_goal ?? null,
+    customerGoal: growth?.customer_goal ?? null,
     goal: primary,
     nowValues,
     strategy,
