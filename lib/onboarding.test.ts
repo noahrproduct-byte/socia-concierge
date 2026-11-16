@@ -24,7 +24,8 @@ describe("steps", () => {
   it("move within bounds and resume at the saved step", () => {
     expect(nextStep("connect")).toBe("profile");
     expect(nextStep("goal")).toBe("strategy");
-    expect(nextStep("strategy")).toBe("strategy");
+    expect(nextStep("strategy")).toBe("plan");
+    expect(nextStep("plan")).toBe("plan");
     // A brand left on the old last step resumes on the step that replaced it.
     expect(resumeStep({ step: "briefing", answers: {}, completed_at: null })).toBe("strategy");
     expect(prevStep("connect")).toBe("connect");

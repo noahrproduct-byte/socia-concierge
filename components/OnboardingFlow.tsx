@@ -26,6 +26,7 @@ import ConnectAccounts, { type ConnectState } from "./ConnectAccounts";
 import BrandMark from "./BrandMark";
 import ReadReveal from "./ReadReveal";
 import StrategyStep from "./onboarding/StrategyStep";
+import PlanStep from "./onboarding/PlanStep";
 import AnimatedChoice from "@/components/animated/AnimatedChoice";
 import BrandRead, { brandReadToSave, seedBrandRead, type BrandReadValue } from "@/components/brand/BrandRead";
 
@@ -68,6 +69,7 @@ export default function OnboardingFlow({
   igStatus = "",
   returned = [],
   initial,
+  planNotice = null,
   brands = [],
 }: {
   /** Real connection state per platform, read on the server. */
@@ -76,6 +78,8 @@ export default function OnboardingFlow({
   /** Return codes from the platform callbacks, e.g. { name: "YouTube", code: "denied" }. */
   returned?: { name: string; code: string }[];
   initial: Initial;
+  /** Said on the plan step, e.g. after a checkout that was cancelled. */
+  planNotice?: string | null;
   /** The brands this person can open; a switcher shows when there are several. */
   brands?: { id: string; name: string; active: boolean }[];
 }) {
@@ -255,7 +259,7 @@ export default function OnboardingFlow({
   async function finish() {
     setSaving(true);
     setErr(null);
-    const r = await post("/api/onboarding", { step: "strategy", completed: true }).catch(() => null);
+    const r = await post("/api/onboarding", { step: "plan", completed: true }).catch(() => null);
     // Before the database update the row can't be saved; the niche alone then
     // marks setup as done (lib/onboarding.ts), so the app still opens.
     if (!r?.ok && r?.status !== 503) {
@@ -509,13 +513,25 @@ export default function OnboardingFlow({
                   <button className="ob-btn ob-btn-ghost" onClick={() => go("goal", false)} disabled={saving}>
                     <ArrowLeft size={17} /> Back
                   </button>
-                  <button className="ob-btn ob-btn-primary" onClick={finish} disabled={saving || !strategyReady}>
-                    {saving ? "Opening…" : "Open SOCIA"} {!saving && <ArrowRight size={17} />}
+                  <button className="ob-btn ob-btn-primary" onClick={() => go("plan", false)} disabled={saving || !strategyReady}>
+                    Put my strategy into action <ArrowRight size={17} />
                   </button>
                 </div>
                 <p className="ob-note">
                   Your first weekly plan is being written from this strategy; the bell tells you when it&apos;s ready. Add your audience, voice and what you can produce any time in <Link href="/settings#growth">Settings</Link>.
                 </p>
+              </>
+            )}
+
+            {step === "plan" && (
+              <>
+                <PlanStep headRef={headRef} onFree={finish} busy={saving} notice={planNotice} />
+                {err && <div className="ob-err" role="alert">{err}</div>}
+                <div className="ob-actions">
+                  <button className="ob-btn ob-btn-ghost" onClick={() => go("strategy", false)} disabled={saving}>
+                    <ArrowLeft size={17} /> Back
+                  </button>
+                </div>
               </>
             )}
           </div>
