@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STAGES, buildReveal, feasibility, postsInLast, strongestPosts, toolsFor } from "./onboardingBuild";
+import { STAGES, buildReveal, feasibility, postsInLast, strongestPosts } from "./onboardingBuild";
 import type { GrowthStrategy } from "./strategy";
 
 const now = new Date("2026-11-15T12:00:00Z");
@@ -45,7 +45,7 @@ describe("how a target compares with the recent pace", () => {
 });
 
 describe("the reveal", () => {
-  const input = { mainGoal: "followers" as const, goal: { kind: "primary" as const, metric: "followers" as const, platforms: ["instagram" as const], baseline: 2450, target: 10000, due_date: "2027-02-13" }, nowValues: { followers: { value: 2450, platforms: ["instagram" as const] }, views_30d: { value: 18400, platforms: ["instagram" as const] } }, strategy, gained: 100, gainedDays: 30, has: { animated: true, competitors: true }, today: "2026-11-15" };
+  const input = { mainGoal: "followers" as const, goal: { kind: "primary" as const, metric: "followers" as const, platforms: ["instagram" as const], baseline: 2450, target: 10000, due_date: "2027-02-13" }, nowValues: { followers: { value: 2450, platforms: ["instagram" as const] }, views_30d: { value: 18400, platforms: ["instagram" as const] } }, strategy, gained: 100, gainedDays: 30, plan: "free" as const, competitors: 2, today: "2026-11-15" };
   it("is built from what was read and written", () => {
     const r = buildReveal(input);
     expect(r.target).toBe("10,000 followers");
@@ -53,7 +53,12 @@ describe("the reveal", () => {
     expect(r.start.map((x) => `${x.label}: ${x.value} (${x.where})`)).toEqual(["Followers or subscribers: 2,450 (Instagram)", "Views in the last 30 days: 18,400 (Instagram)"]);
     expect(r.priorities).toHaveLength(3);
     expect(r.week).toMatchObject({ posts: 3 });
-    expect(r.tools).toHaveLength(3);
+    // Every tool is listed, worded with this strategy's own numbers and marked against the person's plan.
+    const tools = r.tools.flatMap((g) => g.tools);
+    expect(tools.length).toBeGreaterThan(15);
+    expect(tools.find((t) => t.name === "Content Plan")!.what).toContain("Writes your 3 posts for the week");
+    expect(tools.find((t) => t.name === "Analytics")!.what).toContain("10,000 followers");
+    expect(tools.find((t) => t.name === "Animated videos")!.from).toBe("From Starter");
     expect(r.basedOn).toEqual(["25 Instagram posts", "Your goal"]);
   });
   it("leaves out what it doesn't have instead of filling it in", () => {
@@ -64,10 +69,5 @@ describe("the reveal", () => {
     expect(r.start).toEqual([]);
     expect(r.priorities).toEqual([]);
     expect(r.week).toBeNull();
-  });
-  it("names only tools the plan and the brand can use", () => {
-    expect(toolsFor("local_customers", { animated: false, competitors: false }).map((t) => t.name)).toEqual(["Content Plan", "Calendar", "Content Rater"]);
-    expect(toolsFor("followers", { animated: true, competitors: false }).map((t) => t.name)).toEqual(["Content Plan", "Content Rater", "Analytics"]);
-    expect(toolsFor(null, { animated: true, competitors: true })).toHaveLength(3);
   });
 });

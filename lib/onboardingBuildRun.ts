@@ -90,7 +90,8 @@ export async function runStrategyBuild(ctx: Ctx, emit: Emit, now: Date = new Dat
     strategy,
     gained: window.length ? window.reduce((n, d) => n + (d.followers_gained as number), 0) : null,
     gainedDays: window.length,
-    has: { animated: (ent.config.meters.animated_videos ?? 0) > 0, competitors: handles.length > 0 },
+    plan: ent.plan,
+    competitors: handles.length,
     today: now.toISOString().slice(0, 10),
   });
 }
