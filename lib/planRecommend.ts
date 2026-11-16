@@ -4,7 +4,7 @@
 // check against the plan's own numbers. It never picks a bigger plan than the
 // needs call for, and it says so when Free is enough. Pure and browser-safe.
 import { FEATURE_MIN_PLAN, PLANS, SALE_ORDER, planRank, type PlanId } from "./plans";
-import { MONTHLY_CREDITS, actionCredits } from "./credits/config";
+import { actionCredits, creditsOnSale } from "./credits/config";
 import type { MainGoalId } from "./growth";
 
 /** Weeks in a month, for turning a weekly strategy into a month of credits. */
@@ -52,7 +52,7 @@ export function recommendPlan(need: PlanNeed, order: PlanId[] = SALE_ORDER): Rec
   const first = (ok: (p: PlanId) => boolean): PlanId | null => order.find(ok) ?? null;
   const top = order[order.length - 1];
 
-  const byCredits = first((p) => MONTHLY_CREDITS[p] >= credits);
+  const byCredits = first((p) => creditsOnSale(p) >= credits);
   const byCompetitors = first((p) => PLANS[p].limits.competitors >= need.competitors) ?? top;
   const byBrands = first((p) => PLANS[p].limits.workspaces >= Math.max(1, need.brands)) ?? top;
   // Replying to comments is where an engagement goal is worked on; reading platforms side by side needs two of them.
@@ -67,8 +67,8 @@ export function recommendPlan(need: PlanNeed, order: PlanId[] = SALE_ORDER): Rec
   const reasons: string[] = [];
   reasons.push(
     byCredits
-      ? `At ${posts} ${posts === 1 ? "post" : "posts"} a week, a weekly plan plus a caption and a rating for each post use about ${n(credits)} AI credits a month. ${cfg.name} includes ${n(MONTHLY_CREDITS[plan])}.`
-      : `At ${posts} posts a week you would use about ${n(credits)} AI credits a month. That is more than any plan includes (${cfg.name} has ${n(MONTHLY_CREDITS[plan])}), so you would add credits when you need them.`,
+      ? `At ${posts} ${posts === 1 ? "post" : "posts"} a week, a weekly plan plus a caption and a rating for each post use about ${n(credits)} AI credits a month. ${cfg.name} includes ${n(creditsOnSale(plan))}.`
+      : `At ${posts} posts a week you would use about ${n(credits)} AI credits a month. That is more than any plan includes (${cfg.name} has ${n(creditsOnSale(plan))}), so you would add credits when you need them.`,
   );
   if (planRank(byCompetitors) === planRank(plan) && need.competitors > PLANS[order[0]].limits.competitors) {
     reasons.push(`You track ${need.competitors} competitors. ${cfg.name} allows ${cfg.limits.competitors} per brand.`);

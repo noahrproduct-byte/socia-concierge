@@ -8,7 +8,7 @@ import { readStrategy } from "@/lib/strategyLoad";
 import { getProfile } from "@/lib/profile";
 import { brandWorkspace } from "@/lib/context";
 import { PLANS, SALE_ORDER, checkoutAvailable, formatPrice } from "@/lib/plans";
-import { MONTHLY_CREDITS, creditsBuy, type CreditAction } from "@/lib/credits/config";
+import { creditsBuy, creditsOnSale, type CreditAction } from "@/lib/credits/config";
 import { recommendPlan } from "@/lib/planRecommend";
 import type { GrowthProfile } from "@/lib/growth";
 
@@ -53,8 +53,8 @@ export async function GET() {
       const p = PLANS[id];
       return {
         id, name: p.name, price: formatPrice(p), priceMonthly: p.priceMonthly, tagline: p.tagline,
-        credits: MONTHLY_CREDITS[id],
-        buys: creditsBuy(MONTHLY_CREDITS[id], (a: CreditAction) => (p.meters[a] ?? 0) > 0),
+        credits: creditsOnSale(id),
+        buys: creditsBuy(creditsOnSale(id), (a: CreditAction) => (p.meters[a] ?? 0) > 0),
         competitors: p.limits.competitors, workspaces: p.limits.workspaces,
       };
     }),
