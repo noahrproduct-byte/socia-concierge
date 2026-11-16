@@ -23,7 +23,7 @@ import BatchPanel from "./BatchPanel";
 import BriefPanel from "./BriefPanel";
 import VideoList from "./VideoList";
 import ClipLibrary from "./ClipLibrary";
-import { takeHandoff } from "@/lib/studioClips/handoff";
+import { takeHandoff , type HandoffReference } from "@/lib/studioClips/handoff";
 import { overlayStyle } from "@/lib/studioClips/overlay";
 import { applyCuts } from "@/lib/studioFixes";
 import type { HandoffFix } from "@/lib/studioClips/handoff";
@@ -96,6 +96,8 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
   const [autoText, setAutoText] = useState(false);
   // A video idea from the Dashboard: its plan starts the prompt.
   const [startPrompt, setStartPrompt] = useState<string | null>(null);
+  // A Reel from Discover to read as the reference ("Make a video like this").
+  const [startReference, setStartReference] = useState<HandoffReference | null>(null);
   // Edit: every video made in this brand (null while loading).
   const [videos, setVideos] = useState<VideoSummary[] | null>(null);
   const projectRef = useRef<StudioProject | null>(null);
@@ -307,6 +309,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
     if (!audio && !editing) return;
     const handed = takeHandoff(audio ? "audio" : "edit");
     if (editing && handed.data.prompt) setStartPrompt(handed.data.prompt);
+    if (editing && handed.data.reference) setStartReference(handed.data.reference);
     if (!handed.files.length) return;
     if (editing) { overlaysRef.current = handed.data.layers?.length ? handed.data.layers : null; fixRef.current = handed.data.fix ?? null; }
     void onFiles(handed.files);
@@ -538,6 +541,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
             canMake={meta ? meta.autoBuild : null}
             heading="Prompt and reference"
             initialPrompt={startPrompt}
+            initialReference={startReference}
             noClipsNote="Add clips above first, or pick some from Your clips below."
             beforeMake={ensureUnderstood}
             onOpen={(id, title) => setCustom({ id, title })}

@@ -25,6 +25,8 @@ import { dismissedHandles } from "@/lib/competitorAutoPick";
 import { mainPlatform, sameStyle, styleKey, styleStale, styleWord, triedRecently, type AccountStyle, type StyleMemory } from "@/lib/discoverStyle";
 import { readStyleMemory } from "@/lib/discoverStyleLoad";
 import { SUGGESTIONS_READ } from "@/lib/discoverRead";
+import { signRefUrl } from "@/lib/studioClips/refToken";
+import { isPlatformMediaUrl } from "@/lib/fetchGuard";
 
 export const metadata = { title: "Discover | SOCIA" };
 
@@ -234,13 +236,15 @@ export default async function Page() {
     .map((r, i) => ({ ...r, id: `N${i + 1}` }));
 
   const ownStale = Boolean(snap?.media?.length) && styleStale(memory.own, now) && !triedRecently(memory, "own", now);
+  // "Make a video like this": a Reel whose file official data gives is offered as the reference, its link signed for this viewer.
+  const withRef = (list: typeof reelsToCopy) => list.map((r) => { const t = r.video && isPlatformMediaUrl(r.video) ? signRefUrl(user.id, r.video) : null; return t ? { ...r, refToken: t } : r; });
   const data: DiscoverData = {
     now: now.toISOString(),
     igEnabled: igRes.enabled, igReason: igRes.enabled ? null : (igRes.reason ?? null), ytConfigured: ytConfigured(),
     main, ownStyle: styleWord(memory.own), limit,
     tracked, competitors, suggestions,
-    reelsToCopy,
-    nicheReels,
+    reelsToCopy: withRef(reelsToCopy),
+    nicheReels: withRef(nicheReels),
     reelsRead: { reels: allReels.length, accounts: new Set(allReels.map((r) => (r.accountHandle ?? r.accountName).toLowerCase())).size },
     needsRead: igRes.enabled && (ownStale || [...competitors, ...suggestions].some((a) => a.reading)),
     lastRun: runAt,

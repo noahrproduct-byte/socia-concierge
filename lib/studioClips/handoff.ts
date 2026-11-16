@@ -10,7 +10,9 @@ import type { EditorPanel } from "@/lib/studioFixes";
 export type HandoffFix = { panel: EditorPanel; cleanSound?: boolean; cuts?: { start: number; end: number }[] };
 
 /** `layers`: text lines (preset, words, timing) ready to go on the cut's EDL; `fix`: what Rate asked the editor to do. */
-export type HandoffData = { layers?: EdlText[]; prompt?: string; fix?: HandoffFix };
+/** A video to read as the reference for a brief, by a link SOCIA serves (a competitor's Reel from Discover). */
+export type HandoffReference = { url: string; name: string };
+export type HandoffData = { layers?: EdlText[]; prompt?: string; fix?: HandoffFix; reference?: HandoffReference };
 let pending: { files: File[]; to: string; data: HandoffData; at: number } | null = null;
 
 /** A handoff is for the click that made it: one not taken within this long is dropped. */

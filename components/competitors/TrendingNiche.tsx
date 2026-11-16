@@ -12,7 +12,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Check, Copy, ExternalLink, Lock, Plus, TrendingUp, Users } from "lucide-react";
+import { Check, Clapperboard, Copy, ExternalLink, Lock, Plus, TrendingUp, Users } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { handFiles } from "@/lib/studioClips/handoff";
 import type { CompetitorRow, CompPost } from "@/lib/competitorIntel";
 import { PROVEN_AT, PROVEN_VIEWS, TREND_WINDOW_DAYS, refResult } from "@/lib/trendSignals";
 import type { CompetitorsData, ProvenReel } from "./types";
@@ -233,6 +235,7 @@ const FIRST_COMPETITOR = 6;
 const FIRST_NICHE = 3;
 
 export function ReelsToCopy({ d }: { d: ReelsToCopyInput }) {
+  const router = useRouter();
   const [copied, setCopied] = useState<string | null>(null);
   const [more, setMore] = useState(false);
   if (!d.nicheAccess) return <Locked what="Reels you can copy from your competitors" upgrade={d.nicheUpgrade} />;
@@ -253,6 +256,14 @@ export function ReelsToCopy({ d }: { d: ReelsToCopyInput }) {
       // Clipboard refused: show the brief so it can be copied by hand.
       window.prompt("Copy this brief", text);
     }
+  };
+
+  // Make a video like this: the brief written from the Reel starts the Build tab's prompt, and, when official data
+  // gives the Reel's file, the Reel itself is read there as the reference. The person adds their own clips.
+  const makeLike = (r: ProvenReel) => {
+    const reference = r.refToken && r.video ? { url: `/api/studio/reference/media?url=${encodeURIComponent(r.video)}&token=${r.refToken}`, name: `${r.accountHandle ? `@${r.accountHandle}` : r.accountName} ${r.format}.mp4` } : undefined;
+    handFiles("edit", [], { prompt: `${brief(r)}\n\nCopy its length, pace, order of shots and on-screen text style with my clips.`, ...(reference ? { reference } : {}) });
+    router.push("/studio?mode=edit");
   };
 
   const card = (r: ProvenReel) => (
@@ -280,6 +291,9 @@ export function ReelsToCopy({ d }: { d: ReelsToCopyInput }) {
         </ul>
         <p className="cx5-make"><b>Make yours:</b> {recipe(r)}</p>
         <div className="cx3-actions">
+          <button type="button" className="ov-btn primary small" onClick={() => makeLike(r)} title={r.refToken ? "Opens the video editor with this Reel as the reference and a brief written from it; you add your clips." : "Opens the video editor with a brief written from this Reel; you add your clips."}>
+            <Clapperboard size={13} /> Make a video like this
+          </button>
           <Link href={`/plan?note=${encodeURIComponent(brief(r))}`} className="ov-btn outline small">
             <Plus size={13} /> Add to my plan
           </Link>

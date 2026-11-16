@@ -33,7 +33,7 @@ const toBase64 = (blob: Blob) => new Promise<string>((resolve, reject) => {
   r.readAsDataURL(blob);
 });
 
-export default function BriefPanel({ projectId, viewerId, canMake, onOpen, beforeMake, heading = "Make a video your way", noClipsNote, initialPrompt }: {
+export default function BriefPanel({ projectId, viewerId, canMake, onOpen, beforeMake, heading = "Make a video your way", noClipsNote, initialPrompt, initialReference }: {
   /** null: no clips yet (the Video editor shows this panel before any are added) */
   projectId: string | null; viewerId: string;
   /** null = plan unknown yet; false = not on this plan */ canMake: boolean | null;
@@ -45,6 +45,8 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
   noClipsNote?: string;
   /** a prompt to start from (a video idea from the Dashboard) */
   initialPrompt?: string | null;
+  /** a video to read as the reference, by a link SOCIA serves (a competitor's Reel from Discover) */
+  initialReference?: { url: string; name: string } | null;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [prompt, setPrompt] = useState(initialPrompt ?? "");
@@ -110,6 +112,26 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
       setReading(null);
     }
   }, [viewerId]);
+  // A Reel handed over from Discover is fetched through SOCIA and read like a dropped file.
+  const fetchedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!initialReference || fetchedRef.current === initialReference.url) return;
+    fetchedRef.current = initialReference.url;
+    let alive = true;
+    (async () => {
+      setReading("Getting the Reel");
+      try {
+        const res = await fetch(initialReference.url);
+        if (!res.ok) { const j = (await res.json().catch(() => null)) as { error?: string } | null; throw new Error(j?.error ?? "SOCIA couldn't get that Reel."); }
+        const blob = await res.blob();
+        if (!alive) return;
+        await readReference(new File([blob], initialReference.name.replace(/[^\w.@ -]/g, "") || "reference.mp4", { type: blob.type.startsWith("video/") ? blob.type : "video/mp4" }));
+      } catch (e) {
+        if (alive) { setReading(null); setRefNote(`${(e as Error).message} Drop the Reel here as a file instead, or make it from the brief alone.`); }
+      }
+    })();
+    return () => { alive = false; };
+  }, [initialReference, readReference]);
 
   // One call to the improver, with an optional time limit; null when it can't be reached or is too slow.
   const fetchImproved = async (text: string, timeoutMs?: number): Promise<{ prompt?: string; added?: string[]; error?: string; ok: boolean } | null> => {
