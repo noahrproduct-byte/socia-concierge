@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PLANS } from "./plans";
+import { FEATURE_MIN_PLAN, PLANS } from "./plans";
 import { actionCredits, creditsOnSale } from "./credits/config";
 import { creditsForStrategy, recommendPlan, type PlanNeed } from "./planRecommend";
 
@@ -17,29 +17,42 @@ describe("what a strategy uses", () => {
 });
 
 describe("the plan recommended for a strategy", () => {
-  it("is the cheapest plan that covers it, never the biggest by default", () => {
+  it("is Growth, with reasons that are true of this strategy (Noah, 2026-11-16)", () => {
     const r = rec();
-    expect(r.plan).toBe("starter");
+    expect(r.plan).toBe("growth");
+    // The cheapest plan that covers the posting is still worked out and kept.
+    expect(r.fit).toBe("starter");
     expect(creditsOnSale("starter")).toBeGreaterThanOrEqual(r.credits);
-    expect(creditsOnSale("free")).toBeLessThan(r.credits);
     expect(r.reasons[0]).toContain("3 posts a week");
-    expect(r.reasons[0]).toContain(`Starter includes ${creditsOnSale("starter").toLocaleString("en-US")}`);
+    expect(r.reasons[0]).toContain(`Growth includes ${creditsOnSale("growth").toLocaleString("en-US")}, so there is room left`);
+    expect(r.reasons.join(" ")).toContain("Growth adds AI comment replies you approve before they send");
+    expect(r.reasons.join(" ")).toContain(`It tracks ${PLANS.growth.limits.competitors} competitors per brand and runs ${PLANS.growth.limits.workspaces} brands.`);
+    // Nothing says a smaller plan couldn't cover it, and nothing is promised.
+    expect(r.reasons.join(" ")).not.toMatch(/need|only plan|guarantee|will grow|most popular/i);
     expect(r.short).toBe(false);
-    expect(rec({ postsPerWeek: 7 }).plan).toBe("starter");
+    expect(rec({ postsPerWeek: 7 }).plan).toBe("growth");
+    expect(rec({ postsPerWeek: 0 }).plan).toBe("growth");
   });
-  it("says Free is enough when it is", () => {
-    const tiny = recommendPlan(need({ postsPerWeek: 0 }), [...ORDER]);
+  it("only names features Growth really starts on", () => {
+    const text = rec().reasons.join(" ");
+    for (const [key, words] of [["comment_replies", "AI comment replies"], ["daily_recommendations", "one recommendation each day"], ["trend_alerts", "trend alerts"], ["competitor_alerts", "competitor alerts"]] as const) {
+      expect(text.includes(words)).toBe(FEATURE_MIN_PLAN[key] === "growth");
+    }
+  });
+  it("falls back to the cheapest fit when Growth isn't on sale", () => {
+    const tiny = recommendPlan(need({ postsPerWeek: 0 }), ["free", "starter"]);
     expect(tiny.plan).toBe("free");
     expect(tiny.reasons.at(-1)).toBe("Free covers this to start. You can move up when you need more.");
   });
-  it("moves up only for a real need, and names it", () => {
+  it("moves above Growth only for a real need, and names it", () => {
     const comp = rec({ competitors: PLANS.starter.limits.competitors + 1 });
     expect(comp.plan).toBe("growth");
     expect(comp.reasons.join(" ")).toContain(`Growth allows ${PLANS.growth.limits.competitors} per brand`);
     const brands = rec({ brands: PLANS.growth.limits.workspaces + 1 });
     expect(brands.plan).toBe("pro");
+    expect(brands.fit).toBe("pro");
     expect(brands.reasons.join(" ")).toContain(`Pro includes ${PLANS.pro.limits.workspaces} Brand Workspaces`);
-    expect(rec({ competitors: 2 }).plan).toBe("starter");
+    expect(brands.reasons.join(" ")).not.toContain("Pro adds");
   });
   it("follows the goal and the platforms to the first plan with the feature", () => {
     const e = rec({ mainGoal: "engagement" });
