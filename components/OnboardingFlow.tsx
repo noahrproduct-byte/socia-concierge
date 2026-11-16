@@ -11,13 +11,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Check, Loader2, Minus } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { NICHES } from "@/lib/niches";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import { STEPS, STEP_LABEL, nextStep, prevStep, type Step } from "@/lib/onboarding";
-import { ACCOUNT_TYPES, GOAL_PLATFORM_NAME, MAIN_GOALS, goalMetric, type AccountType, type GoalPlatform, type MainGoalId } from "@/lib/growth";
+import { ACCOUNT_TYPES, GOAL_PLATFORM_NAME, MAIN_GOALS, formatGoalValue, goalMetric, type AccountType, type GoalMetricId, type GoalPlatform, type MainGoalId } from "@/lib/growth";
+import { TIMEFRAMES, dueFor, goalStepError, goalStepSummary, targetNumber, type Timeframe } from "@/lib/goalStep";
 import { confidenceLabel, type Understanding } from "@/lib/intel/understanding";
-import type { Briefing, StepOutcome } from "@/lib/briefing";
 import type { BrandDetail } from "@/lib/profile";
 import { Field, Input } from "@/components/system";
 import PlanNotice from "@/components/PlanNotice";
@@ -25,6 +25,8 @@ import { Choices } from "./growth/GrowthFields";
 import ConnectAccounts, { type ConnectState } from "./ConnectAccounts";
 import BrandMark from "./BrandMark";
 import ReadReveal from "./ReadReveal";
+import StrategyStep from "./onboarding/StrategyStep";
+import PlanStep from "./onboarding/PlanStep";
 import AnimatedChoice from "@/components/animated/AnimatedChoice";
 import BrandRead, { brandReadToSave, seedBrandRead, type BrandReadValue } from "@/components/brand/BrandRead";
 
@@ -67,6 +69,7 @@ export default function OnboardingFlow({
   igStatus = "",
   returned = [],
   initial,
+  planNotice = null,
   brands = [],
 }: {
   /** Real connection state per platform, read on the server. */
@@ -75,6 +78,8 @@ export default function OnboardingFlow({
   /** Return codes from the platform callbacks, e.g. { name: "YouTube", code: "denied" }. */
   returned?: { name: string; code: string }[];
   initial: Initial;
+  /** Said on the plan step, e.g. after a checkout that was cancelled. */
+  planNotice?: string | null;
   /** The brands this person can open; a switcher shows when there are several. */
   brands?: { id: string; name: string; active: boolean }[];
 }) {
@@ -106,12 +111,15 @@ export default function OnboardingFlow({
   const [brandRead, setBrandRead] = useState<BrandReadValue>(() => seedBrandRead(g0.understanding?.visual, d));
   const [target, setTarget] = useState("");
   const [due, setDue] = useState("");
+  // The timeframe for the target, and where the account stands now on each goal SOCIA can measure.
+  const [frame, setFrame] = useState<Timeframe | null>(null);
+  const [nowValues, setNowValues] = useState<Partial<Record<GoalMetricId, { value: number; platforms: GoalPlatform[] }>> | null>(null);
+  const today = new Date().toISOString().slice(0, 10);
 
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [init, setInit] = useState<{ outcomes: StepOutcome[]; briefing: Briefing } | null>(null);
-  const [initErr, setInitErr] = useState<string | null>(null);
-  const initStarted = useRef(false);
+  // The strategy step says when its build has ended (done or failed), so "Open SOCIA" waits for it.
+  const [strategyReady, setStrategyReady] = useState(false);
   const readStarted = useRef(false);
   const headRef = useRef<HTMLHeadingElement>(null);
 
@@ -175,17 +183,13 @@ export default function OnboardingFlow({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
-  // The briefing step runs the real initialization once.
+  // The goal step reads where the account stands now, so the target is set against a real number.
   useEffect(() => {
-    if (step !== "briefing" || initStarted.current) return;
-    initStarted.current = true;
-    post("/api/onboarding/initialize", {})
-      .then(async (r) => {
-        const j = await r.json().catch(() => null);
-        if (!r.ok || !j?.briefing) throw new Error(j?.error || "Couldn't read your accounts just now. Try again in a minute.");
-        setInit(j);
-      })
-      .catch((e) => setInitErr(e instanceof Error ? e.message : "Couldn't read your accounts just now."));
+    if (step !== "goal" || nowValues || !connected.length) return;
+    let alive = true;
+    fetch("/api/goals/now").then((r) => (r.ok ? r.json() : null)).then((j) => { if (alive) setNowValues(j?.now ?? {}); }).catch(() => { if (alive) setNowValues({}); });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
   async function saveProfile(): Promise<boolean> {
@@ -215,6 +219,11 @@ export default function OnboardingFlow({
   async function saveGoal(): Promise<boolean> {
     const choice = MAIN_GOALS.find((m) => m.id === mainGoal);
     if (!choice) return false;
+    // A goal has a target and a timeframe (when the goals table is there to hold them).
+    if (initial.tableReady) {
+      const problem = goalStepError({ metric: choice.metric, target, frame, custom: due, today, now: nowValues?.[choice.metric]?.value ?? null });
+      if (problem) { setErr(problem); return false; }
+    }
     // Without a target the goal is still the brand's stated goal; with one it becomes a measured goal.
     const r = await post("/api/profile", { brand_detail: { growth: { main_goal: choice.id } }, ...(target ? {} : { goals: `Main goal: ${choice.label}.` }) }).catch(() => null);
     if (!r?.ok) {
@@ -224,7 +233,7 @@ export default function OnboardingFlow({
     if (target && initial.tableReady) {
       const m = goalMetric(choice.metric)!;
       const where = m.measuredOn.filter((p) => connectedPlatforms.includes(p));
-      const gr = await post("/api/goals", { metric: choice.metric, target, due_date: due || null, platforms: where.length ? where : m.measuredOn.slice(0, 1), kind: "primary" }).catch(() => null);
+      const gr = await post("/api/goals", { metric: choice.metric, target: targetNumber(target), due_date: dueFor(frame, due, today), platforms: where.length ? where : m.measuredOn.slice(0, 1), kind: "primary" }).catch(() => null);
       if (!gr?.ok) {
         const gj = await gr?.json().catch(() => null);
         setErr(gj?.error || "Couldn't save the target. Try again.");
@@ -250,7 +259,7 @@ export default function OnboardingFlow({
   async function finish() {
     setSaving(true);
     setErr(null);
-    const r = await post("/api/onboarding", { step: "briefing", completed: true }).catch(() => null);
+    const r = await post("/api/onboarding", { step: "plan", completed: true }).catch(() => null);
     // Before the database update the row can't be saved; the niche alone then
     // marks setup as done (lib/onboarding.ts), so the app still opens.
     if (!r?.ok && r?.status !== 503) {
@@ -444,111 +453,85 @@ export default function OnboardingFlow({
             {step === "goal" && (
               <>
                 <div className="ob-head">
-                  <h1 ref={headRef} tabIndex={-1}>What&apos;s your main goal?</h1>
-                  <p>SOCIA plans and measures around it. You can change it, or add more goals, in Settings.</p>
+                  <h1 ref={headRef} tabIndex={-1}>What are we working toward?</h1>
+                  <p>Tell SOCIA what success looks like. It builds your strategy around this goal and measures against it. You can change it later in Settings.</p>
                 </div>
                 <div className="ob-fields">
                   <Choices label="Main goal" options={MAIN_GOALS} value={mainGoal} onChange={(v) => setMainGoal(v as MainGoalId)} />
                   {u?.suggested_goal && u.suggested_goal.goal === mainGoal && (
                     <p className="gp-note">Suggested from your account: {u.suggested_goal.reason} Confirm it or pick another.</p>
                   )}
-                  {chosenMetric && (
+                  {chosenMetric && chosenGoal && (
                     <>
                       <p className="gp-note">{chosenMetric.note}</p>
-                      {initial.tableReady && (
-                        <div className="gp-row">
-                          <Field label={chosenMetric.unit === "percent" ? "Target (%)" : "Target"} optional>
-                            <Input inputMode="decimal" value={target} onChange={(e) => setTarget(e.target.value)} />
-                          </Field>
-                          <Field label="By" optional>
-                            <Input type="date" value={due} onChange={(e) => setDue(e.target.value)} />
-                          </Field>
-                        </div>
-                      )}
+                      {initial.tableReady && (() => {
+                        const now = nowValues?.[chosenGoal.metric] ?? null;
+                        const t = targetNumber(target);
+                        const dueDate = dueFor(frame, due, today);
+                        return (
+                          <>
+                            {chosenMetric.measuredOn.length > 0 && (
+                              <p className="gp-note" role="status">
+                                {now
+                                  ? `Where you are now: ${formatGoalValue(chosenGoal.metric, now.value)} (${now.platforms.map((x) => GOAL_PLATFORM_NAME[x]).join(" and ")}).`
+                                  : nowValues ? "SOCIA couldn't read where you are now for this goal. It records your starting point as soon as the numbers arrive." : "Reading where you are now."}
+                              </p>
+                            )}
+                            <div className="gp-row">
+                              <Field label={chosenMetric.unit === "percent" ? "Target (%)" : chosenMetric.unit === "per_week" ? "Target (posts a week)" : "Target"}>
+                                <Input inputMode="decimal" value={target} onChange={(e) => { setTarget(e.target.value); setErr(null); }} />
+                              </Field>
+                            </div>
+                            <Choices label="By when" columns={4} options={[...TIMEFRAMES.map((d) => ({ id: String(d), label: `${d} days` })), { id: "custom", label: "Pick a date" }]} value={frame == null ? "" : String(frame)}
+                              onChange={(v) => { setFrame(v === "custom" ? "custom" : (Number(v) as Timeframe)); setErr(null); }} />
+                            {frame === "custom" && (
+                              <div className="gp-row">
+                                <Field label="Date">
+                                  <Input type="date" min={today} value={due} onChange={(e) => { setDue(e.target.value); setErr(null); }} />
+                                </Field>
+                              </div>
+                            )}
+                            {t != null && dueDate && dueDate > today && (
+                              <p className="gp-note" role="status">Your goal: {chosenGoal.label.toLowerCase()}, {goalStepSummary(chosenGoal.metric, now?.value ?? null, t, dueDate, today)}. SOCIA measures against it and never promises a result.</p>
+                            )}
+                          </>
+                        );
+                      })()}
                     </>
                   )}
                 </div>
                 <AnimatedChoice autoScan />
-                {nav("Finish setup")}
+                {nav("Build my strategy")}
               </>
             )}
 
-            {step === "briefing" && (
+            {step === "strategy" && (
               <>
-                <div className="ob-head">
-                  <h1 ref={headRef} tabIndex={-1}>Your first briefing</h1>
-                  <p>What SOCIA did with your accounts just now, and where to start.</p>
-                </div>
-
-                {!init && !initErr && (
-                  <div className="ob-reading" role="status" aria-live="polite">
-                    <Loader2 size={22} className="spin" aria-hidden />
-                    <p>Reading your connected accounts and recording where your goals start.</p>
-                  </div>
-                )}
-                {initErr && <div className="ob-err" role="alert">{initErr}</div>}
-
-                {init && (
-                  <div className="ob-brief">
-                    {init.outcomes.length > 0 && (
-                      <section>
-                        <h2>What ran</h2>
-                        <ul className="ob-outcomes">
-                          {init.outcomes.map((o, k) => (
-                            <li key={k} className={o.status}>
-                              {o.status === "done" ? <Check size={15} aria-hidden /> : <Minus size={15} aria-hidden />}
-                              <span><b>{o.label}</b> {o.detail}</span>
-                              <small>{o.status === "done" ? "Done" : o.status === "unavailable" ? "Not available" : "Failed"}</small>
-                            </li>
-                          ))}
-                        </ul>
-                      </section>
-                    )}
-                    {init.briefing.learned.length > 0 && (
-                      <section>
-                        <h2>From your accounts</h2>
-                        <ul>{init.briefing.learned.map((l, k) => <li key={k}>{l}</li>)}</ul>
-                      </section>
-                    )}
-                    {init.briefing.missing.length > 0 && (
-                      <section>
-                        <h2>Not available yet</h2>
-                        <ul>{init.briefing.missing.map((l, k) => <li key={k}>{l}</li>)}</ul>
-                      </section>
-                    )}
-                    <section>
-                      <h2>Start here</h2>
-                      <ol className="ob-next">
-                        {init.briefing.actions.map((a) => (
-                          <li key={a.label}>
-                            <Link href={a.href}>{a.label}</Link>
-                            <small>{a.why}</small>
-                          </li>
-                        ))}
-                      </ol>
-                    </section>
-                    {init.briefing.guidance.length > 0 && (
-                      <section className="ob-guidance">
-                        <h2>Starting guidance</h2>
-                        <p className="gp-note">General advice for your goal and situation, not a finding from your data.</p>
-                        <ul>{init.briefing.guidance.map((l, k) => <li key={k}>{l}</li>)}</ul>
-                      </section>
-                    )}
-                  </div>
-                )}
-
+                <StrategyStep onReady={setStrategyReady} headRef={headRef} />
                 {err && <div className="ob-err" role="alert">{err}</div>}
                 <div className="ob-actions">
                   <button className="ob-btn ob-btn-ghost" onClick={() => go("goal", false)} disabled={saving}>
                     <ArrowLeft size={17} /> Back
                   </button>
-                  <button className="ob-btn ob-btn-primary" onClick={finish} disabled={saving || (!init && !initErr)}>
-                    {saving ? "Opening…" : "Open SOCIA"} {!saving && <ArrowRight size={17} />}
+                  <button className="ob-btn ob-btn-primary" onClick={() => go("plan", false)} disabled={saving || !strategyReady}>
+                    Put my strategy into action <ArrowRight size={17} />
                   </button>
                 </div>
                 <p className="ob-note">
-                  Add your audience, voice and what you can produce any time in <Link href="/settings#growth">Settings</Link>. You&apos;re on the Free plan. <Link href="/pricing">Compare plans</Link>
+                  Your first weekly plan is being written from this strategy; the bell tells you when it&apos;s ready. Add your audience, voice and what you can produce any time in <Link href="/settings#growth">Settings</Link>.
                 </p>
+              </>
+            )}
+
+            {step === "plan" && (
+              <>
+                <PlanStep headRef={headRef} onFree={finish} busy={saving} notice={planNotice} />
+                {err && <div className="ob-err" role="alert">{err}</div>}
+                <div className="ob-actions">
+                  <button className="ob-btn ob-btn-ghost" onClick={() => go("strategy", false)} disabled={saving}>
+                    <ArrowLeft size={17} /> Back
+                  </button>
+                </div>
               </>
             )}
           </div>

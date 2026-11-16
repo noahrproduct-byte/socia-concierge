@@ -64,6 +64,7 @@ export const MIGRATIONS = [
   "post-voices.sql",
   "referrals.sql",
   "cancel-flow.sql",
+  "perks.sql",
 ];
 
 const SUPABASE_STANDIN = `

@@ -7,7 +7,8 @@ import { ytAuthConfigured } from "@/lib/youtubeAuth";
 import { ttAuthConfigured } from "@/lib/tiktokAuth";
 import { resolveContext, brandWorkspace } from "@/lib/context";
 import { getProfile } from "@/lib/profile";
-import { readOnboarding } from "@/lib/growthStore";
+import { readOnboarding, saveOnboarding } from "@/lib/growthStore";
+import { syncCheckoutSession } from "@/lib/billing";
 import { resumeStep } from "@/lib/onboarding";
 import { scopeToWorkspace, listAccessibleWorkspaces } from "@/lib/workspaces";
 import OnboardingFlow from "@/components/OnboardingFlow";
@@ -25,7 +26,7 @@ const start = (platform: string) => `/api/auth/${platform}/start?next=onboarding
 export default async function OnboardingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ig?: string; fb?: string; yt?: string; tt?: string }>;
+  searchParams: Promise<{ ig?: string; fb?: string; yt?: string; tt?: string; billing?: string; session_id?: string }>;
 }) {
   const supabase = await createClient();
   const {
@@ -33,7 +34,7 @@ export default async function OnboardingPage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { ig, fb, yt, tt } = await searchParams;
+  const { ig, fb, yt, tt, billing, session_id } = await searchParams;
   const igConn = (await getActiveConnection(supabase, user.id, "username")) as {
     username?: string;
   } | null;
@@ -48,6 +49,21 @@ export default async function OnboardingPage({
     ).limit(1);
     return ((data as unknown as Record<string, unknown>[] | null) ?? [])[0] ?? null;
   };
+  // Back from Stripe's checkout. The plan is switched on from what Stripe says
+  // about this session (and by the webhook), never from the address alone: a
+  // session that isn't this person's, or isn't paid, changes nothing.
+  let planNotice: string | null = null;
+  if (billing === "success" && session_id) {
+    const paid = await syncCheckoutSession(session_id, user.id);
+    if (paid) {
+      await saveOnboarding(ctx, { step: "plan", completed: true });
+      redirect("/dashboard?welcome=1");
+    }
+    planNotice = "We couldn't confirm the payment yet. If you paid, your plan switches on within a minute. Reload this page to check.";
+  } else if (billing === "cancelled") {
+    planNotice = "Checkout was cancelled. Nothing was charged.";
+  }
+
   const [fbRow, ytRow, ttRow] = await Promise.all([
     row("facebook_connections", "page_name, username, connection_status").catch(() => null),
     row("youtube_connections", "title, handle").catch(() => null),
@@ -87,7 +103,7 @@ export default async function OnboardingPage({
   // Back from a platform's sign-in: stay on Connect so the result shows.
   const fromOAuth = Boolean(ig || fb || yt || tt);
   const initial = {
-    step: fromOAuth ? ("connect" as const) : resumeStep(progress),
+    step: fromOAuth ? ("connect" as const) : billing ? ("plan" as const) : resumeStep(progress),
     tableReady,
     niche: profile?.niche ?? null,
     brandName: profile?.brand_name ?? null,
@@ -102,6 +118,7 @@ export default async function OnboardingPage({
         connections={connections}
         igStatus={ig ?? ""}
         returned={returned}
+        planNotice={planNotice}
       />
       {/* a new owner lands here first, so the first-run film plays here */}
       {introDue(user) && <IntroGate userId={user.id} seen={Boolean((await cookies()).get(INTRO_COOKIE))} />}

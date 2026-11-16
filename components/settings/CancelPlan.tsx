@@ -10,7 +10,7 @@ import { Loader2 } from "lucide-react";
 import { Button, Dialog, Field, Textarea } from "@/components/system";
 import { detailRequired, type ReasonId } from "@/lib/retention/core";
 
-type Info = { canCancel: boolean; plan: string; periodEnd: string | null; reasons: { id: ReasonId; label: string }[]; offer: { lines: string[]; days: number } | null };
+type Info = { canCancel: boolean; plan: string; periodEnd: string | null; reasons: { id: ReasonId; label: string }[]; offer: { credits: number; buys: string } | null };
 type Step = "why" | "offer" | "stayed";
 
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric" });
@@ -24,7 +24,7 @@ export default function CancelPlan() {
   const [detail, setDetail] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<null | "stay" | "cancel">(null);
-  const [boostUntil, setBoostUntil] = useState<string | null>(null);
+  const [gotCredits, setGotCredits] = useState<number | null>(null);
 
   useEffect(() => {
     if (!open || info) return;
@@ -34,7 +34,7 @@ export default function CancelPlan() {
   }, [open, info]);
 
   function start() {
-    setStep("why"); setReason(null); setDetail(""); setErr(null); setBoostUntil(null); setOpen(true);
+    setStep("why"); setReason(null); setDetail(""); setErr(null); setGotCredits(null); setOpen(true);
   }
 
   function next() {
@@ -48,14 +48,14 @@ export default function CancelPlan() {
     setBusy(choice); setErr(null);
     try {
       const r = await fetch("/api/billing/cancel", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ reason, detail, choice }) });
-      const j = (await r.json().catch(() => null)) as { url?: string; stayed?: boolean; boostUntil?: string | null; error?: string } | null;
+      const j = (await r.json().catch(() => null)) as { url?: string; stayed?: boolean; credits?: number | null; error?: string } | null;
       if (!r.ok) throw new Error(j?.error || "That didn't go through. Try again.");
       if (choice === "cancel") {
         if (!j?.url) throw new Error("Stripe's cancel page couldn't be opened. Use Manage billing to cancel instead.");
         window.location.assign(j.url);
         return;
       }
-      setBoostUntil(j?.boostUntil ?? null);
+      setGotCredits(j?.credits ?? null);
       setStep("stayed");
       setBusy(null);
     } catch (e) {
@@ -64,7 +64,7 @@ export default function CancelPlan() {
     }
   }
 
-  const title = step === "why" ? "Cancel your plan" : step === "offer" ? (info?.offer ? "Stay and get more this month" : "Cancel your plan") : "You're staying";
+  const title = step === "why" ? "Cancel your plan" : step === "offer" ? (info?.offer ? "Stay and get extra credits" : "Cancel your plan") : "You're staying";
   const actions =
     step === "why" ? (
       <>
@@ -74,7 +74,7 @@ export default function CancelPlan() {
     ) : step === "offer" ? (
       <>
         <Button onClick={() => void send("cancel")} busy={busy === "cancel"} disabled={busy !== null}>Continue to cancel</Button>
-        <Button variant="primary" onClick={() => void send("stay")} busy={busy === "stay"} disabled={busy !== null}>{info?.offer ? "Stay and get these" : "Keep my plan"}</Button>
+        <Button variant="primary" onClick={() => void send("stay")} busy={busy === "stay"} disabled={busy !== null}>{info?.offer ? "Stay and get the credits" : "Keep my plan"}</Button>
       </>
     ) : (
       <Button variant="primary" onClick={() => { setOpen(false); window.location.reload(); }}>Done</Button>
@@ -107,9 +107,8 @@ export default function CancelPlan() {
         )}
         {info && step === "offer" && (info.offer ? (
           <>
-            <p className="cancel-note">Stay on {info.plan} and these are added to your account for the next {info.offer.days} days:</p>
-            <ul className="cancel-offer">{info.offer.lines.map((l) => <li key={l}>{l}</li>)}</ul>
-            <p className="cancel-note">Your price doesn&apos;t change. You can still cancel whenever you want.</p>
+            <p className="cancel-note">Stay on {info.plan} and {info.offer.credits.toLocaleString("en-US")} AI credits are added to your balance. That is {info.offer.buys}.</p>
+            <p className="cancel-note">They don&apos;t expire at the end of the month. Your price doesn&apos;t change, and you can still cancel whenever you want.</p>
           </>
         ) : (
           <p className="cancel-note">
@@ -118,7 +117,7 @@ export default function CancelPlan() {
         ))}
         {info && step === "stayed" && (
           <p className="cancel-note" role="status">
-            {boostUntil ? `Your plan stays as it is, and the extras are on your account until ${day(boostUntil)}.` : "Your plan stays as it is. Nothing was changed."}
+            {gotCredits ? `Your plan stays as it is, and ${gotCredits.toLocaleString("en-US")} AI credits were added to your balance.` : "Your plan stays as it is. Nothing was changed."}
           </p>
         )}
         {err && <p className="cancel-err" role="alert">{err}</p>}

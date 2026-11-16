@@ -22,7 +22,7 @@ export async function GET() {
   try {
     const [jobs, balance] = await Promise.all([
       listGenerationJobs(r.ctx.client, r.ctx.ownerId, r.ctx.workspace?.id ?? null),
-      creditBalance(r.ctx.ownerId, r.ent.plan).catch(() => null),
+      creditBalance(r.ctx.ownerId, r.ent).catch(() => null),
     ]);
     return NextResponse.json({ jobs, balance });
   } catch (e) {
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
       webhookUrl: origin && process.env.HIGGSFIELD_WEBHOOK_SECRET ? `${origin}/api/webhooks/higgsfield` : undefined,
     });
     recordEvent(r.ctx.client, r.ctx.ownerId, "ai_usage", { feature: "studio_generation", kind, model: model.id, credits: job.credits_reserved });
-    const balance = await creditBalance(r.ctx.ownerId, r.ent.plan).catch(() => null);
+    const balance = await creditBalance(r.ctx.ownerId, r.ent).catch(() => null);
     return NextResponse.json({ job, balance });
   } catch (e) {
     return aiErrorResponse("studio-ai/jobs", e);

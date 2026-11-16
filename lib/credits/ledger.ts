@@ -3,7 +3,7 @@
 // Service role only; every caller has already checked who is asking.
 import { createServiceClient } from "@/lib/supabase/service";
 import { monthKey } from "@/lib/aiSpend";
-import { MONTHLY_CREDITS } from "./config";
+import { planCredits } from "./config";
 import { bonusCredits } from "@/lib/referrals/core";
 import type { PlanId } from "@/lib/plans";
 
@@ -28,8 +28,14 @@ const svcOrThrow = (): Svc => {
 const isMissing = (e: { message?: string; code?: string } | null | undefined) =>
   Boolean(e && (e.code === "42P01" || e.code === "PGRST202" || /does not exist|Could not find/i.test(e.message ?? "")));
 
-/** This month's credits for a plan, with what counting invitations add (lib/referrals/core.ts). */
-export const monthlyCredits = (plan: PlanId, invites = 0): number => (MONTHLY_CREDITS[plan] ?? 0) + bonusCredits(invites);
+/** Who the credits are for: a plan, or an account's entitlements (its plan, invitations and the price it pays). */
+export type CreditPlan = PlanId | { plan: PlanId; invites?: number; priceCents?: number | null };
+
+/** This month's credits: the plan's for the price paid (lib/credits/config.ts), plus what counting invitations add (lib/referrals/core.ts). */
+export function monthlyCredits(who: CreditPlan, invites = 0): number {
+  const w = typeof who === "string" ? { plan: who, invites, priceCents: null } : who;
+  return planCredits(w.plan, w.priceCents) + bonusCredits(w.invites ?? invites);
+}
 
 /**
  * The owner's balance after this month's credits have been granted (the
@@ -38,9 +44,9 @@ export const monthlyCredits = (plan: PlanId, invites = 0): number => (MONTHLY_CR
  * month's unused credits and tops the month up after an upgrade). null when
  * the credit tables are not installed.
  */
-export async function creditBalance(ownerId: string, plan: PlanId, now = new Date(), invites = 0): Promise<number | null> {
+export async function creditBalance(ownerId: string, who: CreditPlan, now = new Date(), invites = 0): Promise<number | null> {
   const svc = svcOrThrow();
-  const allowance = monthlyCredits(plan, invites);
+  const allowance = monthlyCredits(who, invites);
   const { data, error } = await svc.rpc("socia_credit_grant", { p_user: ownerId, p_amount: allowance, p_month: monthKey(now) });
   if (error) {
     if (isMissing(error)) return null;

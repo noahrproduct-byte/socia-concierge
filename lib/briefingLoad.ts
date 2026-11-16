@@ -19,7 +19,7 @@ import { runInsights } from "./intel/runIntel";
 import { GOAL_PLATFORM_NAME, formatGoalValue, goalMetric, type Goal, type GrowthProfile } from "./growth";
 
 /** The platform rows and extra numbers a goal's current value is read from. */
-async function readNow(ctx: Ctx, ent: Awaited<ReturnType<typeof getEntitlements>>) {
+export async function readNow(ctx: Ctx, ent: Awaited<ReturnType<typeof getEntitlements>>) {
   const src = await loadSources(ctx, ent, { days: 30 });
   const rows = await platformSummaries(ctx, src);
   const since = src.now.getTime() - src.days * 86_400_000;
@@ -53,6 +53,29 @@ export async function recordStartingPoints(ctx: Ctx, goals: Goal[]): Promise<Goa
   }
   await syncGoalsText(ctx).catch(() => undefined);
   return goals;
+}
+
+/**
+ * Where the account stands now on each goal SOCIA can measure, read from the
+ * connected accounts: the number a target is set against at onboarding. A
+ * goal whose accounts aren't connected, or that the platform didn't report,
+ * is left out (never 0).
+ */
+export async function currentGoalValues(ctx: Ctx): Promise<Partial<Record<Goal["metric"], { value: number; platforms: Goal["platforms"] }>>> {
+  const ent = await getEntitlements(ctx.client, ctx.ownerId);
+  const { rows, x } = await readNow(ctx, ent);
+  const connected = rows.filter((r) => r.connected).map((r) => r.platform);
+  const out: Partial<Record<Goal["metric"], { value: number; platforms: Goal["platforms"] }>> = {};
+  for (const id of ["followers", "views_30d", "engagement_rate", "posts_per_week"] as const) {
+    const read = (platforms: Goal["platforms"]) => currentFor({ kind: "primary", metric: id, platforms, baseline: null, target: 1, due_date: null }, rows, x).value;
+    // Only the connected accounts that really returned this number: one that didn't (a platform that
+    // is offline, or reports no count) leaves the others readable instead of hiding all of them.
+    const platforms = (goalMetric(id)?.measuredOn ?? []).filter((p) => connected.includes(p) && read([p]) != null);
+    if (!platforms.length) continue;
+    const value = read(platforms);
+    if (value != null) out[id] = { value, platforms };
+  }
+  return out;
 }
 
 export async function runInitialization(ctx: Ctx, opts: { understoodAt: string | null }): Promise<{ outcomes: StepOutcome[]; briefing: Briefing }> {

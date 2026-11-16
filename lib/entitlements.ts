@@ -39,7 +39,8 @@ import {
 import { featureError, limitError, usageError, type PlanError } from "./planErrors";
 import { createServiceClient } from "./supabase/service";
 import { bonusLive, withBonus } from "./referrals/core";
-import { boostLive, withBoost } from "./retention/core";
+import { boostLive } from "./retention/core";
+import { perkLive } from "./perks/core";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
@@ -153,8 +154,12 @@ export type Entitlements = {
   invitePending?: boolean;
   /** The stay boost is on (lib/retention): extra allowance after choosing not to cancel. */
   boost?: boolean;
+  /** The perk's ceiling room is on (lib/perks): after the first week's steps or a posting streak. */
+  perk?: boolean;
   userId: string;
   plan: PlanId;
+  /** What the subscriber pays a month, in cents, as Stripe last reported (supabase/subscription-price.sql). Null when unknown or not paying. */
+  priceCents?: number | null;
   /** Defaults merged with any database overrides. */
   config: PlanConfig;
   /** The monthly period. Most meters run on it; kept as `period` for older call sites. */
@@ -170,7 +175,21 @@ export function meterPeriod(ent: Entitlements, meter: MeterKey): UsagePeriod {
   return ent.periods[METER_PERIOD[meter]];
 }
 
-async function readProfilePlan(supabase: Supa, userId: string): Promise<{ plan: PlanId; overrides: unknown }> {
+async function readProfilePlan(supabase: Supa, userId: string): Promise<{ plan: PlanId; overrides: unknown; priceCents?: number | null }> {
+  // The price paid arrives with supabase/subscription-price.sql; until then this first select errors and the next one runs.
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("plan, entitlement_overrides, subscription_price_cents")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!error) {
+      const cents = (data as { subscription_price_cents?: unknown } | null)?.subscription_price_cents;
+      return { plan: normalizePlan(data?.plan), overrides: data?.entitlement_overrides ?? null, priceCents: typeof cents === "number" ? cents : null };
+    }
+  } catch {
+    /* fall through */
+  }
   try {
     const { data, error } = await supabase
       .from("profiles")
@@ -207,25 +226,22 @@ async function readPlanOverrides(supabase: Supa, plan: PlanId): Promise<Partial<
 }
 
 /** What this person has from invitations right now (lib/referrals): the saved row, one small lookup. Null when none or unreadable. */
-// The stay boost's column arrives with supabase/cancel-flow.sql; until it has run, the row is read without it.
-let boostColumn = true;
-async function readReferralBonus(supabase: Supa, userId: string): Promise<{ active: number; until: string | null; pending: boolean; updatedAt: string | null; boostUntil: string | null } | null> {
+// Every column of the row is read ("*"): the stay boost (supabase/cancel-flow.sql) and the perk
+// (supabase/perks.sql) arrive with later files, and a column that isn't there yet simply reads as empty.
+async function readReferralBonus(supabase: Supa, userId: string): Promise<{ active: number; until: string | null; pending: boolean; updatedAt: string | null; boostUntil: string | null; perkUntil: string | null } | null> {
   try {
-    let { data, error } = await supabase.from("referral_bonuses").select(boostColumn ? "active, until, pending, updated_at, boost_until" : "active, until, pending, updated_at").eq("user_id", userId).maybeSingle();
-    if (error && boostColumn && (error.code === "42703" || error.code === "PGRST204" || /boost_until/.test(error.message ?? ""))) {
-      boostColumn = false;
-      ({ data, error } = await supabase.from("referral_bonuses").select("active, until, pending, updated_at").eq("user_id", userId).maybeSingle());
-    }
+    const { data, error } = await supabase.from("referral_bonuses").select("*").eq("user_id", userId).maybeSingle();
     if (error || !data) return null;
     const r = data as unknown as Record<string, unknown>;
-    return { active: Number(r.active) || 0, until: (r.until as string | null) ?? null, pending: r.pending === true, updatedAt: (r.updated_at as string | null) ?? null, boostUntil: (r.boost_until as string | null) ?? null };
+    const at = (k: string) => (typeof r[k] === "string" ? (r[k] as string) : null);
+    return { active: Number(r.active) || 0, until: at("until"), pending: r.pending === true, updatedAt: at("updated_at"), boostUntil: at("boost_until"), perkUntil: at("perk_until") };
   } catch {
     return null;
   }
 }
 
 async function getEntitlementsImpl(supabase: Supa, userId: string, now: Date = new Date()): Promise<Entitlements> {
-  const [{ plan, overrides: userOverrides }, saved] = await Promise.all([readProfilePlan(supabase, userId), readReferralBonus(supabase, userId)]);
+  const [{ plan, overrides: userOverrides, priceCents }, saved] = await Promise.all([readProfilePlan(supabase, userId), readReferralBonus(supabase, userId)]);
   const planOverrides = await readPlanOverrides(supabase, plan);
   // Invitations that count right now add a little allowance on top of the plan's (lib/referrals/core.ts).
   const invites = bonusLive(saved, now);
@@ -234,11 +250,15 @@ async function getEntitlementsImpl(supabase: Supa, userId: string, now: Date = n
   if (saved?.pending && (!saved.updatedAt || now.getTime() - new Date(saved.updatedAt).getTime() > 10 * 60_000)) {
     void import("./referrals/server").then((m) => m.refreshReferrals(userId, now)).catch(() => {});
   }
-  // A person who chose to stay when cancelling has a little more for a while (lib/retention/core.ts).
+  // A person who chose to stay when cancelling got extra credits; while this is on, the month's AI
+  // ceiling has the room to use them (lib/retention/core.ts, lib/aiSpend.ts).
   const boost = boostLive(saved?.boostUntil, now);
-  const config = withBoost(withBonus(resolveConfig(plan, planOverrides, userOverrides), invites), boost);
+  // Finishing the first week's steps or a four-week posting streak gives a few credits and, while this
+  // is on, the room in the month's AI ceiling to use them (lib/perks/core.ts, lib/aiSpend.ts).
+  const perk = perkLive(saved?.perkUntil, now);
+  const config = withBonus(resolveConfig(plan, planOverrides, userOverrides), invites);
   const periods = currentPeriods(now);
-  return { userId, plan, config, period: periods.month, periods, source: "profile", invites, invitePending: saved?.pending === true, boost };
+  return { userId, plan, priceCents: priceCents ?? null, config, period: periods.month, periods, source: "profile", invites, invitePending: saved?.pending === true, boost, perk };
 }
 
 // ---------------------------------------------------------------------------

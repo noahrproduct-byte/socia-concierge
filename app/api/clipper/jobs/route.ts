@@ -25,7 +25,7 @@ export async function GET() {
   try {
     const [jobs, balance] = await Promise.all([
       listClipJobs(r.ctx.client, r.ctx.ownerId, r.ctx.workspace?.id ?? null),
-      creditBalance(r.ctx.ownerId, r.ent.plan).catch(() => null),
+      creditBalance(r.ctx.ownerId, r.ent).catch(() => null),
     ]);
     return NextResponse.json({ jobs, balance });
   } catch (e) {
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
   try {
     const job = await createClipJob(r.ctx, { source, minutes, options, links: r.ent.plan === "scale" });
     recordEvent(r.ctx.client, r.ctx.ownerId, "ai_usage", { feature: "clipper_job", minutes: job.source_minutes, credits: job.credits_reserved });
-    const balance = await creditBalance(r.ctx.ownerId, r.ent.plan).catch(() => null);
+    const balance = await creditBalance(r.ctx.ownerId, r.ent).catch(() => null);
     return NextResponse.json({ job, balance, price: clipCredits(job.source_minutes, options.clipModel, job.provider === "socia" ? "socia" : "vizard") });
   } catch (e) {
     if (e instanceof PriceCheckError) return NextResponse.json({ error: e.message, code: e.code, minutes: e.minutes, price: e.price }, { status: 409 });
