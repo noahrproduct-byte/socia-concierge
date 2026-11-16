@@ -348,8 +348,8 @@ export function ReelsToCopy({ d }: { d: ReelsToCopyInput }) {
       )}
       {sty.length > 0 && (
         <>
-          <h3 className="cx5-sub">Viral {d.ownStyle ? d.ownStyle.toLowerCase() : ""} Reels to copy</h3>
-          <p className="cx5-lead">Reels on any topic that took off and are made the way your videos are. Copy the style, not the subject.</p>
+          <h3 className="cx5-sub">{d.ownStyle ? `Viral ${d.ownStyle.toLowerCase()} Reels to copy` : "Viral Reels to copy"}</h3>
+          <p className="cx5-lead">From the accounts you copy, the ones SOCIA found like them, and others made the way your videos are. Any topic: the ones that reached furthest past their followers come first. Copy the style, not the subject.</p>
           <div className="cx3-grid cx5-grid">{sty.map(card)}</div>
         </>
       )}

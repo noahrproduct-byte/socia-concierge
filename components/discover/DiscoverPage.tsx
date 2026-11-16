@@ -22,6 +22,7 @@ import { fmtN } from "@/components/competitors/shared";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import { PLATFORM_WORD } from "@/lib/discoverStyle";
 import type { DiscoverAccount, DiscoverData } from "./types";
+import CopyFrom from "./CopyFrom";
 
 const GATE_WORD: Record<string, string> = {
   not_business: "Not a Business or Creator account, so Instagram shares nothing about it.",
@@ -241,6 +242,8 @@ export default function DiscoverPage({ d }: { d: DiscoverData }) {
         )}
         {d.ownStyle && <p className="dsc-own">Your own Reels read as <b>{d.ownStyle}</b>. Competitors and Reels made the same way come first.</p>}
       </section>
+
+      <CopyFrom accounts={d.copyFrom} limit={d.limit} onChanged={startRead} />
 
       <ReelsToCopy d={{ nicheAccess: d.nicheAccess, nicheUpgrade: d.nicheUpgrade, now: d.now, reelsToCopy: d.reelsToCopy, nicheReels: d.nicheReels, styleReels: d.styleReels, ownStyle: d.ownStyle, reelsRead: d.reelsRead, ytConfigured: d.ytConfigured, ig: { enabled: d.igEnabled } }} />
 
