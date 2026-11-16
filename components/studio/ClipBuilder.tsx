@@ -163,6 +163,24 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   const [section, setSection] = useState<Panel | null>(initialPanel ? PANEL_FOR[initialPanel] ?? null : null);
   const setPanel = useCallback((id: Panel | keyof typeof PANEL_FOR) => { setSection((PANEL_FOR[id as string] ?? id) as Panel); }, []);
   const toggleTool = useCallback((id: Panel) => setSection((cur) => (cur === id ? null : id)), []);
+  // Saving a finished video to the device: the file lives on another origin, which a plain download link only opens,
+  // so it is fetched here and handed to the browser as a file (2026-11-16: "no save button to download").
+  const [downloading, setDownloading] = useState(false);
+  const downloadRender = async (url: string) => {
+    setDownloading(true); setSaveErr(null);
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`the file answered ${res.status}`);
+      const blob = await res.blob();
+      const obj = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = obj; a.download = `socia-${buildId.slice(0, 8)}.mp4`; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(obj), 10_000);
+    } catch (e) {
+      setSaveErr(`Couldn't download the video: ${(e as Error).message}. Open it from the Calendar draft instead.`);
+    } finally {
+      setDownloading(false);
+    }
+  };
   // The Look tool in four short pages (it was one five-screen scroll).
   const [lookTab, setLookTab] = useState<"look" | "type" | "frame" | "fix">("look");
   const [presets, setPresets] = useState<VideoPresets>({ brand: null, templates: [] });
@@ -840,7 +858,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
         <button type="button" className="cb-back" onClick={onBack}><ChevronLeft size={14} /> {data.manual ? "Back to your clips" : "Back to the guide"}</button>
         <div className="cbb-head-actions">
           {data.canEdit && <button type="button" className={`ov-btn ${dirty ? "primary" : "ghost"} small sd-save`} disabled={!dirty || busy} title="Save (Ctrl+S or Cmd+S)" onClick={() => void save()}>{saving ? <Loader2 size={13} className="spin" /> : dirty ? <Save size={13} /> : <Check size={13} />} {saving ? "Saving" : dirty ? "Save" : "Saved"}</button>}
-          {build.renderUrl && exp.phase === "idle" && <a className="ov-btn ghost small" href={build.renderUrl} download={`socia-${buildId.slice(0, 8)}.mp4`} title="The last video made from this cut"><Download size={13} /> Download</a>}
+          {build.renderUrl && exp.phase === "idle" && <button type="button" className="ov-btn ghost small" disabled={downloading} title="Save the last video made from this cut to your device" onClick={() => void downloadRender(build.renderUrl!)}>{downloading ? <Loader2 size={13} className="spin" /> : <Download size={13} />} Download video</button>}
           {data.canEdit && (exp.phase === "idle" || exp.phase === "error" || exp.phase === "done") && (
             <button type="button" className="ov-btn primary" disabled={busy || missing > 0 || lookState?.state === "working"} onClick={() => void exportVideo()}><Clapperboard size={14} /> {build.renderPath ? "Make it again" : "Make this video"}</button>
           )}
