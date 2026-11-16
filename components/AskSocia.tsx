@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import BrandMark from "@/components/BrandMark";
+import SioCorner from "@/components/sio/SioCorner";
 import { usePathname } from "next/navigation";
 import { Sparkles, Send, ArrowRight, Check, Copy, RotateCcw, Paperclip } from "lucide-react";
 import Drawer from "./ov/Drawer";
@@ -424,7 +425,8 @@ export function AskHost({ workspaceId = null }: { workspaceId?: string | null })
           block for anything fixed inside it, which pinned them to the bar instead of the window. */}
       {mounted && createPortal(
         <>
-          {!open && <button type="button" className="ask-bubble" onClick={() => openWith({})} aria-label="Ask SOCIA"><BrandMark size={22} /></button>}
+          {/* SIO is the assistant's face in the corner, and on the Dashboard it asks the routine questions onboarding left for later. */}
+          {!open && <SioCorner workspaceId={workspaceId} onDashboard={pathname === "/dashboard"} onAsk={() => openWith({})} />}
           <AskDrawer open={open} onClose={() => setOpen(false)} context={req.context} contextLabel={req.label} initialQuestion={req.question} autoSend={req.autoSend} persist={`socia-ask-thread:${workspaceId ?? "default"}`} footage suggestions={req.context.page === "global" ? [...ASK_SUGGESTIONS.global.slice(0, 2), "Schedule my drafts one a day at 6 PM.", "Space my new videos 2 hours apart from 9 AM tomorrow."] : undefined} />
         </>,
         document.body,

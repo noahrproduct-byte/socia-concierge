@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { answered, filmTime, firstUnanswered, makesNoCameraOnly, normalizeRoutine, postDaysNote, routineLines } from "./routine";
+import { FIRST_QUESTIONS, LATER_QUESTIONS, ROUTINE_QUESTIONS, answered, filmTime, firstUnanswered, makesNoCameraOnly, normalizeRoutine, postDaysNote, routineLines, unanswered } from "./routine";
 
 describe("the creator routine", () => {
   it("keeps only real answers, in week order, inside the limits", () => {
@@ -54,6 +54,14 @@ describe("the creator routine", () => {
     expect(answered("publish", { publish_mode: "days", publish_days: ["mon"] })).toBe(true);
     expect(answered("publish", { publish_mode: "flexible" })).toBe(true);
     expect(firstUnanswered({ post_days: 4, filming: [{ day: "wed", minutes: 60 }], style: "daily", formats: ["vlogs"], publish_mode: "recommend" })).toBe("publish");
+  });
+  it("splits the questions: two at onboarding, three later from the corner", () => {
+    expect([...FIRST_QUESTIONS, ...LATER_QUESTIONS].sort()).toEqual([...ROUTINE_QUESTIONS].sort());
+    const afterOnboarding = { post_days: 4, formats: ["vlogs" as const] };
+    expect(unanswered(afterOnboarding, FIRST_QUESTIONS)).toEqual([]);
+    expect(unanswered(afterOnboarding, LATER_QUESTIONS)).toEqual(["filming", "style", "publish"]);
+    expect(firstUnanswered({ ...afterOnboarding, filming: [{ day: "sat", minutes: 60 }] }, LATER_QUESTIONS)).toBe("style");
+    expect(firstUnanswered({ post_days: 4 }, FIRST_QUESTIONS)).toBe("formats");
   });
   it("reflects the person's own pace back without pushing them to post more", () => {
     expect(postDaysNote(null, null)).toBeNull();

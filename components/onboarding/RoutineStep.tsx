@@ -48,6 +48,9 @@ export default function RoutineStep({
   onDone,
   onSaved,
   startAtEnd = false,
+  questions = ROUTINE_QUESTIONS,
+  corner = false,
+  lastLabel = "Build my strategy",
 }: {
   initial: Routine | null | undefined;
   /** Posts a week lately, read from the connected account; null when SOCIA couldn't read it. */
@@ -61,9 +64,15 @@ export default function RoutineStep({
   onSaved: (r: Routine) => void;
   /** Coming back from the next step: open on the last question. */
   startAtEnd?: boolean;
+  /** Which questions to ask here, in order. */
+  questions?: readonly RoutineQuestion[];
+  /** Asked from the corner of an app page: a small SIO, "Not now" in place of Back. */
+  corner?: boolean;
+  /** The button on the last question. */
+  lastLabel?: string;
 }) {
   const [r, setR] = useState<Routine>(initial ?? {});
-  const [q, setQ] = useState<RoutineQuestion>(() => (startAtEnd ? ROUTINE_QUESTIONS[ROUTINE_QUESTIONS.length - 1] : firstUnanswered(initial)));
+  const [q, setQ] = useState<RoutineQuestion>(() => (startAtEnd ? questions[questions.length - 1] : firstUnanswered(initial, questions)));
   const [ack, setAck] = useState<string | null>(null);
   const [mood, setMood] = useState<SioExpression>("neutral");
   const [saving, setSaving] = useState(false);
@@ -71,7 +80,7 @@ export default function RoutineStep({
   const [perDay, setPerDay] = useState(() => new Set((initial?.filming ?? []).map((s) => s.minutes)).size > 1);
   const [customTime, setCustomTime] = useState<Partial<Record<Weekday | "all", string>>>({});
 
-  const i = ROUTINE_QUESTIONS.indexOf(q);
+  const i = questions.indexOf(q);
   useEffect(() => { headRef.current?.focus(); }, [q, headRef]);
   // SIO looks pleased for a moment after an answer, then waits again.
   useEffect(() => {
@@ -124,17 +133,17 @@ export default function RoutineStep({
     if (!res?.ok) { setErr("Couldn't save that. Try again."); return; }
     setR(routine);
     onSaved(routine);
-    if (i === ROUTINE_QUESTIONS.length - 1) { onDone(); return; }
+    if (i === questions.length - 1) { onDone(); return; }
     setAck(ackFor(q, routine));
     setMood("happy");
-    setQ(ROUTINE_QUESTIONS[i + 1]);
+    setQ(questions[i + 1]);
   }
 
   function back() {
     setErr(null);
     setAck(null);
     if (i === 0) onBack();
-    else setQ(ROUTINE_QUESTIONS[i - 1]);
+    else setQ(questions[i - 1]);
   }
 
   const shared = !perDay && r.filming?.length ? r.filming[0].minutes : 0;
@@ -162,8 +171,8 @@ export default function RoutineStep({
 
   return (
     <>
-      <SioSays expression={mood} title={ASK[q].title} headRef={headRef} ack={ack}>{ASK[q].sub}</SioSays>
-      <p className="obr-count">Question {i + 1} of {ROUTINE_QUESTIONS.length}</p>
+      <SioSays expression={mood} title={ASK[q].title} headRef={headRef} ack={ack} compact={corner}>{ASK[q].sub}</SioSays>
+      {questions.length > 1 && <p className={corner ? "obr-count is-corner" : "obr-count"}>Question {i + 1} of {questions.length}</p>}
 
       <div className="ob-fields">
         {q === "post_days" && (
@@ -224,10 +233,10 @@ export default function RoutineStep({
       {err && <div className="ob-err" role="alert">{err}</div>}
       <div className="ob-actions">
         <button className="ob-btn ob-btn-ghost" onClick={back} disabled={saving}>
-          <ArrowLeft size={17} /> Back
+          {corner && i === 0 ? "Not now" : <><ArrowLeft size={17} /> Back</>}
         </button>
         <button className="ob-btn ob-btn-primary" onClick={() => void next()} disabled={saving}>
-          {saving ? "Saving…" : i === ROUTINE_QUESTIONS.length - 1 ? "Build my strategy" : "Continue"} {!saving && <ArrowRight size={17} />}
+          {saving ? "Saving…" : i === questions.length - 1 ? lastLabel : "Continue"} {!saving && <ArrowRight size={17} />}
         </button>
       </div>
     </>

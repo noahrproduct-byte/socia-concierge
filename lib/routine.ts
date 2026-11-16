@@ -149,6 +149,13 @@ export function routineLines(r: Routine | null | undefined): string[] {
 export const ROUTINE_QUESTIONS = ["post_days", "filming", "style", "formats", "publish"] as const;
 export type RoutineQuestion = (typeof ROUTINE_QUESTIONS)[number];
 
+/**
+ * Onboarding asks only what changes the first strategy; the rest SIO asks
+ * later from the corner of the Dashboard (Noah, 2026-11-16: "do the split").
+ */
+export const FIRST_QUESTIONS: RoutineQuestion[] = ["post_days", "formats"];
+export const LATER_QUESTIONS: RoutineQuestion[] = ["filming", "style", "publish"];
+
 /** Whether a question has an answer that can be saved. */
 export function answered(q: RoutineQuestion, r: Routine | null | undefined): boolean {
   if (!r) return false;
@@ -160,9 +167,13 @@ export function answered(q: RoutineQuestion, r: Routine | null | undefined): boo
   return r.publish_mode === "days" ? Boolean(r.publish_days?.length) : Boolean(r.publish_mode);
 }
 
-/** The first question without an answer: where a returning person picks up. The last one when all are answered. */
-export const firstUnanswered = (r: Routine | null | undefined): RoutineQuestion =>
-  ROUTINE_QUESTIONS.find((q) => !answered(q, r)) ?? ROUTINE_QUESTIONS[ROUTINE_QUESTIONS.length - 1];
+/** The first of `among` without an answer: where a returning person picks up. The last one when all are answered. */
+export const firstUnanswered = (r: Routine | null | undefined, among: readonly RoutineQuestion[] = ROUTINE_QUESTIONS): RoutineQuestion =>
+  among.find((q) => !answered(q, r)) ?? among[among.length - 1];
+
+/** The questions in `among` that still have no answer. */
+export const unanswered = (r: Routine | null | undefined, among: readonly RoutineQuestion[] = ROUTINE_QUESTIONS): RoutineQuestion[] =>
+  among.filter((q) => !answered(q, r));
 
 /**
  * What SIO says back about a posting target, from the person's own recent

@@ -55,8 +55,11 @@ function Eye({ expr, side }: { expr: SioExpression; side: -1 | 1 }) {
   }
 }
 
-function Mouth({ expr }: { expr: SioExpression }) {
+function Mouth({ expr, talk }: { expr: SioExpression; talk?: "open" | "closed" }) {
   const line = { fill: "none", strokeWidth: 13, strokeLinecap: "round" as const };
+  // Speaking: the mouth opens on each word and rests between them, whatever the expression.
+  if (talk === "open") return <ellipse rx={17} ry={13} />;
+  if (talk === "closed") return <path d="M-20,0 Q0,7 20,0" {...line} />;
   switch (expr) {
     case "happy":
       return <path d="M-38,-8 Q0,22 38,-8" {...line} />;
@@ -95,6 +98,9 @@ export default function Sio({
   size = 160,
   still = false,
   shadow = true,
+  speaking = false,
+  mouthOpen = false,
+  nods = 0,
   label,
   priority = false,
   className,
@@ -106,6 +112,11 @@ export default function Sio({
   still?: boolean;
   /** The soft shadow SIO floats over. Off for an avatar in a tight row. */
   shadow?: boolean;
+  /** SIO is saying something: the mouth follows `mouthOpen` (components/sio/useSioSpeech.ts). */
+  speaking?: boolean;
+  mouthOpen?: boolean;
+  /** Sentences begun so far; SIO gives a small nod as each one starts. */
+  nods?: number;
   /** Said to screen readers. Without it SIO is decoration and is skipped. */
   label?: string;
   /** Load the body layer early (the first screen of onboarding). */
@@ -132,6 +143,7 @@ export default function Sio({
     <span
       className={["sio", small ? "is-small" : "", still ? "is-still" : "", swapping ? "is-swap" : "", className].filter(Boolean).join(" ")}
       data-expr={shown}
+      data-nod={speaking && nods > 0 ? (nods % 2 ? "a" : "b") : undefined}
       style={box}
       {...(label ? { role: "img", "aria-label": label } : { "aria-hidden": true })}
     >
@@ -159,7 +171,7 @@ export default function Sio({
                   </g>
                 ))}
                 {!small && (
-                  <g transform={`translate(${MOUTH.x} ${MOUTH.y}) rotate(-3)`} className="sio-mouth"><Mouth expr={shown} /></g>
+                  <g transform={`translate(${MOUTH.x} ${MOUTH.y}) rotate(-3)`} className="sio-mouth"><Mouth expr={shown} talk={speaking ? (mouthOpen ? "open" : "closed") : undefined} /></g>
                 )}
               </g>
             ))}

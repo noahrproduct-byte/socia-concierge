@@ -29,7 +29,7 @@ import PlanStep from "./onboarding/PlanStep";
 import GoalStep, { type GoalStepHandle } from "./onboarding/GoalStep";
 import RoutineStep from "./onboarding/RoutineStep";
 import SioSays from "./sio/SioSays";
-import type { Routine } from "@/lib/routine";
+import { FIRST_QUESTIONS, type Routine } from "@/lib/routine";
 import { customerGoalFor } from "@/lib/goalWording";
 import StageList, { afterEvent, readLines, waiting, type StageState } from "./onboarding/StageList";
 import { READ_STAGES, type ReadEvent, type ReadStageId } from "@/lib/intel/readStages";
@@ -339,7 +339,7 @@ export default function OnboardingFlow({
           <div className="ob-stage" key={step}>
             {step === "connect" && intro && (
               <>
-                <SioSays large expression="happy" title="Hey, I'm SIO." headRef={headRef}>
+                <SioSays large expression="happy" speakAs="happy" title="Hey, I'm SIO." headRef={headRef}>
                   I&apos;ll help you build a content strategy that fits your goals and your schedule. First, I have a few questions so I can personalize SOCIA for you.
                 </SioSays>
                 <div className="ob-actions">
@@ -481,7 +481,7 @@ export default function OnboardingFlow({
             )}
 
             {step === "routine" && (
-              <RoutineStep initial={routine} recentPerWeek={recentPerWeek} headRef={headRef} startAtEnd={routineFromEnd}
+              <RoutineStep initial={routine} recentPerWeek={recentPerWeek} headRef={headRef} startAtEnd={routineFromEnd} questions={FIRST_QUESTIONS}
                 onSaved={setRoutine} onBack={() => go("goal", false)} onDone={() => { setRoutineFromEnd(false); void go("strategy", false); }} />
             )}
 
