@@ -13,11 +13,15 @@ import { getIgSnapshot } from "@/lib/instagramSync";
 import { igCompetitorRows } from "@/lib/igCompetitorData";
 import { createServiceClient } from "@/lib/supabase/service";
 import { dismissedHandles } from "@/lib/competitorAutoPick";
-import { COVERS_PER_ACCOUNT, missKind, styleKey, styleStale, triedRecently, type AccountStyle, type Tried } from "./discoverStyle";
-import { readStyleMemory, saveStyleMemory, styleAccounts } from "./discoverStyleLoad";
+import { COVERS_PER_ACCOUNT, fitOf, missKind, styleKey, styleStale, triedRecently, type AccountStyle, type Fit, type Tried } from "./discoverStyle";
+import { judgeFit, readStyleMemory, saveStyleMemory, styleAccounts, type FitCandidate } from "./discoverStyleLoad";
+import { getProfile } from "@/lib/profile";
+import { brandWorkspace } from "@/lib/context";
 
 /** Suggestions read with the roster, so they show their picture and numbers. */
 export const SUGGESTIONS_READ = 12;
+/** Suggested accounts judged for niche fit in one read (one fast-model call). */
+const FIT_PER_READ = 12;
 /** Accounts whose style is looked at in one read: the rest follow on the next visit. */
 const STYLED_PER_READ = 16;
 
@@ -80,9 +84,29 @@ export async function readDiscoverAccounts(ctx: Ctx, now: Date): Promise<{ read:
       styled = Object.keys(found).length;
     }
   }
-  if (styled || Object.keys(tried).length) {
+  // Niche fit: suggested accounts are judged from their bio and captions before they are
+  // shown or give Reels (lib/discoverStyle.ts Fit). Cached rows count, read today or before.
+  const fit: Record<string, Fit> = {};
+  if (process.env.ANTHROPIC_API_KEY && suggested.length) {
+    const unjudged = suggested.filter((h) => fitOf(memory, styleKey("instagram", h), now) == null).slice(0, FIT_PER_READ);
+    if (unjudged.length) {
+      const [rows, profile] = await Promise.all([
+        igCompetitorRows(ctx.client, ctx.ownerId, unjudged, false, { max: unjudged.length, cacheOnly: true }).catch(() => null),
+        getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null),
+      ]);
+      const candidates: FitCandidate[] = (rows?.competitors ?? []).filter((c) => c.found).map((c) => ({
+        key: styleKey("instagram", c.handle), handle: c.handle, name: c.displayName ?? null, bio: c.biography ?? null,
+        captions: (c.media ?? []).map((m) => m.caption ?? "").filter(Boolean),
+      }));
+      if (candidates.length && profile) {
+        const verdicts = await judgeFit(ctx.ownerId, { name: profile.brand_name, niche: profile.niche, description: profile.brand_detail?.description ?? null }, candidates);
+        for (const [key, ok] of verdicts) fit[key] = { ok, at };
+      }
+    }
+  }
+  if (styled || Object.keys(tried).length || Object.keys(fit).length) {
     const { own, ...rest } = found;
-    await saveStyleMemory(ctx, { own: own ?? memory.own, accounts: { ...memory.accounts, ...rest }, tried: { ...memory.tried, ...tried } });
+    await saveStyleMemory(ctx, { own: own ?? memory.own, accounts: { ...memory.accounts, ...rest }, tried: { ...memory.tried, ...tried }, fit: { ...memory.fit, ...fit } });
   }
   return { read: handles.length, found: res.competitors.filter((c) => c.found).length, styled, enabled: res.enabled };
 }

@@ -286,7 +286,9 @@ ${facts}
 
 Relevant does not mean biggest. Look for, in this order:
 ${seeds.length ? "- accounts like the ones they chose to follow: the same kind of business or product, doing well\n" : ""}- accounts like theirs: the same specific niche${locationMatters(profile) ? ", ideally competing for the same local customers" : ""}
-${locationMatters(profile) ? "- successful accounts in the same area, even in a neighbouring category\n" : ""}- creators in this niche whose content formats they could adapt${ownStyle ? `\n- accounts whose videos are made the same way as theirs (${ownStyle}), even in a neighbouring niche, such as another app when they are an app` : ""}
+${locationMatters(profile) ? "- successful accounts in the same area, even in a neighbouring category\n" : ""}- creators in this niche whose content formats they could adapt${ownStyle ? `\n- within those, accounts whose videos are made the same way as theirs (${ownStyle}) come first` : ""}
+
+Every account and post must be about this niche or made for the same audience. An account that only shares the video style but is about something unrelated (sports, celebrities, news, comedy about other things) does not count, however well it does.
 
 Search the web and return BOTH:
 1. Up to 10 real ${webPlatforms} ACCOUNTS from those groups, doing well: posting regularly with an engaged audience.

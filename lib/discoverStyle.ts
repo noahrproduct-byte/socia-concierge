@@ -63,7 +63,18 @@ export type Tried = { at: string; miss?: MissKind };
 /** An account is read at most once a day, whatever the outcome, so a lookup that fails is not asked again on every visit. */
 export const TRY_TTL_MS = 86_400_000;
 
-export type StyleMemory = { own: AccountStyle | null; accounts: Record<string, AccountStyle>; tried: Record<string, Tried> };
+/**
+ * Whether a suggested account is about the brand's niche or serves its audience
+ * (Noah, 2026-11-15: an NFL commentator was suggested to a social media app
+ * because his videos were filmed the same way). Judged from its bio and recent
+ * captions (lib/discoverStyleLoad.ts judgeFit); only accounts that fit are
+ * suggested or give "From your niche" Reels.
+ */
+export type Fit = { ok: boolean; at: string };
+/** A fit verdict is looked at again after a month. */
+export const FIT_TTL_MS = 30 * 86_400_000;
+
+export type StyleMemory = { own: AccountStyle | null; accounts: Record<string, AccountStyle>; tried: Record<string, Tried>; fit: Record<string, Fit> };
 
 const MISSES: readonly string[] = ["not_found", "not_business", "unavailable"];
 const KEY_RE = /^(instagram|youtube|facebook|tiktok):[a-z0-9._-]{1,60}$/;
@@ -101,7 +112,19 @@ export function sanitizeMemory(v: unknown): StyleMemory {
     .sort((a, b) => Date.parse(b[1].at) - Date.parse(a[1].at))
     .slice(0, MEMORY_MAX)
     .forEach(([k, t]) => { tried[k] = t; });
-  return { own: sanitizeStyle(o.own), accounts, tried };
+  const fit: Record<string, Fit> = {};
+  const rawFit = o.fit && typeof o.fit === "object" ? (o.fit as Record<string, unknown>) : {};
+  Object.entries(rawFit)
+    .map(([k, v]) => {
+      const f = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+      const at = typeof f.at === "string" && !Number.isNaN(Date.parse(f.at)) ? f.at : null;
+      return [k.toLowerCase(), at && typeof f.ok === "boolean" ? { ok: f.ok, at } : null] as const;
+    })
+    .filter((e): e is readonly [string, Fit] => KEY_RE.test(e[0]) && e[1] != null)
+    .sort((a, b) => Date.parse(b[1].at) - Date.parse(a[1].at))
+    .slice(0, MEMORY_MAX)
+    .forEach(([k, f]) => { fit[k] = f; });
+  return { own: sanitizeStyle(o.own), accounts, tried, fit };
 }
 
 /** Tried within the last day: don't ask again yet, and don't say it is being read. */
@@ -144,3 +167,10 @@ export function mainPlatform(posts: Partial<Record<Platform, number | null>>): P
 }
 
 export const PLATFORM_WORD: Record<Platform, string> = { instagram: "Instagram", youtube: "YouTube", facebook: "Facebook", tiktok: "TikTok" };
+
+/** The saved verdict on whether an account fits the brand's niche: true, false, or null when not judged or a month old. */
+export function fitOf(m: StyleMemory, key: string, now: Date): boolean | null {
+  const f = m.fit[key];
+  if (!f || now.getTime() - Date.parse(f.at) > FIT_TTL_MS) return null;
+  return f.ok;
+}
