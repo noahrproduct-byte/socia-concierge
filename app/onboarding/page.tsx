@@ -17,6 +17,7 @@ import { offlineFor } from "@/lib/platformAccess";
 import { isAdminEmail } from "@/lib/admin";
 import { INTRO_COOKIE, introDue } from "@/lib/intro";
 import { cookies } from "next/headers";
+import { IG_STATE_COOKIE } from "@/lib/oauthState";
 import IntroGate from "@/components/intro/IntroGate";
 
 export const metadata = { title: "Welcome to SOCIA" };
@@ -102,8 +103,13 @@ export default async function OnboardingPage({
   const brands = workspaces.map((w) => ({ id: w.id, name: w.name, active: w.id === ctx.workspace?.id }));
   // Back from a platform's sign-in: stay on Connect so the result shows.
   const fromOAuth = Boolean(ig || fb || yt || tt);
+  // An Instagram connection was started in the last few minutes and never came
+  // back (Noah, 2026-11-15: Instagram stopped to confirm it was him and then
+  // left him on its own home page). The start cookie is still here and nothing
+  // is connected, so Connect says what happened and what to do.
+  const igInterrupted = !fromOAuth && !igConn?.username && Boolean((await cookies()).get(IG_STATE_COOKIE));
   const initial = {
-    step: fromOAuth ? ("connect" as const) : billing ? ("plan" as const) : resumeStep(progress),
+    step: fromOAuth || igInterrupted ? ("connect" as const) : billing ? ("plan" as const) : resumeStep(progress),
     tableReady,
     niche: profile?.niche ?? null,
     brandName: profile?.brand_name ?? null,
@@ -119,6 +125,7 @@ export default async function OnboardingPage({
         igStatus={ig ?? ""}
         returned={returned}
         planNotice={planNotice}
+        igInterrupted={igInterrupted}
       />
       {/* a new owner lands here first, so the first-run film plays here */}
       {introDue(user) && <IntroGate userId={user.id} seen={Boolean((await cookies()).get(INTRO_COOKIE))} />}

@@ -17,6 +17,13 @@ describe("the goal step", () => {
     expect(targetNumber(" 2 500 ")).toBe(2500);
     expect(targetNumber("")).toBeNull();
     expect(targetNumber("lots")).toBeNull();
+    // Words after the number are fine (Noah typed "50 paying users" and was told to set a target above zero).
+    expect(targetNumber("50 paying users")).toBe(50);
+    expect(targetNumber("4.5%")).toBe(4.5);
+    expect(targetNumber("about 1,200 followers")).toBe(1200);
+    expect(targetNumber("10k")).toBe(10000);
+    expect(targetNumber("1.2m views")).toBe(1200000);
+    expect(goalStepError({ ...ok, metric: "bookings", target: "50 paying users", frame: 30, now: null })).toBeNull();
   });
   it("accepts a real target with a timeframe", () => {
     expect(goalStepError(ok)).toBeNull();

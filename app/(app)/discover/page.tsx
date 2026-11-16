@@ -22,7 +22,7 @@ import { listTracked } from "@/lib/trackedCompetitors";
 import { resolveContext, brandWorkspace } from "@/lib/context";
 import { createServiceClient } from "@/lib/supabase/service";
 import { dismissedHandles } from "@/lib/competitorAutoPick";
-import { mainPlatform, sameStyle, styleKey, styleStale, styleWord, triedRecently, type AccountStyle, type StyleMemory } from "@/lib/discoverStyle";
+import { fitOf, mainPlatform, sameStyle, styleKey, styleStale, styleWord, triedRecently, type AccountStyle, type StyleMemory } from "@/lib/discoverStyle";
 import { readStyleMemory } from "@/lib/discoverStyleLoad";
 import { SUGGESTIONS_READ } from "@/lib/discoverRead";
 import { signRefUrl } from "@/lib/studioClips/refToken";
@@ -57,7 +57,7 @@ export default async function Page() {
     competitorScopeId(ctx.client, ctx.workspace?.id),
     getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null),
     ownAccounts(ctx.client, ctx.ownerId).catch(() => null),
-    readStyleMemory(ctx).catch((): StyleMemory => ({ own: null, accounts: {}, tried: {} })),
+    readStyleMemory(ctx).catch((): StyleMemory => ({ own: null, accounts: {}, tried: {}, fit: {} })),
     youtubeRecentUploads(ctx.client, ctx.ownerId, 25, ctx.workspace?.id ?? undefined).catch(() => []),
   ]);
   // Every account the owner has connected: never shown, suggested or counted as a competitor.
@@ -198,8 +198,13 @@ export default async function Page() {
 
   const competitors = tracked.map((t) => build(t.platform, t.handle, suggestedRows.find((r) => r.platform === t.platform && String(r.handle).toLowerCase() === t.handle.toLowerCase()) ?? null, t));
   // Suggestions SOCIA could read and that are doing well lead; ones it couldn't read follow, never above them.
+  // Niche fit (lib/discoverStyle.ts Fit): an account judged off-niche from its bio and captions is never
+  // suggested (Noah, 2026-11-15: an NFL commentator was suggested to a social media app). Not yet judged
+  // still shows; the background read judges it.
+  const fitFor = (a: { platform: string; handle: string }) => fitOf(memory, styleKey(a.platform, a.handle), now);
   const suggestions = suggested.map((r) => build(String(r.platform), String(r.handle), r, null))
-    .sort((a, b) => Number(b.posts.length > 0) - Number(a.posts.length > 0) || Number(b.sameStyle) - Number(a.sameStyle) || (b.match ?? 0) - (a.match ?? 0))
+    .filter((a) => fitFor(a) !== false)
+    .sort((a, b) => Number(fitFor(b) === true) - Number(fitFor(a) === true) || Number(b.posts.length > 0) - Number(a.posts.length > 0) || Number(b.sameStyle) - Number(a.sameStyle) || (b.match ?? 0) - (a.match ?? 0))
     .slice(0, SUGGESTIONS_SHOWN);
 
   // ---- the Reels worth copying: only from the competitors tracked --------
@@ -227,9 +232,12 @@ export default async function Page() {
       format: r.content_type ? FORMAT[String(r.content_type)] ?? null : null,
       why: null, dataSource: String(r.data_source ?? "web_research"),
     }));
+  // Only from accounts judged to fit the niche: a Reel from research is kept only when its account is one of them.
+  const fitting = suggestions.filter((a) => a.posts.length && fitFor(a) === true && notOurs(a.handle, a.name));
+  const fittingHandles = new Set(fitting.map((a) => a.handle.toLowerCase()));
   const nicheAll = rankTrendingReels(
-    suggestions.filter((a) => a.posts.length && notOurs(a.handle, a.name)).map((r) => ({ platform: r.platform, name: r.name, handle: r.handle, avatar: r.avatar, posts: r.posts })),
-    content, now,
+    fitting.map((r) => ({ platform: r.platform, name: r.name, handle: r.handle, avatar: r.avatar, posts: r.posts })),
+    content.filter((c) => c.accountHandle && fittingHandles.has(c.accountHandle.replace(/^@/, "").toLowerCase())), now,
   ).filter((r) => notOurs(r.accountHandle, r.accountName));
   const nicheTookOff = provenReels(nicheAll, { max: NICHE_REELS, perAccount: 2 });
   const nicheReels = (nicheTookOff.length >= 3 ? nicheTookOff : provenReels(nicheAll, { max: NICHE_REELS, perAccount: 2, fill: true }))
@@ -246,7 +254,7 @@ export default async function Page() {
     reelsToCopy: withRef(reelsToCopy),
     nicheReels: withRef(nicheReels),
     reelsRead: { reels: allReels.length, accounts: new Set(allReels.map((r) => (r.accountHandle ?? r.accountName).toLowerCase())).size },
-    needsRead: igRes.enabled && (ownStale || [...competitors, ...suggestions].some((a) => a.reading)),
+    needsRead: igRes.enabled && (ownStale || [...competitors, ...suggestions].some((a) => a.reading) || suggestions.some((a) => a.posts.length > 0 && fitFor(a) == null)),
     lastRun: runAt,
     niche: profile?.niche ?? null,
     nicheAccess: canUseFeature(ent, "niche_intelligence"),
