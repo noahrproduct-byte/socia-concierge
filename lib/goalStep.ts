@@ -1,7 +1,7 @@
 // The goal step of onboarding (Noah, 2026-11-15): one or more goals, each with
-// a target, and one timeframe, set against where the account really stands
-// now. A target is filled in for the person to change: a plain rule (a fixed
-// step above where they are now), said as a rule on the screen. SOCIA never
+// a target the person sets, and one timeframe, set against where the account
+// really stands now. SOCIA never suggests a number (Noah, 2026-11-16: a
+// filled-in target of 37 followers was no use to someone aiming for 5,000) or
 // says a target will be reached; it only checks that the target is a target
 // (above the starting point) and the date is in the future. Pure and
 // browser-safe.
@@ -35,44 +35,9 @@ export const targetNumber = (text: string): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
-/** How far above "now" the filled-in target sits, for each 30 days of the timeframe. */
-export const SUGGEST_STEP = 0.1;
-
 /** Whole days from `today` to `due` (both YYYY-MM-DD). */
 export const daysUntil = (due: string, today: string): number =>
   Math.round((Date.parse(`${due}T12:00:00Z`) - Date.parse(`${today}T12:00:00Z`)) / 86_400_000);
-
-/** A count rounded to a tidy number of its own size (13,300 not 13,300.1). */
-function tidy(n: number): number {
-  if (n < 100) return Math.ceil(n);
-  if (n < 1_000) return Math.round(n / 5) * 5;
-  if (n < 10_000) return Math.round(n / 50) * 50;
-  const unit = 10 ** (Math.floor(Math.log10(n)) - 2);
-  return Math.round(n / unit) * unit;
-}
-
-/**
- * The target filled in for a goal: SUGGEST_STEP above where the account is
- * now for each 30 days. A rule, not a forecast, and the person can change it.
- * Null when there is no starting number above zero to work from.
- */
-export function suggestTarget(metric: GoalMetricId, now: number | null, days: number): number | null {
-  if (now == null || !(now > 0) || !(days > 0)) return null;
-  const raw = now * (1 + SUGGEST_STEP * (days / 30));
-  if (goalMetric(metric)?.unit === "count") {
-    const t = tidy(raw);
-    return t > now ? t : Math.floor(now) + 1;
-  }
-  const t = Math.round(raw * 10) / 10;
-  const up = t > now ? t : Math.round((now + 0.1) * 10) / 10;
-  return goalMetric(metric)?.unit === "percent" ? Math.min(100, up) : up;
-}
-
-/** "10% above where you are now": the rule behind a filled-in target, in words. */
-export function suggestRule(days: number): string {
-  const pct = Math.round(SUGGEST_STEP * (days / 30) * 100);
-  return `${pct}% above where you are now`;
-}
 
 /**
  * What is wrong with the goal as entered, or null when it can be saved. `now`
