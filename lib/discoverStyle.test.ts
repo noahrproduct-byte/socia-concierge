@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { accountStyle, mainPlatform, missKind, sameStyle, sanitizeMemory, styleKey, styleStale, styleWord, triedRecently, STYLE_TTL_MS, TRY_TTL_MS } from "./discoverStyle";
+import { fitOf, FIT_TTL_MS, accountStyle, mainPlatform, missKind, sameStyle, sanitizeMemory, styleKey, styleStale, styleWord, triedRecently, STYLE_TTL_MS, TRY_TTL_MS } from "./discoverStyle";
 
 const AT = "2026-11-14T12:00:00.000Z";
 
@@ -30,7 +30,7 @@ describe("the saved memory", () => {
     });
     expect(m.own?.style).toBe("animated");
     expect(Object.keys(m.accounts)).toEqual(["instagram:therefundapp"]);
-    expect(sanitizeMemory(null)).toEqual({ own: null, accounts: {}, tried: {} });
+    expect(sanitizeMemory(null)).toEqual({ own: null, accounts: {}, tried: {}, fit: {} });
   });
   it("is looked at again after a week", () => {
     const s = accountStyle(["animated"], AT)!;
@@ -77,5 +77,30 @@ describe("tried record", () => {
     expect(missKind("not_business")).toBe("not_business");
     expect(missKind("no_permission")).toBe("unavailable");
     expect(missKind(undefined)).toBe("unavailable");
+  });
+});
+
+describe("niche fit", () => {
+  const now = new Date("2026-11-15T12:00:00Z");
+  it("keeps valid verdicts and drops bad ones", () => {
+    const m = sanitizeMemory({ fit: {
+      "instagram:ClarkGary": { ok: false, at: "2026-11-15T10:00:00Z" },
+      "instagram:kristina": { ok: true, at: "2026-11-15T10:00:00Z" },
+      "instagram:x": { ok: "yes", at: "2026-11-15T10:00:00Z" },
+      "bad key": { ok: true, at: "2026-11-15T10:00:00Z" },
+    } });
+    expect(m.fit).toEqual({
+      "instagram:clarkgary": { ok: false, at: "2026-11-15T10:00:00Z" },
+      "instagram:kristina": { ok: true, at: "2026-11-15T10:00:00Z" },
+    });
+  });
+  it("reads a verdict for a month, then asks again", () => {
+    const m = sanitizeMemory({ fit: {
+      "instagram:a": { ok: false, at: new Date(now.getTime() - FIT_TTL_MS + 60_000).toISOString() },
+      "instagram:b": { ok: true, at: new Date(now.getTime() - FIT_TTL_MS - 60_000).toISOString() },
+    } });
+    expect(fitOf(m, "instagram:a", now)).toBe(false);
+    expect(fitOf(m, "instagram:b", now)).toBeNull();
+    expect(fitOf(m, "instagram:c", now)).toBeNull();
   });
 });
