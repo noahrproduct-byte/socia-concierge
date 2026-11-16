@@ -13,7 +13,7 @@ import { getIgSnapshot } from "@/lib/instagramSync";
 import { igCompetitorRows } from "@/lib/igCompetitorData";
 import { createServiceClient } from "@/lib/supabase/service";
 import { dismissedHandles } from "@/lib/competitorAutoPick";
-import { COVERS_PER_ACCOUNT, FIT_VERSION, fitOf, missKind, styleKey, styleStale, triedRecently, type AccountStyle, type Fit, type Tried } from "./discoverStyle";
+import { COVERS_PER_ACCOUNT, FIT_VERSION, fitOf, missKind, styleKey, styleStale, triedRecently, type AccountStyle, type Fit, type StyleMemory, type Tried } from "./discoverStyle";
 import { judgeFit, readStyleMemory, saveStyleMemory, styleAccounts, type FitCandidate } from "./discoverStyleLoad";
 import { getProfile } from "@/lib/profile";
 import { brandWorkspace } from "@/lib/context";
@@ -28,7 +28,7 @@ const FIT_PER_READ = 12;
 const STYLED_PER_READ = 16;
 
 /** The handles Discover reads on Instagram: tracked first, then the best suggestions not tracked. */
-export async function discoverHandles(ctx: Ctx): Promise<{ tracked: string[]; suggested: string[]; styleSources: string[]; limit: number }> {
+export async function discoverHandles(ctx: Ctx, memory?: StyleMemory, now: Date = new Date()): Promise<{ tracked: string[]; suggested: string[]; styleSources: string[]; limit: number }> {
   const [ent, cwid] = await Promise.all([getEntitlements(ctx.client, ctx.ownerId), competitorScopeId(ctx.client, ctx.workspace?.id)]);
   const limit = getLimit(ent, "competitors");
   const tracked = (await listTracked<{ handle: string; platform: string }>(ctx.client, ctx.ownerId, "handle, platform", { byAdded: true, workspaceId: cwid }).catch(() => []))
@@ -47,7 +47,9 @@ export async function discoverHandles(ctx: Ctx): Promise<{ tracked: string[]; su
     const taken = new Set([...tracked, ...(dismissed ?? [])]);
     const rows = ((data ?? []) as Record<string, unknown>[]).filter(nicheVetted);
     const handleOf = (r: Record<string, unknown>) => String(r.handle ?? "").toLowerCase();
-    suggested = rows.filter((r) => !isStyleSource(r)).map(handleOf).filter((h) => h && !taken.has(h)).slice(0, SUGGESTIONS_READ);
+    // Accounts already judged off don't take a place, so the next ones get read (the page does the same).
+    const off = (h: string) => Boolean(memory && fitOf(memory, styleKey("instagram", h), now) === "off");
+    suggested = rows.filter((r) => !isStyleSource(r)).map(handleOf).filter((h) => h && !taken.has(h) && !off(h)).slice(0, SUGGESTIONS_READ);
     // Accounts found for their Reels' style, any topic: read for Reels to copy, never suggested.
     styleSources = rows.filter(isStyleSource).map(handleOf).filter((h) => h && !taken.has(h) && !suggested.includes(h)).slice(0, STYLE_SOURCES_READ);
   } catch { /* discovery tables may not exist yet */ }
@@ -55,7 +57,8 @@ export async function discoverHandles(ctx: Ctx): Promise<{ tracked: string[]; su
 }
 
 export async function readDiscoverAccounts(ctx: Ctx, now: Date): Promise<{ read: number; found: number; styled: number; enabled: boolean }> {
-  const [{ tracked, suggested, styleSources }, memory] = await Promise.all([discoverHandles(ctx), readStyleMemory(ctx)]);
+  const memory = await readStyleMemory(ctx);
+  const { tracked, suggested, styleSources } = await discoverHandles(ctx, memory, now);
   // Accounts tried in the last day wait, whatever came back, so a failed lookup isn't repeated on every visit.
   const handles = [...tracked, ...suggested, ...styleSources].filter((h) => !triedRecently(memory, styleKey("instagram", h), now));
   const res = handles.length

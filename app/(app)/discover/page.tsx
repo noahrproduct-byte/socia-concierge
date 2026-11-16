@@ -116,12 +116,18 @@ export default async function Page() {
       } catch { return [] as Record<string, unknown>[]; } // no discovery yet
     })(),
   ]);
+  // The brand's own style from its covers; until SOCIA has read them (or with no account connected), the
+  // person's choice to post animated videos stands in, so animated accounts and viral animated Reels still lead.
+  const animatedChosen = (profile?.brand_detail as { animated?: { on?: boolean } } | null | undefined)?.animated?.on === true;
+  const ownForMatch: AccountStyle | null = memory.own ?? (animatedChosen ? { style: "animated", share: 1, n: 0, at: now.toISOString() } : null);
   const tracked = trackedAll.filter((t) => !isOwnAccount(mine, { handle: t.handle })).slice(0, Math.max(limit, 1));
   const trackedKeys = new Set(tracked.map((t) => `${t.platform}:${t.handle.toLowerCase()}`));
   const candidates = suggestedRows
     .filter((r) => r.handle && !trackedKeys.has(`${r.platform}:${String(r.handle).toLowerCase()}`) && !dismissed.has(String(r.handle).toLowerCase()))
     .filter((r) => !isOwnAccount(mine, { handle: r.handle as string, name: (r.display_name as string) ?? null }));
-  const suggested = candidates.filter((r) => !isStyleSource(r)).slice(0, SUGGESTIONS_READ);
+  // Accounts already judged off (lib/discoverStyle.ts fitOf) don't take a place: the next ones get read and shown.
+  const judgedOff = (r: Record<string, unknown>) => fitOf(memory, styleKey(String(r.platform), String(r.handle)), now) === "off";
+  const suggested = candidates.filter((r) => !isStyleSource(r) && !judgedOff(r)).slice(0, SUGGESTIONS_READ);
   // Accounts research found for their Reels' style, any topic (Noah, 2026-11-16): Reels to copy, never suggested.
   const styleRows = candidates.filter((r) => isStyleSource(r) && r.platform === "instagram").slice(0, STYLE_SOURCES_READ);
 
@@ -150,7 +156,7 @@ export default async function Page() {
     const base = {
       id, platform: p, handle, isYou: false, tracked: Boolean(t), classification: (sg?.classification as string) ?? (t ? "direct_competitor" : null),
       location: (sg?.location as string) ?? null, reasons, match: (sg?.relevance_score as number) ?? null, momentum: absent("unavailable"),
-      addedBy: t ? (t.added_by === "socia" ? "socia" as const : "you" as const) : null, style: styleWord(style), sameStyle: sameStyle(style, memory.own), why,
+      addedBy: t ? (t.added_by === "socia" ? "socia" as const : "you" as const) : null, style: styleWord(style), sameStyle: sameStyle(style, ownForMatch), why,
     };
     if (p === "instagram") {
       const c = ig.get(handle.toLowerCase());
@@ -267,7 +273,7 @@ export default async function Page() {
   const data: DiscoverData = {
     now: now.toISOString(),
     igEnabled: igRes.enabled, igReason: igRes.enabled ? null : (igRes.reason ?? null), ytConfigured: ytConfigured(),
-    main, ownStyle: styleWord(memory.own), limit,
+    main, ownStyle: styleWord(ownForMatch), limit,
     tracked, competitors, suggestions,
     reelsToCopy: withRef(reelsToCopy),
     nicheReels: withRef(nicheReels),
