@@ -14,6 +14,9 @@ export type DiscoverAccount = CompetitorRow & {
   reading: boolean;
   /** Why it was suggested or picked, in a sentence. */
   why: string | null;
+  /** On the copy list: added by the person ("you") or found by SOCIA from one of theirs ("found", via copyVia). */
+  copy?: "you" | "found";
+  copyVia?: string | null;
 };
 
 export type DiscoverData = {
@@ -33,6 +36,8 @@ export type DiscoverData = {
   nicheReels: ProvenReel[];
   /** Viral Reels made the way the brand's own are (its ownStyle), any topic: to copy the style, not the subject. */
   styleReels: ProvenReel[];
+  /** "Reels to copy" accounts: the ones the person added, then the ones SOCIA found from them. */
+  copyFrom: DiscoverAccount[];
   reelsRead: { reels: number; accounts: number };
   /** Something is missing or old: the page asks for a background read once. */
   needsRead: boolean;

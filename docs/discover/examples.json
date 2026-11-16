@@ -171,6 +171,18 @@
       "what": "social media platform and agency",
       "why_good": "An app in the same space: a competitor (Noah: 'those can be my competitors').",
       "found_by": "Claude, from the rules; confirmed by Noah"
+    },
+    {
+      "date": "2026-11-16",
+      "for": "SOCIA (an AI app for Instagram growth; own videos animated)",
+      "handle": "mhmdnabdev",
+      "url": "https://www.instagram.com/mhmdnabdev/",
+      "list": "reels_to_copy",
+      "noah": "it would be a reasonable account as maybe not a competitor, but for an account to get reels from to copy. Because look, it has similar animation styles to Socia, and if we just change it up a little to match Socia's app and theme, then it will work out.",
+      "what": "moe.dev, a small developer/design account (2.6K followers, median 7.1K views, 1.6% engagement, about 6.5 posts a week). SOCIA read it through Business Discovery: 11 of its last 12 posts are Reels, style read as Animated.",
+      "videos": "Animated app-UI explainers on soft gradient backgrounds: phone mockups, timings ('2.0s'), short headline words ('The only'). Took off: 'Could you spot the fake link?' 75K, '5 signs your app was vibe coded' 16K, 'Outlook and Teams went down' 13K.",
+      "why_good": "Same animation style as SOCIA's videos; swap the subject and theme for SOCIA's app and it works.",
+      "lesson": "A Reels-to-copy source needs the same animation style, not the same business. Small accounts whose views far exceed their followers are the best sources, and web search rarely finds them."
     }
   ],
   "two_lists": {
@@ -178,5 +190,17 @@
     "noah": "those can be my competitors but for example for reels in my niche or i can copy could be viral animated reels",
     "competitors": "Apps in the same space (AI and social media tools), including a founder's account that sells its app. Accepted: vidiq, metricool, predis.ai, opusclip, flick.social, jayantcreates.ai (ootto.ai).",
     "reels_to_copy": "Not only competitors' Reels: Reels from the niche, and viral animated Reels whose format SOCIA can copy (like nick_saraev's animated app overlays). A creator who isn't a competitor can still be a source of Reels to copy."
-  }
+  },
+  "readable": [
+    {
+      "handle": "viewcci",
+      "date": "2026-11-16",
+      "result": "Business Discovery read it: 25K followers, median 2.5K views, 12 of 12 Reels, Talking to camera. Engagement showed 0.0% and posts a week 33 (both suspect: hidden likes; posts close together)."
+    },
+    {
+      "handle": "mhmdnabdev",
+      "date": "2026-11-16",
+      "result": "Business Discovery read it: 2.6K followers, median 7.1K views, Animated."
+    }
+  ]
 }

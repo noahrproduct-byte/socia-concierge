@@ -13,7 +13,7 @@ import { getIgSnapshot } from "@/lib/instagramSync";
 import { igCompetitorRows } from "@/lib/igCompetitorData";
 import { createServiceClient } from "@/lib/supabase/service";
 import { dismissedHandles } from "@/lib/competitorAutoPick";
-import { COVERS_PER_ACCOUNT, FIT_VERSION, fitOf, missKind, styleKey, styleStale, triedRecently, type AccountStyle, type Fit, type StyleMemory, type Tried } from "./discoverStyle";
+import { COPY_FIND_PER_READ, COVERS_PER_ACCOUNT, FIT_VERSION, fitOf, mentionedHandles, reachesPastFollowers, sameStyle, missKind, styleKey, styleStale, triedRecently, type AccountStyle, type CopyFound, type Fit, type StyleMemory, type Tried } from "./discoverStyle";
 import { judgeFit, readStyleMemory, saveStyleMemory, styleAccounts, type FitCandidate } from "./discoverStyleLoad";
 import { getProfile } from "@/lib/profile";
 import { brandWorkspace } from "@/lib/context";
@@ -60,7 +60,9 @@ export async function readDiscoverAccounts(ctx: Ctx, now: Date): Promise<{ read:
   const memory = await readStyleMemory(ctx);
   const { tracked, suggested, styleSources } = await discoverHandles(ctx, memory, now);
   // Accounts tried in the last day wait, whatever came back, so a failed lookup isn't repeated on every visit.
-  const handles = [...tracked, ...suggested, ...styleSources].filter((h) => !triedRecently(memory, styleKey("instagram", h), now));
+  // The copy list (accounts the brand copies Reels from) and the accounts SOCIA found from it are read too.
+  const copyHandles = [...new Set([...memory.copyFrom, ...Object.keys(memory.copyFound)])].filter((h) => !tracked.includes(h));
+  const handles = [...new Set([...tracked, ...suggested, ...styleSources, ...copyHandles])].filter((h) => !triedRecently(memory, styleKey("instagram", h), now));
   const res = handles.length
     ? await igCompetitorRows(ctx.client, ctx.ownerId, handles, false, { max: handles.length })
     : { enabled: true, competitors: [] };
@@ -93,6 +95,38 @@ export async function readDiscoverAccounts(ctx: Ctx, now: Date): Promise<{ read:
       styled = Object.keys(found).length;
     }
   }
+  // Find more like the copy list: handles its accounts mention in their captions (collaborators, credits),
+  // read through Business Discovery; kept when made the brand's way and reaching far past their followers.
+  const copyFoundNew: Record<string, CopyFound> = {};
+  const ownNow = found.own ?? memory.own;
+  if (process.env.ANTHROPIC_API_KEY && memory.copyFrom.length && ownNow) {
+    const sources = await igCompetitorRows(ctx.client, ctx.ownerId, memory.copyFrom, false, { max: memory.copyFrom.length, cacheOnly: true }).catch(() => null);
+    const known = new Set([...memory.copyFrom, ...Object.keys(memory.copyFound), ...tracked, ...suggested, ...styleSources]);
+    const lists = (sources?.competitors ?? []).filter((c) => c.found).map((c) => ({ from: c.handle, handles: mentionedHandles((c.media ?? []).map((m) => m.caption), c.handle, known) }));
+    const picks: { handle: string; from: string }[] = [];
+    for (let i = 0; picks.length < COPY_FIND_PER_READ && lists.some((l) => l.handles.length > i); i++) {
+      for (const l of lists) {
+        const h = l.handles[i];
+        if (h && !picks.some((p) => p.handle === h) && !triedRecently(memory, styleKey("instagram", h), now)) picks.push({ handle: h, from: l.from });
+        if (picks.length >= COPY_FIND_PER_READ) break;
+      }
+    }
+    if (picks.length) {
+      const read = await igCompetitorRows(ctx.client, ctx.ownerId, picks.map((p) => p.handle), false, { max: picks.length }).catch(() => null);
+      const got = (read?.competitors ?? []);
+      for (const c of got) tried[styleKey("instagram", c.handle)] = c.found ? { at } : { at, miss: missKind(c.reasonKind) };
+      const withMedia = got.filter((c) => c.found && c.media?.length);
+      const styles = withMedia.length ? await styleAccounts(ctx.ownerId, withMedia.map((c) => ({ key: styleKey("instagram", c.handle), thumbs: (c.media ?? []).slice(0, COVERS_PER_ACCOUNT).map((m) => m.thumbnail) })), now) : {};
+      for (const c of withMedia) {
+        const key = styleKey("instagram", c.handle);
+        if (styles[key]) found[key] = styles[key];
+        if (!sameStyle(styles[key], ownNow)) continue;
+        if (!reachesPastFollowers((c.media ?? []).map((m) => m.views), c.followers ?? null)) continue;
+        copyFoundNew[c.handle] = { from: picks.find((p) => p.handle === c.handle)?.from ?? "", at };
+      }
+    }
+  }
+
   // Niche fit: suggested accounts are judged from their bio and captions before they are
   // shown or give Reels (lib/discoverStyle.ts Fit). Cached rows count, read today or before.
   const fit: Record<string, Fit> = {};
@@ -117,9 +151,16 @@ export async function readDiscoverAccounts(ctx: Ctx, now: Date): Promise<{ read:
       }
     }
   }
-  if (styled || Object.keys(tried).length || Object.keys(fit).length) {
+  if (styled || Object.keys(found).length || Object.keys(tried).length || Object.keys(fit).length || Object.keys(copyFoundNew).length) {
     const { own, ...rest } = found;
-    await saveStyleMemory(ctx, { own: own ?? memory.own, accounts: { ...memory.accounts, ...rest }, tried: { ...memory.tried, ...tried }, fit: { ...memory.fit, ...fit } });
+    // The copy list may have changed while this read ran (someone added an account): keep the saved one.
+    const fresh = await readStyleMemory(ctx).catch(() => memory);
+    const copyFrom = fresh.copyFrom;
+    const copyFound = Object.fromEntries(Object.entries({ ...fresh.copyFound, ...copyFoundNew }).filter(([h, f]) => f.from && copyFrom.includes(f.from) && !copyFrom.includes(h)));
+    await saveStyleMemory(ctx, {
+      own: own ?? memory.own, accounts: { ...memory.accounts, ...rest }, tried: { ...memory.tried, ...tried }, fit: { ...memory.fit, ...fit },
+      copyFrom, copyFound,
+    });
   }
   return { read: handles.length, found: res.competitors.filter((c) => c.found).length, styled, enabled: res.enabled };
 }

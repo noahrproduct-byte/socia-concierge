@@ -84,7 +84,32 @@ export const FIT_TTL_MS = 30 * 86_400_000;
  */
 export const FIT_VERSION = 3;
 
-export type StyleMemory = { own: AccountStyle | null; accounts: Record<string, AccountStyle>; tried: Record<string, Tried>; fit: Record<string, Fit> };
+/**
+ * An account SOCIA found from one on the copy list (a handle mentioned in its captions), and kept
+ * because its Reels are made the brand's way. `from` is the copy-list account it came from.
+ */
+export type CopyFound = { from: string; at: string };
+
+/** Instagram handles as stored: lower case, no @. */
+export const IG_HANDLE_RE = /^[a-z0-9._]{1,30}$/;
+/** Handles an account on the copy list mentions most, read as candidates in one background read. */
+export const COPY_FIND_PER_READ = 6;
+/** Accounts found from the copy list, kept per brand. */
+export const COPY_FOUND_MAX = 24;
+
+export type StyleMemory = {
+  own: AccountStyle | null;
+  accounts: Record<string, AccountStyle>;
+  tried: Record<string, Tried>;
+  fit: Record<string, Fit>;
+  /**
+   * "Reels to copy" (Noah, 2026-11-16): Instagram accounts the brand chose to copy Reels from, for
+   * their style, not as competitors (moe.dev for SOCIA). Read like competitors; never counted as one.
+   */
+  copyFrom: string[];
+  /** Accounts found from the copy list, by handle. */
+  copyFound: Record<string, CopyFound>;
+};
 
 const MISSES: readonly string[] = ["not_found", "not_business", "unavailable"];
 const KEY_RE = /^(instagram|youtube|facebook|tiktok):[a-z0-9._-]{1,60}$/;
@@ -135,7 +160,23 @@ export function sanitizeMemory(v: unknown): StyleMemory {
     .sort((a, b) => Date.parse(b[1].at) - Date.parse(a[1].at))
     .slice(0, MEMORY_MAX)
     .forEach(([k, f]) => { fit[k] = f; });
-  return { own: sanitizeStyle(o.own), accounts, tried, fit };
+  const copyFrom = Array.isArray(o.copyFrom)
+    ? [...new Set((o.copyFrom as unknown[]).filter((h): h is string => typeof h === "string").map((h) => h.toLowerCase().replace(/^@/, "")).filter((h) => IG_HANDLE_RE.test(h)))].slice(0, 60)
+    : [];
+  const copyFound: Record<string, CopyFound> = {};
+  const rawFound = o.copyFound && typeof o.copyFound === "object" ? (o.copyFound as Record<string, unknown>) : {};
+  Object.entries(rawFound)
+    .map(([h, v]) => {
+      const f = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+      const at = typeof f.at === "string" && !Number.isNaN(Date.parse(f.at)) ? f.at : null;
+      const from = typeof f.from === "string" && IG_HANDLE_RE.test(f.from) ? f.from : null;
+      return [h.toLowerCase(), at && from ? { from, at } : null] as const;
+    })
+    .filter((e): e is readonly [string, CopyFound] => IG_HANDLE_RE.test(e[0]) && e[1] != null)
+    .sort((a, b) => Date.parse(b[1].at) - Date.parse(a[1].at))
+    .slice(0, COPY_FOUND_MAX)
+    .forEach(([h, f]) => { copyFound[h] = f; });
+  return { own: sanitizeStyle(o.own), accounts, tried, fit, copyFrom, copyFound };
 }
 
 /** Tried within the last day: don't ask again yet, and don't say it is being read. */
@@ -184,4 +225,33 @@ export function fitOf(m: StyleMemory, key: string, now: Date): FitVerdict | null
   const f = m.fit[key];
   if (!f || f.v !== FIT_VERSION || now.getTime() - Date.parse(f.at) > FIT_TTL_MS) return null;
   return f.verdict;
+}
+
+/**
+ * Handles an account mentions in its captions, most mentioned first, without itself or the ones given
+ * in `skip`. Where SOCIA looks for more accounts like one on the copy list: collaborators and accounts
+ * it credits. Pure.
+ */
+export function mentionedHandles(captions: (string | null | undefined)[], self: string, skip: Set<string> = new Set()): string[] {
+  const counts = new Map<string, number>();
+  for (const c of captions) {
+    for (const m of (c ?? "").matchAll(/(?:^|[^\w@.])@([A-Za-z0-9._]{2,30})/g)) {
+      const h = m[1].toLowerCase().replace(/\.+$/, "");
+      if (!IG_HANDLE_RE.test(h) || h === self.toLowerCase() || skip.has(h)) continue;
+      counts.set(h, (counts.get(h) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([h]) => h);
+}
+
+/**
+ * Whether an account's Reels travel well past its followers (moe.dev: 2.6K followers, 7.1K median
+ * views): its median views at least half its followers, or one Reel past twice its followers. Small
+ * accounts with formats that work pass; big accounts coasting on their size don't. Pure.
+ */
+export function reachesPastFollowers(views: (number | null | undefined)[], followers: number | null): boolean {
+  const vs = views.filter((v): v is number => typeof v === "number" && v >= 0).sort((a, b) => a - b);
+  if (!vs.length || !followers || followers <= 0) return false;
+  const median = vs.length % 2 ? vs[(vs.length - 1) / 2] : (vs[vs.length / 2 - 1] + vs[vs.length / 2]) / 2;
+  return median >= followers * 0.5 || vs[vs.length - 1] >= followers * 2;
 }
