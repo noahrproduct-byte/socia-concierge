@@ -31,6 +31,8 @@ export type DiscoverData = {
   reelsToCopy: ProvenReel[];
   /** A few Reels from the niche: suggested accounts and SOCIA's niche research, never a competitor's. */
   nicheReels: ProvenReel[];
+  /** Viral Reels made the way the brand's own are (its ownStyle), any topic: to copy the style, not the subject. */
+  styleReels: ProvenReel[];
   reelsRead: { reels: number; accounts: number };
   /** Something is missing or old: the page asks for a background read once. */
   needsRead: boolean;

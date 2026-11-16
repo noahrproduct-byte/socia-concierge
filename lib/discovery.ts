@@ -209,10 +209,25 @@ export type AccountCandidate = {
   note?: string | null;
   /** Set once a YouTube search result passed the niche check (lib/nicheCheck.ts). */
   nicheChecked?: boolean;
+  /** Found as a source of viral Reels in the brand's own video style, on any topic: never a competitor. */
+  styleSource?: boolean;
 };
 
 /** The reason a YouTube search result carries once it passed the niche check. */
 export const NICHE_CHECKED = "Checked against your niche";
+
+/**
+ * The reason an account carries when research found it for its Reels' style,
+ * whatever its topic (Noah, 2026-11-16: "any topic that i can copy the animation
+ * style"). Such accounts give Reels to copy and are never suggested as competitors.
+ */
+export const STYLE_SOURCE = "Viral in your video style";
+
+/** Whether a stored discovered account is a style source rather than a possible competitor. */
+export const isStyleSource = (row: object): boolean => {
+  const r = row as { relevance_reasons?: unknown };
+  return Array.isArray(r.relevance_reasons) && r.relevance_reasons.includes(STYLE_SOURCE);
+};
 
 /**
  * Whether a stored discovery row may be shown or built on. A YouTube keyword
@@ -324,6 +339,7 @@ export function scoreAccount(c: AccountCandidate, p: DiscoveryProfile): ScoredAc
     reasons.push("Verified public metrics");
   }
   if (c.nicheChecked) reasons.push(NICHE_CHECKED);
+  if (c.styleSource) reasons.push(STYLE_SOURCE);
 
   return {
     ...c,

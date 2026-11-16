@@ -228,6 +228,9 @@ export type ReelsToCopyInput = Pick<CompetitorsData, "nicheAccess" | "nicheUpgra
   ig: { enabled: boolean };
   /** A few Reels from the niche, shown under the competitors' (Discover). */
   nicheReels?: ProvenReel[];
+  /** Viral Reels made the way the brand's own are, any topic (Discover), and that style in words ("Animated"). */
+  styleReels?: ProvenReel[];
+  ownStyle?: string | null;
 };
 
 /** Shown before "Show more Reels": the competitors' stay the most. */
@@ -244,7 +247,9 @@ export function ReelsToCopy({ d }: { d: ReelsToCopyInput }) {
   const niche = d.nicheReels ?? [];
   const comp = more ? d.reelsToCopy : d.reelsToCopy.slice(0, FIRST_COMPETITOR);
   const nich = more ? niche : niche.slice(0, FIRST_NICHE);
-  const hidden = d.reelsToCopy.length - comp.length + niche.length - nich.length;
+  const style = d.styleReels ?? [];
+  const sty = more ? style : style.slice(0, FIRST_NICHE);
+  const hidden = d.reelsToCopy.length - comp.length + niche.length - nich.length + style.length - sty.length;
 
   const copy = async (r: ProvenReel) => {
     const text = brief(r);
@@ -339,6 +344,13 @@ export function ReelsToCopy({ d }: { d: ReelsToCopyInput }) {
           <h3 className="cx5-sub">From your niche</h3>
           <p className="cx5-lead">Accounts like yours that you don&apos;t track yet, from SOCIA&apos;s suggestions and niche research.</p>
           <div className="cx3-grid cx5-grid">{nich.map(card)}</div>
+        </>
+      )}
+      {sty.length > 0 && (
+        <>
+          <h3 className="cx5-sub">Viral {d.ownStyle ? d.ownStyle.toLowerCase() : ""} Reels to copy</h3>
+          <p className="cx5-lead">Reels on any topic that took off and are made the way your videos are. Copy the style, not the subject.</p>
+          <div className="cx3-grid cx5-grid">{sty.map(card)}</div>
         </>
       )}
       {(hidden > 0 || more) && (

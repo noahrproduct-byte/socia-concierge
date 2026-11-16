@@ -8,30 +8,33 @@ import type { Ctx } from "@/lib/context";
 import { getEntitlements, getLimit } from "@/lib/entitlements";
 import { listTracked } from "@/lib/trackedCompetitors";
 import { competitorScopeId } from "@/lib/workspaces";
-import { nicheVetted } from "@/lib/discovery";
+import { isStyleSource, nicheVetted } from "@/lib/discovery";
 import { getIgSnapshot } from "@/lib/instagramSync";
 import { igCompetitorRows } from "@/lib/igCompetitorData";
 import { createServiceClient } from "@/lib/supabase/service";
 import { dismissedHandles } from "@/lib/competitorAutoPick";
-import { COVERS_PER_ACCOUNT, fitOf, missKind, styleKey, styleStale, triedRecently, type AccountStyle, type Fit, type Tried } from "./discoverStyle";
+import { COVERS_PER_ACCOUNT, FIT_VERSION, fitOf, missKind, styleKey, styleStale, triedRecently, type AccountStyle, type Fit, type Tried } from "./discoverStyle";
 import { judgeFit, readStyleMemory, saveStyleMemory, styleAccounts, type FitCandidate } from "./discoverStyleLoad";
 import { getProfile } from "@/lib/profile";
 import { brandWorkspace } from "@/lib/context";
 
 /** Suggestions read with the roster, so they show their picture and numbers. */
 export const SUGGESTIONS_READ = 12;
+/** Accounts read for viral Reels in the brand's own style, any topic (lib/discovery.ts STYLE_SOURCE). */
+export const STYLE_SOURCES_READ = 6;
 /** Suggested accounts judged for niche fit in one read (one fast-model call). */
 const FIT_PER_READ = 12;
 /** Accounts whose style is looked at in one read: the rest follow on the next visit. */
 const STYLED_PER_READ = 16;
 
 /** The handles Discover reads on Instagram: tracked first, then the best suggestions not tracked. */
-export async function discoverHandles(ctx: Ctx): Promise<{ tracked: string[]; suggested: string[]; limit: number }> {
+export async function discoverHandles(ctx: Ctx): Promise<{ tracked: string[]; suggested: string[]; styleSources: string[]; limit: number }> {
   const [ent, cwid] = await Promise.all([getEntitlements(ctx.client, ctx.ownerId), competitorScopeId(ctx.client, ctx.workspace?.id)]);
   const limit = getLimit(ent, "competitors");
   const tracked = (await listTracked<{ handle: string; platform: string }>(ctx.client, ctx.ownerId, "handle, platform", { byAdded: true, workspaceId: cwid }).catch(() => []))
     .filter((t) => t.platform === "instagram").map((t) => t.handle.toLowerCase()).slice(0, limit);
   let suggested: string[] = [];
+  let styleSources: string[] = [];
   try {
     let q = ctx.client.from("discovered_accounts").select("platform, handle, data_source, relevance_reasons").eq("user_id", ctx.ownerId).eq("platform", "instagram");
     if (cwid) q = q.eq("workspace_id", cwid);
@@ -42,16 +45,19 @@ export async function discoverHandles(ctx: Ctx): Promise<{ tracked: string[]; su
     ]);
     // The same list the page shows: not tracked, not dismissed.
     const taken = new Set([...tracked, ...(dismissed ?? [])]);
-    suggested = ((data ?? []) as Record<string, unknown>[]).filter(nicheVetted)
-      .map((r) => String(r.handle ?? "").toLowerCase()).filter((h) => h && !taken.has(h)).slice(0, SUGGESTIONS_READ);
+    const rows = ((data ?? []) as Record<string, unknown>[]).filter(nicheVetted);
+    const handleOf = (r: Record<string, unknown>) => String(r.handle ?? "").toLowerCase();
+    suggested = rows.filter((r) => !isStyleSource(r)).map(handleOf).filter((h) => h && !taken.has(h)).slice(0, SUGGESTIONS_READ);
+    // Accounts found for their Reels' style, any topic: read for Reels to copy, never suggested.
+    styleSources = rows.filter(isStyleSource).map(handleOf).filter((h) => h && !taken.has(h) && !suggested.includes(h)).slice(0, STYLE_SOURCES_READ);
   } catch { /* discovery tables may not exist yet */ }
-  return { tracked, suggested, limit };
+  return { tracked, suggested, styleSources, limit };
 }
 
 export async function readDiscoverAccounts(ctx: Ctx, now: Date): Promise<{ read: number; found: number; styled: number; enabled: boolean }> {
-  const [{ tracked, suggested }, memory] = await Promise.all([discoverHandles(ctx), readStyleMemory(ctx)]);
+  const [{ tracked, suggested, styleSources }, memory] = await Promise.all([discoverHandles(ctx), readStyleMemory(ctx)]);
   // Accounts tried in the last day wait, whatever came back, so a failed lookup isn't repeated on every visit.
-  const handles = [...tracked, ...suggested].filter((h) => !triedRecently(memory, styleKey("instagram", h), now));
+  const handles = [...tracked, ...suggested, ...styleSources].filter((h) => !triedRecently(memory, styleKey("instagram", h), now));
   const res = handles.length
     ? await igCompetitorRows(ctx.client, ctx.ownerId, handles, false, { max: handles.length })
     : { enabled: true, competitors: [] };
@@ -99,8 +105,12 @@ export async function readDiscoverAccounts(ctx: Ctx, now: Date): Promise<{ read:
         captions: (c.media ?? []).map((m) => m.caption ?? "").filter(Boolean),
       }));
       if (candidates.length && profile) {
-        const verdicts = await judgeFit(ctx.ownerId, { name: profile.brand_name, niche: profile.niche, description: profile.brand_detail?.description ?? null }, candidates);
-        for (const [key, ok] of verdicts) fit[key] = { ok, at };
+        const g = profile.brand_detail?.growth;
+        const verdicts = await judgeFit(ctx.ownerId, {
+          name: profile.brand_name, niche: profile.niche, description: profile.brand_detail?.description ?? null,
+          accountType: g?.account_type ?? null, offer: g?.business?.offer ?? null,
+        }, candidates);
+        for (const [key, verdict] of verdicts) fit[key] = { verdict, at, v: FIT_VERSION };
       }
     }
   }

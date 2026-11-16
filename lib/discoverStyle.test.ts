@@ -84,22 +84,26 @@ describe("niche fit", () => {
   const now = new Date("2026-11-15T12:00:00Z");
   it("keeps valid verdicts and drops bad ones", () => {
     const m = sanitizeMemory({ fit: {
-      "instagram:ClarkGary": { ok: false, at: "2026-11-15T10:00:00Z" },
-      "instagram:kristina": { ok: true, at: "2026-11-15T10:00:00Z" },
-      "instagram:x": { ok: "yes", at: "2026-11-15T10:00:00Z" },
-      "bad key": { ok: true, at: "2026-11-15T10:00:00Z" },
+      "instagram:ClarkGary": { verdict: "off", at: "2026-11-15T10:00:00Z", v: 3 },
+      "instagram:nick_saraev": { verdict: "niche", at: "2026-11-15T10:00:00Z" },
+      "instagram:x": { verdict: "yes", at: "2026-11-15T10:00:00Z" },
+      "instagram:old": { ok: true, at: "2026-11-15T10:00:00Z" },
+      "bad key": { verdict: "competitor", at: "2026-11-15T10:00:00Z" },
     } });
     expect(m.fit).toEqual({
-      "instagram:clarkgary": { ok: false, at: "2026-11-15T10:00:00Z" },
-      "instagram:kristina": { ok: true, at: "2026-11-15T10:00:00Z" },
+      "instagram:clarkgary": { verdict: "off", at: "2026-11-15T10:00:00Z", v: 3 },
+      "instagram:nick_saraev": { verdict: "niche", at: "2026-11-15T10:00:00Z" },
     });
   });
   it("reads a verdict for a month, then asks again", () => {
     const m = sanitizeMemory({ fit: {
-      "instagram:a": { ok: false, at: new Date(now.getTime() - FIT_TTL_MS + 60_000).toISOString() },
-      "instagram:b": { ok: true, at: new Date(now.getTime() - FIT_TTL_MS - 60_000).toISOString() },
+      "instagram:a": { verdict: "off", at: new Date(now.getTime() - FIT_TTL_MS + 60_000).toISOString(), v: 3 },
+      "instagram:b": { verdict: "competitor", at: new Date(now.getTime() - FIT_TTL_MS - 60_000).toISOString(), v: 3 },
+      "instagram:old": { verdict: "competitor", at: now.toISOString(), v: 2 },
     } });
-    expect(fitOf(m, "instagram:a", now)).toBe(false);
+    expect(fitOf(m, "instagram:a", now)).toBe("off");
+    // Made under an older rule: judged again.
+    expect(fitOf(m, "instagram:old", now)).toBeNull();
     expect(fitOf(m, "instagram:b", now)).toBeNull();
     expect(fitOf(m, "instagram:c", now)).toBeNull();
   });
