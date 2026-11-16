@@ -11,6 +11,7 @@
 //   - goals: the growth_goals table, because they need progress math.
 
 import type { Understanding } from "./intel/understanding";
+import { normalizeRoutine, routineLines, type Routine } from "./routine";
 
 export type AccountType = "business" | "creator" | "personal_brand" | "organization";
 
@@ -136,6 +137,8 @@ export type GrowthProfile = {
   other_goals?: MainGoalId[];
   /** How the customer goal is worded for this brand (see CUSTOMER_GOALS). */
   customer_goal?: CustomerGoalId;
+  /** The Creator Routine SIO asks about (lib/routine.ts): posting days, filming days, style, formats, publishing days. */
+  routine?: Routine;
   /** What SOCIA inferred from the connected accounts (lib/intel/understanding.ts); confirmed fields above win. */
   understanding?: Understanding;
   /** What the account is about, in the person's words (narrower than the niche category). */
@@ -194,6 +197,7 @@ export function normalizeGrowth(input: unknown): GrowthProfile {
       main_goal: oneOf(i.main_goal, MAIN_GOALS),
       other_goals: manyOf(i.other_goals, MAIN_GOALS)?.filter((g) => g !== i.main_goal),
       customer_goal: oneOf(i.customer_goal, CUSTOMER_GOALS),
+      routine: normalizeRoutine(i.routine),
       focus: str(i.focus, 120),
       niche_path: compact({ subcategory: str(obj(i.niche_path).subcategory, 60), specific: str(obj(i.niche_path).specific, 80) }),
       business: compact({ offer: str(b.offer), customer_action: oneOf(b.customer_action, CUSTOMER_ACTIONS), service_area: oneOf(b.service_area, REACH_SCOPES) }),
@@ -252,6 +256,7 @@ export function growthLines(g: GrowthProfile | null | undefined): string[] {
     g.resources?.makers ? `Who makes the content: ${labelOf(MAKERS, g.resources.makers)}` : null,
     g.resources?.video_maker ? `Who makes the videos: ${labelOf(VIDEO_MAKERS, g.resources.video_maker)}` : null,
     g.resources?.claude_styles?.length ? `Videos their Claude may make: ${g.resources.claude_styles.map((s) => labelOf(CLAUDE_STYLES, s)).join(", ")}` : null,
+    ...routineLines(g.routine),
   ];
   return lines.filter((l): l is string => Boolean(l));
 }

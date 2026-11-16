@@ -114,6 +114,7 @@ export default async function OnboardingPage({
     niche: profile?.niche ?? null,
     brandName: profile?.brand_name ?? null,
     detail: profile?.brand_detail ?? null,
+    introSeen: Boolean((progress?.answers as Record<string, unknown> | null | undefined)?.sio_intro),
   };
 
   return (

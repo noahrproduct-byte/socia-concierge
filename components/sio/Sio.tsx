@@ -126,17 +126,19 @@ export default function Sio({
   const small = size < SMALL;
   const eyeScale = small ? 1.3 : 1;
   const height = Math.round((size * H) / W);
+  // The width is a CSS variable, so a layout can make SIO smaller on a phone without a second render.
+  const box = { "--sio-size": `${size}px` } as React.CSSProperties;
   return (
     <span
       className={["sio", small ? "is-small" : "", still ? "is-still" : "", swapping ? "is-swap" : "", className].filter(Boolean).join(" ")}
       data-expr={shown}
-      style={{ width: size, height: shadow && !small ? Math.round(height * 1.16) : height }}
+      style={box}
       {...(label ? { role: "img", "aria-label": label } : { "aria-hidden": true })}
     >
-      <span className="sio-float" style={{ width: size, height }}>
+      <span className="sio-float">
         <span className="sio-pose">
           <Image src="/sio/sio-body.webp" alt="" width={size} height={height} sizes={`${size}px`} priority={priority} draggable={false} className="sio-shell" />
-          <svg className="sio-face" viewBox={`0 0 ${W} ${H}`} width={size} height={height} focusable="false">
+          <svg className="sio-face" viewBox={`0 0 ${W} ${H}`} focusable="false">
             <defs>
               <clipPath id={`${id}-glass`}><path d={GLASS} /></clipPath>
               <filter id={`${id}-glow`} x="-40%" y="-60%" width="180%" height="220%">
@@ -166,7 +168,7 @@ export default function Sio({
         </span>
       </span>
       {shadow && !small && (
-        <svg className="sio-shadow" viewBox="0 0 200 40" width={size} height={Math.round(size * 0.2)} focusable="false">
+        <svg className="sio-shadow" viewBox="0 0 200 40" focusable="false">
           <defs><filter id={`${id}-soft`} x="-20%" y="-150%" width="140%" height="400%"><feGaussianBlur stdDeviation="6" /></filter></defs>
           <ellipse cx={100} cy={20} rx={58} ry={7} filter={`url(#${id}-soft)`} />
         </svg>

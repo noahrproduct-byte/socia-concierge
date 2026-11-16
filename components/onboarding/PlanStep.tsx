@@ -11,6 +11,7 @@ import { Loader2 } from "lucide-react";
 import type { PlanId } from "@/lib/plans";
 import type { Recommendation } from "@/lib/planRecommend";
 import { LaunchWas } from "@/components/pricing/Launch";
+import SioSays from "@/components/sio/SioSays";
 
 type PlanCard = { id: PlanId; name: string; price: string; priceMonthly: number; tagline: string; credits: number; buys: string; competitors: number; workspaces: number };
 type Data = { currentPlan: PlanId; checkout: boolean; assumed: number | null; recommendation: Recommendation; plans: PlanCard[] };
@@ -44,10 +45,10 @@ export default function PlanStep({ headRef, onFree, busy, notice }: { headRef: R
   const paying = d && d.currentPlan !== "free";
   return (
     <>
-      <div className="ob-head">
-        <h1 ref={headRef} tabIndex={-1}>{paying ? "You're ready" : d && d.assumed != null ? "Choose how to start" : "Your strategy is ready. Let's put it to work."}</h1>
-        <p>{paying ? "Your plan is already active, so there is nothing to choose here." : "Choose the tools and room you need to follow your plan. You can change plans at any time."}</p>
-      </div>
+      <SioSays expression={paying ? "happy" : "neutral"} headRef={headRef}
+        title={paying ? "You're ready" : d && d.assumed != null ? "Choose how to start" : "I've put together your strategy. Now let's choose the tools that fit it."}>
+        {paying ? "Your plan is already active, so there is nothing to choose here." : "Choose the tools and room you need to follow your plan. You can change plans at any time."}
+      </SioSays>
       {notice && <p className="obp-notice" role="status">{notice}</p>}
       {failed && <p className="ob-err" role="alert">The plans couldn&apos;t be loaded. You can open SOCIA on Free and choose a plan later from Settings.</p>}
       {!d && !failed && <p className="obp-wait" role="status"><Loader2 size={16} className="spin" aria-hidden /> Working out which plan fits your strategy.</p>}

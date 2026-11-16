@@ -590,6 +590,10 @@
   .obs-body > p, .obs-items li { animation: none; }
   .obs-mark { transition: none; }
 }
+/* Onboarding, routine step: SIO's questions */
+.obr-count { margin: calc(var(--sp-5) * -1 + var(--sp-2)) 0 var(--sp-4); font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-3); }
+.obr-time { display: flex; flex-direction: column; gap: var(--sp-2); }
+.obr-toggle { align-self: flex-start; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
 /* Onboarding, goal step: one block per goal picked */
 .obg-goal .gp-row { align-items: end; }
 
