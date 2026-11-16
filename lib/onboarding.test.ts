@@ -23,7 +23,10 @@ describe("needsOnboarding", () => {
 describe("steps", () => {
   it("move within bounds and resume at the saved step", () => {
     expect(nextStep("connect")).toBe("profile");
-    expect(nextStep("briefing")).toBe("briefing");
+    expect(nextStep("goal")).toBe("strategy");
+    expect(nextStep("strategy")).toBe("strategy");
+    // A brand left on the old last step resumes on the step that replaced it.
+    expect(resumeStep({ step: "briefing", answers: {}, completed_at: null })).toBe("strategy");
     expect(prevStep("connect")).toBe("connect");
     expect(resumeStep({ step: "goal", answers: {}, completed_at: null })).toBe("goal");
     // A step from the earlier, longer flow starts over at Connect.

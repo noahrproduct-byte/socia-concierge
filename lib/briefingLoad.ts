@@ -19,7 +19,7 @@ import { runInsights } from "./intel/runIntel";
 import { GOAL_PLATFORM_NAME, formatGoalValue, goalMetric, type Goal, type GrowthProfile } from "./growth";
 
 /** The platform rows and extra numbers a goal's current value is read from. */
-async function readNow(ctx: Ctx, ent: Awaited<ReturnType<typeof getEntitlements>>) {
+export async function readNow(ctx: Ctx, ent: Awaited<ReturnType<typeof getEntitlements>>) {
   const src = await loadSources(ctx, ent, { days: 30 });
   const rows = await platformSummaries(ctx, src);
   const since = src.now.getTime() - src.days * 86_400_000;

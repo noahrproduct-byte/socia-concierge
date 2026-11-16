@@ -11,14 +11,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Check, Loader2, Minus } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { NICHES } from "@/lib/niches";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import { STEPS, STEP_LABEL, nextStep, prevStep, type Step } from "@/lib/onboarding";
 import { ACCOUNT_TYPES, GOAL_PLATFORM_NAME, MAIN_GOALS, formatGoalValue, goalMetric, type AccountType, type GoalMetricId, type GoalPlatform, type MainGoalId } from "@/lib/growth";
 import { TIMEFRAMES, dueFor, goalStepError, goalStepSummary, targetNumber, type Timeframe } from "@/lib/goalStep";
 import { confidenceLabel, type Understanding } from "@/lib/intel/understanding";
-import type { Briefing, StepOutcome } from "@/lib/briefing";
 import type { BrandDetail } from "@/lib/profile";
 import { Field, Input } from "@/components/system";
 import PlanNotice from "@/components/PlanNotice";
@@ -26,6 +25,7 @@ import { Choices } from "./growth/GrowthFields";
 import ConnectAccounts, { type ConnectState } from "./ConnectAccounts";
 import BrandMark from "./BrandMark";
 import ReadReveal from "./ReadReveal";
+import StrategyStep from "./onboarding/StrategyStep";
 import AnimatedChoice from "@/components/animated/AnimatedChoice";
 import BrandRead, { brandReadToSave, seedBrandRead, type BrandReadValue } from "@/components/brand/BrandRead";
 
@@ -114,9 +114,8 @@ export default function OnboardingFlow({
 
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [init, setInit] = useState<{ outcomes: StepOutcome[]; briefing: Briefing } | null>(null);
-  const [initErr, setInitErr] = useState<string | null>(null);
-  const initStarted = useRef(false);
+  // The strategy step says when its build has ended (done or failed), so "Open SOCIA" waits for it.
+  const [strategyReady, setStrategyReady] = useState(false);
   const readStarted = useRef(false);
   const headRef = useRef<HTMLHeadingElement>(null);
 
@@ -189,19 +188,6 @@ export default function OnboardingFlow({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
-  // The briefing step runs the real initialization once.
-  useEffect(() => {
-    if (step !== "briefing" || initStarted.current) return;
-    initStarted.current = true;
-    post("/api/onboarding/initialize", {})
-      .then(async (r) => {
-        const j = await r.json().catch(() => null);
-        if (!r.ok || !j?.briefing) throw new Error(j?.error || "Couldn't read your accounts just now. Try again in a minute.");
-        setInit(j);
-      })
-      .catch((e) => setInitErr(e instanceof Error ? e.message : "Couldn't read your accounts just now."));
-  }, [step]);
-
   async function saveProfile(): Promise<boolean> {
     const r = await post("/api/profile", {
       niche,
@@ -269,7 +255,7 @@ export default function OnboardingFlow({
   async function finish() {
     setSaving(true);
     setErr(null);
-    const r = await post("/api/onboarding", { step: "briefing", completed: true }).catch(() => null);
+    const r = await post("/api/onboarding", { step: "strategy", completed: true }).catch(() => null);
     // Before the database update the row can't be saved; the niche alone then
     // marks setup as done (lib/onboarding.ts), so the app still opens.
     if (!r?.ok && r?.status !== 503) {
@@ -511,85 +497,24 @@ export default function OnboardingFlow({
                   )}
                 </div>
                 <AnimatedChoice autoScan />
-                {nav("Finish setup")}
+                {nav("Build my strategy")}
               </>
             )}
 
-            {step === "briefing" && (
+            {step === "strategy" && (
               <>
-                <div className="ob-head">
-                  <h1 ref={headRef} tabIndex={-1}>Your first briefing</h1>
-                  <p>What SOCIA did with your accounts just now, and where to start.</p>
-                </div>
-
-                {!init && !initErr && (
-                  <div className="ob-reading" role="status" aria-live="polite">
-                    <Loader2 size={22} className="spin" aria-hidden />
-                    <p>Reading your connected accounts and recording where your goals start.</p>
-                  </div>
-                )}
-                {initErr && <div className="ob-err" role="alert">{initErr}</div>}
-
-                {init && (
-                  <div className="ob-brief">
-                    {init.outcomes.length > 0 && (
-                      <section>
-                        <h2>What ran</h2>
-                        <ul className="ob-outcomes">
-                          {init.outcomes.map((o, k) => (
-                            <li key={k} className={o.status}>
-                              {o.status === "done" ? <Check size={15} aria-hidden /> : <Minus size={15} aria-hidden />}
-                              <span><b>{o.label}</b> {o.detail}</span>
-                              <small>{o.status === "done" ? "Done" : o.status === "unavailable" ? "Not available" : "Failed"}</small>
-                            </li>
-                          ))}
-                        </ul>
-                      </section>
-                    )}
-                    {init.briefing.learned.length > 0 && (
-                      <section>
-                        <h2>From your accounts</h2>
-                        <ul>{init.briefing.learned.map((l, k) => <li key={k}>{l}</li>)}</ul>
-                      </section>
-                    )}
-                    {init.briefing.missing.length > 0 && (
-                      <section>
-                        <h2>Not available yet</h2>
-                        <ul>{init.briefing.missing.map((l, k) => <li key={k}>{l}</li>)}</ul>
-                      </section>
-                    )}
-                    <section>
-                      <h2>Start here</h2>
-                      <ol className="ob-next">
-                        {init.briefing.actions.map((a) => (
-                          <li key={a.label}>
-                            <Link href={a.href}>{a.label}</Link>
-                            <small>{a.why}</small>
-                          </li>
-                        ))}
-                      </ol>
-                    </section>
-                    {init.briefing.guidance.length > 0 && (
-                      <section className="ob-guidance">
-                        <h2>Starting guidance</h2>
-                        <p className="gp-note">General advice for your goal and situation, not a finding from your data.</p>
-                        <ul>{init.briefing.guidance.map((l, k) => <li key={k}>{l}</li>)}</ul>
-                      </section>
-                    )}
-                  </div>
-                )}
-
+                <StrategyStep onReady={setStrategyReady} headRef={headRef} />
                 {err && <div className="ob-err" role="alert">{err}</div>}
                 <div className="ob-actions">
                   <button className="ob-btn ob-btn-ghost" onClick={() => go("goal", false)} disabled={saving}>
                     <ArrowLeft size={17} /> Back
                   </button>
-                  <button className="ob-btn ob-btn-primary" onClick={finish} disabled={saving || (!init && !initErr)}>
+                  <button className="ob-btn ob-btn-primary" onClick={finish} disabled={saving || !strategyReady}>
                     {saving ? "Opening…" : "Open SOCIA"} {!saving && <ArrowRight size={17} />}
                   </button>
                 </div>
                 <p className="ob-note">
-                  Add your audience, voice and what you can produce any time in <Link href="/settings#growth">Settings</Link>. You&apos;re on the Free plan. <Link href="/pricing">Compare plans</Link>
+                  Your first weekly plan is being written from this strategy; the bell tells you when it&apos;s ready. Add your audience, voice and what you can produce any time in <Link href="/settings#growth">Settings</Link>.
                 </p>
               </>
             )}

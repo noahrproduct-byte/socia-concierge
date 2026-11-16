@@ -2,16 +2,18 @@
 // them. Pure, so the gate in the app layout and the wizard agree.
 
 // Kept short on purpose: SOCIA reads what it can from the connected
-// accounts, the person confirms it and picks one main goal. The detailed
-// questions (audience, voice, resources) are optional, in Settings.
-export const STEPS = ["connect", "profile", "goal", "briefing"] as const;
+// accounts, the person confirms it and sets one main goal with a target, then
+// watches SOCIA build the strategy for it and sees that strategy (Noah,
+// 2026-11-15). The detailed questions (audience, voice, resources) are
+// optional, in Settings.
+export const STEPS = ["connect", "profile", "goal", "strategy"] as const;
 export type Step = (typeof STEPS)[number];
 
 export const STEP_LABEL: Record<Step, string> = {
   connect: "Connect",
   profile: "Your account",
   goal: "Main goal",
-  briefing: "Briefing",
+  strategy: "Your strategy",
 };
 
 export const isStep = (v: unknown): v is Step => typeof v === "string" && (STEPS as readonly string[]).includes(v);
@@ -39,5 +41,7 @@ export function needsOnboarding(input: { isOwner: boolean; row: OnboardingRow | 
 
 /** Where to resume: the saved step, or the start. */
 export function resumeStep(row: OnboardingRow | null): Step {
+  // "briefing" was the last step before the strategy step replaced it: a brand left there resumes on the new last step.
+  if (row?.step === "briefing") return "strategy";
   return row && isStep(row.step) ? row.step : "connect";
 }
