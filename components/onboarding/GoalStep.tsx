@@ -8,7 +8,7 @@
 // unless changed. The first goal picked is the main goal. Nothing here says a
 // target will be met.
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { GOAL_PLATFORM_NAME, MAIN_GOALS, formatGoalValue, goalMetric, type Goal, type GoalMetricId, type GoalPlatform, type MainGoalId } from "@/lib/growth";
+import { CUSTOMER_GOALS, GOAL_PLATFORM_NAME, formatGoalValue, goalMetric, mainGoalsFor, type CustomerGoalId, type Goal, type GoalMetricId, type GoalPlatform, type MainGoalId } from "@/lib/growth";
 import { TIMEFRAMES, daysUntil, dueFor, dueIn, goalStepError, goalStepSummary, targetNumber, type Timeframe } from "@/lib/goalStep";
 import { Field, Input } from "@/components/system";
 import { Choices } from "@/components/growth/GrowthFields";
@@ -21,6 +21,8 @@ type Props = {
   tableReady: boolean;
   connectedPlatforms: GoalPlatform[];
   initial: { main?: MainGoalId | ""; others?: MainGoalId[] };
+  /** How the customer goal is worded for this brand: users for an app, bookings or orders for a restaurant (lib/goalWording.ts). */
+  customerGoal: CustomerGoalId;
   /** The goal SOCIA read from the account, with its reason. */
   suggested: { goal: MainGoalId; reason: string } | null;
   today: string;
@@ -40,7 +42,8 @@ function remember(ids: string[]) {
   try { sessionStorage.setItem(MINE, JSON.stringify([...new Set(ids)])); } catch { /* private window: nothing to remember */ }
 }
 
-const GoalStep = forwardRef<GoalStepHandle, Props>(function GoalStep({ tableReady, connectedPlatforms, initial, suggested, today, onChosen }, ref) {
+const GoalStep = forwardRef<GoalStepHandle, Props>(function GoalStep({ tableReady, connectedPlatforms, initial, customerGoal, suggested, today, onChosen }, ref) {
+  const GOALS = mainGoalsFor(customerGoal);
   const [chosen, setChosen] = useState<MainGoalId[]>(() => {
     const start = [initial.main, ...(initial.others ?? [])].filter((g): g is MainGoalId => Boolean(g));
     return start.length ? [...new Set(start)] : suggested ? [suggested.goal] : [];
@@ -76,7 +79,7 @@ const GoalStep = forwardRef<GoalStepHandle, Props>(function GoalStep({ tableRead
       const goals = (Array.isArray(j?.goals) ? j.goals : []) as Goal[];
       setSaved(goals);
       const t: Partial<Record<MainGoalId, string>> = {}, n: Partial<Record<MainGoalId, string>> = {};
-      for (const m of MAIN_GOALS) {
+      for (const m of GOALS) {
         const g = goals.find((x) => x.metric === m.metric);
         if (!g) continue;
         t[m.id] = show(m.metric, g.target);
@@ -99,7 +102,7 @@ const GoalStep = forwardRef<GoalStepHandle, Props>(function GoalStep({ tableRead
 
   /** One goal as it stands on the screen: its numbers and the target shown. */
   function view(id: MainGoalId) {
-    const goal = MAIN_GOALS.find((m) => m.id === id)!;
+    const goal = GOALS.find((m) => m.id === id)!;
     const metric = goalMetric(goal.metric)!;
     const read = nowValues?.[goal.metric] ?? null;
     const now = read ? read.value : targetNumber(typedNow[id] ?? "");
@@ -122,7 +125,7 @@ const GoalStep = forwardRef<GoalStepHandle, Props>(function GoalStep({ tableRead
       }
       const labels = views.map((v) => v.goal.label);
       const r = await post("/api/profile", {
-        brand_detail: { growth: { main_goal: chosen[0], other_goals: chosen.slice(1) } },
+        brand_detail: { growth: { main_goal: chosen[0], other_goals: chosen.slice(1), customer_goal: customerGoal } },
         // Without the goals table the goals are still the brand's stated goals, in words.
         ...(tableReady ? {} : { goals: `Main goal: ${labels[0]}.${labels.length > 1 ? ` Also: ${labels.slice(1).join(", ")}.` : ""}` }),
       }).catch(() => null);
@@ -148,7 +151,8 @@ const GoalStep = forwardRef<GoalStepHandle, Props>(function GoalStep({ tableRead
       remember(ids);
       // A goal set from this step earlier and unpicked now is removed; goals made anywhere else are left alone.
       const keep = new Set<string>(views.map((v) => v.goal.metric));
-      const pickable = new Set<string>(MAIN_GOALS.map((m) => m.metric));
+      // Every number this step can set, under any wording of the customer goal.
+      const pickable = new Set<string>([...GOALS.map((m) => m.metric), ...CUSTOMER_GOALS.map((c) => c.metric)]);
       for (const g of saved) {
         if (g.id && ids.includes(g.id) && pickable.has(g.metric) && !keep.has(g.metric)) await fetch(`/api/goals?id=${encodeURIComponent(g.id)}`, { method: "DELETE" }).catch(() => null);
       }
@@ -160,7 +164,7 @@ const GoalStep = forwardRef<GoalStepHandle, Props>(function GoalStep({ tableRead
 
   return (
     <div className="ob-fields">
-      <Choices label="Goals" multi options={MAIN_GOALS} value={chosen} onChange={(v) => { setChosen(v as MainGoalId[]); setErr(null); }} />
+      <Choices label="Goals" multi options={GOALS} value={chosen} onChange={(v) => { setChosen(v as MainGoalId[]); setErr(null); }} />
       <p className="gp-note">Pick one or more. The first one you pick is your main goal.</p>
       {suggested && chosen.includes(suggested.goal) && (
         <p className="gp-note">Suggested from your account: {suggested.reason} Keep it or pick others.</p>

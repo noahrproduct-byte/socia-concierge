@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/system";
-import { GOAL_PLATFORM_NAME, MAIN_GOALS, type Goal, type GoalPlatform, type GrowthProfile, type MainGoalId } from "@/lib/growth";
+import { GOAL_PLATFORM_NAME, mainGoalsFor, type Goal, type GoalPlatform, type GrowthProfile, type MainGoalId } from "@/lib/growth";
 import { confidenceLabel, type Understanding } from "@/lib/intel/understanding";
 import { AccountTypeFields, AudienceFields, Choices, GrowthGroup, PersonalityFields, ResourcesFields, TypeDetailFields } from "./GrowthFields";
 import GoalsEditor from "./GoalsEditor";
@@ -72,7 +72,7 @@ export default function GrowthProfileCard({
         <GoalsEditor initial={goals} tableReady={goalsReady} connected={connected} />
       </GrowthGroup>
       <GrowthGroup title="Main goal">
-        <Choices label="What matters most right now" options={MAIN_GOALS} columns={3} value={growth.main_goal} onChange={(v) => setGrowth({ ...growth, main_goal: v as MainGoalId })} />
+        <Choices label="What matters most right now" options={mainGoalsFor(growth.customer_goal)} columns={3} value={growth.main_goal} onChange={(v) => setGrowth({ ...growth, main_goal: v as MainGoalId })} />
       </GrowthGroup>
       <GrowthGroup title="What SOCIA read from your accounts">
         {understanding ? (

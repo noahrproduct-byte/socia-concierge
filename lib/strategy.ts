@@ -6,7 +6,7 @@
 // the person's stated time allows, and the primary objective is always their
 // own main goal. Pure.
 
-import { HOURS, MAIN_GOALS, type GrowthProfile } from "./growth";
+import { HOURS, mainGoalLabel, type GrowthProfile } from "./growth";
 
 export type StrategyPillar = { name: string; why: string };
 export type ExperimentStatus = "running" | "done" | "stopped";
@@ -114,9 +114,8 @@ const isDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Dat
 
 /** The primary objective is the person's own main goal, never the model's. */
 export function primaryObjective(g: GrowthProfile | null | undefined, goalLine: string | null): string {
-  const main = MAIN_GOALS.find((m) => m.id === g?.main_goal);
   if (goalLine) return goalLine;
-  return main ? main.label : "Set a main goal in your Growth Profile";
+  return mainGoalLabel(g?.main_goal, g) ?? "Set a main goal in your Growth Profile";
 }
 
 /** The model's draft, made safe: lengths bounded, frequency held to the person's time, dates checked. */
