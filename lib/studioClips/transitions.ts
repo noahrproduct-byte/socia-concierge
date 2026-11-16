@@ -41,6 +41,8 @@ export type TransitionLook = {
 
 /** A tape roll settles in this many frames. */
 export const TAPE_FRAMES = 5;
+/** A light leak builds over this many frames of the outgoing shot and fades over this many of the incoming one (about 0.4 s each way at 30 fps). */
+export const LEAK_FRAMES = 12;
 
 // Ease in and out (cubic), so a transition starts and lands softly.
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -72,12 +74,12 @@ export function transitionLook(a: { frame: number; frames: number; into?: Transi
     // The incoming whip is opaque for most of the move, so the frame never looks empty.
     case "whip": look.opacity = clamp01((1 - inP) / 0.4); look.x += 35 * inP; look.blur += 40 * inP; look.whip = true; break;
     case "flash": look.flash = a.frame === 0 ? 1 : a.frame === 1 ? 0.55 : 0; break;
-    // Leak: the incoming shot is there from its first frame; a warm wash over it fades out through the overlap.
-    case "leak": look.leak = Math.max(look.leak, inP); break;
+    // Leak: a hard cut (no overlap, no second sound) under a warm wash that peaks on the cut: it fades off the
+    // incoming shot's first frames here, and builds over the outgoing shot's last frames below.
+    case "leak": look.leak = Math.max(look.leak, 1 - ease(clamp01(a.frame / LEAK_FRAMES))); break;
   }
   switch (a.out) {
-    // Leak: the wash builds over the outgoing shot's last frames, so it peaks on the cut itself.
-    case "leak": look.leak = Math.max(look.leak, outP); break;
+    case "leak": look.leak = Math.max(look.leak, ease(clamp01((a.frame - (a.frames - LEAK_FRAMES)) / LEAK_FRAMES))); break;
     case "zoom": look.scale *= 1 + 0.08 * outP; look.zoomBlur += 20 * outP; break;
     // slide: the outgoing cut stays as it is under the incoming one.
     case "whip": look.x -= 35 * outP; look.blur += 40 * outP; look.whip = true; break;

@@ -185,7 +185,8 @@ export function checkCut(edl: Edl, clips: ClipForEdl[]): CutCheck {
   if (segs.some((s) => byId.get(s.clipId)?.words?.length)) {
     ran.push("voice");
     segs.forEach((s, i) => {
-      if (!i || !s.transition || s.transition === "cut") return;
+      // A flash and a light leak are hard cuts with a wash on top: no two sounds overlap.
+      if (!i || !s.transition || s.transition === "cut" || s.transition === "flash" || s.transition === "leak") return;
       const prev = segs[i - 1];
       if (prev.voiceTail || talking(byId.get(prev.clipId), prev.out, "before") || talking(byId.get(s.clipId), s.in, "after")) {
         findings.push({ id: "voice", segmentId: s.id, detail: `The ${s.transition === "fade" ? "dissolve" : s.transition} at ${at(i)} runs over someone talking, so two voices play at once. A hard cut keeps the words clear.` });
@@ -327,7 +328,7 @@ export function repairCut(edl: Edl, clips: ClipForEdl[], opts: { keepTransitions
 
   // A dissolve over speech becomes a hard cut, unless the person chose the joins themselves.
   segments.forEach((s, i) => {
-    if (!i || opts.keepTransitions || !s.transition || s.transition === "cut") return;
+    if (!i || opts.keepTransitions || !s.transition || s.transition === "cut" || s.transition === "flash" || s.transition === "leak") return;
     const prev = segments[i - 1];
     if (prev.voiceTail || talking(byId.get(prev.clipId), prev.out, "before") || talking(byId.get(s.clipId), s.in, "after")) {
       delete s.transition;

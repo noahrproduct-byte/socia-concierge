@@ -118,3 +118,16 @@ describe("applyHouseStyle", () => {
     expect(skit.edl.notes).toEqual([]);
   });
 });
+
+describe("leak transition", () => {
+  it("is a hard cut under a wash: no overlap, the wash peaking on the cut and gone 12 frames either side", async () => {
+    const { transitionLook, LEAK_FRAMES } = await import("./transitions");
+    const { overlapFrames } = await import("./timeline");
+    expect(overlapFrames("leak", 60, 60)).toBe(0);
+    expect(transitionLook({ frame: 0, frames: 30, into: "leak", overlapIn: 0, overlapOut: 0 }).leak).toBe(1);
+    expect(transitionLook({ frame: LEAK_FRAMES, frames: 30, into: "leak", overlapIn: 0, overlapOut: 0 }).leak).toBe(0);
+    expect(transitionLook({ frame: 29, frames: 30, out: "leak", overlapIn: 0, overlapOut: 0 }).leak).toBeGreaterThan(0.9);
+    expect(transitionLook({ frame: 10, frames: 30, out: "leak", overlapIn: 0, overlapOut: 0 }).leak).toBe(0);
+    expect(transitionLook({ frame: 5, frames: 30, into: "cut", overlapIn: 0, overlapOut: 0 }).leak).toBe(0);
+  });
+});

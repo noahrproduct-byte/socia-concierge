@@ -19,7 +19,7 @@ export const TRANSITION_FRAMES = 9;
 
 /** Frames a cut overlaps the one before it: none for a hard cut, and never more than half of either cut. */
 export function overlapFrames(kind: TransitionKind | undefined, prevFrames: number, curFrames: number, frames: number = TRANSITION_FRAMES): number {
-  if (!kind || kind === "cut" || kind === "flash" || kind === "tape") return 0;
+  if (!kind || kind === "cut" || kind === "flash" || kind === "tape" || kind === "leak") return 0;
   return Math.max(0, Math.min(frames, Math.floor(prevFrames / 2), Math.floor(curFrames / 2)));
 }
 
