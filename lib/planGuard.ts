@@ -146,7 +146,7 @@ async function payWithCredits(supabase: Supa, userId: string, ent: Entitlements,
     meter: action, used: null, limit: 0, remaining: Math.floor(balance / cost), resetsOn, credits: { balance, cost },
   });
   try {
-    const balance = await creditBalance(userId, ent.plan, now, ent.invites ?? 0);
+    const balance = await creditBalance(userId, ent, now);
     if (balance == null) return null;
     if (balance < cost) {
       recordEvent(supabase, userId, "usage_limit_reached", { meter: action, plan: ent.plan, credits: balance, cost });

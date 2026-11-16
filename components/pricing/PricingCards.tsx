@@ -1,7 +1,7 @@
 import { Check } from "lucide-react";
 import { openPlatformsText } from "@/lib/platformStatus";
 import { PLANS, SALE_ORDER, FEATURE_LABEL, FEATURE_STATUS, formatPrice, formatHistory, type PlanId, type PlanConfig } from "@/lib/plans";
-import { MONTHLY_CREDITS, creditsBuy } from "@/lib/credits/config";
+import { creditsBuy, creditsOnSale } from "@/lib/credits/config";
 import { comingSoonFor } from "@/lib/pricingTable";
 import PlanCta from "./PlanCta";
 import { LaunchWas } from "./Launch";
@@ -20,8 +20,8 @@ function highlightsFor(p: PlanConfig): (string | null)[] {
   const workspaces = n(L.workspaces, "Brand Workspace", "Brand Workspaces");
   // Every AI feature runs on one monthly credit balance (lib/credits/config.ts):
   // the card says how many credits and what they buy, not a list of per-feature counts.
-  const credits = `${MONTHLY_CREDITS[p.id].toLocaleString("en-US")} AI credits a month, for any AI feature`;
-  const buys = `That's ${creditsBuy(MONTHLY_CREDITS[p.id], (a) => p.meters[a] > 0)}`;
+  const credits = `${creditsOnSale(p.id).toLocaleString("en-US")} AI credits a month, for any AI feature`;
+  const buys = `That's ${creditsBuy(creditsOnSale(p.id), (a) => p.meters[a] > 0)}`;
   const competitors = `${n(L.competitors, "competitor", "competitors")} per brand`;
   // Team members are a headline only once invites exist; until then the seat
   // count would be a promise about a feature that is not built, so it lives in

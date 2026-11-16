@@ -9,7 +9,7 @@ import { creditBalance } from "./ledger";
 
 /** `usage` with every credit-paid feature showing the credit balance. Unchanged when the credit tables aren't installed or can't be read. */
 export async function withCredits(usage: Record<MeterKey, UsageSnapshot>, ent: Entitlements, now = new Date()): Promise<Record<MeterKey, UsageSnapshot>> {
-  const balance = await creditBalance(ent.userId, ent.plan, now, ent.invites ?? 0).catch(() => null);
+  const balance = await creditBalance(ent.userId, ent, now).catch(() => null);
   if (balance == null) return usage;
   const resetsOn = nextMonthStart(now).toISOString().slice(0, 10);
   const out = { ...usage };

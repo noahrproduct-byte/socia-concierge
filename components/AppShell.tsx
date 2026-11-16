@@ -20,14 +20,14 @@ import { buildActivity, displayTitle, type Activity } from "@/lib/overview";
 import { getAlerts, unreadAlertCount } from "@/lib/alerts";
 import type { ScheduledPost } from "@/lib/scheduling";
 import { offlineFor } from "@/lib/platformAccess";
-import { MONTHLY_CREDITS } from "@/lib/credits/config";
+import { creditsOnSale } from "@/lib/credits/config";
 
 // One quiet line per step up, read from the plan config so the numbers never
 // drift from what the plan actually includes. Only built features are named.
 function nextPlanLine(p: PlanId): string {
   const L = PLANS[p].limits;
   const ws = `${L.workspaces} Brand ${L.workspaces === 1 ? "Workspace" : "Workspaces"}`;
-  const credits = `${MONTHLY_CREDITS[p].toLocaleString("en-US")} AI credits a month`;
+  const credits = `${creditsOnSale(p).toLocaleString("en-US")} AI credits a month`;
   switch (p) {
     case "starter":
       return `${ws}, deeper analytics, animated videos and ${credits}.`;

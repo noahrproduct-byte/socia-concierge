@@ -11,7 +11,7 @@ import {
   formatHistory,
   type PlanId, type PlanConfig, type FeatureKey, type LimitKey,
 } from "./plans";
-import { MONTHLY_CREDITS, actionCredits, type CreditAction } from "./credits/config";
+import { actionCredits, type CreditAction, creditsOnSale } from "./credits/config";
 
 export type Cell =
   | { kind: "yes" }
@@ -85,7 +85,7 @@ export const COMPARISON: ComparisonCategory[] = [
       {
         label: "AI credits a month",
         note: "One balance for every AI feature; the rows below show what each one uses. Monthly credits refill on the 1st and don't carry over. Top-ups don't expire.",
-        cells: perPlan((p) => text(MONTHLY_CREDITS[p.id].toLocaleString("en-US"))),
+        cells: perPlan((p) => text(creditsOnSale(p.id).toLocaleString("en-US"))),
       },
     ],
   },

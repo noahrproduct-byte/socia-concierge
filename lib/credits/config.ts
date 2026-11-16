@@ -13,6 +13,7 @@
 // The clipper figures below are placeholders to confirm after the first live
 // test (docs/ai-studio-test-plan.md). Client-safe: no server imports.
 import type { PlanId } from "@/lib/plans";
+import { FULL_PRICE, launchOn } from "@/lib/launch";
 
 /**
  * False until the provider prices below are confirmed against the Vizard and
@@ -43,6 +44,28 @@ export const MONTHLY_CREDITS: Record<PlanId, number> = {
   pro: 4800,
   scale: 10800,
 };
+
+/**
+ * Monthly credits for subscribers paying a plan's full price (lib/launch.ts
+ * FULL_PRICE, from December 16, 2026). Launch subscribers keep their launch
+ * price and MONTHLY_CREDITS. Noah, 2026-11-15: a busy Pro agency with five
+ * brands needs about 6,000 credits a month; 7,200 covers that, and at $79.99
+ * a customer who spends them all still leaves about $22.
+ */
+export const FULL_PRICE_CREDITS: Partial<Record<PlanId, number>> = { pro: 7200 };
+
+/** A plan's monthly credits for what the subscriber pays, in cents (null when unknown: the launch amount). */
+export function planCredits(plan: PlanId, priceCents?: number | null): number {
+  const full = FULL_PRICE_CREDITS[plan];
+  if (full == null || plan === "free" || priceCents == null) return MONTHLY_CREDITS[plan];
+  return priceCents >= Math.round(FULL_PRICE[plan] * 100) ? full : MONTHLY_CREDITS[plan];
+}
+
+/** The monthly credits a plan is sold with right now: launch amounts until the launch ends, full-price amounts after. */
+export function creditsOnSale(plan: PlanId, now: number = Date.now()): number {
+  if (plan === "free" || launchOn(now)) return MONTHLY_CREDITS[plan];
+  return planCredits(plan, Math.round(FULL_PRICE[plan] * 100));
+}
 
 /**
  * What one use of each AI feature costs SOCIA, in US dollars (estimates from

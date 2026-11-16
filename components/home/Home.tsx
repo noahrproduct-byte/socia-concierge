@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowRight, Check, Mail } from "lucide-react";
 import { PlatformMark } from "@/components/system/PlatformMark";
 import { PLANS, SALE_ORDER, formatHistory, type PlanId } from "@/lib/plans";
-import { MONTHLY_CREDITS, actionCredits } from "@/lib/credits/config";
+import { MONTHLY_CREDITS, actionCredits, creditsOnSale } from "@/lib/credits/config";
 import { CONTACT_EMAIL, awaitingAccessText, offlineReason, openPlatformsText, platformRequestHref, type OfflinePlatform } from "@/lib/platformStatus";
 import HomeNav from "./HomeNav";
 import HomeFooter from "./HomeFooter";
@@ -63,7 +63,7 @@ const PLAN_LINES: Record<PlanId, string[]> = Object.fromEntries(
       id,
       [
         `${l.workspaces} Brand ${l.workspaces === 1 ? "Workspace" : "Workspaces"}`,
-        `${MONTHLY_CREDITS[id].toLocaleString("en-US")} AI credits a month`,
+        `${creditsOnSale(id).toLocaleString("en-US")} AI credits a month`,
         `${l.competitors} competitors per brand`,
         `${formatHistory(l.analytics_history_days)} of analytics history`,
         l.team_members > 1 ? `${l.team_members} team members` : "Single user",
