@@ -19,13 +19,15 @@ const FAMILIES = {
   // The Showroom theme (lib/studioClips/themes/showroom.json): heavy captions and a brush script for the key word.
   intertight: { family: "Inter Tight", weights: [800] },
   kaushan: { family: "Kaushan Script", weights: [400] },
+  // The chapter line (lib/textPresets.ts "chapter", the owner's Osh reel): an upright serif at text weight.
+  serif: { family: "Instrument Serif", weights: [400] },
 };
 const ITALIC = { serif: { family: "Instrument Serif", weights: [400], italic: true } };
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36";
 const out = join(process.cwd(), "public", "fonts", "editor");
 await mkdir(out, { recursive: true });
 const manifest = [];
-for (const [id, f] of Object.entries({ ...FAMILIES, ...ITALIC })) {
+for (const [id, f] of [...Object.entries(FAMILIES), ...Object.entries(ITALIC)]) {
   const spec = f.italic ? `ital,wght@${f.weights.map((w) => `1,${w}`).join(";")}` : `wght@${f.weights.join(";")}`;
   const url = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(f.family).replace(/%20/g, "+")}:${spec}&display=swap`;
   const css = await (await fetch(url, { headers: { "user-agent": UA } })).text();
