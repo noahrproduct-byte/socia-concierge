@@ -282,7 +282,7 @@ export default async function Page() {
     return r.views != null && f ? r.views / f : null;
   };
   const styleAll = dedupeReels(rankTrendingReels(copyPool.map((r) => ({ platform: r.platform, name: r.name, handle: r.handle, avatar: r.avatar, posts: r.posts })), [], now));
-  const styleReels = provenReels(styleAll, { max: 40, perAccount: 2, fill: true })
+  const styleReels = provenReels(copyable(styleAll), { max: 40, perAccount: 2, fill: true })
     .filter((r) => r.proven || (reach(r) ?? 0) >= 1)
     .sort((a, b) => (reach(b) ?? -1) - (reach(a) ?? -1))
     .slice(0, STYLE_REELS)
@@ -298,11 +298,11 @@ export default async function Page() {
     tracked, competitors, suggestions,
     reelsToCopy: withRef(reelsToCopy),
     nicheReels: withRef(nicheReels),
-    styleReels: withRef(styleReels),
+    styleReels: withRef(withMake(styleReels)),
     copyFrom: [...copyAccounts, ...foundAccounts],
     reelsRead: { reels: allReels.length, accounts: new Set(allReels.map((r) => (r.accountHandle ?? r.accountName).toLowerCase())).size },
     needsRead: igRes.enabled && (ownStale || [...competitors, ...suggestions, ...styleAccounts, ...copyAccounts, ...foundAccounts].some((a) => a.reading) || judged.some((a) => a.posts.length > 0 && fitFor(a) == null)
-      || [...reelsToCopy, ...nicheReels].some((r) => reelKey(r.url) != null && !verdictFor(r.url))),
+      || [...reelsToCopy, ...nicheReels, ...styleReels].some((r) => reelKey(r.url) != null && !verdictFor(r.url))),
     lastRun: runAt,
     niche: profile?.niche ?? null,
     nicheAccess: canUseFeature(ent, "niche_intelligence"),
