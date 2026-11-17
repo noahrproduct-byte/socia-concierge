@@ -48,6 +48,18 @@ describe("buildReport", () => {
     // The posts line is always present when posts are counted.
     expect(r.summary.some((s) => /post/.test(s))).toBe(true);
   });
+
+  it("says a change the way the card under it does", () => {
+    const r = buildReport({ workspaceName: "W", now: NOW, days: 30, instagram: { handle: "s", media, daily, followers: 100, baseline: 10 } });
+    // The posts card has its own sentence ("7 posts published in the period.").
+    const cards = r.sections[0].metrics.filter((m) => m.deltaText && !/posts/i.test(m.label));
+    for (const c of cards) {
+      const figure = c.deltaText!.replace(/^[^\d]+/, "").trim();
+      expect(r.summary.some((line) => line.startsWith(c.label) && line.includes(figure))).toBe(true);
+    }
+    // No arrows in a sentence, and never a rounded "0%".
+    for (const line of r.summary) expect(line).not.toMatch(/[↑↓]| 0% /);
+  });
 });
 
 describe("reportToCsv", () => {

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import LegalShell from "@/components/LegalShell";
 
 export const metadata = { title: "Privacy Policy | SOCIA" };
 
@@ -7,7 +8,7 @@ export const metadata = { title: "Privacy Policy | SOCIA" };
 // checked against the code. Update the date whenever the substance changes.
 export default function PrivacyPage() {
   return (
-    <main className="legal-page">
+    <LegalShell>
       <h1>Privacy Policy</h1>
       <p className="legal-date">Last updated: November 16, 2026</p>
 
@@ -478,6 +479,6 @@ export default function PrivacyPage() {
         {" · "}
         <Link href="/terms">Terms of Service</Link>
       </p>
-    </main>
+    </LegalShell>
   );
 }

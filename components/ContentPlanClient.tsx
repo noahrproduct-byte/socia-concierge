@@ -249,11 +249,11 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
       const json = await res.json();
       if (!res.ok) {
         if (isPlanError(json)) { setPlanError(json); return; }
-        throw new Error(json.error || "Something went wrong.");
+        throw new Error(json.error || "The plan couldn't be built just now. It didn't use up a plan. Try again.");
       }
       finish(json);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Something went wrong.");
+      setError(e instanceof Error ? e.message : "The plan couldn't be built just now. Try again.");
     } finally {
       setLoading(false);
     }

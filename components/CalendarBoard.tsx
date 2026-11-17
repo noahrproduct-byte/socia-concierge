@@ -1401,7 +1401,7 @@ function Composer({
       );
       onClose();
     } catch (e) {
-      fail(e, "Something went wrong.");
+      fail(e, "The post couldn't be saved just now. Try again.");
     } finally {
       setBusy(null);
     }
@@ -1421,7 +1421,7 @@ function Composer({
       else notify(j.post.error ?? "Instagram didn't publish the post.");
       onClose();
     } catch (e) {
-      fail(e, "Something went wrong.");
+      fail(e, "The post couldn't be published just now. It is still saved. Try again.");
     } finally {
       setBusy(null);
     }

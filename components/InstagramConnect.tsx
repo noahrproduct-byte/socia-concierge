@@ -75,7 +75,7 @@ export default function InstagramConnect({
       : status === "notconfigured"
         ? "Instagram isn't configured on the server yet (missing app credentials)."
         : status === "error"
-          ? "Something went wrong connecting Instagram. Please try again."
+          ? "Instagram couldn't be connected just now. Try again."
           : status === "forbidden"
             ? "Only the workspace owner or an admin can connect or disconnect accounts."
             : status === "elsewhere"
@@ -112,7 +112,7 @@ export default function InstagramConnect({
             </small>
           ) : (
             <small className="st2-ig-off">
-              Not connected — connect a professional account to pull your real insights.
+              Not connected. Connect a professional account to pull your real insights.
             </small>
           )}
         </div>

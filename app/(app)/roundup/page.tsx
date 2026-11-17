@@ -13,7 +13,7 @@ import "./roundup.css";
 
 export const metadata = { title: "Weekly roundup | SOCIA" };
 
-function Section({ icon, title, items, empty }: { icon: ReactNode; title: string; items: RoundupItem[]; empty: string }) {
+function Section({ icon, title, items, empty }: { icon: ReactNode; title: string; items: RoundupItem[]; empty: ReactNode }) {
   return (
     <section className="ru-card">
       <div className="ru-card-head">
@@ -48,11 +48,11 @@ export default async function RoundupPage() {
     const plan = minPlanWithFeature("weekly_trend_roundup");
     return (
       <>
-        <PageHeader title="Weekly roundup" sub="Your niche, your competitors and your wins — rolled up once a week." />
+        <PageHeader title="Weekly roundup" sub="Your niche, your competitors and your wins, rolled up once a week." />
         <div className="ru-gate">
           <span className="ru-gate-ico" aria-hidden><Sparkles size={22} /></span>
           <h2>Weekly roundup is on {PLANS[plan].name}</h2>
-          <p>Every week SOCIA rolls up what&apos;s trending in your niche, how your tracked competitors moved, your breakout posts, and the one format you&apos;re under-using — all from your real data, never estimated.</p>
+          <p>Every week SOCIA rolls up what&apos;s trending in your niche, how your tracked competitors moved, your breakout posts, and the one format you&apos;re under-using. All of it comes from your real data, never estimated.</p>
           <Link href={pricingHref(plan)} className="ru-cta">Upgrade to {PLANS[plan].name} <ArrowRight size={15} /></Link>
         </div>
       </>
@@ -69,7 +69,7 @@ export default async function RoundupPage() {
         <div className="ru-gate">
           <span className="ru-gate-ico" aria-hidden><Sparkles size={22} /></span>
           <h2>Your first roundup is on its way</h2>
-          <p>Connect an account and track a few competitors. Next week this page fills with your niche&apos;s trends, how competitors moved, and your best posts — it appears as the data accrues, nothing is estimated.</p>
+          <p>Connect an account and track a few competitors. Next week this page fills with your niche&apos;s trends, how competitors moved, and your best posts. It appears as the data comes in, and nothing is estimated.</p>
           <Link href="/settings#accounts" className="ru-cta">Connect an account <ArrowRight size={15} /></Link>
         </div>
       ) : (
@@ -81,6 +81,8 @@ export default async function RoundupPage() {
                   <span className="ru-kpi-label">{k.label}</span>
                   <b className={k.raw == null ? "dim" : ""}>{k.value}</b>
                   {k.deltaText && <em className={k.positive === false ? "down" : "up"}>{k.deltaText}</em>}
+                  {/* A dash alone reads as a broken card: say that the number wasn't there to read. */}
+                  {k.raw == null && <small className="ru-kpi-none">Not available for this week</small>}
                 </div>
               ))}
             </div>
@@ -99,15 +101,15 @@ export default async function RoundupPage() {
           )}
           <div className="ru-grid">
             <Section icon={<Flame size={15} />} title="Trending in your niche" items={roundup.trends}
-              empty="No breakout niche trend this week. Run discovery on the Competitors page to surface more." />
+              empty={<>No breakout niche trend this week. <Link href="/discover">Find more accounts on Discover</Link> to widen what SOCIA reads.</>} />
             <Section icon={<Users size={15} />} title="Competitor moves" items={roundup.competitorMoves}
               empty="No significant competitor follower moves this week." />
             <Section icon={<Zap size={15} />} title="Your breakout posts" items={roundup.breakouts}
               empty={roundup.connected ? "No post broke out past your format median this week." : "Connect Instagram to see your breakout posts."} />
             <Section icon={<Lightbulb size={15} />} title="Where you could win" items={roundup.opportunities}
-              empty="No clear format gap this week — your mix matches what's winning." />
+              empty="No clear format gap this week. Your mix matches what's winning." />
           </div>
-          <p className="ru-foot">Rolled up from your workspace&apos;s own data and the same detectors behind your alerts. A line appears only when the numbers clear the bar — nothing here is estimated.</p>
+          <p className="ru-foot">Rolled up from your workspace&apos;s own data and the same detectors behind your alerts. A line appears only when the numbers clear the bar. Nothing here is estimated.</p>
         </>
       )}
     </>

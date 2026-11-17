@@ -37,7 +37,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
         <span className="er-mark" aria-hidden>S</span>
         <span className="er-code">SOMETHING WENT WRONG</span>
         <h1>That didn&apos;t load</h1>
-        <p>A hiccup on our end stopped this page from loading. Try again — it usually works the second time.</p>
+        <p>A hiccup on our end stopped this page from loading. Try again. It usually works the second time.</p>
         <div className="er-actions">
           <button type="button" className="er-btn" onClick={() => reset()}>Try again</button>
           <Link href="/dashboard" className="er-btn ghost">Go to Dashboard</Link>

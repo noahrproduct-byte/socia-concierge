@@ -117,7 +117,7 @@ function MeasuredSound({ m }: { m: QuickAudio }) {
     : !m.hasAudio
     ? [{ label: "Sound", value: "None", note: "no audible sound in the file", warn: true }]
     : [
-        { label: "Level", value: m.levelDb != null ? `${m.levelDb} dBFS` : "—", note: m.level === "quiet" ? "quiet — raise it" : m.level === "loud" ? "loud — may distort" : "comfortable", warn: m.level === "quiet" || m.level === "loud" },
+        { label: "Level", value: m.levelDb != null ? `${m.levelDb} dBFS` : "—", note: m.level === "quiet" ? "quiet, raise it" : m.level === "loud" ? "loud, may distort" : "comfortable", warn: m.level === "quiet" || m.level === "loud" },
         { label: "Sound", value: `${Math.round((m.audibleRatio ?? 0) * 100)}%`, note: "of the video" },
         { label: "Opening", value: m.silentOpeningSec >= 0.5 ? `${m.silentOpeningSec}s silent` : "starts at once", note: m.silentOpeningSec >= 0.5 ? "cut the silent start" : undefined, warn: m.silentOpeningSec >= 0.5 },
         { label: "Longest pause", value: m.longestPauseSec >= 0.7 ? `${m.longestPauseSec}s` : "none", warn: m.longestPauseSec >= 1.5 },

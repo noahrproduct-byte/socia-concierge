@@ -47,7 +47,7 @@ const POLL_MS = 2500;
 const errCopy = (e: unknown): string => {
   const m = e instanceof Error ? e.message : String(e);
   if (m === "unsupported") return "Couldn't read this file in the browser. Export it as an H.264 MP4 and add it again.";
-  if (m === "too_long") return "Longer than 10 minutes — trim it first.";
+  if (m === "too_long") return "Longer than 10 minutes. Trim it first.";
   if (m === "too_short") return "Shorter than a second.";
   return m.replace(/^Upload failed: /, "");
 };
@@ -360,7 +360,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
     const post = await fetch(`/api/studio/projects/${project.id}/opportunities/${o.idx}`, { method: "POST" });
     const j = await post.json().catch(() => null);
     setBuildLoading(false);
-    if (!post.ok) { setBuildError(j?.error ?? "Something went wrong."); return; }
+    if (!post.ok) { setBuildError(j?.error ?? "SOCIA couldn't build that idea just now. Try again."); return; }
     setBuild(j);
     setProject((p) => (p && !p.builds.includes(o.idx) ? { ...p, builds: [...p.builds, o.idx] } : p));
   }, [project]);
@@ -502,7 +502,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
       <PageHeader
         title="Content Studio"
         sub={audio ? "Drop a video. SOCIA adds music made for it from your taste, and you can hear the others and pick one." : editing ? "Put in your clips, then write what you want or add a video to copy. SOCIA cuts it, and you finish it in the editor." : "Drop your raw clips. SOCIA finds the posts in them, makes the videos and schedules them after you check the list."}
-        status={meta ? <span className="ov-status"><i className={meta.transcription ? "live" : ""} />{meta.transcription ? "Speech is transcribed with timestamps" : "No transcription service configured — clips are understood from frames and measured sound"}</span> : null}
+        status={meta ? <span className="ov-status"><i className={meta.transcription ? "live" : ""} />{meta.transcription ? "Speech is transcribed with timestamps" : "No transcription service configured. Clips are understood from frames and measured sound"}</span> : null}
         actions={
           <>
             {(project || custom) && view !== "understanding" && <button type="button" className="ov-btn ghost" onClick={backToStart}><FolderOpen size={14} /> {editing ? "Your videos" : "Projects"}</button>}
@@ -607,7 +607,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
             <div className="cb-bar-facts">
               <b><Layers size={14} /> {readyClips.length} clip{readyClips.length === 1 ? "" : "s"}{uploading ? ` · ${locals.filter((l) => l.phase !== "done" && l.phase !== "error" && l.phase !== "duplicate").length} adding` : ""}</b>
               <span>{fmtMinutes(footageSec)} of footage · {(bytes / 1024 / 1024).toFixed(0)} MB</span>
-              {stale && <span className="cb-stale-inline"><AlertTriangle size={12} /> Footage changed — understand again</span>}
+              {stale && <span className="cb-stale-inline"><AlertTriangle size={12} /> Footage changed. Understand again</span>}
               {project.status === "failed" && project.error && <span className="cb-stale-inline"><AlertTriangle size={12} /> {project.error}</span>}
             </div>
             <div className="cb-bar-actions">

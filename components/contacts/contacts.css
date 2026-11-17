@@ -3,7 +3,9 @@
 
 .ct { display: flex; flex-direction: column; gap: var(--sp-4); }
 .ct-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
-.ct-search { flex: 1 1 220px; min-width: 0; }
+.ct-search { flex: 1 1 220px; min-width: 0; width: auto; }
+/* The tag filter keeps its own width beside the search box; it does not take a row to itself. */
+.ct-bar .s-select { flex: 0 1 200px; width: auto; min-width: 140px; }
 .ct-meta { margin: 0; color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); }
 .ct-note { color: var(--ink-2); font-size: var(--fs-body); line-height: var(--lh-body); }
 .ct-none { color: var(--ink-3); }

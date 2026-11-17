@@ -10787,7 +10787,15 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .legal-page .legal-date { color: var(--text-muted); font-size: 13.5px; margin-bottom: 36px; }
 .legal-page h2 { font-size: 19px; margin: 34px 0 10px; letter-spacing: -.2px; color: var(--text-primary); }
 .legal-page p, .legal-page li { color: var(--text-secondary); }
-.legal-page ul { padding-left: 22px; }
+.legal-page ul { padding-left: 22px; list-style: disc; }
+.legal-page ol { padding-left: 22px; list-style: decimal; }
+.legal-page li + li { margin-top: 6px; }
+.legal-page li::marker { color: var(--text-muted); }
+/* Under the public site's top bar and above its footer (components/LegalShell.tsx). */
+.legal-frame { min-height: 100vh; display: flex; flex-direction: column; background: var(--hm-canvas); }
+.legal-frame .legal-page { flex: 1; width: 100%; padding-top: 132px; }
+.legal-frame .hm-footer { margin-top: 48px; }
+@media (max-width: 720px) { .legal-frame .legal-page { padding-top: 108px; } }
 .legal-page a { color: var(--primary-text); }
 .st2-legal-links { margin: 10px 0 2px; font-size: 12.5px; color: var(--text-muted); }
 .st2-legal-links a { color: var(--primary-text); text-decoration: none; }
