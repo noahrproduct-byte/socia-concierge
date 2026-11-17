@@ -97,7 +97,20 @@ export const COPY_FIND_PER_READ = 6;
 /** Accounts found from the copy list, kept per brand. */
 export const COPY_FOUND_MAX = 24;
 
+/**
+ * Whether the brand could make its own version of one Reel (Noah, 2026-11-16: Predis.ai's AI-made product
+ * ads and a Planoly event promo were shown for SOCIA, from the right competitors but with nothing to
+ * copy). `make` is one line on how, shown as "Make yours".
+ */
+export type ReelVerdict = { ok: boolean; make: string | null; at: string };
+/** Reel verdicts kept per brand, newest first. */
+export const REEL_VERDICTS_MAX = 150;
+/** Reels judged in one background read (one or two fast-model calls). */
+export const REELS_JUDGED_PER_READ = 24;
+
 export type StyleMemory = {
+  /** Per Reel, by its link (reelKey): can the brand make its own version, and how. */
+  reels: Record<string, ReelVerdict>;
   own: AccountStyle | null;
   accounts: Record<string, AccountStyle>;
   tried: Record<string, Tried>;
@@ -176,7 +189,20 @@ export function sanitizeMemory(v: unknown): StyleMemory {
     .sort((a, b) => Date.parse(b[1].at) - Date.parse(a[1].at))
     .slice(0, COPY_FOUND_MAX)
     .forEach(([h, f]) => { copyFound[h] = f; });
-  return { own: sanitizeStyle(o.own), accounts, tried, fit, copyFrom, copyFound };
+  const reels: Record<string, ReelVerdict> = {};
+  const rawReels = o.reels && typeof o.reels === "object" ? (o.reels as Record<string, unknown>) : {};
+  Object.entries(rawReels)
+    .map(([k, v]) => {
+      const r = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+      const at = typeof r.at === "string" && !Number.isNaN(Date.parse(r.at)) ? r.at : null;
+      const make = typeof r.make === "string" && r.make.trim() ? r.make.trim().slice(0, 240) : null;
+      return [k, at && typeof r.ok === "boolean" ? { ok: r.ok, make, at } : null] as const;
+    })
+    .filter((e): e is readonly [string, ReelVerdict] => /^[a-z0-9_-]{4,40}$/i.test(e[0]) && e[1] != null)
+    .sort((a, b) => Date.parse(b[1].at) - Date.parse(a[1].at))
+    .slice(0, REEL_VERDICTS_MAX)
+    .forEach(([k, r]) => { reels[k] = r; });
+  return { own: sanitizeStyle(o.own), accounts, tried, fit, copyFrom, copyFound, reels };
 }
 
 /** Tried within the last day: don't ask again yet, and don't say it is being read. */
@@ -254,4 +280,10 @@ export function reachesPastFollowers(views: (number | null | undefined)[], follo
   if (!vs.length || !followers || followers <= 0) return false;
   const median = vs.length % 2 ? vs[(vs.length - 1) / 2] : (vs[vs.length / 2 - 1] + vs[vs.length / 2]) / 2;
   return median >= followers * 0.5 || vs[vs.length - 1] >= followers * 2;
+}
+
+/** The id in an Instagram post or Reel link (instagram.com/reel/<id>/), the key a Reel verdict is kept under; null for other links. */
+export function reelKey(url: string | null | undefined): string | null {
+  const m = /instagram\.com\/(?:reels?|p|tv)\/([A-Za-z0-9_-]{4,40})/i.exec(url ?? "");
+  return m ? m[1] : null;
 }

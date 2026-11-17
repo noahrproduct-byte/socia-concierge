@@ -168,3 +168,71 @@ export async function judgeFit(ownerId: string, brand: BrandForFit, accounts: Fi
   }
   return out;
 }
+
+// ---------------------------------------------------------------- reel check ----
+
+export type ReelCandidate = { key: string; account: string; caption: string | null; thumb: string | null };
+
+const REELS_PER_CALL = 12;
+const reelSchema = {
+  type: "object", additionalProperties: false,
+  properties: {
+    reels: {
+      type: "array",
+      items: {
+        type: "object", additionalProperties: false,
+        properties: { id: { type: "string" }, copyable: { type: "boolean" }, make: { type: "string" } },
+        required: ["id", "copyable", "make"],
+      },
+    },
+  },
+  required: ["reels"],
+} as const;
+
+const REEL_SYSTEM = `You look at Reels from other Instagram accounts and decide which ones a brand could make its own version of.
+A Reel is copyable when the brand could remake it about its own product or subject:
+- it shows a product like the brand's in use, explains a feature, or gives a tip in the brand's space; or
+- it is made in the brand's own video style (for an animated brand: motion graphics, animated explainers, kinetic text), so the brand can swap in its own product and theme.
+A Reel is NOT copyable when it is a showcase of what someone else's product produced (for example AI-made ads for perfume or lipstick from an AI ad tool), an event or brand-collaboration promo, a holiday or greeting post, personal life, or anything the brand could not remake about itself.
+For each copyable Reel, write "make": ONE sentence, under 25 words, telling the brand what to copy and how its version would go, naming its own product. Plain words, no dashes. For a Reel that is not copyable, "make" is "".
+Judge from the cover image and the caption. Return every id you were given.`;
+
+/** Each Reel's verdict, by key. Reels left out of the answer, or a failed call, get none (asked again next read). */
+export async function judgeReels(ownerId: string, brand: BrandForFit & { style?: string | null }, reels: ReelCandidate[]): Promise<Map<string, { ok: boolean; make: string | null }>> {
+  const out = new Map<string, { ok: boolean; make: string | null }>();
+  const about = [
+    brand.name ? `Brand: ${brand.name}` : null, brand.niche ? `Niche: ${brand.niche}` : null,
+    brand.offer ? `What it offers: ${brand.offer.slice(0, 200)}` : null, brand.description ? `What it does: ${brand.description.slice(0, 400)}` : null,
+    brand.style ? `Its own videos are mostly: ${brand.style}` : null,
+  ].filter(Boolean).join("\n");
+  if (!about) return out;
+  for (let i = 0; i < reels.length; i += REELS_PER_CALL) {
+    const batch = reels.slice(i, i + REELS_PER_CALL);
+    const images = await Promise.all(batch.map((r) => coverImage(r.thumb)));
+    type Block = { type: "text"; text: string } | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
+    const content: Block[] = [{ type: "text", text: `${about}\n\nThe Reels:` }];
+    batch.forEach((r, j) => {
+      content.push({ type: "text", text: `[${j}] by @${r.account}. Caption: ${(r.caption ?? "none").replace(/\s+/g, " ").slice(0, 300)}` });
+      const img = images[j];
+      if (img) content.push({ type: "image", source: { type: "base64", media_type: img.media_type, data: img.data } });
+    });
+    try {
+      const res = (await anthropic.messages.create({
+        model: FAST_MODEL, max_tokens: 2000, system: REEL_SYSTEM,
+        output_config: { format: { type: "json_schema", schema: reelSchema }, ...effortFor(FAST_MODEL, "low") },
+        messages: [{ role: "user", content }],
+      } as never)) as unknown as { content: { type: string; text?: string }[] };
+      recordAiUsage(ownerId, "discover_styles", res);
+      const parsed = JSON.parse(res.content.find((b) => b.type === "text")?.text ?? "{}") as { reels?: { id?: unknown; copyable?: unknown; make?: unknown }[] };
+      for (const r of parsed.reels ?? []) {
+        const j = Number(r.id);
+        if (!Number.isInteger(j) || !batch[j] || typeof r.copyable !== "boolean") continue;
+        const make = r.copyable && typeof r.make === "string" && r.make.trim() ? r.make.trim().replace(/\s*[—–]\s*/g, ", ").slice(0, 240) : null;
+        out.set(batch[j].key, { ok: r.copyable, make });
+      }
+    } catch (e) {
+      console.error("[discover] reels could not be judged:", (e as Error)?.message ?? e);
+    }
+  }
+  return out;
+}

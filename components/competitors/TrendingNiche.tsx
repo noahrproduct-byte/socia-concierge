@@ -212,6 +212,7 @@ function brief(r: ProvenReel): string {
     r.line ? `It opens: "${r.line}"` : r.title ? `What it is: ${r.title}` : null,
     refResult(r) ? `How it did: ${refResult(r)}${r.multiplier != null ? ` (median ${r.basis})` : ""}` : null,
     ...does(r).slice(0, 2),
+    r.make ? `How to make mine: ${r.make}` : null,
     "My version: the same format, hook structure and angle, with my own subject, footage and words. Never their wording.",
     `Original: ${r.url}`,
   ];
@@ -294,7 +295,7 @@ export function ReelsToCopy({ d }: { d: ReelsToCopyInput }) {
         <ul className="cx5-does" aria-label="What it does">
           {does(r).map((x) => <li key={x}>{x}</li>)}
         </ul>
-        <p className="cx5-make"><b>Make yours:</b> {recipe(r)}</p>
+        <p className="cx5-make"><b>Make yours:</b> {r.make ?? recipe(r)}</p>
         <div className="cx3-actions">
           <button type="button" className="ov-btn primary small" onClick={() => makeLike(r)} title={r.refToken ? "Opens the video editor with this Reel as the reference and a brief written from it; you add your clips." : "Opens the video editor with a brief written from this Reel; you add your clips."}>
             <Clapperboard size={13} /> Make a video like this
