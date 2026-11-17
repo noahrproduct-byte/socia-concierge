@@ -160,7 +160,8 @@ export async function readDiscoverAccounts(ctx: Ctx, now: Date): Promise<{ read:
   const reelVerdicts: Record<string, ReelVerdict> = {};
   if (process.env.ANTHROPIC_API_KEY) {
     const verdictOf = (h: string) => fit[styleKey("instagram", h)]?.verdict ?? fitOf(memory, styleKey("instagram", h), now);
-    const sourceHandles = [...tracked, ...suggested.filter((h) => { const v = verdictOf(h); return v === "competitor" || v === "niche"; })];
+    // Also the copy list, what was found from it and research's style sources: their Reels get their own "Make yours" line.
+    const sourceHandles = [...new Set([...tracked, ...suggested.filter((h) => { const v = verdictOf(h); return v === "competitor" || v === "niche"; }), ...copyHandles, ...styleSources])];
     if (sourceHandles.length) {
       const rows = await igCompetitorRows(ctx.client, ctx.ownerId, sourceHandles, false, { max: sourceHandles.length, cacheOnly: true }).catch(() => null);
       const since = now.getTime() - REEL_WINDOW_DAYS * 86_400_000;
