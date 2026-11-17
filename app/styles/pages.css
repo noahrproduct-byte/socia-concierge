@@ -18,6 +18,21 @@
    selectors here.
    ========================================================================= */
 
+/* ---- headings: every page title in the app, one voice ---------------------------
+   The heading face, set light and tight: hierarchy comes from size, not weight
+   (the 2026-11-17 redesign). A secondary part of a title (the @handle on the
+   Dashboard) stays the quieter ink. */
+.s-shell .s-content h1 {
+  font-family: var(--font-heading);
+  font-weight: var(--fw-regular);
+  letter-spacing: var(--tr-display);
+}
+.s-shell .s-content :is(.dash-hero-body h2, .s-section-title) {
+  font-family: var(--font-heading);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--tr-title);
+}
+
 /* ---- page header ----------------------------------------------------------------- */
 .s-shell .s-content .dv-head {
   display: flex;
@@ -32,7 +47,7 @@
   color: var(--ink);
   font-size: var(--fs-display);
   line-height: var(--lh-display);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-regular);
   letter-spacing: var(--tr-display);
   text-wrap: balance;
 }
@@ -102,7 +117,7 @@
   color: var(--ink);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
   letter-spacing: 0;
 }
 .s-shell .s-content :is(.ov-card-head, .cx2-card-head) {

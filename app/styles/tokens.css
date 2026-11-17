@@ -5,11 +5,18 @@
    counts). Light values on :root, dark values under [data-theme="dark"] and
    .dark (ThemeScript sets both on <html>).
 
-   Contrast (WCAG, sRGB), light values recomputed 2026-10-28: ink 17.6:1,
-   ink-2 6.0:1 and ink-3 5.0:1 on white (5.4 and 4.5 on the ground); white
-   on accent 5.0:1; accent-ink 5.8:1 on white. The brief's #747981 grey and
-   #326bff blue fall under 4.5:1 for text, so text uses the darker pair and
-   #326bff stays a chart colour. Status inks 5.0:1 or better on both themes.
+   2026-11-17 retune (Noah: "completely redesign SOCIA using elevenlabs.io as
+   the reference"), from values measured on elevenlabs.io and its signed-in
+   app (library/references/elevenlabs.md): a warm near-white page, white
+   instruments separated by hairline rings and soft double drops rather than
+   heavy borders, warm greys for secondary text, near-black primary actions,
+   and SOCIA blue kept for links, focus, selection and data. Radii grow with
+   the size of the thing (6, 10, 12, 16, pill).
+
+   Contrast (WCAG, sRGB), light: ink 19.2:1, ink-2 7.5:1 and ink-3 5.3:1 on
+   white (7.2 and 5.1 on the ground, 4.8 on the recessed fill); white on
+   action 19.2:1; white on accent 5.0:1; accent-ink 5.8:1 on white. Status
+   inks 5.0:1 or better on both themes.
 
    Old names (--primary, --text-primary, --cobalt, the shadcn names, --dur…)
    are kept as aliases so every existing rule keeps working while pages
@@ -22,34 +29,40 @@
 
   /* ---- surfaces (Noah's light reference, 2026-10-28: a warm architectural
      neutral, white instruments, hairline edges) ------------------------------ */
-  --ground: #f5f4f1;
+  --ground: #fbfaf9;
   --surface: #ffffff;
-  --surface-raised: #fafaf8;
-  --surface-hover: #f0efeb;
-  --border: #e7e7e4;
-  --border-strong: #d3d2ce;
-  --rule: #efeeeb;
-  --nav-active: #ecebe7;
-  --inverse-surface: #17191d;
+  --surface-raised: #f5f3f1;
+  --surface-hover: #efedea;
+  --border: #ebe8e4;
+  --border-strong: #dcd8d3;
+  --rule: #f0eeeb;
+  --nav-active: rgba(15, 15, 16, 0.05);
+  --inverse-surface: #0f0f10;
   --inverse-text: #ffffff;
   /* The floating dock is frosted white glass (light only since 2026-11-03;
      it was smoked charcoal in both themes before). The dark block below
      keeps the smoked values. */
-  --headbar: rgba(255, 255, 255, 0.86);
-  --headbar-line: rgba(23, 25, 29, 0.08);
+  --headbar: rgba(255, 255, 255, 0.88);
+  --headbar-line: rgba(15, 15, 16, 0.06);
   /* The dock's own constants: the selection surface, the lit top edge of
      the glass, and its lift off the page. */
-  --dock-active: rgba(23, 25, 29, 0.06);
+  --dock-active: rgba(15, 15, 16, 0.05);
   --dock-edge: inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  --dock-shadow: 0 1px 2px rgba(23, 25, 29, 0.06), 0 12px 32px rgba(23, 25, 29, 0.1);
+  --dock-shadow: 0 0 0 0.5px rgba(15, 15, 16, 0.08), 0 1px 1px rgba(15, 15, 16, 0.04), 0 8px 24px rgba(15, 15, 16, 0.07);
 
   /* ---- ink ----------------------------------------------------------------- */
-  --ink: #17191d;
-  --ink-2: #5f646c;
-  --ink-3: #6b7078;
-  --ink-disabled: #a6a9ae;
+  --ink: #0f0f10;
+  --ink-2: #59544f;
+  --ink-3: #716b64;
+  --ink-disabled: #a59f97;
 
-  /* ---- the one accent ------------------------------------------------------ */
+  /* ---- the primary action: near-black, the way the reference spends no hue
+     on its chrome. One per screen. ------------------------------------------ */
+  --action: #0f0f10;
+  --action-hover: #2c2b2a;
+  --on-action: #ffffff;
+
+  /* ---- the one accent: links, focus, selection and data, never a big fill -- */
   --accent: #2a62f5;
   --accent-hover: #1f4fd6;
   --accent-ink: #2458e6;
@@ -82,24 +95,28 @@
   --brand-tiktok: #0ea5b7;
 
   /* ---- charts -------------------------------------------------------------- */
-  --chart-grid: #ecebe8;
-  --chart-axis: #6b7078;
+  --chart-grid: #efedea;
+  --chart-axis: #716b64;
   --chart-series: #326bff;
-  --chart-series-2: #b9c0cc;
-  --chart-series-3: #5f646c;
-  --chart-tooltip-bg: #17191d;
+  --chart-series-2: #cfcac4;
+  --chart-series-3: #59544f;
+  --chart-tooltip-bg: #0f0f10;
   --chart-tooltip-text: #ffffff;
 
   /* ---- shadows: only on what floats ---------------------------------------- */
-  --shadow-rgb: 23, 25, 29;
-  /* A hairline lift for the dashboard's instruments; nothing else uses it. */
-  --shadow-card: 0 1px 2px rgba(var(--shadow-rgb), 0.04);
-  --shadow-float: 0 1px 2px rgba(var(--shadow-rgb), 0.06), 0 12px 32px rgba(var(--shadow-rgb), 0.14);
-  --shadow-dialog: 0 16px 48px rgba(var(--shadow-rgb), 0.18);
+  --shadow-rgb: 15, 15, 16;
+  /* Cards: a hairline border plus two soft drops (the reference's recipe). */
+  --shadow-card: 0 1px 1px rgba(var(--shadow-rgb), 0.03), 0 2px 4px rgba(var(--shadow-rgb), 0.03);
+  /* White controls on a white or warm page: a half-pixel ring and the same two drops, no border. */
+  --shadow-ring: 0 0 0 0.5px rgba(var(--shadow-rgb), 0.16), 0 1px 1px rgba(var(--shadow-rgb), 0.04), 0 2px 4px rgba(var(--shadow-rgb), 0.04);
+  --shadow-float: 0 0 0 0.5px rgba(var(--shadow-rgb), 0.1), 0 4px 8px rgba(var(--shadow-rgb), 0.04), 0 16px 40px rgba(var(--shadow-rgb), 0.12);
+  --shadow-dialog: 0 0 0 0.5px rgba(var(--shadow-rgb), 0.1), 0 24px 64px rgba(var(--shadow-rgb), 0.18);
 
   /* ---- type: one family, five app sizes, three weights --------------------- */
   --font: var(--font-sans), "Inter", -apple-system, BlinkMacSystemFont,
     "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* Headings: Instrument Sans, set light and tight (page titles, headlines, headline figures). */
+  --font-heading: var(--font-heading-face), var(--font-sans), "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --fs-meta: 12px;    --lh-meta: 16px;
   --fs-nav: 13px;     --lh-nav: 18px;
   --fs-body: 14px;    --lh-body: 20px;
@@ -110,7 +127,7 @@
   --fw-medium: 500;
   --fw-semibold: 600;
   --tr-title: -0.01em;
-  --tr-display: -0.02em;
+  --tr-display: -0.025em;
   /* display: metric figures, and one page title per page. Compact on purpose
      (Noah, 2026-10-28): precision over screenshot drama. */
   --fs-figure: 26px;  --lh-figure: 32px;
@@ -124,10 +141,10 @@
   --page-pad: 24px;
 
   /* ---- shape: tight and concentric ----------------------------------------- */
-  --r-chip: 4px;
-  --r-control: 6px;
-  --r-card: 8px;
-  --r-panel: 12px;
+  --r-chip: 6px;
+  --r-control: 10px;
+  --r-card: 12px;
+  --r-panel: 16px;
   --r-pill: 999px;
 
   /* ---- sizes --------------------------------------------------------------- */
@@ -143,8 +160,10 @@
   --t-press: 100ms;
   --t-menu: 150ms;
   --t-panel: 200ms;
-  --t-dialog: 250ms;
+  --t-dialog: 300ms;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  /* Colour and background changes: the reference's one fast, even curve. */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-move: cubic-bezier(0.77, 0, 0.175, 1);
 
   /* ---- stacking ------------------------------------------------------------ */
@@ -168,13 +187,19 @@
   --text-muted: var(--ink-3);
   --text-disabled: var(--ink-disabled);
 
-  --primary: var(--accent);
-  --primary-hover: var(--accent-hover);
+  /* Legacy "primary" was a filled blue button almost everywhere it was used
+     (77 backgrounds, 25 borders): it now means the primary action. Blue text
+     keeps --primary-text (the accent ink). */
+  --primary: var(--action);
+  --primary-hover: var(--action-hover);
   --primary-bright: #4f7dff;
   --primary-text: var(--accent-ink);
   --primary-subtle: var(--accent-subtle);
-  --primary-rgb: var(--accent-rgb);
-  --on-primary: var(--on-accent);
+  /* Tints and lifts built from "primary" (hover fills, selected borders, the
+     old coloured glows) are neutral now: selection reads as a grey fill and a
+     darker line, the reference's way. Blue tints use --accent-subtle. */
+  --primary-rgb: var(--shadow-rgb);
+  --on-primary: var(--on-action);
   --accent-strong: var(--accent-hover);
   --accent-soft: var(--accent-subtle);
   --amber: var(--warning);
@@ -217,7 +242,7 @@
   --card-foreground: var(--ink);
   --popover: var(--surface);
   --popover-foreground: var(--ink);
-  --primary-foreground: var(--on-accent);
+  --primary-foreground: var(--on-action);
   --secondary: var(--surface-raised);
   --secondary-foreground: var(--ink);
   --muted: var(--surface-raised);
@@ -232,7 +257,7 @@
   --chart-3: var(--chart-series-3);
   --chart-4: var(--positive);
   --chart-5: var(--warning);
-  --radius: 0.5rem;
+  --radius: 0.625rem;
   --sidebar-foreground: var(--sidebar-text-strong);
   --sidebar-primary: var(--accent);
   --sidebar-primary-foreground: var(--on-accent);
@@ -255,26 +280,30 @@
   /* Noah's premium dark (2026-10-28): near-black ground, a lifted
      floating headbar, layered surfaces, warm white ink. Contrast on --surface:
      ink 16.4:1, ink-2 7.0:1, ink-3 5.1:1, accent-ink 6.1:1, gold 9.0:1. */
-  --ground: #0b0d10;
+  --ground: #0b0b0c;
   --headbar: rgba(20, 22, 26, 0.86);
   --headbar-line: rgba(255, 255, 255, 0.1);
   --dock-active: rgba(255, 255, 255, 0.08);
   --dock-edge: inset 0 1px 0 rgba(255, 255, 255, 0.07);
   --dock-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 14px 36px rgba(0, 0, 0, 0.4);
-  --surface: #14181e;
-  --surface-raised: #191e25;
-  --surface-hover: #1f252d;
-  --border: #282d35;
-  --border-strong: #3a414c;
-  --rule: #1d2229;
-  --nav-active: rgba(37, 99, 255, 0.16);
+  --surface: #141415;
+  --surface-raised: #1a1a1b;
+  --surface-hover: #222224;
+  --border: #29292b;
+  --border-strong: #3a3a3d;
+  --rule: #1e1e20;
+  --nav-active: rgba(255, 255, 255, 0.07);
   --inverse-surface: #f4f2ed;
-  --inverse-text: #0b0d10;
+  --inverse-text: #0b0b0c;
 
   --ink: #f4f2ed;
-  --ink-2: #9ca3af;
-  --ink-3: #868d99;
-  --ink-disabled: #535a66;
+  --ink-2: #a3a3a3;
+  --ink-3: #8f8f8f;
+  --ink-disabled: #55555a;
+
+  --action: #f4f2ed;
+  --action-hover: #ffffff;
+  --on-action: #0b0b0c;
 
   --accent: #2563ff;
   --accent-hover: #3b76ff;
@@ -299,20 +328,22 @@
   --negative-ink: #f87171;
   --negative-bg: rgba(239, 68, 68, 0.14);
 
-  --chart-grid: #20252d;
-  --chart-axis: #868d99;
+  --chart-grid: #222224;
+  --chart-axis: #8f8f8f;
   --chart-series: #2f6bff;
-  --chart-series-2: #4b5563;
-  --chart-series-3: #9ca3af;
-  --chart-tooltip-bg: #191e25;
+  --chart-series-2: #4a4a4e;
+  --chart-series-3: #a3a3a3;
+  --chart-tooltip-bg: #1a1a1b;
   --chart-tooltip-text: #f4f2ed;
 
   --shadow-rgb: 0, 0, 0;
   --shadow-card: 0 1px 2px rgba(var(--shadow-rgb), 0.3);
+  --shadow-ring: 0 0 0 0.5px rgba(255, 255, 255, 0.14), 0 1px 2px rgba(var(--shadow-rgb), 0.4);
   --shadow-float: 0 1px 2px rgba(var(--shadow-rgb), 0.3), 0 12px 32px rgba(var(--shadow-rgb), 0.45);
   --shadow-dialog: 0 16px 48px rgba(var(--shadow-rgb), 0.55);
 
   --primary-bright: #4f7dff;
+  --primary-rgb: 244, 242, 237;
   --success-rgb: 34, 197, 94;
   --warning-rgb: 245, 158, 11;
   --danger-rgb: 239, 68, 68;
@@ -320,5 +351,5 @@
   --sidebar: #0e1116;
   --sidebar-active: rgba(37, 99, 255, 0.16);
   --sidebar-active-text: #9dbbff;
-  --sidebar-border: #282d35;
+  --sidebar-border: #29292b;
 }

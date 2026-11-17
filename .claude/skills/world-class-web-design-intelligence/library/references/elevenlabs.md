@@ -281,3 +281,8 @@ Untagged, because no pattern tag covers typography: **hierarchy from size and co
 - Their copy lines (including "Everything in X, plus" verbatim on a SOCIA page if it reads as theirs; SOCIA should phrase its cumulative line in its own voice).
 - Their component kit's code or effects imported directly: rebuild any adopted pattern with SOCIA tokens, Inter, lucide at SOCIA's sizes, and SOCIA's easing.
 - From the app: their custom icon set, the near-black-everything chrome, the translucent blurred prompt island as a look (SOCIA can float a composer, on a solid surface), the gradient ring that marks new models, the orb avatars, and the fake example rows.
+
+## Re-check 2026-11-17 (for the SOCIA redesign)
+- **Marketing home** [measured, 1662px]: unchanged system. Page `rgb(253,252,252)`, fills `rgb(245,243,241)` (×41) and `rgba(0,0,0,.05)` (×40); text black ×192, `rgb(119,113,105)` ×58, `rgb(165,159,151)` ×9; h1 Waldenburg 300 48/52 at -0.96px; body Inter 14px/21 at 500 for labels (×74) and 15–16px at 400; tracking +0.01em on 14–18px. Radii 4px ×122, 16px ×71, 9999px ×70. Shadows: white controls `0 0 0 .5px rgba(0,0,0,.125), 0 1px 1px rgba(0,0,0,.04), 0 2px 4px rgba(0,0,0,.04)` ×30; cards an inset .5px ring at 7.5–10%. Motion 0.15s `cubic-bezier(.4,0,.2,1)` on colour ×105, 0.3s on transform and opacity.
+- **Signed-in app** [observed, screenshots]: Home and Text to Speech: white page, `#fafafa`-style sidebar with grouped links, a 50px header with a round search pill, a pill "Ask" button and round icon buttons; centred prompt pill on Home. The extension connection dropped before a measuring pass, so the app values above (2026-10-19) were not re-measured.
+

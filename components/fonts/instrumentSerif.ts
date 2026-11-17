@@ -22,3 +22,18 @@ export const instrumentSans = localFont({
   display: "swap",
   fallback: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
 });
+
+/**
+ * Instrument Sans at every weight (the variable font, Latin subset, same
+ * license): the app's heading face since the 2026-11-17 redesign. Page
+ * titles, headlines and headline figures are set in it at 400 to 500 with
+ * tight tracking, the way the reference sets its display type light; Inter
+ * stays the reading and interface face.
+ */
+export const instrumentSansHeading = localFont({
+  src: [{ path: "./InstrumentSans-Latin.woff2", weight: "400 700", style: "normal" }],
+  variable: "--font-heading-face",
+  display: "swap",
+  fallback: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+});
+
