@@ -145,6 +145,20 @@ export function routineLines(r: Routine | null | undefined): string[] {
   return lines;
 }
 
+/** The routine as the person set it, for a screen: one row per answer given. */
+export function routineSummary(r: Routine | null | undefined): { label: string; value: string }[] {
+  if (!r) return [];
+  const rows: { label: string; value: string }[] = [];
+  if (r.post_days) rows.push({ label: "Posting target", value: `${r.post_days} ${r.post_days === 1 ? "day" : "days"} a week` });
+  if (r.formats?.length) rows.push({ label: "What you make", value: list(r.formats.map((f) => (f === "other" && r.formats_other ? r.formats_other : CONTENT_FORMATS.find((x) => x.id === f)!.label))) });
+  if (r.filming?.length) rows.push({ label: "Filming", value: list(r.filming.map((s) => `${dayName(s.day)} (${filmTime(s.minutes)})`)) });
+  const style = CREATION_STYLES.find((s) => s.id === r.style);
+  if (style) rows.push({ label: "How you work", value: style.label });
+  if (r.publish_mode === "days" && r.publish_days?.length) rows.push({ label: "Posting days", value: list(r.publish_days.map(dayName)) });
+  else if (r.publish_mode) rows.push({ label: "Posting days", value: r.publish_mode === "recommend" ? "SOCIA recommends them" : "Flexible" });
+  return rows;
+}
+
 /** The questions SIO asks about the routine, in order. */
 export const ROUTINE_QUESTIONS = ["post_days", "filming", "style", "formats", "publish"] as const;
 export type RoutineQuestion = (typeof ROUTINE_QUESTIONS)[number];

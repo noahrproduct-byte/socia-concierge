@@ -2,13 +2,14 @@
 
 // SIO in the corner of the app. It is the face of the Ask SOCIA bubble (one
 // assistant, not two), and on the Dashboard it asks the routine questions
-// that onboarding left for later: filming days, how the person works, posting
-// days (lib/routine.ts LATER_QUESTIONS). It speaks first with one line and
+// that are still unanswered: for someone who came through onboarding, the
+// three it left for later (filming days, how they work, posting days); for a
+// brand set up before SIO, all five (lib/routine.ts). It speaks first with one line and
 // two buttons; the questions open only when the person asks for them. "Not
 // now" hides it for this visit, "Don't ask again" for good on this device.
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
-import { LATER_QUESTIONS, unanswered, type Routine, type RoutineQuestion } from "@/lib/routine";
+import { FIRST_QUESTIONS, LATER_QUESTIONS, unanswered, type Routine, type RoutineQuestion } from "@/lib/routine";
 import RoutineStep from "@/components/onboarding/RoutineStep";
 import Sio from "./Sio";
 import SioSays from "./SioSays";
@@ -41,11 +42,11 @@ export default function SioCorner({ workspaceId, onDashboard, onAsk }: {
     let alive = true;
     fetch("/api/profile").then((r) => (r.ok ? r.json() : null)).then((j) => {
       if (!alive) return;
-      const growth = j?.profile?.brand_detail?.growth as { routine?: Routine } | undefined;
-      // Someone who hasn't met SIO's first questions yet (set up before the routine existed) isn't asked the later ones out of nowhere.
-      if (!growth?.routine?.post_days) return;
-      const todo = unanswered(growth.routine, LATER_QUESTIONS);
-      setRoutine(growth.routine);
+      if (!j?.profile) return;
+      const growth = j.profile.brand_detail?.growth as { routine?: Routine } | undefined;
+      // A brand set up before SIO asked anything has all five to answer; one that came through onboarding has the three left for later.
+      const todo = unanswered(growth?.routine, [...FIRST_QUESTIONS, ...LATER_QUESTIONS]);
+      setRoutine(growth?.routine ?? null);
       setLeft(todo);
       if (todo.length) setStage("offer");
     }).catch(() => undefined);
@@ -80,7 +81,7 @@ export default function SioCorner({ workspaceId, onDashboard, onAsk }: {
           )}
           {stage === "thanks" && (
             <SioSays compact expression="happy" speakAs="happy" title="Thanks. That's everything I needed.">
-              Your next plan is laid out around these answers. You can change them any time in Settings.
+              Your next plan is laid out around these answers. You can change them any time in Settings, under Growth Profile.
             </SioSays>
           )}
         </section>
