@@ -51,8 +51,8 @@ describe("the CapCut look (Noah, 2026-11-06)", () => {
 });
 
 describe("presets", () => {
-  it("are the six from the brief plus Hook Pair and Step Label, each with a size range, limits and a default time", () => {
-    expect(TEXT_PRESET_IDS).toEqual(["hook_pair", "step_label", "hook_title", "caption_bar", "callout_box", "lower_third", "big_stat", "subtitle"]);
+  it("are the six from the brief plus Hook Pair, Step Label and Chapter, each with a size range, limits and a default time", () => {
+    expect(TEXT_PRESET_IDS).toEqual(["hook_pair", "step_label", "hook_title", "caption_bar", "callout_box", "lower_third", "big_stat", "subtitle", "chapter"]);
     for (const id of TEXT_PRESET_IDS) {
       const p = TEXT_PRESETS[id];
       expect(p.size.min).toBeLessThanOrEqual(p.size.max);

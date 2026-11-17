@@ -237,10 +237,14 @@ export function destinationPatchToRow(patch: Partial<Destination>): Record<strin
 // Detection
 // ---------------------------------------------------------------------------
 
+// Asked on every save and every /create render, so a "yes" is remembered for the life of the
+// server instance (a table does not disappear), and the probe never counts rows.
+let destinationsTableSeen = false;
 export async function hasDestinationsTable(supabase: Supa): Promise<boolean> {
+  if (destinationsTableSeen) return true;
   try {
-    const { error } = await supabase.from("post_destinations").select("id", { head: true, count: "exact" }).limit(1);
-    if (!error) return true;
+    const { error } = await supabase.from("post_destinations").select("id", { head: true }).limit(0);
+    if (!error) { destinationsTableSeen = true; return true; }
     return !isMissingTableError(error);
   } catch (e) {
     return !isMissingTableError(e);

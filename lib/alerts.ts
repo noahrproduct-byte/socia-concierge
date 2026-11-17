@@ -28,7 +28,7 @@ let enabledSince: number | null = null;
 export async function alertsEnabled(supabase: Supa): Promise<boolean> {
   if (enabledSince != null) return true;
   try {
-    const { error } = await supabase.from("alert_events").select("id", { head: true, count: "exact" }).limit(0);
+    const { error } = await supabase.from("alert_events").select("id", { head: true }).limit(0);
     if (error) return false;
     enabledSince = Date.now();
     return true;
@@ -100,7 +100,7 @@ let recipientsSince: number | null = null;
 export async function alertRecipientsEnabled(supabase: Supa): Promise<boolean> {
   if (recipientsSince != null) return true;
   try {
-    const { error } = await supabase.from("alert_events").select("recipient_id", { head: true, count: "exact" }).limit(0);
+    const { error } = await supabase.from("alert_events").select("recipient_id", { head: true }).limit(0);
     if (error) return false;
     recipientsSince = Date.now();
     return true;

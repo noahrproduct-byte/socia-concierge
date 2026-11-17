@@ -2,6 +2,7 @@
 // whose reads are all for one signed-in owner: this job reads every
 // connection row, like the other platforms' snapshot jobs.
 
+import { allRows } from "./supabase/allRows";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { syncTikTok } from "./tiktokData";
 import { writePlatformSnapshot } from "./platformSnapshots";
@@ -29,7 +30,7 @@ export async function runTikTokDailySync(supabase: SupabaseClient, now = new Dat
     "user_id, workspace_id, open_id, access_token, last_synced_at, plan_suspended_at",
     "user_id, open_id, access_token, last_synced_at",
   ]) {
-    const { data, error } = await supabase.from("tiktok_connections").select(cols);
+    const { data, error } = await allRows<Row>((from, to) => supabase.from("tiktok_connections").select(cols).order("user_id").range(from, to));
     if (!error) { rows = (data ?? []) as unknown as Row[]; break; }
   }
   if (!rows) return run;

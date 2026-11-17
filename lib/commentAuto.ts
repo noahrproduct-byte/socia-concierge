@@ -11,6 +11,7 @@
 //
 // Server only.
 
+import { allRows } from "./supabase/allRows";
 import { getEntitlements, canUseFeature } from "./entitlements";
 import { getProfile } from "./profile";
 import { brandVoiceFrom } from "./commentBrand";
@@ -127,7 +128,7 @@ async function connectedBrands(svc: Supa): Promise<BrandKey[]> {
   const out = new Map<string, BrandKey>();
   for (const table of ["instagram_connections", "facebook_connections"]) {
     for (const cols of ["user_id, workspace_id, plan_suspended_at", "user_id, workspace_id", "user_id"]) {
-      const { data, error } = await svc.from(table).select(cols);
+      const { data, error } = await allRows<{ user_id: string; workspace_id?: string | null; plan_suspended_at?: string | null }>((from, to) => svc.from(table).select(cols).order("user_id").range(from, to));
       if (error) continue;
       for (const r of (data ?? []) as { user_id: string; workspace_id?: string | null; plan_suspended_at?: string | null }[]) {
         if (r.plan_suspended_at) continue;
@@ -168,7 +169,7 @@ async function syncAllBrandComments(svc: Supa, skip: Set<string>, plans: Map<str
 export async function runAutoReplies(svc: Supa, now = new Date(), budgetMs = 240_000): Promise<AutoRun> {
   const deadline = Date.now() + budgetMs;
   const out: AutoRun = { brands: 0, ran: 0, sent: 0, failed: 0, notEntitled: 0, errors: 0, outOfTime: 0 };
-  const { data, error } = await svc.from("comment_auto_settings").select("user_id, workspace_id, enabled_at").eq("enabled", true);
+  const { data, error } = await allRows<{ user_id: string; workspace_id: string | null; enabled_at: string | null }>((from, to) => svc.from("comment_auto_settings").select("user_id, workspace_id, enabled_at").eq("enabled", true).order("user_id").range(from, to));
   if (error) return out;
   const rows = (data ?? []) as { user_id: string; workspace_id: string | null; enabled_at: string | null }[];
   out.brands = rows.length;

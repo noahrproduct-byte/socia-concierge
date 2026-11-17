@@ -66,7 +66,7 @@ let enabledSince: number | null = null;
 export async function workspacesEnabled(supabase: Supa): Promise<boolean> {
   if (enabledSince != null) return true;
   try {
-    const { error } = await supabase.from("workspaces").select("id", { head: true, count: "exact" }).limit(0);
+    const { error } = await supabase.from("workspaces").select("id", { head: true }).limit(0);
     if (error) return false;
     enabledSince = Date.now();
     return true;
@@ -84,7 +84,7 @@ let competitorsScopedSince: number | null = null;
 export async function competitorsScopedEnabled(supabase: Supa): Promise<boolean> {
   if (competitorsScopedSince != null) return true;
   try {
-    const { error } = await supabase.from("tracked_competitors").select("workspace_id", { head: true, count: "exact" }).limit(0);
+    const { error } = await supabase.from("tracked_competitors").select("workspace_id", { head: true }).limit(0);
     if (error) return false;
     competitorsScopedSince = Date.now();
     return true;
