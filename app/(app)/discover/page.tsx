@@ -22,7 +22,7 @@ import { listTracked } from "@/lib/trackedCompetitors";
 import { resolveContext, brandWorkspace } from "@/lib/context";
 import { createServiceClient } from "@/lib/supabase/service";
 import { dismissedHandles } from "@/lib/competitorAutoPick";
-import { fitOf, reelKey, reelVerdictOf, mainPlatform, sameStyle, styleKey, styleStale, styleWord, triedRecently, type AccountStyle, type StyleMemory } from "@/lib/discoverStyle";
+import { fitOf, reelKey, reelVerdictOf, tooSmallToSuggest, mainPlatform, sameStyle, styleKey, styleStale, styleWord, triedRecently, type AccountStyle, type StyleMemory } from "@/lib/discoverStyle";
 import { readStyleMemory } from "@/lib/discoverStyleLoad";
 import { STYLE_SOURCES_READ, SUGGESTIONS_READ } from "@/lib/discoverRead";
 import { signRefUrl } from "@/lib/studioClips/refToken";
@@ -219,7 +219,7 @@ export default async function Page() {
   const fitFor = (a: { platform: string; handle: string }) => fitOf(memory, styleKey(a.platform, a.handle), now);
   const judged = suggested.map((r) => build(String(r.platform), String(r.handle), r, null));
   const suggestions = judged
-    .filter((a) => { const v = fitFor(a); return v === "competitor" || v == null; })
+    .filter((a) => { const v = fitFor(a); return (v === "competitor" || v == null) && !tooSmallToSuggest(a.audience.value); })
     .sort((a, b) => Number(fitFor(b) === "competitor") - Number(fitFor(a) === "competitor") || Number(b.posts.length > 0) - Number(a.posts.length > 0) || Number(b.sameStyle) - Number(a.sameStyle) || (b.match ?? 0) - (a.match ?? 0))
     .slice(0, SUGGESTIONS_SHOWN);
 
@@ -299,7 +299,7 @@ export default async function Page() {
     styleReels: withRef(withMake(styleReels)),
     copyFrom: [...copyAccounts, ...foundAccounts],
     reelsRead: { reels: allReels.length, accounts: new Set(allReels.map((r) => (r.accountHandle ?? r.accountName).toLowerCase())).size },
-    needsRead: igRes.enabled && (ownStale || [...competitors, ...suggestions, ...styleAccounts, ...copyAccounts, ...foundAccounts].some((a) => a.reading) || judged.some((a) => a.posts.length > 0 && fitFor(a) == null)
+    needsRead: igRes.enabled && (ownStale || [...competitors, ...suggestions, ...styleAccounts, ...copyAccounts, ...foundAccounts].some((a) => a.reading) || judged.some((a) => a.posts.length > 0 && fitFor(a) == null && !tooSmallToSuggest(a.audience.value))
       || [...reelsToCopy, ...nicheReels, ...styleReels].some((r) => reelKey(r.url) != null && !verdictFor(r.url))),
     lastRun: runAt,
     niche: profile?.niche ?? null,

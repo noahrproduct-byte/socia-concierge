@@ -14,7 +14,7 @@ import { igCompetitorRows } from "@/lib/igCompetitorData";
 import { VIRAL_MIN_VIEWS } from "@/lib/trendSignals";
 import { createServiceClient } from "@/lib/supabase/service";
 import { dismissedHandles } from "@/lib/competitorAutoPick";
-import { COPY_FIND_PER_READ, COVERS_PER_ACCOUNT, FIT_VERSION, REELS_JUDGED_PER_READ, REEL_RULE_VERSION, STYLE_MEANS, fitOf, reelKey, reelVerdictOf, mentionedHandles, reachesPastFollowers, sameStyle, missKind, styleKey, styleStale, triedRecently, type AccountStyle, type CopyFound, type Fit, type ReelVerdict, type StyleMemory, type Tried } from "./discoverStyle";
+import { COPY_FIND_PER_READ, COVERS_PER_ACCOUNT, FIT_VERSION, REELS_JUDGED_PER_READ, REEL_RULE_VERSION, STYLE_MEANS, fitOf, reelKey, reelVerdictOf, tooSmallToSuggest, mentionedHandles, reachesPastFollowers, sameStyle, missKind, styleKey, styleStale, triedRecently, type AccountStyle, type CopyFound, type Fit, type ReelVerdict, type StyleMemory, type Tried } from "./discoverStyle";
 import { judgeFit, judgeReels, readStyleMemory, saveStyleMemory, styleAccounts, type FitCandidate, type ReelCandidate } from "./discoverStyleLoad";
 import { getProfile } from "@/lib/profile";
 import { brandWorkspace } from "@/lib/context";
@@ -142,7 +142,8 @@ export async function readDiscoverAccounts(ctx: Ctx, now: Date): Promise<{ read:
         igCompetitorRows(ctx.client, ctx.ownerId, unjudged, false, { max: unjudged.length, cacheOnly: true }).catch(() => null),
         getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null),
       ]);
-      const candidates: FitCandidate[] = (rows?.competitors ?? []).filter((c) => c.found).map((c) => ({
+      // Accounts too small to suggest are never shown, so they aren't judged either.
+      const candidates: FitCandidate[] = (rows?.competitors ?? []).filter((c) => c.found && !tooSmallToSuggest(c.followers)).map((c) => ({
         key: styleKey("instagram", c.handle), handle: c.handle, name: c.displayName ?? null, bio: c.biography ?? null,
         captions: (c.media ?? []).map((m) => m.caption ?? "").filter(Boolean),
       }));

@@ -151,3 +151,13 @@ describe("per-Reel check", () => {
     });
   });
 });
+
+describe("suggestions need 1,000 followers", () => {
+  it("hides known small accounts and keeps unknown ones until read", async () => {
+    const { tooSmallToSuggest } = await import("./discoverStyle");
+    expect(tooSmallToSuggest(5)).toBe(true);
+    expect(tooSmallToSuggest(999)).toBe(true);
+    expect(tooSmallToSuggest(1000)).toBe(false);
+    expect(tooSmallToSuggest(null)).toBe(false);
+  });
+});

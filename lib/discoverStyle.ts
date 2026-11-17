@@ -300,3 +300,12 @@ export function reelVerdictOf(m: StyleMemory, url: string | null | undefined): R
   const v = k ? m.reels[k] : null;
   return v && v.v === REEL_RULE_VERSION ? v : null;
 }
+
+/**
+ * Suggested accounts need at least this many followers (Noah, 2026-11-16: "hide accounts under 1000
+ * followers", after PostEverywhere was suggested with 5). An account whose follower count isn't known
+ * yet still shows until it is read. Tracked accounts and Reels to copy from are the person's own
+ * choice and never hidden.
+ */
+export const MIN_SUGGEST_FOLLOWERS = 1_000;
+export const tooSmallToSuggest = (followers: number | null | undefined): boolean => followers != null && followers < MIN_SUGGEST_FOLLOWERS;
