@@ -12,7 +12,7 @@ import { AccountTypeFields, AudienceFields, Choices, GrowthGroup, PersonalityFie
 import GoalsEditor from "./GoalsEditor";
 import RoutineStep from "@/components/onboarding/RoutineStep";
 import { FIRST_QUESTIONS, LATER_QUESTIONS, routineSummary } from "@/lib/routine";
-import { Field, Input } from "@/components/system";
+import { Field, Input, Switch } from "@/components/system";
 
 export default function GrowthProfileCard({
   initial,
@@ -37,6 +37,20 @@ export default function GrowthProfileCard({
   const dirty = JSON.stringify(growth) !== saved;
   const [routineOpen, setRoutineOpen] = useState(false);
   const routineHead = useRef<HTMLHeadingElement>(null);
+  // SIO's cards on the Dashboard, on or off for this brand. Saved at once, like each routine answer.
+  const [sioSaving, setSioSaving] = useState(false);
+  const [sioError, setSioError] = useState<string | null>(null);
+  async function setSioSpeaks(on: boolean) {
+    setSioSaving(true); setSioError(null);
+    const res = await fetch("/api/profile", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brand_detail: { growth: { routine: { quiet: !on } } } }) }).catch(() => null);
+    setSioSaving(false);
+    if (!res?.ok) { setSioError("That didn't save. Check your connection and try again."); return; }
+    // This device may have its own "don't ask again" from before the switch existed: clear it when SIO is turned back on.
+    if (on) { try { for (const k of Object.keys(window.localStorage)) if (k.startsWith("sio-routine-off:") || k.startsWith("sio-checkin-off:")) window.localStorage.removeItem(k); } catch { /* storage unavailable */ } }
+    const r = { ...(growth.routine ?? {}), quiet: !on };
+    setGrowth((g) => ({ ...g, routine: r }));
+    setSaved((prev) => { try { return JSON.stringify({ ...JSON.parse(prev), routine: r }); } catch { return prev; } });
+  }
 
   async function readAgain() {
     setReading(true);
@@ -95,6 +109,14 @@ export default function GrowthProfileCard({
               <p className="gp-note">SIO hasn&apos;t asked about your week yet: how often you want to post, what you make, and when you film.</p>
             )}
             <div><Button size="sm" variant="secondary" onClick={() => setRoutineOpen(true)}>{routineSummary(growth.routine).length ? "Change" : "Answer SIO's questions"}</Button></div>
+            <div className="gp-sio-switch">
+              <span>
+                <b id="gp-sio-switch">SIO speaks first on the Dashboard</b>
+                <small>Its questions about your week and the weekly check-in. Off, SIO stays quiet until you open Ask SOCIA. This applies on every device.</small>
+              </span>
+              <Switch label="SIO speaks first on the Dashboard" checked={!growth.routine?.quiet} disabled={sioSaving} onCheckedChange={(on) => void setSioSpeaks(on)} />
+            </div>
+            {sioError && <p className="gp-note" role="alert">{sioError}</p>}
           </>
         )}
       </GrowthGroup>

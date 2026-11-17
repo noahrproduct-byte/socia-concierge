@@ -6,7 +6,9 @@
 // three it left for later (filming days, how they work, posting days); for a
 // brand set up before SIO, all five (lib/routine.ts). It speaks first with one line and
 // two buttons; the questions open only when the person asks for them. "Not
-// now" hides it for this visit, "Don't ask again" for good on this device.
+// now" hides it for this visit. "Don't ask again" turns SIO's cards off for
+// the brand on every device (routine.quiet, also a switch in Settings), and
+// on this device at once in case the save doesn't get through.
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { FIRST_QUESTIONS, LATER_QUESTIONS, unanswered, type Routine, type RoutineQuestion } from "@/lib/routine";
@@ -56,6 +58,9 @@ export default function SioCorner({ workspaceId, onDashboard, onAsk }: {
       if (!alive) return;
       if (!j?.profile) return;
       const growth = j.profile.brand_detail?.growth as { routine?: Routine } | undefined;
+      setRoutine(growth?.routine ?? null);
+      // Turned off for this brand (here, on another device, or in Settings): SIO says nothing first.
+      if (growth?.routine?.quiet) return;
       // A brand set up before SIO asked anything has all five to answer; one that came through onboarding has the three left for later.
       const todo = unanswered(growth?.routine, [...FIRST_QUESTIONS, ...LATER_QUESTIONS]);
       setRoutine(growth?.routine ?? null);
@@ -76,7 +81,9 @@ export default function SioCorner({ workspaceId, onDashboard, onAsk }: {
   }, [onDashboard, ws]);
 
   const later = () => { set("session", LATER(ws)); setStage("hidden"); };
-  const never = () => { set("local", OFF(ws)); setStage("hidden"); };
+  /** No more cards from SIO for this brand, on any device. */
+  const quiet = () => { void fetch("/api/profile", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brand_detail: { growth: { routine: { quiet: true } } } }) }).catch(() => undefined); };
+  const never = () => { set("local", OFF(ws)); quiet(); setStage("hidden"); };
   // The check-in is asked once for a week: answering it or closing it both count.
   const closeCheckin = () => { if (checkin) write(CHECKED(ws), checkin.week); setStage("hidden"); };
   const answer = (feel: Feel) => {
@@ -111,7 +118,7 @@ export default function SioCorner({ workspaceId, onDashboard, onAsk }: {
               <div className="sio-corner-actions">
                 {FEELS.map((f) => <button key={f.id} type="button" className="ob-btn ob-btn-ghost" onClick={() => answer(f.id)}>{f.label}</button>)}
               </div>
-              <button type="button" className="ob-linkbtn sio-corner-never" onClick={() => { write(CHECKIN_OFF(ws), "1"); setStage("hidden"); }}>Don&apos;t ask again</button>
+              <button type="button" className="ob-linkbtn sio-corner-never" onClick={() => { write(CHECKIN_OFF(ws), "1"); quiet(); setStage("hidden"); }}>Don&apos;t ask again</button>
             </>
           )}
           {stage === "reply" && reply && (
