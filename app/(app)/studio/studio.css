@@ -1762,3 +1762,15 @@
 .sd-subtab { padding: var(--sp-1) var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-pill); background: var(--surface); color: var(--text-secondary); font: inherit; font-size: var(--fs-meta); cursor: pointer; }
 .sd-subtab.is-on { background: var(--primary); border-color: var(--primary); color: #fff; }
 .sd-subtab:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* The microphone (components/studio/MicButton.tsx): press to talk, press again when done. While it listens it turns
+   red with the live spinner turning around the stop mark (the one looping motion the house allows: real activity). */
+.sd-mic { position: relative; display: grid; place-items: center; border: 1px solid var(--border); border-radius: var(--r-pill); background: var(--surface); color: var(--text-secondary); cursor: pointer; }
+.sd-mic-small { width: 32px; height: 32px; }
+.sd-mic-large { width: 44px; height: 44px; }
+.sd-mic:disabled { opacity: 0.5; cursor: default; }
+.sd-mic:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.sd-mic.is-on { background: var(--danger); border-color: var(--danger); color: #fff; box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.12); }
+.sd-mic-live { position: absolute; inset: 2px; color: rgba(255, 255, 255, 0.85); }
+.sd-mic-live svg { width: 100%; height: 100%; }
+

@@ -11887,3 +11887,8 @@ p.cbm-muted { display: block; }
   .sd-main .sd-stage-side { order: 3; }
 }
 
+
+/* The Build tab's prompt with its microphone in the corner (components/studio/BriefPanel.tsx). */
+.cbr-prompt { position: relative; }
+.cbr-prompt-mic { position: absolute; top: 0; right: 0; }
+.cbr-prompt > span:first-child { padding-right: 52px; }

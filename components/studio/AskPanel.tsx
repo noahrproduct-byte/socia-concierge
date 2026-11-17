@@ -9,17 +9,12 @@
 // could not. Speech is the browser's own recognition (Chrome, Edge, Safari);
 // where it isn't there the microphone says so and typing works the same.
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, Check, Loader2, Mic, MicOff, Send } from "lucide-react";
+import { AlertTriangle, Check, Loader2, Send } from "lucide-react";
+import { useSpeech } from "./useSpeech";
+import MicButton from "./MicButton";
 import type { Edl, RegenerateDirective } from "@/lib/studioClips/types";
 
 export type InstructReply = { edl: Edl; reply: string; done: string[]; skipped: string[]; regenerate: RegenerateDirective | null; changed: boolean };
-
-type Recognition = { start: () => void; stop: () => void; abort: () => void; lang: string; interimResults: boolean; continuous: boolean; onresult: ((e: { resultIndex: number; results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null; onend: (() => void) | null; onerror: ((e: { error: string }) => void) | null };
-const recognizer = (): (new () => Recognition) | null => {
-  if (typeof window === "undefined") return null;
-  const w = window as unknown as { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
-  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
-};
 
 const EXAMPLES = ["mute the background sound", "captions bigger", "cut the second shot", "no transitions", "add “come see this rug” over the close-ups", "make it shorter"];
 
@@ -35,16 +30,14 @@ export default function AskPanel({ buildId, edl, canEdit, busy, fixture, onApply
   onRegenerate: (directive: RegenerateDirective) => void;
 }) {
   const [text, setText] = useState("");
-  const [listening, setListening] = useState(false);
   const [sending, setSending] = useState(false);
   const [last, setLast] = useState<{ reply: string; done: string[]; skipped: string[] } | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const rec = useRef<Recognition | null>(null);
   const edlRef = useRef(edl);
   useEffect(() => { edlRef.current = edl; }, [edl]);
-  const canSpeak = Boolean(recognizer());
-  useEffect(() => () => rec.current?.abort(), []);
-
+  // Speaking: the words land in the box as they come; stop is "I'm done", then Do it sends.
+  const speech = useSpeech((words) => setText(words));
+  const listening = speech.listening;
   const send = async (words: string) => {
     const instruction = words.trim();
     if (!instruction || sending) return;
@@ -68,31 +61,10 @@ export default function AskPanel({ buildId, edl, canEdit, busy, fixture, onApply
     }
   };
 
-  const toggleMic = () => {
-    if (listening) { rec.current?.stop(); return; }
-    const Ctor = recognizer();
-    if (!Ctor) return;
-    const r = new Ctor();
-    r.lang = navigator.language || "en-US";
-    r.interimResults = true;
-    r.continuous = false;
-    let finalText = "";
-    r.onresult = (e) => {
-      let interim = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) { const res = e.results[i]; if (res.isFinal) finalText += res[0].transcript; else interim += res[0].transcript; }
-      setText((finalText + interim).trim());
-    };
-    r.onerror = (e) => { setListening(false); if (e.error !== "aborted" && e.error !== "no-speech") setErr(e.error === "not-allowed" ? "The microphone is blocked for this site. Allow it in the browser's site settings, or type instead." : "Couldn't hear that. Try again, or type it."); };
-    r.onend = () => { setListening(false); rec.current = null; const said = finalText.trim(); if (said) void send(said); };
-    rec.current = r;
-    setErr(null); setListening(true);
-    try { r.start(); } catch { setListening(false); setErr("Couldn't start the microphone. Type it instead."); }
-  };
-
   const locked = !canEdit || busy || sending;
   return (
     <section className="ov-card sd-ask" aria-label="Tell SOCIA what to change">
-      <div className="sd-ask-head"><b>Tell SOCIA what to change</b><small>Type it or say it. SOCIA edits this cut; Undo takes it back.</small></div>
+      <div className="sd-ask-head"><b>Tell SOCIA what to change</b><small>Type it, or press the microphone and talk; press it again when you\u2019re done. SOCIA edits this cut; Undo takes it back.</small></div>
       <form className="sd-ask-row" onSubmit={(e) => { e.preventDefault(); void send(text); }}>
         <textarea
           className="sd-ask-input"
@@ -105,11 +77,11 @@ export default function AskPanel({ buildId, edl, canEdit, busy, fixture, onApply
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(text); } }}
         />
         <div className="sd-ask-btns">
-          <button type="button" className={`sd-iconbtn sd-ask-mic${listening ? " is-on" : ""}`} aria-label={listening ? "Stop listening" : canSpeak ? "Say what to change" : "Voice needs Chrome, Edge or Safari"} aria-pressed={listening} disabled={!canSpeak || (locked && !listening)} title={canSpeak ? undefined : "Voice input needs Chrome, Edge or Safari. Typing works here."} onClick={toggleMic}>{canSpeak ? <Mic size={15} /> : <MicOff size={15} />}</button>
+          <MicButton supported={speech.supported} listening={listening} disabled={locked} onToggle={speech.toggle} labelIdle="Say what to change" />
           <button type="submit" className="ov-btn primary small" disabled={locked || !text.trim()}>{sending ? <Loader2 size={13} className="spin" /> : <Send size={13} />} Do it</button>
         </div>
       </form>
-      {err && <p className="sd-ask-err" role="alert"><AlertTriangle size={12} aria-hidden /> {err}</p>}
+      {(err ?? speech.error) && <p className="sd-ask-err" role="alert"><AlertTriangle size={12} aria-hidden /> {err ?? speech.error}</p>}
       {last && (
         <div className="sd-ask-reply" role="status">
           <p><Check size={12} aria-hidden /> {last.reply}</p>

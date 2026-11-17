@@ -8,6 +8,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, Clapperboard, Film, Loader2, PenLine, Undo2, Upload, X } from "lucide-react";
+import { useSpeech } from "./useSpeech";
+import MicButton from "./MicButton";
 import { createClient } from "@/lib/supabase/client";
 import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import { probeClip, ingestClip } from "@/lib/studioClips/ingest";
@@ -50,6 +52,10 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [prompt, setPrompt] = useState(initialPrompt ?? "");
+  // Speaking the brief: what was typed before the microphone was pressed stays; the words said follow it.
+  const spokenFrom = useRef("");
+  const speech = useSpeech((words) => setPrompt((spokenFrom.current ? `${spokenFrom.current} ${words}` : words).slice(0, PROMPT_MAX)));
+  const toggleMic = () => { if (!speech.listening) spokenFrom.current = prompt.trim(); speech.toggle(); };
   useEffect(() => { if (initialPrompt) setPrompt(initialPrompt); }, [initialPrompt]);
   const [ref, setRef] = useState<Reference | null>(null);
   const [reading, setReading] = useState<string | null>(null);
@@ -223,9 +229,10 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
         <p className="cb-locked"><Clapperboard size={13} /> Making a video from a prompt or a reference is included from Starter. <Link href="/pricing">See plans</Link></p>
       ) : (
         <>
-          <label className="cba-cap">
+          <label className="cba-cap cbr-prompt">
             <span>What you want (optional with a reference)</span>
-            <textarea value={prompt} rows={Math.min(10, Math.max(3, Math.ceil(prompt.length / 90) + 1))} maxLength={PROMPT_MAX} disabled={busy || improving} placeholder="For example: 20 seconds, open on the cheese pull, three quick cuts of the oven, end on the menu board with 'Open till 10'." onChange={(e) => { setPrompt(e.target.value); setOwnWords(null); }} />
+            <span className="cbr-prompt-mic"><MicButton supported={speech.supported} listening={speech.listening} disabled={busy || improving} onToggle={toggleMic} size="large" labelIdle="Say what you want" /></span>
+            <textarea value={prompt} rows={Math.min(10, Math.max(3, Math.ceil(prompt.length / 90) + 1))} maxLength={PROMPT_MAX} disabled={busy || improving} placeholder={speech.listening ? "Listening. Press the microphone again when you\u2019re done." : "For example: 20 seconds, open on the cheese pull, three quick cuts of the oven, end on the menu board with 'Open till 10'."} onChange={(e) => { setPrompt(e.target.value); setOwnWords(null); }} />
           </label>
           <div className="cbr-improve">
             <button type="button" className="ov-btn ghost small" disabled={!canImprove} onClick={() => void improve()}>
