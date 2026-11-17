@@ -13,7 +13,7 @@ import { competitorScopeId } from "@/lib/workspaces";
 import { type CompetitorRow } from "@/lib/competitorIntel";
 import { igCompetitorRows, igRowStale, type IgCompetitor } from "@/lib/igCompetitorData";
 import { median } from "@/lib/metrics";
-import { provenReels, rankTrendingReels } from "@/lib/trendSignals";
+import { isViral, provenReels, rankTrendingReels } from "@/lib/trendSignals";
 import type { NichePost } from "@/lib/nicheTrends";
 import { igPosts, ytPosts } from "@/lib/trendSignalsLoad";
 import { getEntitlements, getLimit, canUseFeature, upgradeFor } from "@/lib/entitlements";
@@ -22,7 +22,7 @@ import { listTracked } from "@/lib/trackedCompetitors";
 import { resolveContext, brandWorkspace } from "@/lib/context";
 import { createServiceClient } from "@/lib/supabase/service";
 import { dismissedHandles } from "@/lib/competitorAutoPick";
-import { fitOf, reelKey, mainPlatform, sameStyle, styleKey, styleStale, styleWord, triedRecently, type AccountStyle, type StyleMemory } from "@/lib/discoverStyle";
+import { fitOf, reelKey, reelVerdictOf, mainPlatform, sameStyle, styleKey, styleStale, styleWord, triedRecently, type AccountStyle, type StyleMemory } from "@/lib/discoverStyle";
 import { readStyleMemory } from "@/lib/discoverStyleLoad";
 import { STYLE_SOURCES_READ, SUGGESTIONS_READ } from "@/lib/discoverRead";
 import { signRefUrl } from "@/lib/studioClips/refToken";
@@ -229,12 +229,12 @@ export default async function Page() {
   const same = new Set(competitors.filter((c) => c.sameStyle).map((c) => c.handle.toLowerCase()));
   // Per-Reel check (lib/discoverStyle.ts ReelVerdict): a Reel judged not copyable for this brand is never shown,
   // and one judged copyable carries its own "Make yours" line. Not yet judged still shows; the read judges it.
-  const verdictFor = (url: string) => { const k = reelKey(url); return k ? memory.reels[k] ?? null : null; };
+  const verdictFor = (url: string) => reelVerdictOf(memory, url);
   const copyable = <T extends { url: string }>(list: T[]) => list.filter((r) => verdictFor(r.url)?.ok !== false);
   const withMake = <T extends { url: string }>(list: T[]) => list.map((r) => { const v = verdictFor(r.url); return v?.make ? { ...r, make: v.make } : r; });
   const ordered = copyable(dedupeReels([...allReels.filter((r) => same.has((r.accountHandle ?? "").toLowerCase())), ...allReels.filter((r) => !same.has((r.accountHandle ?? "").toLowerCase()))]));
-  const tookOff = provenReels(ordered, { max: 12, perAccount: 3 });
-  const reelsToCopy = withMake(tookOff.length >= 4 ? tookOff : provenReels(ordered, { max: 9, perAccount: 3, fill: true }));
+  // Only Reels past VIRAL_MIN_VIEWS show; the best of those first, never filled with weaker ones.
+  const reelsToCopy = withMake(provenReels(ordered.filter(isViral), { max: 12, perAccount: 3, fill: true }));
 
   // A few from the niche under them (Noah: "most of the reels should be from the competitors, but there should also be some from just like niches"):
   // the suggested accounts SOCIA read, and Reels its niche research found, never a competitor's or the brand's own.
@@ -261,8 +261,7 @@ export default async function Page() {
     content.filter((c) => c.accountHandle && fittingHandles.has(c.accountHandle.replace(/^@/, "").toLowerCase())), now,
   ).filter((r) => notOurs(r.accountHandle, r.accountName));
   const nicheList = copyable(dedupeReels(nicheAll));
-  const nicheTookOff = provenReels(nicheList, { max: NICHE_REELS, perAccount: 2 });
-  const nicheReels = withMake((nicheTookOff.length >= 3 ? nicheTookOff : provenReels(nicheList, { max: NICHE_REELS, perAccount: 2, fill: true }))
+  const nicheReels = withMake(provenReels(nicheList.filter(isViral), { max: NICHE_REELS, perAccount: 2, fill: true })
     .map((r, i) => ({ ...r, id: `N${i + 1}` })));
 
   // Reels to copy for their style, any topic (Noah, 2026-11-16): the accounts on the copy list, the ones
@@ -282,8 +281,7 @@ export default async function Page() {
     return r.views != null && f ? r.views / f : null;
   };
   const styleAll = dedupeReels(rankTrendingReels(copyPool.map((r) => ({ platform: r.platform, name: r.name, handle: r.handle, avatar: r.avatar, posts: r.posts })), [], now));
-  const styleReels = provenReels(copyable(styleAll), { max: 40, perAccount: 2, fill: true })
-    .filter((r) => r.proven || (reach(r) ?? 0) >= 1)
+  const styleReels = provenReels(copyable(styleAll).filter(isViral), { max: 40, perAccount: 2, fill: true })
     .sort((a, b) => (reach(b) ?? -1) - (reach(a) ?? -1))
     .slice(0, STYLE_REELS)
     .map((r, i) => ({ ...r, id: `S${i + 1}` }));
