@@ -105,7 +105,7 @@ describe("plan configuration", () => {
       "ai_assistant_publishing", "ai_assistants", "ai_clipper", "ai_studio", "approval_workflow", "auto_build", "breakout_alerts", "build_from_clips", "client_reports", "comment_replies", "competitor_alerts", "contacts", "content_plan", "cross_brand_analytics", "cross_platform_alerts", "cross_platform_analytics",
       "custom_date_ranges", "daily_recommendations", "deeper_insights", "growth_analysis", "monthly_summary", "niche_intelligence",
       "opportunity_alerts", "performance_change_alerts", "period_comparison", "platform_reports",
-      "posting_time_analysis", "report_exports", "repurposing", "scheduling", "stream_clipper", "team", "trend_alerts", "weekly_summary",
+      "posting_time_analysis", "report_exports", "repurposing", "scheduling", "stream_clip_video", "stream_clipper", "team", "trend_alerts", "weekly_summary",
       "weekly_trend_roundup",
     ].sort());
   });

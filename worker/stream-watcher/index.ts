@@ -20,6 +20,7 @@ import { SpikeDetector } from "../../lib/streams/spikes";
 import { clipSpike, type ClipWatch } from "../../lib/streams/clipFlow";
 import { clipDownloads, clipsById, createClip, liveStreams, TwitchError } from "../../lib/streams/twitch";
 import { streamClipPath, twitchToken } from "../../lib/streams/server";
+import { outOfHoursNote } from "../../lib/streams/limits";
 
 const STUDIO_BUCKET = "studio-sources";
 const SYNC_MS = 15_000;
@@ -36,10 +37,14 @@ if (!url || !key || !process.env.TWITCH_CLIENT_ID || !process.env.TWITCH_CLIENT_
 const db: SupabaseClient = createClient(url, key, { auth: { persistSession: false } });
 const log = (...a: unknown[]) => console.log(new Date().toISOString(), "[watcher]", ...a);
 
-type WatchRow = { id: string; user_id: string; workspace_id: string | null; channel_id: string; channel_login: string; status: string; can_download: boolean | null; clip_duration: number | string; started_at: string };
+type WatchRow = { id: string; user_id: string; workspace_id: string | null; channel_id: string; channel_login: string; status: string; can_download: boolean | null; keep_video: boolean | null; hours_limit: number | string | null; usage_period: string | null; clip_duration: number | string; started_at: string };
 
 /** One channel being watched. */
-type Channel = { watch: ClipWatch; detector: SpikeDetector; subscriptionId: string | null; seen: number; lastChatAt: number | null; flushed: number };
+type Channel = {
+  watch: ClipWatch; detector: SpikeDetector; subscriptionId: string | null; seen: number; lastChatAt: number | null; flushed: number;
+  /** Twitch's last answer on whether it's live, and when its live time was last counted (lib/streams/limits.ts). */
+  live: boolean | null; countedAt: number; hoursLimit: number; period: string | null;
+};
 
 /** One person: their EventSub socket and their channels. */
 class Person {
@@ -180,7 +185,7 @@ let lastLiveCheck = 0;
 
 /** Match what's running to what people asked for. */
 async function sync() {
-  const { data, error } = await db.from("stream_watches").select("id, user_id, workspace_id, channel_id, channel_login, status, can_download, clip_duration, started_at").eq("status", "watching");
+  const { data, error } = await db.from("stream_watches").select("id, user_id, workspace_id, channel_id, channel_login, status, can_download, keep_video, hours_limit, usage_period, clip_duration, started_at").eq("status", "watching");
   if (error) { log("could not read watches:", error.message); return; }
   const rows = (data ?? []) as WatchRow[];
   const now = Date.now();
@@ -209,8 +214,10 @@ async function sync() {
     for (const w of ws) {
       if (p.channels.has(w.channel_id)) continue;
       p.channels.set(w.channel_id, {
-        watch: { id: w.id, userId: uid, workspaceId: w.workspace_id, channelId: w.channel_id, login: w.channel_login, duration: Number(w.clip_duration) || 30, canDownload: w.can_download },
+        // The clip's video only on plans that keep it (Growth and up); otherwise clips stay on Twitch.
+        watch: { id: w.id, userId: uid, workspaceId: w.workspace_id, channelId: w.channel_id, login: w.channel_login, duration: Number(w.clip_duration) || 30, canDownload: w.keep_video ? w.can_download : false },
         detector: new SpikeDetector(), subscriptionId: null, seen: 0, lastChatAt: null, flushed: 0,
+        live: null, countedAt: Date.now(), hoursLimit: Number(w.hours_limit) || 0, period: w.usage_period,
       });
     }
     if (fresh) p.connect(); else await p.syncSubscriptions();
@@ -237,8 +244,43 @@ async function sync() {
         const s = streams.find((x) => x.user_id === bid);
         patch.live = Boolean(s);
         patch.stream_title = s?.title ?? null;
+        c.live = Boolean(s);
       }
       await updateWatch(c.watch.id, patch);
+    }
+    await countLiveTime(p, now);
+  }
+}
+
+/**
+ * The plan's watching hours (lib/streams/limits.ts): every live channel adds
+ * the time since it was last counted (at most a minute per sync, so a gap in
+ * the watcher never bills a person for time it wasn't watching). When the
+ * month's hours are used, every channel this person watches stops.
+ */
+async function countLiveTime(p: Person, now: number) {
+  const byPeriod = new Map<string, { seconds: number; limit: number }>();
+  for (const c of p.channels.values()) {
+    const since = Math.min(60_000, Math.max(0, now - c.countedAt));
+    c.countedAt = now;
+    if (!c.live || !c.period) continue;
+    const cur = byPeriod.get(c.period) ?? { seconds: 0, limit: c.hoursLimit };
+    cur.seconds += since / 1000;
+    cur.limit = Math.max(cur.limit, c.hoursLimit);
+    byPeriod.set(c.period, cur);
+  }
+  for (const [period, { seconds, limit }] of byPeriod) {
+    const add = Math.round(seconds);
+    if (add <= 0) continue;
+    const { data } = await db.from("stream_usage").select("seconds").eq("user_id", p.userId).eq("period_start", period).maybeSingle();
+    const total = ((data as { seconds?: number } | null)?.seconds ?? 0) + add;
+    const { error } = await db.from("stream_usage").upsert({ user_id: p.userId, period_start: period, seconds: total, updated_at: new Date().toISOString() }, { onConflict: "user_id,period_start" });
+    if (error) { log(p.userId, "usage write failed:", error.message); continue; }
+    if (limit > 0 && total >= limit * 3600) {
+      log(p.userId, "out of watching hours for", period);
+      for (const c of p.channels.values()) {
+        await updateWatch(c.watch.id, { status: "stopped", stopped_at: new Date().toISOString(), last_error: outOfHoursNote(limit) });
+      }
     }
   }
 }

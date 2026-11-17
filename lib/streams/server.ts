@@ -4,12 +4,12 @@
 // (worker/stream-watcher) uses the same token helper. Server only.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { refreshTokens, me, usersByLogin, TwitchError, type TwitchUser } from "./twitch";
-import { MAX_WATCHED } from "./channels";
+import { startRefusal, type StreamAllowance } from "./limits";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
 
-export const STREAM_MIGRATION_HINT = "Live stream clips need their database tables. Run supabase/stream-clipper.sql in the Supabase SQL editor.";
+export const STREAM_MIGRATION_HINT = "Live stream clips need their database tables. Run supabase/stream-clipper.sql, then supabase/stream-plans.sql, in the Supabase SQL editor.";
 
 import type { StreamClip, StreamWatch, TwitchConnection } from "./types";
 export type { StreamClip, StreamWatch, TwitchConnection };
@@ -60,11 +60,11 @@ export async function twitchToken(db: Supa, ownerId: string): Promise<{ token: s
   return { token: tok.accessToken, twitchUserId: r.twitch_user_id };
 }
 
-const WATCH_COLS = "id, channel_id, channel_login, channel_name, avatar_url, status, live, stream_title, messages_seen, last_chat_at, watcher_seen_at, can_download, last_error, started_at, stopped_at";
+const WATCH_COLS = "id, channel_id, channel_login, channel_name, avatar_url, status, live, stream_title, messages_seen, last_chat_at, watcher_seen_at, can_download, keep_video, last_error, started_at, stopped_at";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const toWatch = (r: any): StreamWatch => ({
   id: r.id, channelId: r.channel_id, login: r.channel_login, name: r.channel_name, avatarUrl: r.avatar_url, status: r.status, live: r.live, streamTitle: r.stream_title,
-  messagesSeen: r.messages_seen ?? 0, lastChatAt: r.last_chat_at, watcherSeenAt: r.watcher_seen_at, canDownload: r.can_download, lastError: r.last_error, startedAt: r.started_at, stoppedAt: r.stopped_at,
+  messagesSeen: r.messages_seen ?? 0, lastChatAt: r.last_chat_at, watcherSeenAt: r.watcher_seen_at, canDownload: r.can_download, lastError: r.last_error, startedAt: r.started_at, stoppedAt: r.stopped_at, keepVideo: Boolean(r.keep_video),
 });
 
 const CLIP_COLS = "id, watch_id, channel_login, status, twitch_clip_id, url, embed_url, edit_url, thumbnail_url, title, duration, spike_at, score, why, people, video_path, error, created_at";
@@ -88,25 +88,38 @@ export async function streamState(db: Supa, ownerId: string): Promise<{ watches:
 
 export class WatchError extends Error {}
 
+/** Live watching used in this plan month, seconds. */
+export async function streamUsedSeconds(db: Supa, ownerId: string, periodStart: string): Promise<number> {
+  const { data, error } = await db.from("stream_usage").select("seconds").eq("user_id", ownerId).eq("period_start", periodStart).maybeSingle();
+  if (error) throw error;
+  return (data as { seconds: number } | null)?.seconds ?? 0;
+}
+
 /**
- * Starts watching these channels (logins), up to MAX_WATCHED at once in all.
- * A channel already being watched is left as it is. Unknown names are refused
- * by name, so nothing is watched by mistake.
+ * Starts watching these channels (logins) within the plan: channels at once
+ * and the month's watching hours (lib/streams/limits.ts). A channel already
+ * being watched is left as it is. Unknown names are refused by name, so
+ * nothing is watched by mistake. What the plan allows is written on the row
+ * for the watcher (hours, whether the clip's video is kept).
  */
-export async function startWatching(db: Supa, ownerId: string, workspaceId: string | null, logins: string[]): Promise<StreamWatch[]> {
+export async function startWatching(db: Supa, ownerId: string, workspaceId: string | null, logins: string[], allowance: StreamAllowance): Promise<StreamWatch[]> {
   const wanted = Array.from(new Set(logins.map((l) => l.toLowerCase())));
   if (!wanted.length) throw new WatchError("Paste a Twitch channel link or name.");
   const { data: cur, error } = await db.from("stream_watches").select(WATCH_COLS).eq("user_id", ownerId).eq("status", "watching");
   if (error) throw error;
   const watching = (cur ?? []).map(toWatch);
   const fresh = wanted.filter((l) => !watching.some((w) => w.login === l));
-  if (watching.length + fresh.length > MAX_WATCHED) throw new WatchError(`SOCIA watches up to ${MAX_WATCHED} channels at once. Stop one first.`);
   if (!fresh.length) return watching;
+  const refused = startRefusal(allowance, watching.length, fresh.length);
+  if (refused) throw new WatchError(refused);
   const { token } = await twitchToken(db, ownerId);
   const users = await usersByLogin(token, fresh);
   const missing = fresh.filter((l) => !users.some((u) => u.login.toLowerCase() === l));
   if (missing.length) throw new WatchError(`Twitch has no channel called ${missing.join(", ")}.`);
-  const rows = users.map((u) => ({ user_id: ownerId, workspace_id: workspaceId, channel_id: u.id, channel_login: u.login.toLowerCase(), channel_name: u.display_name, avatar_url: u.profile_image_url || null, status: "watching" }));
+  const rows = users.map((u) => ({
+    user_id: ownerId, workspace_id: workspaceId, channel_id: u.id, channel_login: u.login.toLowerCase(), channel_name: u.display_name, avatar_url: u.profile_image_url || null, status: "watching",
+    keep_video: allowance.keepVideo, hours_limit: allowance.hoursMonth, usage_period: allowance.periodStart,
+  }));
   const { data: made, error: insErr } = await db.from("stream_watches").insert(rows).select(WATCH_COLS);
   if (insErr) throw insErr;
   return [...watching, ...(made ?? []).map(toWatch)];

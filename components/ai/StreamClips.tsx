@@ -9,9 +9,10 @@ import { ExternalLink, Loader2, Radio, Square, Trash2 } from "lucide-react";
 import { api, errorText } from "./shared";
 import { MAX_WATCHED, channelFromInput } from "@/lib/streams/channels";
 import type { StreamClip, StreamWatch, TwitchConnection } from "@/lib/streams/types";
+import { hoursLeft, type StreamAllowance } from "@/lib/streams/limits";
 import { ConfirmDialog } from "@/components/system";
 
-type State = { configured: boolean; connection: TwitchConnection | null; watches: StreamWatch[]; clips: StreamClip[]; maxWatched: number };
+type State = { configured: boolean; connection: TwitchConnection | null; watches: StreamWatch[]; clips: StreamClip[]; allowance: StreamAllowance; maxWatched: number };
 
 const ago = (iso: string | null): string => {
   if (!iso) return "never";
@@ -51,7 +52,12 @@ export default function StreamClips({ canMutate, canConnect, outcome }: { canMut
     return () => clearInterval(t);
   }, [watching.length, state?.clips, load]);
 
-  const slots = MAX_WATCHED - watching.length;
+  // What the plan allows (lib/plans.ts STREAM_LIMITS): channels at once and hours a month.
+  const a = state?.allowance;
+  const room = a ? Math.min(MAX_WATCHED, a.channels) : 0;
+  const slots = room - watching.length;
+  const hours = a ? hoursLeft(a) : null;
+  const resets = a ? new Date(`${a.resetsOn}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) : "";
   const start = async () => {
     const channels = inputs.map((s) => s.trim()).filter(Boolean);
     const bad = channels.find((c) => !channelFromInput(c));
@@ -84,7 +90,13 @@ export default function StreamClips({ canMutate, canConnect, outcome }: { canMut
       {outcome && OUTCOME[outcome] && <p className={outcome === "connected" ? "ai-note" : "ai-err"} role="status">{OUTCOME[outcome]}</p>}
       <section className="ai-panel">
         <div className="ai-panel-head"><Radio size={16} aria-hidden /><h2>Watch live streams</h2></div>
-        <p className="ai-note">Paste up to {MAX_WATCHED} live Twitch channels. SOCIA reads their chat and, when chat spikes, makes a Twitch clip that starts about 20 seconds before the reaction, scored 0 to 100 on how big the moment was for that channel.</p>
+        <p className="ai-note">Paste live Twitch channels. SOCIA reads their chat and, when chat spikes, makes a Twitch clip that starts about 20 seconds before the reaction, scored 0 to 100 on how big the moment was for that channel.</p>
+        {a && hours && (
+          <p className="ai-note stc-plan">
+            Your plan: {a.channels} {a.channels === 1 ? "stream" : "streams"} at a time, {a.hoursMonth} hours of live watching a month. {hours.usedHours} used, {hours.leftHours} left until {resets}. Only time a channel is live counts.
+            {!a.keepVideo && " Clips stay on Twitch; from Growth, clips of your own or edited channels come into SOCIA as videos."}
+          </p>
+        )}
         {!state.configured ? (
           <p className="ai-empty">Twitch isn&apos;t set up on SOCIA yet, so Live streams can&apos;t start.</p>
         ) : !state.connection ? (
@@ -98,7 +110,7 @@ export default function StreamClips({ canMutate, canConnect, outcome }: { canMut
               Connected to Twitch as <b>{state.connection.displayName ?? state.connection.login}</b>
               {canConnect && <button type="button" className="ai-act" onClick={() => setConfirmDisconnect(true)}>Disconnect</button>}
             </p>
-            {canMutate && slots > 0 && (
+            {canMutate && slots > 0 && !hours?.out && (
               <div className="stc-add">
                 {inputs.map((v, i) => (
                   <label key={i} className="ai-field">
@@ -112,7 +124,13 @@ export default function StreamClips({ canMutate, canConnect, outcome }: { canMut
                 </div>
               </div>
             )}
-            {slots <= 0 && <p className="ai-note">SOCIA is watching {MAX_WATCHED} channels, the most at once. Stop one to add another.</p>}
+            {hours?.out && <p className="ai-note">This month&apos;s {a?.hoursMonth} hours are used. They come back on {resets}.{a && a.hoursMonth < 400 && <> <a href="/pricing">See plans with more hours</a>.</>}</p>}
+            {!hours?.out && slots <= 0 && (
+              <p className="ai-note">
+                You&apos;re watching {room} {room === 1 ? "stream" : "streams"}, the most your plan allows at once. Stop one to add another.
+                {room < MAX_WATCHED && <> <a href="/pricing?plan=pro">Watch up to {MAX_WATCHED} at once on Pro</a>.</>}
+              </p>
+            )}
           </>
         )}
         {err && <p className="ai-err" role="alert">{err}</p>}
@@ -135,7 +153,7 @@ export default function StreamClips({ canMutate, canConnect, outcome }: { canMut
                         ? "Waiting for SOCIA's watcher to pick this up."
                         : `${w.live === null ? "Checking whether it's live" : w.live ? `Live${w.streamTitle ? `: ${w.streamTitle}` : ""}` : "Not live right now; SOCIA keeps checking"} · ${w.messagesSeen.toLocaleString()} chat messages read · last chat ${ago(w.lastChatAt)}`}
                   </small>
-                  {w.canDownload === false && <small>Twitch only lets the streamer and their editors download clips, so these stay on Twitch.</small>}
+                  {w.keepVideo && w.canDownload === false && <small>Twitch only lets the streamer and their editors download clips, so these stay on Twitch.</small>}
                   {w.lastError && w.status === "watching" && <small className="ai-err">{w.lastError}</small>}
                   {w.lastError && w.status === "stopped" && <small>{w.lastError}</small>}
                 </div>

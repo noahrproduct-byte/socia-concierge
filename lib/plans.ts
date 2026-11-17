@@ -78,7 +78,11 @@ export type LimitKey =
   // assistant may create (publish, schedule or save) per hour per connection.
   // DEVELOPMENT PLACEHOLDERS until real usage is measured; tune here or in
   // plan_config_overrides.
-  | "assistant_requests_per_minute" | "assistant_posts_per_hour";
+  | "assistant_requests_per_minute" | "assistant_posts_per_hour"
+  // Live streams in the AI Clipper (lib/streams/*): Twitch channels watched at
+  // once, and hours of live watching a month (each live channel counts; a
+  // channel that isn't live counts nothing). Noah, 2026-11-16.
+  | "stream_channels" | "stream_hours_month";
 
 /**
  * "All retained history": the plan applies no window of its own, the person
@@ -167,7 +171,9 @@ export type FeatureKey =
   | "ai_clipper"
   | "ai_studio"
   // Live streams in the AI Clipper: SOCIA watches Twitch chat and clips the spikes (lib/streams/*)
-  | "stream_clipper";
+  | "stream_clipper"
+  // Live streams: the clip's video saved into SOCIA, on channels the person owns or edits (Growth and up)
+  | "stream_clip_video";
 
 /**
  * "available": built and working in production today.
@@ -219,6 +225,7 @@ export const FEATURE_STATUS: Record<FeatureKey, FeatureStatus> = {
   ai_clipper: "available",
   ai_studio: "available",
   stream_clipper: "available",
+  stream_clip_video: "available",
 };
 
 /** Human labels for feature keys, shared by pricing, Settings and limit notices. */
@@ -261,6 +268,7 @@ export const FEATURE_LABEL: Record<FeatureKey, string> = {
   ai_clipper: "AI Clipper: long videos cut into short clips with captions",
   ai_studio: "AI Studio: ideas turned into AI-made videos and images",
   stream_clipper: "Live stream clips: SOCIA watches Twitch chat and clips the moments it spikes",
+  stream_clip_video: "Live stream clips saved as videos in SOCIA, on your own or edited Twitch channels",
 };
 
 export const LIMIT_LABEL: Record<LimitKey, string> = {
@@ -274,6 +282,8 @@ export const LIMIT_LABEL: Record<LimitKey, string> = {
   studio_storage_gb: "Clip storage",
   assistant_requests_per_minute: "AI assistant requests per minute",
   assistant_posts_per_hour: "Posts an AI assistant can create per hour",
+  stream_channels: "Live streams watched at once",
+  stream_hours_month: "Live stream watching a month",
 };
 
 export const METER_LABEL: Record<MeterKey, string> = {
@@ -319,6 +329,8 @@ export const LIMIT_UNIT: Record<LimitKey, { one: string; many: string }> = {
   studio_storage_gb: { one: "GB of clip storage", many: "GB of clip storage" },
   assistant_requests_per_minute: { one: "request per minute", many: "requests per minute" },
   assistant_posts_per_hour: { one: "post per hour", many: "posts per hour" },
+  stream_channels: { one: "live stream at once", many: "live streams at once" },
+  stream_hours_month: { one: "hour of live stream watching a month", many: "hours of live stream watching a month" },
 };
 
 export type PlanConfig = {
@@ -398,6 +410,7 @@ export const FEATURE_MIN_PLAN: Record<FeatureKey, PlanId> = {
   ai_clipper: "starter",
   ai_studio: "pro",
   stream_clipper: "starter",
+  stream_clip_video: "growth",
 };
 
 /** True when `plan` is at or above the feature's minimum plan. */
@@ -414,6 +427,15 @@ const featuresOf = (plan: PlanId): Record<FeatureKey, boolean> => {
 
 // Build from Clips, per project: clips, minutes of footage and upload size
 // grow with the plan (Noah, 2026-11-02). Tune here or in plan_config_overrides.
+/** Live streams per plan (Noah, 2026-11-16): channels at once and watching hours a month. */
+const STREAM_LIMITS = {
+  free: { stream_channels: 0, stream_hours_month: 0 },
+  starter: { stream_channels: 1, stream_hours_month: 10 },
+  growth: { stream_channels: 2, stream_hours_month: 40 },
+  pro: { stream_channels: 4, stream_hours_month: 120 },
+  scale: { stream_channels: 4, stream_hours_month: 400 },
+} as const;
+
 const STUDIO_LIMITS = {
   free: { studio_clips_per_project: 10, studio_footage_minutes: 5, studio_upload_mb: 250 },
   starter: { studio_clips_per_project: 20, studio_footage_minutes: 10, studio_upload_mb: 500 },
@@ -430,7 +452,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     aiSpendCapUsd: 3,
     tagline: "Understand one brand.",
     audience: "People trying SOCIA and managing one brand.",
-    limits: { workspaces: 1, competitors: 2, team_members: 1, analytics_history_days: 30, ...STUDIO_LIMITS.free, studio_storage_gb: 5, assistant_requests_per_minute: 10, assistant_posts_per_hour: 0 },
+    limits: { workspaces: 1, competitors: 2, team_members: 1, analytics_history_days: 30, ...STUDIO_LIMITS.free, studio_storage_gb: 5, assistant_requests_per_minute: 10, assistant_posts_per_hour: 0, ...STREAM_LIMITS.free },
     meters: { ask_socia: 10, content_studio: 5, content_generation: 6, account_audit: 1, content_plan: 1, content_ideas: 2, content_build: 3, video_builds: 0, animated_videos: 0, music_tracks: 0, voiceovers: 0, assistant_requests: 100 },
     features: featuresOf("free"),
     cta: "Get started free",
@@ -442,7 +464,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     aiSpendCapUsd: 15,
     tagline: "Run up to two brands with SOCIA.",
     audience: "Creators and small businesses managing one or two brands.",
-    limits: { workspaces: 2, competitors: 5, team_members: 2, analytics_history_days: 90, ...STUDIO_LIMITS.starter, studio_storage_gb: 10, assistant_requests_per_minute: 20, assistant_posts_per_hour: 5 },
+    limits: { workspaces: 2, competitors: 5, team_members: 2, analytics_history_days: 90, ...STUDIO_LIMITS.starter, studio_storage_gb: 10, assistant_requests_per_minute: 20, assistant_posts_per_hour: 5, ...STREAM_LIMITS.starter },
     meters: { ask_socia: 50, content_studio: 30, content_generation: 120, account_audit: 4, content_plan: 4, content_ideas: 5, content_build: 10, video_builds: 5, animated_videos: 30, music_tracks: 10, voiceovers: 10, assistant_requests: 1000 },
     features: featuresOf("starter"),
     cta: "Start Starter",
@@ -454,7 +476,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     aiSpendCapUsd: 28,
     tagline: "Grow multiple brands across every platform.",
     audience: "Growing creators and businesses managing multiple brands and social platforms.",
-    limits: { workspaces: 5, competitors: 15, team_members: 5, analytics_history_days: 365, ...STUDIO_LIMITS.growth, studio_storage_gb: 25, assistant_requests_per_minute: 30, assistant_posts_per_hour: 10 },
+    limits: { workspaces: 5, competitors: 15, team_members: 5, analytics_history_days: 365, ...STUDIO_LIMITS.growth, studio_storage_gb: 25, assistant_requests_per_minute: 30, assistant_posts_per_hour: 10, ...STREAM_LIMITS.growth },
     meters: { ask_socia: 200, content_studio: 60, content_generation: 150, account_audit: 12, content_plan: 12, content_ideas: 10, content_build: 20, video_builds: 30, animated_videos: 60, music_tracks: 12, voiceovers: 30, assistant_requests: 5000 },
     features: featuresOf("growth"),
     cta: "Start Growth",
@@ -467,7 +489,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     aiSpendCapUsd: 42,
     tagline: "Manage brands, clients, and teams at scale.",
     audience: "Agencies, teams, multi-location businesses, and people managing many brands or clients.",
-    limits: { workspaces: 15, competitors: 30, team_members: 10, analytics_history_days: HISTORY_ALL_RETAINED, ...STUDIO_LIMITS.pro, studio_storage_gb: 50, assistant_requests_per_minute: 60, assistant_posts_per_hour: 20 },
+    limits: { workspaces: 15, competitors: 30, team_members: 10, analytics_history_days: HISTORY_ALL_RETAINED, ...STUDIO_LIMITS.pro, studio_storage_gb: 50, assistant_requests_per_minute: 60, assistant_posts_per_hour: 20, ...STREAM_LIMITS.pro },
     // Prices set 2026-11-02 (Noah: $19.99 / $34.99 / $49.99). AI allowances
     // were trimmed so a customer who uses all of them roughly breaks even
     // (from estimated per-use AI costs; lib/aiUsage.ts records the real ones); Pro's extra
@@ -485,7 +507,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     aiSpendCapUsd: 42,
     tagline: "Clip, generate and publish at scale.",
     audience: "Teams and agencies that turn long videos into clips and make AI videos and images every week.",
-    limits: { workspaces: 15, competitors: 30, team_members: 10, analytics_history_days: HISTORY_ALL_RETAINED, ...STUDIO_LIMITS.scale, studio_storage_gb: 100, assistant_requests_per_minute: 60, assistant_posts_per_hour: 20 },
+    limits: { workspaces: 15, competitors: 30, team_members: 10, analytics_history_days: HISTORY_ALL_RETAINED, ...STUDIO_LIMITS.scale, studio_storage_gb: 100, assistant_requests_per_minute: 60, assistant_posts_per_hour: 20, ...STREAM_LIMITS.scale },
     meters: { ask_socia: 300, content_studio: 60, content_generation: 160, account_audit: 30, content_plan: 40, content_ideas: 25, content_build: 25, video_builds: 100, animated_videos: 120, music_tracks: 15, voiceovers: 60, assistant_requests: 20000 },
     features: featuresOf("scale"),
     cta: "Start Scale",
