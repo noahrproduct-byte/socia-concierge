@@ -43,8 +43,6 @@
     "components/studio/StudioPanels.tsx": 2
   },
   "oops-error": {
-    "app/error.tsx": 1,
-    "app/global-error.tsx": 1,
     "components/studio/ClipsStudio.tsx": 1
   },
   "gradient-text": {

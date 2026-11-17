@@ -1,48 +1,48 @@
 "use client";
 
-// Branded error boundary for the app. Next renders this when a route segment
-// throws during render on the client or the server. Self-contained styles (it
-// must render even when the rest of the app is broken) and it never shows the
-// raw error to the person — just a way back and a retry. The digest is logged
-// so a support request can be tied to a server log line.
+// The error page for the app. Next renders this when a route segment throws
+// during render on the client or the server. It carries its own styles (it
+// must render even when the rest of the app is broken), in the site's own
+// look: the warm page ground, the brand mark, a black main action. It never
+// shows the raw error to the person, only a retry and a way back. The digest
+// is shown so a support request can be tied to a server log line.
 
 import { useEffect } from "react";
 import Link from "next/link";
 
 export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
-    // Surface it in the browser console for debugging; never to the UI.
+    // In the browser console for debugging; never in the page.
     console.error("App error boundary:", error);
   }, [error]);
 
   return (
     <main className="er-page">
       <style>{`
-        .er-page { min-height: 100vh; display: grid; place-items: center; background: #0b1220; color: #eef1f8;
-          font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; padding: 24px; text-align: center; }
-        .er-card { max-width: 460px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
-        .er-mark { width: 46px; height: 46px; border-radius: 13px; display: grid; place-items: center;
-          background: linear-gradient(135deg, #5b4bd6, #9c90ff); color: #fff; font-weight: 800; font-size: 22px; margin-bottom: 6px; }
-        .er-code { font-size: 12px; font-weight: 750; letter-spacing: .18em; color: #7b8499; }
-        .er-card h1 { font-size: 26px; letter-spacing: -.4px; margin: 0; }
-        .er-card p { margin: 0 0 14px; font-size: 14.5px; line-height: 1.6; color: #a6afc3; }
-        .er-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
-        .er-btn { padding: 11px 20px; border-radius: 11px; font-size: 14px; font-weight: 650; text-decoration: none; cursor: pointer;
-          border: none; background: linear-gradient(135deg, #5b4bd6, #7b6cf6); color: #fff; box-shadow: 0 6px 18px rgba(123,108,246,.35); }
-        .er-btn.ghost { background: transparent; color: #a6afc3; border: 1px solid #223050; box-shadow: none; }
-        .er-btn:hover { filter: brightness(1.08); }
-        .er-digest { margin-top: 16px; font-size: 11px; color: #4c566e; letter-spacing: .04em; }
+        .er-page { min-height: 100vh; display: grid; place-items: center; background: var(--ground, #f5f4f1); color: var(--ink, #17191d);
+          font-family: var(--font-sans, ui-sans-serif), system-ui, -apple-system, sans-serif; padding: 24px 16px; text-align: center; }
+        .er-card { max-width: 440px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+        .er-mark { width: 40px; height: 40px; border-radius: 10px; }
+        .er-card h1 { font-size: 24px; line-height: 30px; font-weight: 600; margin: 0; text-wrap: balance; }
+        .er-card p { margin: 0 0 8px; font-size: 14px; line-height: 20px; color: var(--ink-2, #5f646c); }
+        .er-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+        .er-btn { padding: 9px 16px; border-radius: 6px; font: inherit; font-size: 14px; line-height: 20px; font-weight: 500; text-decoration: none; cursor: pointer;
+          border: 1px solid var(--ink, #17191d); background: var(--ink, #17191d); color: var(--surface, #fff); }
+        .er-btn.ghost { background: transparent; color: var(--ink, #17191d); border-color: var(--border-strong, #cfcfca); }
+        .er-btn:focus-visible { outline: 2px solid var(--ink, #17191d); outline-offset: 2px; }
+        .er-digest { margin-top: 8px; font-size: 12px; line-height: 16px; color: var(--ink-3, #8a8f97); }
       `}</style>
       <div className="er-card">
-        <span className="er-mark" aria-hidden>S</span>
-        <span className="er-code">SOMETHING WENT WRONG</span>
-        <h1>That didn&apos;t load</h1>
-        <p>A hiccup on our end stopped this page from loading. Try again. It usually works the second time.</p>
+        {/* A plain <img>: the page must not depend on anything that could itself be what broke. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="er-mark" src="/brand/socia-mark.png" alt="SOCIA" width={40} height={40} />
+        <h1>This page didn&apos;t load</h1>
+        <p>The problem is on SOCIA&apos;s side, not yours, and nothing you saved is lost. Try again. It usually works the second time.</p>
         <div className="er-actions">
           <button type="button" className="er-btn" onClick={() => reset()}>Try again</button>
           <Link href="/dashboard" className="er-btn ghost">Go to Dashboard</Link>
         </div>
-        {error?.digest && <p className="er-digest">Reference: {error.digest}</p>}
+        {error?.digest && <p className="er-digest">If you contact us, give this reference: {error.digest}</p>}
       </div>
     </main>
   );
