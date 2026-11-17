@@ -1,0 +1,65 @@
+# flyctl launch added from .gitignore
+# dependencies
+node_modules
+
+# next.js
+.next
+out
+
+# production
+build
+
+# misc
+**/.DS_Store
+**/*.pem
+
+# debug
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+
+# env files
+**/.env
+**/.env*.local
+
+# typescript
+**/*.tsbuildinfo
+**/next-env.d.ts
+
+# local editor/agent settings
+**/.claude/settings.local.json
+
+# Local phone agent experiment; not part of the app
+**/phone-agent
+
+# demo video (captures, renders, secrets)
+demo-video/captures
+demo-video/out
+demo-video/refs
+demo-video/node_modules
+demo-video/.env
+
+# Self-hosted ffmpeg.wasm core (copied from @ffmpeg/core on install)
+public/ffmpeg
+
+# promo video (HyperFrames renders and artifacts)
+marketing/promo-video/renders
+marketing/promo-video/.hyperframes
+marketing/promo-video/node_modules
+
+# Rater training media (local only)
+**/docs/rater/samples/*
+!**/docs/rater/samples/.gitkeep
+
+# Reel bot runtime files (local only)
+**/demo-video/reel-bot/keep-on.log
+**/demo-video/reel-bot/.daily-*
+
+# flyctl launch added from docs/qa/.gitignore
+docs/qa/**/sweep/artifacts
+
+# flyctl launch added from docs/qa/sweep/.gitignore
+docs/qa/sweep/**/artifacts
+docs/qa/sweep/**/results.json
+fly.toml
+.git
