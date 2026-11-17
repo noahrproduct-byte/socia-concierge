@@ -75,9 +75,11 @@ export type PerkStatus = { firstWeek: FirstWeek; firstWeekRewarded: boolean; str
 /**
  * The account's first-week list and posting streak as they stand, giving the
  * perk when one has just been earned. Null when it can't be worked out (no
- * service role), in which case nothing is shown.
+ * service role), in which case nothing is shown. `brandWeeks`, when given, is
+ * the active brand's streak against its own posting target and decides the
+ * streak reward; the reward itself stays one per account every four weeks.
  */
-export async function perkStatus(ownerId: string, createdAt: string | null | undefined, now: Date = new Date()): Promise<PerkStatus | null> {
+export async function perkStatus(ownerId: string, createdAt: string | null | undefined, now: Date = new Date(), brandWeeks?: number | null): Promise<PerkStatus | null> {
   const svc = createServiceClient();
   if (!svc) return null;
   const [sig, times, saved] = await Promise.all([signals(svc, ownerId), publishedTimes(svc, ownerId, now), perkRow(svc, ownerId)]);
@@ -90,7 +92,9 @@ export async function perkStatus(ownerId: string, createdAt: string | null | und
     const next = await give(svc, ownerId, row, "first_week_at", now);
     if (next) { row = next; firstWeekRewarded = true; }
   }
-  if (saved.ready && streakRewardDue(streak, row.streak_at, now)) {
+  // The brand's streak against its own posting target (lib/postingStreak.ts) earns the reward once its tables exist; before that, the older count does.
+  const earned = brandWeeks != null ? { ...streak, weeks: brandWeeks } : streak;
+  if (saved.ready && streakRewardDue(earned, row.streak_at, now)) {
     const next = await give(svc, ownerId, row, "streak_at", now);
     if (next) { row = next; streakRewarded = true; }
   }
