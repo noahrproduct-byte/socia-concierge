@@ -13,7 +13,7 @@ export const maxDuration = 60;
 
 const KINDS = new Set<GenerationKind>(["text_to_video", "image_to_video", "text_to_image"]);
 
-// AI Studio's generation jobs (Scale).
+// AI Studio's generation jobs (Pro and Scale).
 //   GET  -> { jobs, balance }
 //   POST { kind, modelId, prompt, durationSec?, aspectRatio?, inputImagePath?, idea?, caption?, hashtags? } -> { job, balance }
 export async function GET() {
@@ -45,13 +45,13 @@ export async function POST(req: Request) {
   const aspectRatio = typeof b?.aspectRatio === "string" ? b.aspectRatio : undefined;
   const inputImagePath = typeof b?.inputImagePath === "string" ? b.inputImagePath : null;
   if (inputImagePath && (!isOwnPath(inputImagePath, [r.ctx.ownerId, r.viewerId]) || inputImagePath.split("/")[1] !== "studio-inputs")) return NextResponse.json({ error: "That image is not yours." }, { status: 403 });
-  const checked = checkGeneration({ kind, modelId: model.id, durationSec, aspectRatio });
+  const checked = checkGeneration({ kind, modelId: model.id, durationSec, aspectRatio, plan: r.ent.plan });
   if ("error" in checked) return NextResponse.json({ error: checked.error }, { status: 400 });
   const idea = cleanIdea(b?.idea);
   const origin = publicOrigin(req);
   try {
     const job = await createGenerationJob(r.ctx, {
-      kind, modelId: model.id, prompt, durationSec, aspectRatio, inputImagePath, idea,
+      kind, modelId: model.id, prompt, durationSec, aspectRatio, inputImagePath, idea, plan: r.ent.plan,
       caption: typeof b?.caption === "string" ? b.caption.slice(0, 2200) : null,
       hashtags: Array.isArray(b?.hashtags) ? (b.hashtags as unknown[]).filter((t): t is string => typeof t === "string").map(cleanTag).filter(Boolean).slice(0, 5) : [],
       webhookUrl: origin && process.env.HIGGSFIELD_WEBHOOK_SECRET ? `${origin}/api/webhooks/higgsfield` : undefined,

@@ -59,6 +59,12 @@ function mock(url: string, init?: RequestInit): Response | null {
   const gj = /^\/api\/studio-ai\/jobs\/([^/?]+)/.exec(u);
   if (gj) return json({ job: genJobs.find((j) => j.id === gj[1]) ?? genJobs[0], outputs: gj[1] === "g1" ? gens : [] });
   if (u === "/api/studio-ai/ideas") return json({ ideas });
+  // Lab-only prices per second (rough public rates with SOCIA's margin), so the price and "enough for" lines show.
+  if (u === "/api/studio-ai/quote") {
+    const b = JSON.parse(String(init?.body ?? "{}")) as { kind?: string; modelId?: string; durationSec?: number };
+    const perSec: Record<string, number> = { "kling-3.0-standard": 12.6, "kling-3.0-sound": 19, "wan-3.0": 7.5, "seedance-2.5": 31, "hailuo-2.3-standard": 12 };
+    return json({ credits: b.kind === "text_to_image" ? 6 : Math.ceil((perSec[b.modelId ?? ""] ?? 12) * (b.durationSec ?? 5)) });
+  }
   if (u === "/api/media/to-scheduler") return json({ href: "/create?post=demo" });
   return null;
 }
@@ -66,6 +72,8 @@ function mock(url: string, init?: RequestInit): Response | null {
 export default function AiLab() {
   const sp = useSearchParams();
   const screen = sp.get("screen") === "studio" ? "studio" : "clipper";
+  // ?plan=pro shows AI Studio as a Pro account sees it (Scale-only models and lengths locked).
+  const plan = sp.get("plan") === "pro" ? "pro" : "scale";
   const [ready, setReady] = useState(false);
   useEffect(() => {
     const real = window.fetch.bind(window);
@@ -79,7 +87,7 @@ export default function AiLab() {
       {screen === "clipper" ? (
         <><PageHeader title="AI Clipper" sub="Turn a long video into short clips with captions." /><ClipperPage initialBalance={5550} canMutate sociaReady vizardReady /></>
       ) : (
-        <><PageHeader title="AI Studio" sub="Ideas from your brand, made into AI videos and images." /><AiStudioPage initialBalance={5550} canMutate aiReady /></>
+        <><PageHeader title="AI Studio" sub="Ideas from your brand, made into AI videos and images." /><AiStudioPage initialBalance={5550} canMutate aiReady plan={plan} /></>
       )}
     </div>
   );

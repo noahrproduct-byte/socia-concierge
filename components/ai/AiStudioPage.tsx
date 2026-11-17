@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Film, Lightbulb, Loader2 } from "lucide-react";
-import { DEFAULT_MODEL, GENERATION_MODELS, modelById, type GenerationKind } from "@/lib/credits/config";
+import { DEFAULT_MODEL, GENERATION_MODELS, durationsFor, modelById, planAllowsModel, shotsLeft, type GenerationKind } from "@/lib/credits/config";
+import type { PlanId } from "@/lib/plans";
 import { ConfirmDialog } from "@/components/system";
 import { api, errorText, usePolling, uploadToSigned, CreditsLine, StatusChip, MediaCard } from "./shared";
 
@@ -13,7 +14,7 @@ type Output = { id: string; kind: "video" | "image"; title: string | null; capti
 const KIND_LABEL: Record<GenerationKind, string> = { text_to_video: "Text to video", image_to_video: "Image to video", text_to_image: "Text to image" };
 const when = (iso: string) => new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
-export default function AiStudioPage({ initialBalance, canMutate, aiReady }: { initialBalance: number | null; canMutate: boolean; aiReady: boolean }) {
+export default function AiStudioPage({ initialBalance, canMutate, aiReady, plan }: { initialBalance: number | null; canMutate: boolean; aiReady: boolean; plan: PlanId | null }) {
   const [balance, setBalance] = useState<number | null>(initialBalance);
   const [about, setAbout] = useState("");
   const [ideas, setIdeas] = useState<Idea[]>([]);
@@ -42,8 +43,10 @@ export default function AiStudioPage({ initialBalance, canMutate, aiReady }: { i
 
   const models = useMemo(() => GENERATION_MODELS.filter((m) => m.kinds.includes(kind)), [kind]);
   const model = modelById(modelId) ?? models[0];
-  useEffect(() => { if (!model || !model.kinds.includes(kind)) setModelId(DEFAULT_MODEL[kind]); }, [kind, model]);
-  useEffect(() => { if (model?.durations && !model.durations.includes(duration)) setDuration(model.durations[0]); }, [model, duration]);
+  useEffect(() => { if (!model || !model.kinds.includes(kind) || !planAllowsModel(plan, model)) setModelId(DEFAULT_MODEL[kind]); }, [kind, model, plan]);
+  // The lengths this plan may pick (Pro up to 10 seconds, Scale 15).
+  const lengths = useMemo(() => (model ? durationsFor(plan, model) : []), [model, plan]);
+  useEffect(() => { if (lengths.length && !lengths.includes(duration)) setDuration(lengths[0]); }, [lengths, duration]);
   // Image to video takes its shape from the start image.
   const shapes = kind === "image_to_video" ? [] : (model?.aspectRatios ?? []);
   const shape = shapes.length ? (shapes.includes(aspect) ? aspect : shapes[0]) : undefined;
@@ -54,7 +57,7 @@ export default function AiStudioPage({ initialBalance, canMutate, aiReady }: { i
   const [pricing, setPricing] = useState(false);
   const [priceErr, setPriceErr] = useState<string | null>(null);
   useEffect(() => {
-    if (!model || (lengthSec != null && !(model.durations ?? []).includes(lengthSec))) return;
+    if (!model || !planAllowsModel(plan, model) || (lengthSec != null && !lengths.includes(lengthSec))) return;
     let stale = false;
     setPrice(null); setPriceErr(null); setPricing(true);
     const t = setTimeout(() => {
@@ -64,7 +67,7 @@ export default function AiStudioPage({ initialBalance, canMutate, aiReady }: { i
         .finally(() => { if (!stale) setPricing(false); });
     }, 250);
     return () => { stale = true; clearTimeout(t); };
-  }, [kind, model, lengthSec, shape]);
+  }, [kind, model, lengthSec, shape, plan, lengths]);
 
   const loadJob = useCallback(async (id: string) => {
     const r = await api<{ job: Job; outputs: Output[] }>(`/api/studio-ai/jobs/${id}`);
@@ -166,7 +169,7 @@ export default function AiStudioPage({ initialBalance, canMutate, aiReady }: { i
         </div>
         <label className="ai-field"><span>Model</span>
           <select value={model?.id ?? ""} onChange={(e) => setModelId(e.target.value)}>
-            {models.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+            {models.map((m) => <option key={m.id} value={m.id} disabled={!planAllowsModel(plan, m)}>{m.name}{planAllowsModel(plan, m) ? "" : " (on Scale)"}</option>)}
           </select>
           {model && <small>{model.note}</small>}
         </label>
@@ -179,7 +182,7 @@ export default function AiStudioPage({ initialBalance, canMutate, aiReady }: { i
         <div className="ai-options">
           {kind !== "text_to_image" && model?.durations && (
             <label className="ai-field ai-field-short"><span>Length</span>
-              <select value={duration} onChange={(e) => setDuration(Number(e.target.value))}>{model.durations.map((d) => <option key={d} value={d}>{d} s</option>)}</select>
+              <select value={duration} onChange={(e) => setDuration(Number(e.target.value))}>{model.durations.map((d) => <option key={d} value={d} disabled={!lengths.includes(d)}>{d} s{lengths.includes(d) ? "" : " (on Scale)"}</option>)}</select>
             </label>
           )}
           {shapes.length > 0 && (
@@ -194,6 +197,13 @@ export default function AiStudioPage({ initialBalance, canMutate, aiReady }: { i
         {pricing && <p className="ai-note" role="status">Checking the price for this request.</p>}
         {priceErr && <p className="ai-err" role="alert">The price couldn&apos;t be read, so nothing can be generated yet. {priceErr}</p>}
         <CreditsLine balance={balance} price={price} />
+        {(() => {
+          // What the balance buys at this exact price: a count of clips reads plainer than a credit total.
+          const n = shotsLeft(balance, price);
+          if (n == null || n === 0) return null;
+          const what = kind === "text_to_image" ? (n === 1 ? "image" : "images") : `${n === 1 ? "clip" : "clips"} of ${lengthSec} seconds`;
+          return <p className="ai-note">Enough for about {n.toLocaleString("en-US")} {what} like this.</p>;
+        })()}
         {err && <p className="ai-err" role="alert">{err}</p>}
         <div className="ai-submit">
           <button type="button" className="btn-primary" onClick={generate} disabled={!canGenerate} aria-busy={Boolean(busy) || undefined}>{busy ? <><Loader2 size={14} className="spin" aria-hidden /> {busy}</> : "Generate"}</button>

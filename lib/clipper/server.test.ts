@@ -66,4 +66,12 @@ describe("generation checks", () => {
     expect(checkGeneration({ kind: "text_to_image", modelId: "soul-2-standard" })).toMatchObject({ durationSec: undefined, aspectRatio: "9:16" });
     expect(checkGeneration({ kind: "text_to_video", modelId: "hailuo-2.3-standard", durationSec: 6 })).toHaveProperty("error");
   });
+  it("keeps the premium model and 15-second clips for Scale; Pro gets the everyday models up to 10 seconds", () => {
+    expect(checkGeneration({ kind: "text_to_video", modelId: "seedance-2.5", durationSec: 5, plan: "pro" })).toMatchObject({ error: expect.stringContaining("on Scale") });
+    expect(checkGeneration({ kind: "text_to_video", modelId: "seedance-2.5", durationSec: 15, plan: "scale" })).toMatchObject({ durationSec: 15 });
+    expect(checkGeneration({ kind: "text_to_video", modelId: "kling-3.0-standard", durationSec: 15, plan: "pro" })).toMatchObject({ error: "Clips of 15 seconds are on Scale. Pick 5 or 10 seconds." });
+    expect(checkGeneration({ kind: "text_to_video", modelId: "kling-3.0-standard", durationSec: 10, plan: "pro" })).toMatchObject({ durationSec: 10 });
+    expect(checkGeneration({ kind: "image_to_video", modelId: "wan-3.0", durationSec: 5, plan: "pro" })).toMatchObject({ durationSec: 5 });
+    expect(checkGeneration({ kind: "text_to_image", modelId: "soul-2-standard", plan: "pro" })).toMatchObject({ durationSec: undefined });
+  });
 });

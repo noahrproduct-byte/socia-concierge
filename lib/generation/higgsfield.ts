@@ -29,7 +29,11 @@ export function higgsfieldBody(req: GenerationRequest): Record<string, unknown> 
     body.generate_audio = true;
   } else if (path.startsWith("kling-video/")) {
     if (shape) body.aspect_ratio = shape;
-    body.sound = "on";
+    body.sound = req.model.sound ? "on" : "off";
+  } else if (path.startsWith("alibaba/wan-")) {
+    if (shape) body.aspect_ratio = shape;
+    body.resolution = "720p";
+    body.generate_audio = Boolean(req.model.sound);
   } else if (path.startsWith("minimax/")) {
     body.prompt_optimizer = true;
   }

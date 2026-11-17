@@ -6,11 +6,16 @@ const kling = modelById("kling-3.0-standard")!;
 const hailuo = modelById("hailuo-2.3-standard")!;
 const soul = modelById("soul-2-standard")!;
 const seedance = modelById("seedance-2.5")!;
+const klingSound = modelById("kling-3.0-sound")!;
+const wan = modelById("wan-3.0")!;
 
 describe("higgsfield request body", () => {
   it("uses each model's own fields", () => {
-    expect(higgsfieldBody({ kind: "text_to_video", model: kling, prompt: "a cup", durationSec: 8, aspectRatio: "9:16" })).toEqual({ prompt: "a cup", duration: 8, aspect_ratio: "9:16", sound: "on" });
-    expect(higgsfieldBody({ kind: "image_to_video", model: kling, prompt: "a cup", durationSec: 5, imageUrl: "https://i/x.jpg", aspectRatio: "9:16" })).toEqual({ prompt: "a cup", duration: 5, image_url: "https://i/x.jpg", sound: "on" });
+    expect(higgsfieldBody({ kind: "text_to_video", model: kling, prompt: "a cup", durationSec: 8, aspectRatio: "9:16" })).toEqual({ prompt: "a cup", duration: 8, aspect_ratio: "9:16", sound: "off" });
+    expect(higgsfieldBody({ kind: "text_to_video", model: klingSound, prompt: "a cup", durationSec: 5, aspectRatio: "9:16" })).toEqual({ prompt: "a cup", duration: 5, aspect_ratio: "9:16", sound: "on" });
+    expect(higgsfieldBody({ kind: "image_to_video", model: kling, prompt: "a cup", durationSec: 5, imageUrl: "https://i/x.jpg", aspectRatio: "9:16" })).toEqual({ prompt: "a cup", duration: 5, image_url: "https://i/x.jpg", sound: "off" });
+    expect(higgsfieldBody({ kind: "text_to_video", model: wan, prompt: "a cup", durationSec: 5, aspectRatio: "9:16" })).toEqual({ prompt: "a cup", duration: 5, aspect_ratio: "9:16", resolution: "720p", generate_audio: false });
+    expect(higgsfieldBody({ kind: "image_to_video", model: wan, prompt: "a cup", durationSec: 5, imageUrl: "https://i/x.jpg" })).toEqual({ prompt: "a cup", duration: 5, image_url: "https://i/x.jpg", resolution: "720p", generate_audio: false });
     expect(higgsfieldBody({ kind: "image_to_video", model: hailuo, prompt: "a cup", durationSec: 6, imageUrl: "https://i/x.jpg", aspectRatio: "9:16" })).toEqual({ prompt: "a cup", duration: 6, image_url: "https://i/x.jpg", prompt_optimizer: true });
     expect(higgsfieldBody({ kind: "text_to_image", model: soul, prompt: "a cup", aspectRatio: "1:1" })).toEqual({ prompt: "a cup", aspect_ratio: "1:1", resolution: "1080p" });
     expect(higgsfieldBody({ kind: "text_to_video", model: seedance, prompt: "a cup", durationSec: 10, aspectRatio: "9:16" })).toEqual({ prompt: "a cup", duration: 10, aspect_ratio: "9:16", resolution: "720p", generate_audio: true });
