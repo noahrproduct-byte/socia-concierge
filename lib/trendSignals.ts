@@ -275,6 +275,14 @@ export function trendsEvidence(s: TrendSignals | null): string {
 export const PROVEN_AT = STRONG_HOOK_AT;
 export const PROVEN_VIEWS = 100_000;
 
+/**
+ * The fewest views a Reel needs to show on Discover (Noah, 2026-11-16: Reels at 1.3K to 4.5K views "didn't
+ * do well themselves; it should only show viral reels, probably 20k and up or 15k and up"). Nothing under it
+ * is shown, and no group is filled with weaker Reels.
+ */
+export const VIRAL_MIN_VIEWS = 15_000;
+export const isViral = (r: { views: number | null }): boolean => (r.views ?? 0) >= VIRAL_MIN_VIEWS;
+
 export type ProvenReel = TrendingReel & {
   /** R1, R2... its id in a prompt. */
   id: string;

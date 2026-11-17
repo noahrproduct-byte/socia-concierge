@@ -11,9 +11,10 @@ import { competitorScopeId } from "@/lib/workspaces";
 import { isStyleSource, nicheVetted } from "@/lib/discovery";
 import { getIgSnapshot } from "@/lib/instagramSync";
 import { igCompetitorRows } from "@/lib/igCompetitorData";
+import { VIRAL_MIN_VIEWS } from "@/lib/trendSignals";
 import { createServiceClient } from "@/lib/supabase/service";
 import { dismissedHandles } from "@/lib/competitorAutoPick";
-import { COPY_FIND_PER_READ, COVERS_PER_ACCOUNT, FIT_VERSION, REELS_JUDGED_PER_READ, STYLE_MEANS, fitOf, reelKey, mentionedHandles, reachesPastFollowers, sameStyle, missKind, styleKey, styleStale, triedRecently, type AccountStyle, type CopyFound, type Fit, type ReelVerdict, type StyleMemory, type Tried } from "./discoverStyle";
+import { COPY_FIND_PER_READ, COVERS_PER_ACCOUNT, FIT_VERSION, REELS_JUDGED_PER_READ, REEL_RULE_VERSION, STYLE_MEANS, fitOf, reelKey, reelVerdictOf, mentionedHandles, reachesPastFollowers, sameStyle, missKind, styleKey, styleStale, triedRecently, type AccountStyle, type CopyFound, type Fit, type ReelVerdict, type StyleMemory, type Tried } from "./discoverStyle";
 import { judgeFit, judgeReels, readStyleMemory, saveStyleMemory, styleAccounts, type FitCandidate, type ReelCandidate } from "./discoverStyleLoad";
 import { getProfile } from "@/lib/profile";
 import { brandWorkspace } from "@/lib/context";
@@ -169,12 +170,13 @@ export async function readDiscoverAccounts(ctx: Ctx, now: Date): Promise<{ read:
       for (const c of rows?.competitors ?? []) {
         if (!c.found) continue;
         const top = (c.media ?? [])
-          .filter((m) => m.mediaType === "VIDEO" && (!m.timestamp || Date.parse(m.timestamp) >= since))
+          // Only Reels Discover would show: recent and past the viral floor (lib/trendSignals.ts VIRAL_MIN_VIEWS).
+          .filter((m) => m.mediaType === "VIDEO" && (!m.timestamp || Date.parse(m.timestamp) >= since) && (m.views ?? 0) >= VIRAL_MIN_VIEWS)
           .sort((a, b) => (b.views ?? b.likes ?? 0) - (a.views ?? a.likes ?? 0))
           .slice(0, REELS_PER_ACCOUNT);
         for (const m of top) {
           const key = reelKey(m.permalink);
-          if (key && !memory.reels[key] && !candidates.some((x) => x.key === key)) candidates.push({ key, account: c.handle, caption: m.caption ?? null, thumb: m.thumbnail ?? null });
+          if (key && !reelVerdictOf(memory, m.permalink) && !candidates.some((x) => x.key === key)) candidates.push({ key, account: c.handle, caption: m.caption ?? null, thumb: m.thumbnail ?? null });
         }
       }
       const pick = candidates.slice(0, REELS_JUDGED_PER_READ);
@@ -188,7 +190,7 @@ export async function readDiscoverAccounts(ctx: Ctx, now: Date): Promise<{ read:
             accountType: g?.account_type ?? null, offer: g?.business?.offer ?? null,
             style: own && own.style !== "mixed" ? STYLE_MEANS[own.style] : null,
           }, pick);
-          for (const [key, v] of verdicts) reelVerdicts[key] = { ...v, at };
+          for (const [key, v] of verdicts) reelVerdicts[key] = { ...v, at, v: REEL_RULE_VERSION };
         }
       }
     }

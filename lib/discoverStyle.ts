@@ -102,7 +102,13 @@ export const COPY_FOUND_MAX = 24;
  * ads and a Planoly event promo were shown for SOCIA, from the right competitors but with nothing to
  * copy). `make` is one line on how, shown as "Make yours".
  */
-export type ReelVerdict = { ok: boolean; make: string | null; at: string };
+export type ReelVerdict = { ok: boolean; make: string | null; at: string; v?: number };
+/**
+ * The rule a Reel verdict was made under. Raising it makes older verdicts count as not judged.
+ * 2: the Reel must also look modern and well made (Noah, 2026-11-16: "viral reels ... that is modern and
+ * actually good for socia").
+ */
+export const REEL_RULE_VERSION = 2;
 /** Reel verdicts kept per brand, newest first. */
 export const REEL_VERDICTS_MAX = 150;
 /** Reels judged in one background read (one or two fast-model calls). */
@@ -196,7 +202,7 @@ export function sanitizeMemory(v: unknown): StyleMemory {
       const r = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
       const at = typeof r.at === "string" && !Number.isNaN(Date.parse(r.at)) ? r.at : null;
       const make = typeof r.make === "string" && r.make.trim() ? r.make.trim().slice(0, 240) : null;
-      return [k, at && typeof r.ok === "boolean" ? { ok: r.ok, make, at } : null] as const;
+      return [k, at && typeof r.ok === "boolean" ? { ok: r.ok, make, at, ...(typeof r.v === "number" ? { v: r.v } : {}) } : null] as const;
     })
     .filter((e): e is readonly [string, ReelVerdict] => /^[a-z0-9_-]{4,40}$/i.test(e[0]) && e[1] != null)
     .sort((a, b) => Date.parse(b[1].at) - Date.parse(a[1].at))
@@ -286,4 +292,11 @@ export function reachesPastFollowers(views: (number | null | undefined)[], follo
 export function reelKey(url: string | null | undefined): string | null {
   const m = /instagram\.com\/(?:reels?|p|tv)\/([A-Za-z0-9_-]{4,40})/i.exec(url ?? "");
   return m ? m[1] : null;
+}
+
+/** A Reel's saved verdict when it was made under the current rule; null otherwise (judged again). */
+export function reelVerdictOf(m: StyleMemory, url: string | null | undefined): ReelVerdict | null {
+  const k = reelKey(url);
+  const v = k ? m.reels[k] : null;
+  return v && v.v === REEL_RULE_VERSION ? v : null;
 }
