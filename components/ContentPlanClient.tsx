@@ -70,6 +70,7 @@ import { typicalSeconds, type PlanEvent } from "@/lib/planProgress";
 import type { PlanCompetitor } from "@/lib/planEvidence";
 import type { PlanMix } from "@/lib/planMix";
 import { AuditSection, CompetitorSection, OverviewSection, PLAN_SECTIONS, StrategySection, formatLabel, weekOrder, type PlanSectionId } from "@/components/plan/PlanSections";
+import FilmingSessions from "@/components/filming/FilmingSessions";
 
 // Server-assembled context: real prefill from the connected account/profile,
 // plus the live metrics shown in the preview strip. Nothing here is invented —
@@ -851,6 +852,8 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
           <StrategySection data={data} strategy={strategy} goal={goal} />
         </TabPanel>
         <TabPanel value="week" keepMounted className="cpl-panel">
+      {/* The latest plan's posts laid out over the person's filming days (lib/filmingPlan.ts). */}
+      {data.weeklyPlan?.length > 0 && <FilmingSessions where="plan" />}
       {data.weeklyPlan?.length > 0 && (
         <section className="cpl-rsec">
           <div className="cpl-rsec-head">

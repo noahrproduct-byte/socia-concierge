@@ -8,6 +8,7 @@
 // doesn't render. Nothing on this page is a sample.
 
 import { useEffect, useMemo, useState } from "react";
+import { WEEKDAYS, filmTime } from "@/lib/routine";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -345,7 +346,10 @@ export default function CalendarBoard({
   scheduled,
   userId,
   publish,
+  filming = [],
 }: {
+  /** The days the person said they can film, with the time they have (lib/routine.ts). Marked on the week. */
+  filming?: { day: string; minutes: number }[];
   posts: CalPost[];
   igUsername: string | null;
   connected: boolean;
@@ -612,6 +616,7 @@ export default function CalendarBoard({
                 onOpen={openItem}
                 onNew={openNew}
                 drafts={drafts_}
+                filming={filming}
               />
             ) : (
               <MonthGrid
@@ -1032,7 +1037,9 @@ function WeekGrid({
   onOpen,
   onNew,
   drafts,
+  filming,
 }: {
+  filming: { day: string; minutes: number }[];
   now: Date;
   weekOffset: number;
   aud: Audience;
@@ -1043,6 +1050,8 @@ function WeekGrid({
   drafts: DraftOps;
 }) {
   const monday = new Date(mondayOf(now).getTime() + weekOffset * 7 * DAY_MS);
+  // The person's filming time on a date's weekday, when they said they film that day.
+  const filmingOn = (date: Date): number | null => filming.find((f) => f.day === WEEKDAYS[(date.getDay() + 6) % 7].id)?.minutes ?? null;
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const placed = useMemo(() => placeItems(items), [items]);
 
@@ -1063,6 +1072,7 @@ function WeekGrid({
             <div className="cal2-dayhead">
               <span className="cal2-dow">{dow}</span>
               <span className={`cal2-num${isToday ? " today" : ""}`}>{date.getDate()}</span>
+              {filmingOn(date) != null && <span className="cal2-film" title="A day you said you can film">Filming, {filmTime(filmingOn(date)!)}</span>}
               {best && (
                 <span className="cal2-best">
                   <Star size={9} fill="currentColor" /> BEST

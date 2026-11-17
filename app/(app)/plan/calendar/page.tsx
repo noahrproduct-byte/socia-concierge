@@ -14,7 +14,8 @@ import ClaudeWeekReview from "@/components/ClaudeWeekReview";
 import { listForReview } from "@/lib/claudeWeek/server";
 import { getEntitlements, checkFeature } from "@/lib/entitlements";
 import type { ScheduledPost } from "@/lib/scheduling";
-import { resolveContext, can, forbiddenCopy } from "@/lib/context";
+import { resolveContext, brandWorkspace, can, forbiddenCopy } from "@/lib/context";
+import { getProfile } from "@/lib/profile";
 import { scopeToWorkspace } from "@/lib/workspaces";
 import { PLANS, type PlanId } from "@/lib/plans";
 import type { PlanError } from "@/lib/planErrors";
@@ -167,6 +168,8 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
 
   // Videos the person's Claude made for the weekly plan, waiting for review (lib/claudeWeek).
   const handedIn = await listForReview(ctx).catch(() => []);
+  // The days the person said they can film (lib/routine.ts), marked on the week.
+  const filming = (await getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null))?.brand_detail?.growth?.routine?.filming ?? [];
   const board = (
     <>
       {handedIn.length > 0 && <ClaudeWeekReview items={handedIn} canApprove={roleOk} />}
@@ -177,6 +180,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
         scheduled={scheduled}
         userId={user.id}
         publish={publish}
+        filming={filming}
       />
     </>
   );

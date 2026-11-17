@@ -7857,6 +7857,7 @@ a.hub-card:hover {
 .cal2-dow { width: 100%; text-align: center; font-size: 10px; font-weight: 750; letter-spacing: 0.1em; text-transform: uppercase; color: var(--slate); }
 .cal2-num { font-size: 20px; font-weight: 780; letter-spacing: -0.5px; color: var(--charcoal); font-variant-numeric: tabular-nums; }
 .cal2-num.today { color: var(--cobalt); }
+.cal2-film { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); white-space: nowrap; }
 .cal2-best { display: inline-flex; align-items: center; gap: 3px; font-size: 8.5px; font-weight: 750; letter-spacing: 0.06em; background: var(--success-subtle); color: var(--success-text); border-radius: 999px; padding: 3px 8px; }
 
 .cal2-slots { flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 4px 9px 10px; }

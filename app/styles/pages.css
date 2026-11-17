@@ -608,6 +608,21 @@
 .obg-sum b { font-weight: var(--fw-semibold); }
 .obg-sum ul { list-style: none; margin: 0; padding: 0; font-variant-numeric: tabular-nums; }
 .obg-sum small { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+/* Filming sessions (components/filming/FilmingSessions.tsx), on the Content Plan and the Dashboard */
+.film { display: flex; flex-direction: column; gap: var(--sp-3); margin-bottom: var(--sp-5); }
+.film.s-card { padding: var(--sp-4); margin-bottom: 0; }
+.film-title { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); color: var(--ink); }
+.film-head { display: flex; align-items: center; gap: var(--sp-3); }
+.film-head p { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); color: var(--ink); }
+.film-session { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-card); background: var(--surface); }
+.film-when { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--sp-1) var(--sp-3); }
+.film-when b { font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); color: var(--ink); }
+.film-when small, .film-session li small { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+.film-session ol, .film-session ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.film-session li { display: flex; flex-direction: column; gap: 0; padding: var(--sp-2) 0; border-top: 1px solid var(--border); }
+.film-session li b { font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-medium); color: var(--ink); }
+.film-session li span { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+.film-note, .film-after { margin: 0; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
 /* Dashboard, first week and posting streak */
 .mom { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--sp-4); }
 .mom-steps { list-style: none; margin: 0 0 var(--sp-3); padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
