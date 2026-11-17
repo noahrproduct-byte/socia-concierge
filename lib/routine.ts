@@ -80,6 +80,12 @@ export type Routine = {
   publish_mode?: PublishMode;
   /** Chosen publishing days (publish_mode "days"). */
   publish_days?: Weekday[];
+  /**
+   * SIO does not speak first for this brand: no question card and no weekly
+   * check-in on the Dashboard, on any device. SIO still answers in Ask SOCIA,
+   * and the routine can still be changed in Settings.
+   */
+  quiet?: boolean;
 };
 
 const isDay = (v: unknown): v is Weekday => WEEKDAYS.some((d) => d.id === v);
@@ -108,6 +114,8 @@ export function normalizeRoutine(input: unknown): Routine | undefined {
   if (typeof i.formats_other === "string" && i.formats_other.trim()) out.formats_other = i.formats_other.replace(/\s+/g, " ").trim().slice(0, 80);
   if (PUBLISH_MODES.some((m) => m.id === i.publish_mode)) out.publish_mode = i.publish_mode as PublishMode;
   if (Array.isArray(i.publish_days)) out.publish_days = WEEKDAYS.map((d) => d.id).filter((id) => (i.publish_days as unknown[]).includes(id));
+  // Kept when false too, so turning SIO's cards back on overwrites an earlier "off".
+  if (typeof i.quiet === "boolean") out.quiet = i.quiet;
   return Object.keys(out).length ? out : undefined;
 }
 
@@ -118,6 +126,8 @@ export function filmTime(minutes: number): string {
 }
 
 const dayName = (d: Weekday) => WEEKDAYS.find((x) => x.id === d)!.name;
+/** A format's name, or nothing for a value that is no longer one of the choices (saved data outlives the list). */
+const formatName = (f: string): string | undefined => CONTENT_FORMATS.find((x) => x.id === f)?.label;
 const list = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}` : xs[0] ?? "");
 
 /** True when every format the person picked needs nobody on camera. */
@@ -136,7 +146,7 @@ export function routineLines(r: Routine | null | undefined): string[] {
   const style = CREATION_STYLES.find((s) => s.id === r.style);
   if (style) lines.push(`How they make content: ${style.label.toLowerCase()} ("${style.hint}").`);
   if (r.formats?.length) {
-    const names = r.formats.map((f) => (f === "other" && r.formats_other ? r.formats_other : CONTENT_FORMATS.find((x) => x.id === f)!.label.toLowerCase()));
+    const names = r.formats.map((f) => (f === "other" && r.formats_other ? r.formats_other : formatName(f)?.toLowerCase())).filter((n): n is string => Boolean(n));
     lines.push(`Content they make: ${list(names)}.${makesNoCameraOnly(r) ? " None of it is filmed on camera: do not plan posts that need them to film themselves." : ""}`);
   }
   if (r.publish_mode === "days" && r.publish_days?.length) lines.push(`Preferred posting days: ${list(r.publish_days.map(dayName))}.`);
@@ -150,7 +160,7 @@ export function routineSummary(r: Routine | null | undefined): { label: string; 
   if (!r) return [];
   const rows: { label: string; value: string }[] = [];
   if (r.post_days) rows.push({ label: "Posting target", value: `${r.post_days} ${r.post_days === 1 ? "day" : "days"} a week` });
-  if (r.formats?.length) rows.push({ label: "What you make", value: list(r.formats.map((f) => (f === "other" && r.formats_other ? r.formats_other : CONTENT_FORMATS.find((x) => x.id === f)!.label))) });
+  if (r.formats?.length) rows.push({ label: "What you make", value: list(r.formats.map((f) => (f === "other" && r.formats_other ? r.formats_other : formatName(f))).filter((n): n is string => Boolean(n))) });
   if (r.filming?.length) rows.push({ label: "Filming", value: list(r.filming.map((s) => `${dayName(s.day)} (${filmTime(s.minutes)})`)) });
   const style = CREATION_STYLES.find((s) => s.id === r.style);
   if (style) rows.push({ label: "How you work", value: style.label });

@@ -83,3 +83,8 @@
 .gp-routine div { display: flex; flex-direction: column; min-width: 0; }
 .gp-routine dt { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-3); }
 .gp-routine dd { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink); }
+/* Whether SIO speaks first on the Dashboard: the words and their switch on one row. */
+.gp-sio-switch { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-4); padding-top: var(--sp-3); border-top: 1px solid var(--border); }
+.gp-sio-switch > span { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; }
+.gp-sio-switch b { font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-medium); color: var(--ink); }
+.gp-sio-switch small { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); max-width: 60ch; }

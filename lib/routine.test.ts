@@ -82,3 +82,28 @@ describe("the creator routine", () => {
     expect(postDaysNote(5, 3)).not.toMatch(/should|must|grow faster|will/);
   });
 });
+
+describe("turning SIO's cards off", () => {
+  it("keeps the choice, on or off, and nothing else changes", () => {
+    expect(normalizeRoutine({ quiet: true })).toEqual({ quiet: true });
+    // Kept when false, so "on again" overwrites an earlier "off" when the answers are merged.
+    expect(normalizeRoutine({ quiet: false })).toEqual({ quiet: false });
+    expect(normalizeRoutine({ quiet: "yes" })).toBeUndefined();
+    expect(normalizeRoutine({ post_days: 3, quiet: true })).toEqual({ post_days: 3, quiet: true });
+  });
+  it("is not an answer to any question and is not told to the plan writer", () => {
+    expect(unanswered({ quiet: true }, [...FIRST_QUESTIONS, ...LATER_QUESTIONS])).toEqual([...FIRST_QUESTIONS, ...LATER_QUESTIONS]);
+    expect(routineLines({ quiet: true })).toEqual([]);
+    expect(routineSummary({ quiet: true })).toEqual([]);
+  });
+});
+
+describe("saved answers that are no longer choices", () => {
+  it("are left out and never crash the summary or the prompt lines", () => {
+    const old = { formats: ["talking_head", "holograms"] } as never;
+    expect(routineSummary(old).find((r) => r.label === "What you make")?.value).toBe("Talking-head videos");
+    expect(routineLines(old).join(" ")).toContain("talking-head videos");
+    expect(routineLines(old).join(" ")).not.toContain("undefined");
+  });
+});
+
