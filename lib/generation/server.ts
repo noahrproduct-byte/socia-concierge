@@ -5,7 +5,8 @@
 // checked. Server only.
 import { createServiceClient } from "@/lib/supabase/service";
 import type { Ctx } from "@/lib/context";
-import { creditsForUsd, modelById, type GenerationKind, type GenerationModel } from "@/lib/credits/config";
+import { creditsForUsd, durationsFor, modelById, planAllowsModel, type GenerationKind, type GenerationModel } from "@/lib/credits/config";
+import type { PlanId } from "@/lib/plans";
 import { spendCredits, refundCredits } from "@/lib/credits/ledger";
 import { generationProvider } from "./higgsfield";
 import { GenerationError, type GenerationOutput, type GenerationStatus } from "./provider";
@@ -53,6 +54,8 @@ export type CreateGenerationInput = {
   webhookUrl?: string;
   caption?: string | null;
   hashtags?: string[];
+  /** The owner's plan: Scale-only models and lengths are checked against it (lib/credits/config.ts). */
+  plan?: PlanId | null;
 };
 
 const ideaText = (v: unknown, n: number): string => (typeof v === "string" ? v.trim().slice(0, n) : "");
@@ -78,12 +81,16 @@ export function cleanIdea(raw: unknown): { id: string; hook: string; concept: st
 export type GenerationShape = { model: GenerationModel; durationSec?: number; aspectRatio?: string };
 
 /** The model, length and shape a request will run with, or the sentence that says what's wrong. Pure. */
-export function checkGeneration(input: Pick<CreateGenerationInput, "kind" | "modelId" | "durationSec" | "aspectRatio">): GenerationShape | { error: string } {
+export function checkGeneration(input: Pick<CreateGenerationInput, "kind" | "modelId" | "durationSec" | "aspectRatio"> & { plan?: PlanId | null }): GenerationShape | { error: string } {
   const model = modelById(input.modelId);
   if (!model || !model.kinds.includes(input.kind)) return { error: "Pick a model that does this kind of generation." };
-  const durationSec = input.kind === "text_to_image" ? undefined : (input.durationSec ?? model.durations?.[0]);
-  if (input.kind !== "text_to_image" && (!durationSec || !(model.durations ?? []).includes(durationSec))) {
-    return { error: `Pick a length this model offers: ${(model.durations ?? []).join(", ")} seconds.` };
+  // AI Studio is on Pro and Scale: the premium model and 15-second clips are Scale's (lib/credits/config.ts).
+  if (input.plan !== undefined && !planAllowsModel(input.plan, model)) return { error: `${model.name} is on Scale. Pick Kling 3.0 or Wan 3.0, or move to Scale.` };
+  const lengths = input.plan !== undefined ? durationsFor(input.plan, model) : (model.durations ?? []);
+  const durationSec = input.kind === "text_to_image" ? undefined : (input.durationSec ?? lengths[0]);
+  if (input.kind !== "text_to_image" && (!durationSec || !lengths.includes(durationSec))) {
+    const longer = (model.durations ?? []).includes(durationSec ?? 0);
+    return { error: longer ? `Clips of ${durationSec} seconds are on Scale. Pick ${lengths.join(" or ")} seconds.` : `Pick a length this model offers: ${lengths.join(", ")} seconds.` };
   }
   // Image to video takes its shape from the start image.
   const shapes = input.kind === "image_to_video" ? [] : (model.aspectRatios ?? []);
@@ -96,7 +103,7 @@ export function checkGeneration(input: Pick<CreateGenerationInput, "kind" | "mod
  * request: SOCIA's dollar cost and the credits charged for it (with the margin).
  * Throws when the price can't be read, so nothing runs at a guessed price.
  */
-export async function quoteGeneration(input: Pick<CreateGenerationInput, "kind" | "modelId" | "prompt" | "durationSec" | "aspectRatio"> & { imageUrl?: string }): Promise<{ credits: number; usd: number; shape: GenerationShape }> {
+export async function quoteGeneration(input: Pick<CreateGenerationInput, "kind" | "modelId" | "prompt" | "durationSec" | "aspectRatio"> & { imageUrl?: string; plan?: PlanId | null }): Promise<{ credits: number; usd: number; shape: GenerationShape }> {
   const shape = checkGeneration(input);
   if ("error" in shape) throw new GenerationError(shape.error, "bad_model");
   const provider = generationProvider();

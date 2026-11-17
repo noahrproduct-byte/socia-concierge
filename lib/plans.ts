@@ -163,7 +163,7 @@ export type FeatureKey =
   | "approval_workflow"
   | "dedicated_onboarding"
   | "developer_api"
-  // Scale: the AI Clipper and AI Studio, paid for in credits (lib/credits/config.ts)
+  // The AI Clipper (Starter+) and AI Studio (Pro+), paid for in credits (lib/credits/config.ts)
   | "ai_clipper"
   | "ai_studio";
 
@@ -392,7 +392,7 @@ export const FEATURE_MIN_PLAN: Record<FeatureKey, PlanId> = {
   dedicated_onboarding: "pro",
   developer_api: "pro",
   ai_clipper: "starter",
-  ai_studio: "scale",
+  ai_studio: "pro",
 };
 
 /** True when `plan` is at or above the feature's minimum plan. */

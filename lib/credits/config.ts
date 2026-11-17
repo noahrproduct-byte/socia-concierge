@@ -33,8 +33,9 @@ export const MARGIN = 1.5;
 /**
  * Credits a plan gets on the first of every month, for every AI action. Sized
  * so a customer who spends them all costs SOCIA about 60% of the plan's price
- * (Starter 1,800 credits = $12 of AI at the margin above). Scale adds 6,000
- * for AI Studio (about $40 of provider cost). Unused monthly credits expire
+ * (Starter 1,800 credits = $12 of AI at the margin above). Scale's are sized
+ * for AI Studio video (Noah, 2026-11-16): 9,000 at the $79.99 launch price
+ * keeps about $14 from a customer who spends them all. Unused monthly credits expire
  * at the end of the month (supabase/credits-monthly.sql); top-ups don't.
  */
 export const MONTHLY_CREDITS: Record<PlanId, number> = {
@@ -42,7 +43,7 @@ export const MONTHLY_CREDITS: Record<PlanId, number> = {
   starter: 1800,
   growth: 3300,
   pro: 4800,
-  scale: 10800,
+  scale: 9000,
 };
 
 /**
@@ -50,9 +51,11 @@ export const MONTHLY_CREDITS: Record<PlanId, number> = {
  * FULL_PRICE, from December 16, 2026). Launch subscribers keep their launch
  * price and MONTHLY_CREDITS. Noah, 2026-11-15: a busy Pro agency with five
  * brands needs about 6,000 credits a month; 7,200 covers that, and at $79.99
- * a customer who spends them all still leaves about $22.
+ * a customer who spends them all still leaves about $22. Scale at $119.99
+ * gets 13,500 (Noah, 2026-11-16): about 18 minutes of Kling 3.0 if all spent
+ * on video, and still about $21 kept at full use.
  */
-export const FULL_PRICE_CREDITS: Partial<Record<PlanId, number>> = { pro: 7200 };
+export const FULL_PRICE_CREDITS: Partial<Record<PlanId, number>> = { pro: 7200, scale: 13500 };
 
 /** A plan's monthly credits for what the subscriber pays, in cents (null when unknown: the launch amount). */
 export function planCredits(plan: PlanId, priceCents?: number | null): number {
@@ -153,12 +156,66 @@ export type GenerationModel = {
   durations?: number[];
   /** Shapes the model takes for text to video and images. Image to video follows the start image. */
   aspectRatios?: string[];
-  /** The model makes its own sound (video only). */
+  /** The model makes its own sound (video only). Off, SOCIA adds music and voice in the editor. */
   sound?: boolean;
+  /** Only on Scale: the premium model (AI Studio opens on Pro). */
+  scaleOnly?: boolean;
   note: string;
 };
 
+/**
+ * AI Studio is on Pro and Scale (lib/plans.ts FEATURE_MIN_PLAN). Pro makes
+ * clips up to 10 seconds on the everyday models; Scale adds the premium model
+ * and 15-second clips. Side-by-side test 2026-11-16 (reports/ai-video-model-test.mp4):
+ * Kling 3.0 without sound was the cheapest and good on every prompt, Wan 3.0
+ * as good and better with crowds, Seedance 2.5 the most cinematic at 4-5x the price.
+ */
+export const MAX_SECONDS: Partial<Record<PlanId, number>> = { pro: 10, scale: 15 };
+
+/** Whether a plan may use a model. Plans without AI Studio never reach here. */
+export const planAllowsModel = (plan: PlanId | null | undefined, m: GenerationModel): boolean => !m.scaleOnly || plan === "scale";
+
+/** The lengths a plan may pick on a model: the model's own, up to the plan's longest. */
+export function durationsFor(plan: PlanId | null | undefined, m: GenerationModel): number[] {
+  const max = (plan && MAX_SECONDS[plan]) ?? MAX_SECONDS.pro ?? 10;
+  return (m.durations ?? []).filter((d) => d <= max);
+}
+
+/** About how many more generations at `price` credits the balance covers. */
+export const shotsLeft = (balance: number | null, price: number | null): number | null =>
+  balance == null || price == null || price <= 0 ? null : Math.max(0, Math.floor(balance / price));
+
 export const GENERATION_MODELS: GenerationModel[] = [
+  {
+    id: "kling-3.0-standard",
+    name: "Kling 3.0",
+    kinds: ["text_to_video", "image_to_video"],
+    endpoints: { text_to_video: "kling-video/v3.0/std/text-to-video", image_to_video: "kling-video/v3.0/std/image-to-video" },
+    durations: [5, 10, 15],
+    aspectRatios: ["9:16", "1:1", "16:9"],
+    sound: false,
+    note: "Natural motion and people, without sound (add music or a voiceover in the editor). The best value. Animates a start image too.",
+  },
+  {
+    id: "kling-3.0-sound",
+    name: "Kling 3.0 with sound",
+    kinds: ["text_to_video", "image_to_video"],
+    endpoints: { text_to_video: "kling-video/v3.0/std/text-to-video", image_to_video: "kling-video/v3.0/std/image-to-video" },
+    durations: [5, 10, 15],
+    aspectRatios: ["9:16", "1:1", "16:9"],
+    sound: true,
+    note: "Kling 3.0 with its own sound: ambience and effects. Costs more than without.",
+  },
+  {
+    id: "wan-3.0",
+    name: "Wan 3.0",
+    kinds: ["text_to_video", "image_to_video"],
+    endpoints: { text_to_video: "alibaba/wan-3.0/text-to-video", image_to_video: "alibaba/wan-3.0/image-to-video" },
+    durations: [5, 10, 15],
+    aspectRatios: ["9:16", "1:1", "16:9"],
+    sound: false,
+    note: "Good with busy scenes and crowds, 720p, without sound.",
+  },
   {
     id: "seedance-2.5",
     name: "Seedance 2.5",
@@ -167,17 +224,8 @@ export const GENERATION_MODELS: GenerationModel[] = [
     durations: [5, 10, 15],
     aspectRatios: ["9:16", "1:1", "16:9"],
     sound: true,
-    note: "Vertical video with its own sound, 720p.",
-  },
-  {
-    id: "kling-3.0-standard",
-    name: "Kling 3.0",
-    kinds: ["text_to_video", "image_to_video"],
-    endpoints: { text_to_video: "kling-video/v3.0/std/text-to-video", image_to_video: "kling-video/v3.0/std/image-to-video" },
-    durations: [5, 10, 15],
-    aspectRatios: ["9:16", "1:1", "16:9"],
-    sound: true,
-    note: "Sharp motion with its own sound. Animates a start image too.",
+    scaleOnly: true,
+    note: "Premium: the most cinematic, with its own camera cuts and sound, 720p. Costs about four times Kling.",
   },
   {
     id: "hailuo-2.3-standard",
@@ -198,7 +246,7 @@ export const GENERATION_MODELS: GenerationModel[] = [
 ];
 
 export const DEFAULT_MODEL: Record<GenerationKind, string> = {
-  text_to_video: "seedance-2.5",
+  text_to_video: "kling-3.0-standard",
   image_to_video: "kling-3.0-standard",
   text_to_image: "soul-2-standard",
 };

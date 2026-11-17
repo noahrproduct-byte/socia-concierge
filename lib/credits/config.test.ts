@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ACTION_USD, CREDIT_USD, MARGIN, MONTHLY_CREDITS, actionCredits, creditsBuy, type CreditAction, GENERATION_MODELS, DEFAULT_MODEL, CLIP_TRANSCRIBE_USD_PER_MINUTE, clipCredits, clipCreditsKept, clipWorkDone, creditsForUsd, formatCredits, modelById } from "./config";
+import { ACTION_USD, CREDIT_USD, MARGIN, MONTHLY_CREDITS, durationsFor, planAllowsModel, planCredits, shotsLeft, actionCredits, creditsBuy, type CreditAction, GENERATION_MODELS, DEFAULT_MODEL, CLIP_TRANSCRIBE_USD_PER_MINUTE, clipCredits, clipCreditsKept, clipWorkDone, creditsForUsd, formatCredits, modelById } from "./config";
 import { PLAN_ORDER, PLANS } from "@/lib/plans";
 
 describe("credits config", () => {
@@ -54,6 +54,29 @@ describe("credits config", () => {
     expect(hailuo.aspectRatios).toBeUndefined();
     // SOUL 2 takes 9:16, 16:9, 4:3, 3:4, 1:1, 2:3 and 3:2 (no 4:5).
     expect(modelById("soul-2-standard")!.aspectRatios).not.toContain("4:5");
+  });
+
+  it("defaults to Kling 3.0 without sound, and only Seedance is Scale-only", () => {
+    expect(DEFAULT_MODEL.text_to_video).toBe("kling-3.0-standard");
+    expect(modelById("kling-3.0-standard")?.sound).toBe(false);
+    expect(GENERATION_MODELS.filter((m) => m.scaleOnly).map((m) => m.id)).toEqual(["seedance-2.5"]);
+    expect(durationsFor("pro", modelById("kling-3.0-standard")!)).toEqual([5, 10]);
+    expect(durationsFor("scale", modelById("kling-3.0-standard")!)).toEqual([5, 10, 15]);
+    expect(planAllowsModel("pro", modelById("seedance-2.5")!)).toBe(false);
+    expect(planAllowsModel("scale", modelById("seedance-2.5")!)).toBe(true);
+  });
+
+  it("counts the clips a balance covers at a price", () => {
+    expect(shotsLeft(9000, 63)).toBe(142);
+    expect(shotsLeft(50, 63)).toBe(0);
+    expect(shotsLeft(null, 63)).toBeNull();
+    expect(shotsLeft(9000, null)).toBeNull();
+  });
+
+  it("gives Scale 9,000 credits at the launch price and 13,500 at the full price", () => {
+    expect(MONTHLY_CREDITS.scale).toBe(9000);
+    expect(planCredits("scale", 7999)).toBe(9000);
+    expect(planCredits("scale", 11999)).toBe(13500);
   });
 
   it("formats credits", () => {

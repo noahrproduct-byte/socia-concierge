@@ -28,7 +28,7 @@ export async function POST(req: Request) {
   const price = topupPriceId(pack.key);
   if (!price) return NextResponse.json({ error: "That pack's price is not configured yet." }, { status: 503 });
   const ent = await getEntitlements(supabase, user.id);
-  if (!canUseFeature(ent, "ai_clipper") && !canUseFeature(ent, "ai_studio")) return NextResponse.json({ error: "Credits are for the Scale plan's AI Clipper and AI Studio." }, { status: 403 });
+  if (!canUseFeature(ent, "ai_clipper") && !canUseFeature(ent, "ai_studio")) return NextResponse.json({ error: "Top-ups are for plans with the AI Clipper or AI Studio." }, { status: 403 });
   const origin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || new URL(req.url).origin;
   let customer: string | null = null;
   {

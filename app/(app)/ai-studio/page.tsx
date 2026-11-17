@@ -11,7 +11,7 @@ import "../ai/ai.css";
 
 export const metadata = { title: "AI Studio | SOCIA" };
 
-// AI Studio (Scale): ideas from the brand's own profile, turned into AI videos and images.
+// AI Studio (Pro and Scale): ideas from the brand's own profile, turned into AI videos and images.
 export default async function AiStudio() {
   const { supabase, user } = await getViewer();
   if (!user) redirect("/login");
@@ -30,7 +30,7 @@ export default async function AiStudio() {
   return (
     <>
       <PageHeader title="AI Studio" sub="Ideas from your brand, made into AI videos and images." />
-      <AiStudioPage initialBalance={balance} canMutate={can(ctx, "publish")} aiReady={Boolean(process.env.ANTHROPIC_API_KEY)} />
+      <AiStudioPage initialBalance={balance} canMutate={can(ctx, "publish")} aiReady={Boolean(process.env.ANTHROPIC_API_KEY)} plan={ent.plan} />
     </>
   );
 }
