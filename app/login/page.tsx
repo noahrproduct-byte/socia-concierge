@@ -7,9 +7,10 @@ import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import BrandMark from "@/components/BrandMark";
 import AuthShell, { GoogleIcon } from "@/components/AuthShell";
+import ConfirmCode from "@/components/ConfirmCode";
 import { safeNext } from "@/lib/safeNext";
 import { applyRemember } from "@/lib/rememberMe";
-import { RESEND_WAIT, isUnconfirmed, linkProblem, sendProblem } from "@/lib/authEmail";
+import { isUnconfirmed, linkProblem, sendProblem } from "@/lib/authEmail";
 
 /** Where to go after signing in: ?next= when it is a path on this site (e.g. an AI app's consent screen). */
 const nextPath = () => safeNext(typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("next"));
@@ -29,14 +30,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  // The address a log-in was refused for because it isn't confirmed yet: offers the link again.
+  // The address a log-in was refused for because it isn't confirmed yet: the page asks for its code.
   const [unconfirmed, setUnconfirmed] = useState<string | null>(null);
-  const [wait, setWait] = useState(0);
-  useEffect(() => {
-    if (wait <= 0) return;
-    const t = setTimeout(() => setWait((w) => Math.max(0, w - 1)), 1000);
-    return () => clearTimeout(t);
-  }, [wait]);
   // Back from an email link that didn't work (/auth/confirm, /auth/callback): say so.
   useEffect(() => {
     const problem = linkProblem(new URLSearchParams(window.location.search).get("error"));
@@ -65,7 +60,7 @@ export default function LoginPage() {
     if (error) {
       if (isUnconfirmed(error)) {
         setUnconfirmed(email);
-        setErr("Confirm your email first. We sent a link to this address when you signed up.");
+        setErr(null);
       } else {
         setUnconfirmed(null);
         setErr(error.message);
@@ -74,21 +69,6 @@ export default function LoginPage() {
     }
     router.push(nextPath());
     router.refresh();
-  }
-
-  async function resendConfirmation() {
-    if (!unconfirmed || wait > 0) return;
-    setLoading(true);
-    setMsg(null);
-    const { error } = await supabase.auth.resend({ type: "signup", email: unconfirmed, options: { emailRedirectTo: callbackUrl() } });
-    setLoading(false);
-    if (error) {
-      setErr(sendProblem(error) ?? "We couldn't send the link just now. Try again in a minute.");
-      return;
-    }
-    setErr(null);
-    setMsg(`Confirmation link sent to ${unconfirmed}. Open it, then log in.`);
-    setWait(RESEND_WAIT);
   }
 
   async function loginWithGoogle() {
@@ -117,6 +97,28 @@ export default function LoginPage() {
     setLoading(false);
     if (error) setErr(sendProblem(error) ?? error.message);
     else setMsg(`Magic link sent to ${email}. Check your inbox.`);
+  }
+
+  if (unconfirmed) {
+    return (
+      <AuthShell>
+        <div className="auth-mobilelogo">
+          <BrandMark size={32} />SOCIA
+        </div>
+        <ConfirmCode
+          email={unconfirmed}
+          after={nextPath()}
+          emailRedirectTo={callbackUrl()}
+          intro="This address isn't confirmed yet. Enter the code from the email we sent when you signed up, or send a new one."
+          onOtherEmail={() => { setUnconfirmed(null); setErr(null); setMsg(null); }}
+        />
+        <div className="authfoot">
+          <span>
+            Confirmed already?<button className="linkbtn" type="button" onClick={() => { setUnconfirmed(null); setErr(null); }}>Back to log in</button>
+          </span>
+        </div>
+      </AuthShell>
+    );
   }
 
   return (
@@ -191,11 +193,6 @@ export default function LoginPage() {
 
       {msg && <div className="authmsg ok" role="status">{msg}</div>}
       {err && <div className="authmsg err" role="alert">{err}</div>}
-      {unconfirmed && (
-        <button className="linkbtn" type="button" onClick={resendConfirmation} disabled={loading || wait > 0}>
-          {wait > 0 ? `Send the confirmation link again in ${wait}s` : "Send the confirmation link again"}
-        </button>
-      )}
 
       <div className="authfoot">
         <span>
