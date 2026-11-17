@@ -4,7 +4,9 @@
 // screen's heading, so it is clear who is speaking. Used for every onboarding
 // step. Not a chat bubble: SIO's words are the page's own heading and lead.
 // The words come out in the rhythm of speech while SIO's mouth moves with
-// them (components/sio/useSioSpeech.ts); a click on the words shows them all.
+// them (components/sio/useSioSpeech.ts), and its face follows the sentence: a
+// question looks curious, an exclamation pleased. A click on the words shows
+// them all.
 import { Children, type ReactNode, type RefObject } from "react";
 import Sio, { type SioExpression } from "./Sio";
 import SioWords from "./SioWords";
@@ -29,7 +31,7 @@ export default function SioSays({
 }: {
   /** How SIO looks once it has finished speaking. */
   expression?: SioExpression;
-  /** How SIO looks while speaking. */
+  /** How SIO looks while saying a plain sentence. Questions and exclamations bring their own look. */
   speakAs?: SioExpression;
   title: string;
   /** The supporting line under the heading. */
@@ -46,9 +48,12 @@ export default function SioSays({
 }) {
   const sub = plain(children);
   const speech = useSioSpeech([ack ?? null, title, sub], still);
+  const face: SioExpression = !speech.speaking ? expression : speech.mood === "ask" ? "curious" : speech.mood === "bright" ? "happy" : speakAs;
+  // As a sentence starts SIO looks at its words: beside it, or below it on the first screen.
+  const look = speech.glance ? (large ? "down" : "right") : undefined;
   return (
     <div className={`sio-says${large ? " is-large" : ""}${compact ? " is-compact" : ""}`}>
-      <Sio expression={speech.speaking ? speakAs : expression} speaking={speech.speaking} mouthOpen={speech.mouthOpen} nods={speech.nods} size={large ? 200 : compact ? 72 : 124} shadow={!compact} priority={large} still={still} />
+      <Sio expression={face} speaking={speech.speaking} mouth={speech.mouth} nods={speech.nods} mood={speech.mood} look={look} size={large ? 200 : compact ? 72 : 124} shadow={!compact} priority={large} still={still} />
       {/* The click is a shortcut for people watching the words arrive; the whole text is already in the page for everyone else. */}
       <div className="sio-says-text" onClick={speech.speaking ? speech.skip : undefined}>
         {ack && <p className="sio-says-ack"><SioWords text={ack} shown={speech.shown[0]} /></p>}

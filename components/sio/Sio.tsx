@@ -5,16 +5,20 @@
 // (public/sio/sio-body.webp); the face is drawn here, live, on the glass, so
 // every expression is a real state of one character and not a different
 // picture. Idle motion is small on purpose: a slow float, a blink, and one
-// short reaction when the expression changes. With reduced motion, or
-// `still`, SIO holds each expression without moving.
+// short reaction when the expression changes. SIO's eyes follow the pointer a
+// little, so it looks at the person and not past them. While it speaks, the
+// mouth takes a shape for each syllable and the head makes one small gesture
+// per sentence (lib/sioSpeech.ts). With reduced motion, or `still`, SIO holds
+// each expression without moving.
 //
 // Sizes: any width. Below SMALL the mouth and cheeks are left out and the eyes
 // are drawn larger, so the face still reads as SIO at avatar size.
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Image from "next/image";
+import type { SentenceMood, SioMouthShape } from "@/lib/sioSpeech";
 import "./sio.css";
 
-export const SIO_EXPRESSIONS = ["neutral", "happy", "thinking", "listening", "analyzing", "celebrating", "concerned"] as const;
+export const SIO_EXPRESSIONS = ["neutral", "happy", "curious", "thinking", "listening", "analyzing", "celebrating", "concerned"] as const;
 export type SioExpression = (typeof SIO_EXPRESSIONS)[number];
 
 /** The body layer's own pixel box; the face is drawn in the same coordinates. */
@@ -24,6 +28,10 @@ const H = 769;
 const SMALL = 56;
 /** How long the eyes take to close before a new expression opens (ms). */
 const SWAP_MS = 90;
+/** How long the eyes take to open again, a touch past their size and back (ms). */
+const POP_MS = 300;
+/** The pointer is "far" past this many pixels: the eyes are turned as far as they go. */
+const GAZE_REACH = 360;
 
 // Where the eyes and mouth sit on the glass, measured from the reference. The
 // head is turned a little, so the far eye is smaller and tilted.
@@ -40,6 +48,9 @@ function Eye({ expr, side }: { expr: SioExpression; side: -1 | 1 }) {
       return <path d="M-66,20 C-44,-46 44,-46 66,20 C44,-1 -44,-1 -66,20Z" strokeWidth={10} />;
     case "celebrating":
       return <path d="M-72,24 C-48,-54 48,-54 72,24 C48,-2 -48,-2 -72,24Z" strokeWidth={10} />;
+    case "curious":
+      // One eye wide and lifted, the other as usual: SIO is asking.
+      return side === 1 ? <rect x={-32} y={-66} width={64} height={108} rx={32} /> : <rect x={-25} y={-28} width={50} height={68} rx={25} />;
     case "thinking":
       // Looking up and to one side, the far eye a touch narrower.
       return <rect x={-27 - 13} y={-38 - 15} width={54} height={side === 1 ? 70 : 76} rx={27} />;
@@ -55,12 +66,13 @@ function Eye({ expr, side }: { expr: SioExpression; side: -1 | 1 }) {
   }
 }
 
-function Mouth({ expr, talk }: { expr: SioExpression; talk?: "open" | "closed" }) {
+function Mouth({ expr, talk }: { expr: SioExpression; talk?: SioMouthShape | "rest" }) {
   const line = { fill: "none", strokeWidth: 13, strokeLinecap: "round" as const };
-  // Speaking: the mouth opens on each word and rests between them, whatever the expression.
-  if (talk === "open") return <ellipse rx={17} ry={13} />;
-  if (talk === "closed") return <path d="M-20,0 Q0,7 20,0" {...line} />;
+  // Speaking: one mouth that eases between a shape for each syllable and a rest (sio.css), whatever the expression.
+  if (talk) return <ellipse className="sio-talkmouth" data-shape={talk} rx={28} ry={19} />;
   switch (expr) {
+    case "curious":
+      return <path d="M-18,3 Q6,11 24,-5" {...line} />;
     case "happy":
       return <path d="M-38,-8 Q0,22 38,-8" {...line} />;
     case "celebrating":
@@ -99,8 +111,10 @@ export default function Sio({
   still = false,
   shadow = true,
   speaking = false,
-  mouthOpen = false,
+  mouth = null,
   nods = 0,
+  mood = "plain",
+  look,
   label,
   priority = false,
   className,
@@ -112,11 +126,16 @@ export default function Sio({
   still?: boolean;
   /** The soft shadow SIO floats over. Off for an avatar in a tight row. */
   shadow?: boolean;
-  /** SIO is saying something: the mouth follows `mouthOpen` (components/sio/useSioSpeech.ts). */
+  /** SIO is saying something: the mouth follows `mouth` (components/sio/useSioSpeech.ts). */
   speaking?: boolean;
-  mouthOpen?: boolean;
-  /** Sentences begun so far; SIO gives a small nod as each one starts. */
+  /** The mouth's shape for the syllable being said, or null between syllables. */
+  mouth?: SioMouthShape | null;
+  /** Sentences begun so far; SIO makes one small gesture as each one starts. */
   nods?: number;
+  /** The kind of sentence being said, which picks the gesture: a nod, a tilt for a question, a lift for an exclamation. */
+  mood?: SentenceMood;
+  /** Where SIO's eyes are turned for a moment, instead of following the pointer. */
+  look?: "right" | "down";
   /** Said to screen readers. Without it SIO is decoration and is skipped. */
   label?: string;
   /** Load the body layer early (the first screen of onboarding). */
@@ -127,27 +146,58 @@ export default function Sio({
   // The face shown lags the one asked for by a blink, so an expression never snaps.
   const [shown, setShown] = useState<SioExpression>(expression);
   const [swapping, setSwapping] = useState(false);
+  const [popping, setPopping] = useState(false);
   useEffect(() => {
     if (expression === shown) return;
     setSwapping(true);
-    const t = setTimeout(() => { setShown(expression); setSwapping(false); }, SWAP_MS);
+    const t = setTimeout(() => { setShown(expression); setSwapping(false); setPopping(true); }, SWAP_MS);
     return () => clearTimeout(t);
   }, [expression, shown]);
+  useEffect(() => {
+    if (!popping) return;
+    const t = setTimeout(() => setPopping(false), POP_MS);
+    return () => clearTimeout(t);
+  }, [popping]);
 
   const small = size < SMALL;
+  // The eyes turn a little toward the pointer. Only with a mouse, never at avatar size, and not with reduced motion.
+  const root = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (still || small || typeof window === "undefined" || !window.matchMedia) return;
+    if (!window.matchMedia("(pointer: fine)").matches || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let frame = 0, px = 0, py = 0;
+    const turn = () => {
+      frame = 0;
+      const el = root.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const dx = px - (r.left + r.width * 0.42), dy = py - (r.top + r.height * 0.58);
+      const d = Math.hypot(dx, dy);
+      const reach = d ? Math.min(1, d / GAZE_REACH) / d : 0;
+      el.style.setProperty("--sio-gx", (dx * reach).toFixed(3));
+      el.style.setProperty("--sio-gy", (dy * reach).toFixed(3));
+    };
+    const move = (e: PointerEvent) => { px = e.clientX; py = e.clientY; if (!frame) frame = requestAnimationFrame(turn); };
+    window.addEventListener("pointermove", move, { passive: true });
+    return () => { window.removeEventListener("pointermove", move); cancelAnimationFrame(frame); };
+  }, [still, small]);
+
   const eyeScale = small ? 1.3 : 1;
   const height = Math.round((size * H) / W);
   // The width is a CSS variable, so a layout can make SIO smaller on a phone without a second render.
   const box = { "--sio-size": `${size}px` } as React.CSSProperties;
   return (
     <span
-      className={["sio", small ? "is-small" : "", still ? "is-still" : "", swapping ? "is-swap" : "", className].filter(Boolean).join(" ")}
+      ref={root}
+      className={["sio", small ? "is-small" : "", still ? "is-still" : "", swapping ? "is-swap" : "", popping ? "is-pop" : "", className].filter(Boolean).join(" ")}
       data-expr={shown}
-      data-nod={speaking && nods > 0 ? (nods % 2 ? "a" : "b") : undefined}
+      data-gesture={speaking && nods > 0 ? `${mood === "ask" ? "tilt" : mood === "bright" ? "lift" : "nod"}-${nods % 2 ? "a" : "b"}` : undefined}
+      data-look={look}
       style={box}
       {...(label ? { role: "img", "aria-label": label } : { "aria-hidden": true })}
     >
       <span className="sio-float">
+        <span className="sio-talk">
         <span className="sio-pose">
           <Image src="/sio/sio-body.webp" alt="" width={size} height={height} sizes={`${size}px`} priority={priority} draggable={false} className="sio-shell" />
           <svg className="sio-face" viewBox={`0 0 ${W} ${H}`} focusable="false">
@@ -167,16 +217,17 @@ export default function Sio({
               <g key={layer} className={layer} filter={layer === "sio-halo" ? `url(#${id}-glow)` : undefined}>
                 {([[LEFT, -1], [RIGHT, 1]] as const).map(([e, side]) => (
                   <g key={side} transform={`translate(${e.x} ${e.y}) rotate(${e.tilt}) scale(${e.scale * eyeScale})`}>
-                    <g className="sio-eye"><Eye expr={shown} side={side} /></g>
+                    <g className="sio-gaze"><g className="sio-eye"><Eye expr={shown} side={side} /></g></g>
                   </g>
                 ))}
                 {!small && (
-                  <g transform={`translate(${MOUTH.x} ${MOUTH.y}) rotate(-3)`} className="sio-mouth"><Mouth expr={shown} talk={speaking ? (mouthOpen ? "open" : "closed") : undefined} /></g>
+                  <g transform={`translate(${MOUTH.x} ${MOUTH.y}) rotate(-3)`} className="sio-mouth"><g key={speaking ? "talk" : shown} className="sio-mouth-in"><Mouth expr={shown} talk={speaking ? mouth ?? "rest" : undefined} /></g></g>
                 )}
               </g>
             ))}
             {!small && (shown === "happy" || shown === "celebrating") && <Cheeks />}
           </svg>
+        </span>
         </span>
       </span>
       {shadow && !small && (
