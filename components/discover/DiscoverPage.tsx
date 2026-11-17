@@ -247,7 +247,7 @@ export default function DiscoverPage({ d }: { d: DiscoverData }) {
 
       <CopyFrom accounts={d.copyFrom} limit={d.limit} onChanged={startRead} />
 
-      <ReelsToCopy d={{ nicheAccess: d.nicheAccess, nicheUpgrade: d.nicheUpgrade, now: d.now, reelsToCopy: d.reelsToCopy, nicheReels: d.nicheReels, styleReels: d.styleReels, ownStyle: d.ownStyle, reelsRead: d.reelsRead, ytConfigured: d.ytConfigured, ig: { enabled: d.igEnabled } }} />
+      <ReelsToCopy d={{ nicheAccess: d.nicheAccess, nicheUpgrade: d.nicheUpgrade, now: d.now, reelsToCopy: d.reelsToCopy, nicheReels: d.nicheReels, styleReels: d.styleReels, ownStyle: d.ownStyle, viralFrom: d.viralFrom, reelsRead: d.reelsRead, ytConfigured: d.ytConfigured, ig: { enabled: d.igEnabled } }} />
 
       <section ref={sugRef} className="ov-card cx2-card" aria-labelledby="dsc-sug">
         <div className="cx2-card-head">

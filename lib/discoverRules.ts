@@ -86,3 +86,15 @@ export function fitRules(k: BrandKind): string {
     "off: coaches, educators, consultants, agencies and influencers who only talk about the topic, and anything on an unrelated subject.",
   ].join("\n");
 }
+
+/**
+ * Where Discover's viral Reels come from besides competitors. A business that isn't an app copies Reels
+ * from the same kind of business ANYWHERE (Noah, 2026-11-16, on Salvo's Pizza: "it doesn't have to be
+ * competitors in Nashville, it can just be any restaurant that got good views"): "kind". An app or a
+ * creator with a set video style copies that style on any topic (moe.dev for SOCIA): "style".
+ */
+export type ViralSource = "kind" | "style";
+export function viralSource(k: BrandKind, ownStyle: string | null): ViralSource | null {
+  if (k.business && !k.app) return "kind";
+  return ownStyle ? "style" : null;
+}
