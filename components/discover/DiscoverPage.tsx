@@ -42,11 +42,12 @@ function Avatar({ a }: { a: DiscoverAccount }) {
 }
 
 /** One number on an account card; while it is read, or when the platform didn't share it, it says so rather than showing 0. */
-function Stat({ label, value, a }: { label: string; value: string | null; a: DiscoverAccount }) {
+function Stat({ label, value, a, missing = "Not shared" }: { label: string; value: string | null; a: DiscoverAccount; missing?: string }) {
+  // "Reading" only before any posts are read: once they are, reading again won't fill a number Instagram doesn't share.
   return (
     <div>
       <dt>{label}</dt>
-      <dd className={value == null ? "is-quiet" : undefined}>{value ?? (a.reading ? "Reading" : "Not shared")}</dd>
+      <dd className={value == null ? "is-quiet" : undefined}>{value ?? (a.reading && !a.posts.length ? "Reading" : missing)}</dd>
     </div>
   );
 }
@@ -67,7 +68,7 @@ function AccountCard({ a, action, footer }: { a: DiscoverAccount; action: React.
       </div>
       {(followers != null || a.posts.length > 0) && <dl className="dsc-acct-stats">
         <Stat label={a.platform === "youtube" ? "Subscribers" : "Followers"} value={followers != null ? fmtN(followers) : null} a={a} />
-        <Stat label="Median views" value={a.medianViews.value != null ? fmtN(Math.round(a.medianViews.value)) : null} a={a} />
+        <Stat label="Median views" value={a.medianViews.value != null ? fmtN(Math.round(a.medianViews.value)) : null} a={a} missing={a.posts.length && !reels ? "No Reels" : "Not shared"} />
         <Stat label="Engagement" value={a.engagement.value != null ? fmtRate(a.engagement.value) : null} a={a} />
         <Stat label="Posts a week" value={a.cadence.value != null ? (a.cadence.value >= 10 ? a.cadence.value.toFixed(0) : a.cadence.value.toFixed(1)) : null} a={a} />
       </dl>}
