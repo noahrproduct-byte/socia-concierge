@@ -11,6 +11,7 @@
 // numbers it was derived from. Nothing here is guessed or generated.
 
 import type { Cell, LeaderRow } from "@/lib/competitorRollup";
+import { fmtRate } from "@/lib/metrics";
 
 export type MetricKey = "audience" | "engagement" | "cadence" | "medianViews";
 
@@ -108,7 +109,7 @@ const fmtN = (n: number): string =>
   : n.toLocaleString("en-US");
 
 const fmtBy = (c: Comparison, v: number) =>
-  c.unit === "pct" ? `${v.toFixed(1)}%` : c.unit === "perWeek" ? `${v.toFixed(1)}/week` : fmtN(v);
+  c.unit === "pct" ? fmtRate(v) : c.unit === "perWeek" ? `${v.toFixed(1)}/week` : fmtN(v);
 
 /** Plain-language observations, each derived from one comparison the user can
  *  see. Themes come only from posts actually discovered for that account. */

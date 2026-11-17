@@ -19,6 +19,7 @@ import PlanNotice from "@/components/PlanNotice";
 import AddCompetitor from "@/components/competitors/AddCompetitor";
 import { ReelsToCopy } from "@/components/competitors/TrendingNiche";
 import { fmtN } from "@/components/competitors/shared";
+import { fmtRate } from "@/lib/metrics";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import { PLATFORM_WORD } from "@/lib/discoverStyle";
 import type { DiscoverAccount, DiscoverData } from "./types";
@@ -67,7 +68,7 @@ function AccountCard({ a, action, footer }: { a: DiscoverAccount; action: React.
       {(followers != null || a.posts.length > 0) && <dl className="dsc-acct-stats">
         <Stat label={a.platform === "youtube" ? "Subscribers" : "Followers"} value={followers != null ? fmtN(followers) : null} a={a} />
         <Stat label="Median views" value={a.medianViews.value != null ? fmtN(Math.round(a.medianViews.value)) : null} a={a} />
-        <Stat label="Engagement" value={a.engagement.value != null ? `${a.engagement.value >= 10 ? a.engagement.value.toFixed(0) : a.engagement.value.toFixed(1)}%` : null} a={a} />
+        <Stat label="Engagement" value={a.engagement.value != null ? fmtRate(a.engagement.value) : null} a={a} />
         <Stat label="Posts a week" value={a.cadence.value != null ? (a.cadence.value >= 10 ? a.cadence.value.toFixed(0) : a.cadence.value.toFixed(1)) : null} a={a} />
       </dl>}
       {a.posts.length > 0 && (
