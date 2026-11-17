@@ -5,27 +5,29 @@ const MB = 1024 * 1024;
 
 describe("shrinkPlan", () => {
   it("leaves a clip under the limit alone", () => {
-    expect(shrinkPlan(44 * MB, 20, 2160, 3840)).toEqual({ needed: false });
+    expect(shrinkPlan(158 * MB, 25, 2160, 3840)).toEqual({ needed: false });
+    expect(shrinkPlan(470 * MB, 300, 1080, 1920)).toEqual({ needed: false });
     expect(SHRINK_ABOVE).toBeLessThan(STORAGE_FILE_LIMIT);
+    expect(STORAGE_FILE_LIMIT).toBe(500 * MB);
   });
-  it("brings a 4K phone clip down to 1080p at a bitrate that fits", () => {
-    const p = shrinkPlan(158 * MB, 25, 2160, 3840);
+  it("brings a long 4K phone clip down to 1080p at a bitrate that fits", () => {
+    const p = shrinkPlan(1600 * MB, 240, 2160, 3840);
     expect(p).toMatchObject({ needed: true, possible: true, width: 1080, height: 1920 });
     if (p.needed && p.possible) {
       expect(p.videoBps).toBeLessThanOrEqual(8_000_000);
-      expect(((p.videoBps + 128_000) * 25) / 8).toBeLessThan(45 * MB);
+      expect(((p.videoBps + 128_000) * 240) / 8).toBeLessThan(SHRINK_ABOVE);
     }
   });
   it("lowers the bitrate for a long speech so it still fits", () => {
-    const p = shrinkPlan(400 * MB, 86, 1080, 1920);
-    expect(p.needed && p.possible && ((p.videoBps + 128_000) * 86) / 8 < 45 * MB).toBe(true);
+    const p = shrinkPlan(900 * MB, 600, 1080, 1920);
+    expect(p.needed && p.possible && ((p.videoBps + 128_000) * 600) / 8 < SHRINK_ABOVE).toBe(true);
   });
   it("keeps the shape of a landscape clip, in even sizes", () => {
-    expect(shrinkPlan(200 * MB, 20, 3840, 2160)).toMatchObject({ width: 1920, height: 1080 });
-    expect(shrinkPlan(200 * MB, 20, 1281, 721)).toMatchObject({ width: 1282, height: 722 });
+    expect(shrinkPlan(600 * MB, 120, 3840, 2160)).toMatchObject({ width: 1920, height: 1080 });
+    expect(shrinkPlan(600 * MB, 120, 1281, 721)).toMatchObject({ width: 1282, height: 722 });
   });
   it("says so when a clip is too long to fit at a watchable quality", () => {
-    expect(shrinkPlan(2000 * MB, 600, 2160, 3840)).toEqual({ needed: true, possible: false });
+    expect(shrinkPlan(20000 * MB, 6000, 2160, 3840)).toEqual({ needed: true, possible: false });
   });
 });
 

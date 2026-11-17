@@ -32,7 +32,7 @@ import type { VideoSummary } from "@/lib/studioClips/videos";
 import LearnCard, { useStudioLearn } from "./LearnCard";
 import StudioEmpty from "./StudioEmpty";
 import NicheScanCard from "@/components/NicheScanCard";
-import { SHRINK_ABOVE, needsTranscode, shrinkForUpload } from "@/lib/studioClips/shrink";
+import { SHRINK_ABOVE, UPLOAD_LIMIT_TEXT, needsTranscode, shrinkForUpload } from "@/lib/studioClips/shrink";
 
 type Meta = { limits: { clipsPerProject: number; footageMinutes: number; uploadMb: number }; usage: UsageSnapshot | null; transcription: boolean; autoBuild: boolean };
 
@@ -234,14 +234,14 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
       const first = ingest.frames[0];
       if (first) { const thumb = URL.createObjectURL(first.blob); thumbs.current.set(key, thumb); patchLocal(key, { thumb }); }
 
-      // Storage takes 50 MB a file: a bigger phone clip is made smaller on this device first (lib/studioClips/shrink.ts).
+      // A clip over the upload limit is made smaller on this device first (lib/studioClips/shrink.ts).
       // An HEVC clip is converted to H.264 whatever its size, so it plays in every browser on the account.
       let send = file;
       const hevc = needsTranscode(probe.codec);
       if (file.size > SHRINK_ABOVE || hevc) {
         patchLocal(key, { phase: "analyzing", progress: 0, stageNote: hevc && file.size <= SHRINK_ABOVE ? "Converting from HEVC so it plays everywhere" : "Making it small enough to upload" });
         const small = await shrinkForUpload(file, probe, (p) => patchLocal(key, { progress: p }), hevc);
-        if (!small) throw new Error(file.size > SHRINK_ABOVE ? `This clip is ${Math.round(file.size / 1048576)} MB, over the 50 MB upload limit, and this browser couldn't make it smaller. Export it at 1080p (or a shorter part of it) and add it again.` : "This HEVC clip couldn't be converted in this browser. Export it as an H.264 MP4 (on an iPhone: Settings, Camera, Formats, Most compatible) and add it again.");
+        if (!small) throw new Error(file.size > SHRINK_ABOVE ? `This clip is ${Math.round(file.size / 1048576)} MB, over the ${UPLOAD_LIMIT_TEXT} upload limit, and this browser couldn't make it smaller. Export it at 1080p (or a shorter part of it) and add it again.` : "This HEVC clip couldn't be converted in this browser. Export it as an H.264 MP4 (on an iPhone: Settings, Camera, Formats, Most compatible) and add it again.");
         send = small;
       }
       patchLocal(key, { phase: "uploading", progress: 0, stageNote: "Uploading" });
