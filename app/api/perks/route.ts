@@ -30,7 +30,7 @@ export async function GET() {
     firstWeek: { ...s.firstWeek, rewarded: s.firstWeekRewarded },
     streak: { ...s.streak, goal: STREAK_GOAL, rewarded: s.streakRewarded },
     // The streak by posting days, once it can be counted; the card shows this in place of the older one.
-    posting: brand?.ready ? { ...brand.streak, line: brand.line, next: brand.next, platforms: brand.platforms, breaks: brand.breaks, goal: STREAK_GOAL, rewarded: s.streakRewarded } : null,
+    posting: brand?.ready ? { ...brand.streak, line: brand.line, week: brand.week, next: brand.next, platforms: brand.platforms, breaks: brand.breaks, goal: STREAK_GOAL, rewarded: s.streakRewarded } : null,
     // What the credits buy on this person's plan, so the number means something.
     perk: { words: PERK_WORDS, buys: creditsBuy(PERK_CREDITS, (a: CreditAction) => (PLANS[ent.plan].meters[a] ?? 0) > 0) },
   });
