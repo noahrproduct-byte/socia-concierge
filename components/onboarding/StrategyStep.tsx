@@ -96,6 +96,15 @@ export default function StrategyStep({ onReady, headRef }: { onReady: (ready: bo
               )}
             </section>
           )}
+          {reveal.routine && (
+            <section>
+              <h2>Your creator routine</h2>
+              <dl className="obs-start">
+                {reveal.routine.rows.map((x) => <div key={x.label}><dt>{x.label}</dt><dd className="obs-routine">{x.value}</dd></div>)}
+              </dl>
+              {reveal.routine.pending && <p className="obs-note">Once you&apos;re in, I&apos;ll ask which days you can film and when you like to post, so I can lay your week out around them.</p>}
+            </section>
+          )}
           {reveal.tools.length > 0 && (() => {
             const count = toolCount(reveal.tools);
             return (

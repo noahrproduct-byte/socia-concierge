@@ -86,6 +86,7 @@ export async function runStrategyBuild(ctx: Ctx, emit: Emit, now: Date = new Dat
   return buildReveal({
     mainGoal: growth?.main_goal ?? null,
     customerGoal: growth?.customer_goal ?? null,
+    routine: growth?.routine ?? null,
     goal: primary,
     nowValues,
     strategy,

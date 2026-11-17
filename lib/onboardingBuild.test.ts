@@ -61,6 +61,15 @@ describe("the reveal", () => {
     expect(tools.find((t) => t.name === "Animated videos")!.from).toBe("From Starter");
     expect(r.basedOn).toEqual(["25 Instagram posts", "Your goal"]);
   });
+  it("shows the routine the person told SIO, and says when there is more to ask", () => {
+    expect(buildReveal(input).routine).toBeNull();
+    const r = buildReveal({ ...input, routine: { post_days: 5, formats: ["talking_head", "tutorials"] } }).routine!;
+    expect(r.rows).toEqual([{ label: "Posting target", value: "5 days a week" }, { label: "What you make", value: "Talking-head videos and Tutorials" }]);
+    expect(r.pending).toBe(true);
+    const full = buildReveal({ ...input, routine: { post_days: 5, formats: ["vlogs"], filming: [{ day: "wed", minutes: 120 }], style: "batch", publish_mode: "flexible" } }).routine!;
+    expect(full.pending).toBe(false);
+    expect(full.rows.map((x) => x.label)).toEqual(["Posting target", "What you make", "Filming", "How you work", "Posting days"]);
+  });
   it("leaves out what it doesn't have instead of filling it in", () => {
     const r = buildReveal({ ...input, goal: null, nowValues: {}, strategy: null });
     expect(r.target).toBeNull();

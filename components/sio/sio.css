@@ -56,6 +56,9 @@
 .sio.is-still .sio-float, .sio.is-still .sio-eye, .sio.is-still .sio-scan, .sio.is-still .sio-shadow ellipse, .sio.is-still .sio-pose, .sio.is-still[data-nod] .sio-pose { animation: none; }
 .sio.is-still .sio-scan { opacity: 0; }
 
+/* SIO as the assistant's face beside each answer in Ask SOCIA (components/AskSocia.tsx). */
+.ask-avatar.is-sio { width: 28px; height: 26px; border-radius: 0; background: none; }
+
 /* SIO in the corner of the app (components/sio/SioCorner.tsx): the Ask SOCIA bubble's face, and a small card above it when SIO has a question. */
 .sio-bubble { overflow: hidden; }
 .sio-corner {
