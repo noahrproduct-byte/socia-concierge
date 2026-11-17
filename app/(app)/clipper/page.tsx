@@ -9,13 +9,16 @@ import { clipperProvider } from "@/lib/clipper/vizard";
 import PageHeader from "@/components/PageHeader";
 import AiGate from "@/components/ai/AiGate";
 import ClipperPage from "@/components/ai/ClipperPage";
+import ClipperTabs from "@/components/ai/ClipperTabs";
+import StreamClips from "@/components/ai/StreamClips";
 import "../ai/ai.css";
 
 export const metadata = { title: "AI Clipper | SOCIA" };
 
 // The AI Clipper (Starter and up): a long video in, captioned vertical clips out. The
 // server decides what this person may do; the routes enforce it again.
-export default async function Clipper() {
+export default async function Clipper({ searchParams }: { searchParams: Promise<{ tab?: string; twitch?: string }> }) {
+  const sp = await searchParams;
   const { supabase, user } = await getViewer();
   if (!user) redirect("/login");
   const ctx = await resolveContext(supabase, user.id);
@@ -32,8 +35,13 @@ export default async function Clipper() {
   const balance = await creditBalance(ctx.ownerId, ent).catch(() => null);
   return (
     <>
-      <PageHeader title="AI Clipper" sub="Turn a long video into short clips with captions." />
-      <ClipperPage initialBalance={balance} canMutate={can(ctx, "publish")} sociaReady={sociaClipperReady()} vizardReady={Boolean(clipperProvider()) && ent.plan === "scale"} />
+      <PageHeader title="AI Clipper" sub="Turn a long video, or a live Twitch stream, into short clips." />
+      <ClipperTabs
+        initial={sp.tab === "streams" ? "streams" : "videos"}
+        videos={<ClipperPage initialBalance={balance} canMutate={can(ctx, "publish")} sociaReady={sociaClipperReady()} vizardReady={Boolean(clipperProvider()) && ent.plan === "scale"} />}
+        // Live streams: SOCIA watches Twitch chat and clips the spikes (lib/streams/*).
+        streams={canUseFeature(ent, "stream_clipper") ? <StreamClips canMutate={can(ctx, "publish")} canConnect={can(ctx, "connect")} outcome={sp.twitch ?? null} /> : null}
+      />
     </>
   );
 }

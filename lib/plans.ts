@@ -165,7 +165,9 @@ export type FeatureKey =
   | "developer_api"
   // The AI Clipper (Starter+) and AI Studio (Pro+), paid for in credits (lib/credits/config.ts)
   | "ai_clipper"
-  | "ai_studio";
+  | "ai_studio"
+  // Live streams in the AI Clipper: SOCIA watches Twitch chat and clips the spikes (lib/streams/*)
+  | "stream_clipper";
 
 /**
  * "available": built and working in production today.
@@ -216,6 +218,7 @@ export const FEATURE_STATUS: Record<FeatureKey, FeatureStatus> = {
   developer_api: "coming_soon",
   ai_clipper: "available",
   ai_studio: "available",
+  stream_clipper: "available",
 };
 
 /** Human labels for feature keys, shared by pricing, Settings and limit notices. */
@@ -257,6 +260,7 @@ export const FEATURE_LABEL: Record<FeatureKey, string> = {
   developer_api: "Developer API",
   ai_clipper: "AI Clipper: long videos cut into short clips with captions",
   ai_studio: "AI Studio: ideas turned into AI-made videos and images",
+  stream_clipper: "Live stream clips: SOCIA watches Twitch chat and clips the moments it spikes",
 };
 
 export const LIMIT_LABEL: Record<LimitKey, string> = {
@@ -393,6 +397,7 @@ export const FEATURE_MIN_PLAN: Record<FeatureKey, PlanId> = {
   developer_api: "pro",
   ai_clipper: "starter",
   ai_studio: "pro",
+  stream_clipper: "starter",
 };
 
 /** True when `plan` is at or above the feature's minimum plan. */

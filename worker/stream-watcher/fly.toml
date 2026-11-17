@@ -1,0 +1,14 @@
+# fly.toml app configuration file generated for socia-stream-watcher on 2026-11-16T22:42:15-06:00
+#
+# See https://docs.fly.io/reference/configuration for information about how to use this file.
+#
+
+app = 'socia-stream-watcher'
+primary_region = 'iad'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '512mb'
