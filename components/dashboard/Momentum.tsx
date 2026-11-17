@@ -8,9 +8,10 @@
 // nothing to show.
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Check } from "lucide-react";
+import { Check, Minus, Pause } from "lucide-react";
 import { Card, CardHeader } from "@/components/system";
 import Sio from "@/components/sio/Sio";
+import { weekDayCells } from "@/lib/postingStreak";
 
 type Step = { id: string; label: string; href: string; done: boolean };
 type Data = {
@@ -25,6 +26,8 @@ type Posting = {
   weeks: number; longest: number; goal: number; rewarded: boolean; line: string;
   strip: { week_start: string; state: "hit" | "miss" | "break" | "open" }[];
   thisWeek: { days: number; target: number; qualified: boolean; is_break: boolean };
+  /** This week on the calendar: its Monday, today, and the days with a post so far. */
+  week?: { start: string; today: string; posted: string[] };
   next: { days: number; from: string } | null;
   platforms: string[];
   breaks: { thisWeek: boolean; nextWeek: boolean; canPlanThis: boolean; canPlanNext: boolean };
@@ -32,6 +35,10 @@ type Posting = {
 
 const STATE_WORD = { hit: "target met", miss: "target missed", break: "planned break", open: "this week, still open" } as const;
 const list = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}` : xs[0] ?? "");
+const DAY_WORD = { posted: "posted", today: "today, no post yet", past: "no post", later: "still to come" } as const;
+const at = (iso: string) => new Date(`${iso}T12:00:00Z`);
+const weekdayOf = (iso: string, width: "narrow" | "long") => at(iso).toLocaleDateString("en-US", { weekday: width, timeZone: "UTC" });
+const shortDate = (iso: string) => at(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 const dayOf = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" });
 
 /** The streak against the person's own posting target: this week first, then the weeks behind it, with the rules in view. */
@@ -40,6 +47,7 @@ function PostingStreakCard({ p, perk, onChange }: { p: Posting; perk: { words: s
   const [err, setErr] = useState<string | null>(null);
   const toGo = Math.max(0, p.goal - p.weeks);
   const t = p.thisWeek;
+  const cells = p.week ? weekDayCells(p.week.start, p.week.today, p.week.posted) : null;
   async function setBreak(week: "this" | "next", on: boolean) {
     setBusy(true); setErr(null);
     const r = await fetch("/api/streak/break", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ week, on }) }).catch(() => null);
@@ -50,24 +58,65 @@ function PostingStreakCard({ p, perk, onChange }: { p: Posting; perk: { words: s
   }
   return (
     <Card className="dash-lift">
-      <CardHeader title="Posting streak" period={p.weeks === 1 ? "1 week in a row" : `${p.weeks} weeks in a row`} />
+      <CardHeader title="Posting streak" />
       <div className="mom-sio">
         <Sio size={48} shadow={false} expression={t.qualified ? "happy" : "neutral"} />
         <p>{p.line}</p>
       </div>
-      {!t.is_break && (
-        <ol className="mom-days" aria-label={`${t.days} of ${t.target} posting days this week`}>
-          {Array.from({ length: Math.max(t.target, Math.min(7, t.days)) }, (_, i) => <li key={i} className={i < t.days ? "is-on" : undefined} aria-hidden />)}
-        </ol>
-      )}
-      <ol className="mom-strip" aria-label={`The last ${p.strip.length} weeks, oldest first: ${p.strip.map((x) => STATE_WORD[x.state]).join(", ")}`}>
-        {p.strip.map((x) => <li key={x.week_start} className={`is-${x.state}`} aria-hidden />)}
-      </ol>
+      <div className="pst">
+        <div className="pst-count">
+          <span className="pst-n">{p.weeks}</span>
+          <span className="pst-of">{p.weeks === 1 ? "week in a row" : "weeks in a row"}</span>
+          {p.longest > p.weeks && <span className="pst-best">Longest {p.longest} {p.longest === 1 ? "week" : "weeks"}</span>}
+        </div>
+        <div className="pst-block">
+          <p className="pst-head">
+            <span>This week</span>
+            <span>{t.is_break ? "Planned break" : `${t.days} of ${t.target} posting ${t.target === 1 ? "day" : "days"}`}</span>
+          </p>
+          {cells ? (
+            <ol className="pst-cells is-days">
+              {cells.map((c) => (
+                <li key={c.date} className={`is-${c.state}${t.is_break ? " is-break" : ""}`} title={`${weekdayOf(c.date, "long")}, ${shortDate(c.date)}: ${DAY_WORD[c.state]}`}>
+                  <span className="pst-box" aria-hidden>{c.state === "posted" ? <Check size={14} /> : null}</span>
+                  <span className="pst-tag" aria-hidden>{weekdayOf(c.date, "narrow")}</span>
+                  <span className="sr-only">{weekdayOf(c.date, "long")}: {DAY_WORD[c.state]}</span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            // An older reply without the calendar days: the count alone.
+            <ol className="pst-cells" aria-label={`${t.days} of ${t.target} posting days this week`}>
+              {Array.from({ length: Math.max(t.target, Math.min(7, t.days)) }, (_, i) => (
+                <li key={i} className={i < t.days ? "is-posted" : "is-later"}><span className="pst-box" aria-hidden>{i < t.days ? <Check size={14} /> : null}</span></li>
+              ))}
+            </ol>
+          )}
+        </div>
+        <div className="pst-block">
+          <p className="pst-head"><span>Last {p.strip.length} weeks</span></p>
+          <ol className="pst-cells is-weeks">
+            {p.strip.map((x) => (
+              <li key={x.week_start} className={`is-${x.state}`} title={`Week of ${shortDate(x.week_start)}: ${STATE_WORD[x.state]}`}>
+                <span className="pst-box" aria-hidden>{x.state === "hit" ? <Check size={14} /> : x.state === "miss" ? <Minus size={14} /> : x.state === "break" ? <Pause size={12} /> : null}</span>
+                <span className="sr-only">Week of {shortDate(x.week_start)}: {STATE_WORD[x.state]}</span>
+              </li>
+            ))}
+          </ol>
+          {p.strip.length > 1 && (
+            <p className="pst-ends" aria-hidden><span>{shortDate(p.strip[0].week_start)}</span><span>This week</span></p>
+          )}
+          <p className="pst-key" aria-hidden>
+            <span><span className="pst-box is-hit"><Check size={10} /></span> Target met</span>
+            <span><span className="pst-box is-miss"><Minus size={10} /></span> Missed</span>
+            {p.strip.some((x) => x.state === "break") && <span><span className="pst-box is-break"><Pause size={9} /></span> Break</span>}
+          </p>
+        </div>
+      </div>
       <p className="mom-note">
         {p.rewarded
           ? `${p.goal} weeks in a row: ${perk.words} were added to your balance.`
           : toGo > 0 ? `${toGo} more ${toGo === 1 ? "week" : "weeks"} in a row at your target and you get ${perk.words}.` : "Keep meeting your target to keep it going."}
-        {p.longest > p.weeks ? ` Your longest so far is ${p.longest} weeks.` : ""}
       </p>
       {p.next && <p className="mom-note">Your new target of {p.next.days} posting {p.next.days === 1 ? "day" : "days"} a week starts {dayOf(p.next.from)}. This week keeps the target it began with.</p>}
       <details className="mom-rules">

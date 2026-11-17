@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addDays, canFinalize, canPlanBreak, localDay, nextTargetStart, postingDaysByWeek, streakOf, targetChangeNeeded, targetForWeek, weekLine, weekStartOf, weeksView,
-  type LedgerWeek, type TargetChange,
-} from "./postingStreak";
+  type LedgerWeek, type TargetChange, weekDayCells } from "./postingStreak";
 
 const TZ = "America/Chicago";
 // Monday 2026-11-16 is the current week in these tests.
@@ -123,3 +122,18 @@ describe("what SIO says about the week", () => {
     for (const d of [0, 1, 2, 3, 4]) expect(weekLine(t(d, 5))).not.toMatch(/behind|only|fail|miss|should|must/i);
   });
 });
+
+describe("this week day by day", () => {
+  it("marks posted days, today, earlier days and days to come", () => {
+    const cells = weekDayCells("2026-11-16", "2026-11-18", ["2026-11-16"]);
+    expect(cells.map((c) => c.date)).toEqual(["2026-11-16", "2026-11-17", "2026-11-18", "2026-11-19", "2026-11-20", "2026-11-21", "2026-11-22"]);
+    expect(cells.map((c) => c.state)).toEqual(["posted", "past", "today", "later", "later", "later", "later"]);
+  });
+  it("a post today shows as posted, not as today", () => {
+    expect(weekDayCells("2026-11-16", "2026-11-16", ["2026-11-16"])[0].state).toBe("posted");
+  });
+  it("crosses a month end", () => {
+    expect(weekDayCells("2026-11-30", "2026-12-02", []).map((c) => c.date)[6]).toBe("2026-12-06");
+  });
+});
+

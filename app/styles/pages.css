@@ -641,9 +641,30 @@
 .mom-sio { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-3); }
 .mom-sio p { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); color: var(--ink); }
 /* This week's posting days: one mark per day of the target, filled as they are posted. */
-.mom-days { list-style: none; margin: 0 0 var(--sp-3); padding: 0; display: flex; gap: var(--sp-2); }
-.mom-days li { width: 18px; height: 18px; border-radius: var(--r-pill); border: 1px solid var(--border-strong); background: var(--surface); }
-.mom-days li.is-on { background: var(--ink); border-color: var(--ink); }
+/* The posting streak card: the count, this week day by day, and the weeks behind it. Each mark has a shape of its
+   own (a tick, a dash, a pause), so no state is told by colour alone. The blocks wrap, so the card works at any width. */
+.pst { display: flex; flex-wrap: wrap; gap: var(--sp-4) var(--sp-8); margin: 0 0 var(--sp-3); padding: var(--sp-4) 0; border-block: 1px solid var(--border); }
+.pst-count { display: flex; flex-direction: column; min-width: 112px; }
+.pst-n { font-size: var(--fs-display); line-height: var(--lh-display); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; color: var(--ink); }
+.pst-of { font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink); }
+.pst-best { margin-top: var(--sp-1); font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+.pst-block { min-width: 0; flex: 0 1 auto; }
+.pst-head { display: flex; justify-content: space-between; gap: var(--sp-4); margin: 0 0 var(--sp-2); font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+.pst-head span:first-child { font-weight: var(--fw-medium); color: var(--ink); }
+.pst-cells { list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 28px); gap: var(--sp-1); }
+.pst-cells li { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); min-width: 0; }
+.pst-box { display: inline-flex; align-items: center; justify-content: center; width: 100%; max-width: 28px; aspect-ratio: 1; border-radius: var(--r-control); border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink-3); }
+.pst-tag { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-3); }
+.pst-cells li.is-posted .pst-box, .pst-cells li.is-hit .pst-box, .pst-box.is-hit { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.pst-cells li.is-today .pst-box, .pst-cells li.is-open .pst-box { border-color: var(--ink); border-width: 2px; }
+.pst-cells li.is-today .pst-tag { color: var(--ink); font-weight: var(--fw-semibold); }
+.pst-cells li.is-later .pst-box { border-style: dashed; border-color: var(--border); }
+.pst-cells li.is-miss .pst-box, .pst-box.is-miss { background: var(--surface-raised); }
+.pst-cells li.is-break .pst-box, .pst-box.is-break { border-style: dashed; }
+.pst-ends { display: flex; justify-content: space-between; margin: var(--sp-1) 0 0; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-3); }
+.pst-key { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-3); margin: var(--sp-2) 0 0; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+.pst-key > span { display: inline-flex; align-items: center; gap: var(--sp-1); }
+.pst-key .pst-box { width: 16px; border-radius: var(--r-chip); }
 .mom-rules { margin-top: var(--sp-3); font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
 .mom-rules summary { cursor: pointer; color: var(--ink); }
 .mom-rules ul { margin: var(--sp-2) 0 0; padding-left: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-1); }
