@@ -6,9 +6,9 @@
 // Only point-in-time totals are recorded (followers, follows, media count).
 // Activity metrics come from Meta's finished daily series in syncInstagram.
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 import { allRows } from "./supabase/allRows";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
 
 const IG_V = "v23.0";
