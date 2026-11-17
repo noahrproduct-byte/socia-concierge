@@ -13,7 +13,7 @@ them with Twitch's Create Clip (`lib/streams/clipFlow.ts`).
      (add `http://localhost:3000/api/auth/twitch/callback` for local testing).
    - Category: Application Integration. Client type: Confidential.
    - Put `TWITCH_CLIENT_ID` and `TWITCH_CLIENT_SECRET` in Vercel (Production) and in the watcher's secrets below.
-2. **Database**: run `supabase/stream-clipper.sql` in the Supabase SQL editor.
+2. **Database**: run `supabase/stream-clipper.sql`, then `supabase/stream-plans.sql`, in the Supabase SQL editor.
 3. **Watcher on Fly.io** (about $5 a month for one small machine):
    ```bash
    fly launch --no-deploy --copy-config --config worker/stream-watcher/fly.toml

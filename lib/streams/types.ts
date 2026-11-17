@@ -7,6 +7,8 @@ export type StreamWatch = {
   status: "watching" | "stopped"; live: boolean | null; streamTitle: string | null;
   messagesSeen: number; lastChatAt: string | null; watcherSeenAt: string | null;
   canDownload: boolean | null; lastError: string | null; startedAt: string; stoppedAt: string | null;
+  /** the plan keeps the clip's video in SOCIA (Growth and up) */
+  keepVideo: boolean;
 };
 
 export type StreamClip = {
