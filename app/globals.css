@@ -623,6 +623,9 @@ section.block > h3 {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink) 12%, transparent);
 }
 .field { position: relative; }
+.codefield input { letter-spacing: 0.22em; font-variant-numeric: tabular-nums; font-size: 18px; }
+.codefield input::placeholder { letter-spacing: 0.22em; }
+.authhelp { margin: 6px 0 14px; font-size: 13px; line-height: 18px; color: var(--ink-2); }
 .field input { width: 100%; padding-left: 50px !important; }
 .field .field-ico {
   position: absolute;

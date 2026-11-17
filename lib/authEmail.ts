@@ -36,6 +36,23 @@ export function sendProblem(e: AuthErr): string | null {
 export const alreadyRegistered = (user: { identities?: unknown[] | null } | null | undefined): boolean =>
   Boolean(user) && Array.isArray(user!.identities) && user!.identities!.length === 0;
 
+/** Digits in the code Supabase emails (its default is 6; a project can set up to 10). */
+export const CODE_MIN = 6;
+export const CODE_MAX = 10;
+
+/** What was typed or pasted, as the code: digits only (spaces, dashes and a pasted "123 456" are fine). */
+export const cleanCode = (raw: string): string => raw.replace(/\D/g, "").slice(0, CODE_MAX);
+export const codeReady = (code: string): boolean => code.length >= CODE_MIN && code.length <= CODE_MAX;
+
+/** What to say when a code was refused, or when it couldn't be checked. */
+export function codeProblem(e: AuthErr): string {
+  const code = e?.code ?? "";
+  const msg = e?.message ?? "";
+  if (code === "over_request_rate_limit" || e?.status === 429) return "Too many tries. Wait a minute, then try again.";
+  if (code === "otp_expired" || /expired/i.test(msg)) return "That code has expired. Send a new one and use the newest email.";
+  return "That code isn't right. Check the newest email, or send a new code.";
+}
+
 /** What the log-in page says for ?error=…, or null. */
 export function linkProblem(code: string | null | undefined): string | null {
   if (code === "link") return "That link has expired or was already used. Log in, or ask for a new link.";
