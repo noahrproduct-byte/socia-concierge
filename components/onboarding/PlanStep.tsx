@@ -1,9 +1,9 @@
 "use client";
 
-// Onboarding's last step: the plans, with the one that fits this brand's
-// strategy marked "Recommended for your goal" and the reasons under it
-// (lib/planRecommend.ts picks the cheapest plan that covers the strategy; it
-// is never "most popular"). Free stays as easy to choose as any other. A paid
+// Onboarding's last step: the plans, with the recommended one marked and the
+// reasons under it (lib/planRecommend.ts: Growth, or a bigger plan when the
+// brand already needs one; the reasons are built from the strategy and the
+// plan's own numbers). Free stays as easy to choose as any other. A paid
 // plan goes to Stripe Checkout and comes back here to finish; nothing is
 // charged or switched on from this screen itself.
 import { useEffect, useState } from "react";
@@ -11,6 +11,7 @@ import { Loader2 } from "lucide-react";
 import type { PlanId } from "@/lib/plans";
 import type { Recommendation } from "@/lib/planRecommend";
 import { LaunchWas } from "@/components/pricing/Launch";
+import SioSays from "@/components/sio/SioSays";
 
 type PlanCard = { id: PlanId; name: string; price: string; priceMonthly: number; tagline: string; credits: number; buys: string; competitors: number; workspaces: number };
 type Data = { currentPlan: PlanId; checkout: boolean; assumed: number | null; recommendation: Recommendation; plans: PlanCard[] };
@@ -44,10 +45,10 @@ export default function PlanStep({ headRef, onFree, busy, notice }: { headRef: R
   const paying = d && d.currentPlan !== "free";
   return (
     <>
-      <div className="ob-head">
-        <h1 ref={headRef} tabIndex={-1}>{paying ? "You're ready" : d && d.assumed != null ? "Choose how to start" : "Your strategy is ready. Let's put it to work."}</h1>
-        <p>{paying ? "Your plan is already active, so there is nothing to choose here." : "Choose the tools and room you need to follow your plan. You can change plans at any time."}</p>
-      </div>
+      <SioSays expression={paying ? "happy" : "neutral"} headRef={headRef}
+        title={paying ? "You're ready" : d && d.assumed != null ? "Choose how to start" : "I've put together your strategy. Now let's choose the tools that fit it."}>
+        {paying ? "Your plan is already active, so there is nothing to choose here." : "Choose the tools and room you need to follow your plan. You can change plans at any time."}
+      </SioSays>
       {notice && <p className="obp-notice" role="status">{notice}</p>}
       {failed && <p className="ob-err" role="alert">The plans couldn&apos;t be loaded. You can open SOCIA on Free and choose a plan later from Settings.</p>}
       {!d && !failed && <p className="obp-wait" role="status"><Loader2 size={16} className="spin" aria-hidden /> Working out which plan fits your strategy.</p>}
@@ -68,7 +69,7 @@ export default function PlanStep({ headRef, onFree, busy, notice }: { headRef: R
               const disabled = busy || going !== null || (p.id !== "free" && !d.checkout);
               return (
                 <li key={p.id} className={rec ? "is-rec" : undefined}>
-                  {rec && <span className="obp-badge">{d.assumed != null ? `Recommended for ${d.assumed} posts a week` : "Recommended for your goal"}</span>}
+                  {rec && <span className="obp-badge">Recommended</span>}
                   <div className="obp-top">
                     <b>{p.name}</b>
                     <span className="obp-price">

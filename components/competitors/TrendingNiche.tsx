@@ -16,7 +16,7 @@ import { Check, Clapperboard, Copy, ExternalLink, Lock, Plus, TrendingUp, Users 
 import { useRouter } from "next/navigation";
 import { handFiles } from "@/lib/studioClips/handoff";
 import type { CompetitorRow, CompPost } from "@/lib/competitorIntel";
-import { PROVEN_AT, PROVEN_VIEWS, TREND_WINDOW_DAYS, refResult } from "@/lib/trendSignals";
+import { TREND_WINDOW_DAYS, VIRAL_MIN_VIEWS, refResult } from "@/lib/trendSignals";
 import type { CompetitorsData, ProvenReel } from "./types";
 import { fmtN } from "./shared";
 
@@ -212,6 +212,7 @@ function brief(r: ProvenReel): string {
     r.line ? `It opens: "${r.line}"` : r.title ? `What it is: ${r.title}` : null,
     refResult(r) ? `How it did: ${refResult(r)}${r.multiplier != null ? ` (median ${r.basis})` : ""}` : null,
     ...does(r).slice(0, 2),
+    r.make ? `How to make mine: ${r.make}` : null,
     "My version: the same format, hook structure and angle, with my own subject, footage and words. Never their wording.",
     `Original: ${r.url}`,
   ];
@@ -228,6 +229,9 @@ export type ReelsToCopyInput = Pick<CompetitorsData, "nicheAccess" | "nicheUpgra
   ig: { enabled: boolean };
   /** A few Reels from the niche, shown under the competitors' (Discover). */
   nicheReels?: ProvenReel[];
+  /** Viral Reels made the way the brand's own are, any topic (Discover), and that style in words ("Animated"). */
+  styleReels?: ProvenReel[];
+  ownStyle?: string | null;
 };
 
 /** Shown before "Show more Reels": the competitors' stay the most. */
@@ -240,11 +244,12 @@ export function ReelsToCopy({ d }: { d: ReelsToCopyInput }) {
   const [more, setMore] = useState(false);
   if (!d.nicheAccess) return <Locked what="Reels you can copy from your competitors" upgrade={d.nicheUpgrade} />;
   const now = new Date(d.now);
-  const proven = d.reelsToCopy.filter((r) => r.proven).length;
   const niche = d.nicheReels ?? [];
   const comp = more ? d.reelsToCopy : d.reelsToCopy.slice(0, FIRST_COMPETITOR);
   const nich = more ? niche : niche.slice(0, FIRST_NICHE);
-  const hidden = d.reelsToCopy.length - comp.length + niche.length - nich.length;
+  const style = d.styleReels ?? [];
+  const sty = more ? style : style.slice(0, FIRST_NICHE);
+  const hidden = d.reelsToCopy.length - comp.length + niche.length - nich.length + style.length - sty.length;
 
   const copy = async (r: ProvenReel) => {
     const text = brief(r);
@@ -289,7 +294,7 @@ export function ReelsToCopy({ d }: { d: ReelsToCopyInput }) {
         <ul className="cx5-does" aria-label="What it does">
           {does(r).map((x) => <li key={x}>{x}</li>)}
         </ul>
-        <p className="cx5-make"><b>Make yours:</b> {recipe(r)}</p>
+        <p className="cx5-make"><b>Make yours:</b> {r.make ?? recipe(r)}</p>
         <div className="cx3-actions">
           <button type="button" className="ov-btn primary small" onClick={() => makeLike(r)} title={r.refToken ? "Opens the video editor with this Reel as the reference and a brief written from it; you add your clips." : "Opens the video editor with a brief written from this Reel; you add your clips."}>
             <Clapperboard size={13} /> Make a video like this
@@ -320,16 +325,15 @@ export function ReelsToCopy({ d }: { d: ReelsToCopyInput }) {
       {d.reelsToCopy.length === 0 ? (
         <p className="cx3-empty">
           {d.ig.enabled || d.ytConfigured
-            ? "No Reels from your competitors yet. Track a few accounts above, or wait for SOCIA to finish reading them."
+            ? d.reelsRead.reels > 0
+              ? `None of your competitors' Reels from the last ${TREND_WINDOW_DAYS} days went past ${fmtN(VIRAL_MIN_VIEWS)} views. Only viral Reels show here.`
+              : "No Reels from your competitors yet. Track a few accounts above, or wait for SOCIA to finish reading them."
             : "Link a Facebook Page to your Instagram to see your competitors' Reels."}
         </p>
       ) : (
         <>
           <p className="cx5-lead">
-            {proven > 0
-              ? `${proven === 1 ? "One Reel took off for one of your competitors" : `These ${proven} Reels took off for your competitors`}: ${PROVEN_AT}× their own usual or more, or past ${fmtN(PROVEN_VIEWS)} views. Make your own version${proven === 1 ? "" : " of one"}. Your Content Plans and video ideas build on ${proven === 1 ? "it" : "them"} too.`
-              : `None of the recent Reels SOCIA read beat their creator's usual by ${PROVEN_AT}× yet. These are the best of the last ${TREND_WINDOW_DAYS} days.`}
-            {proven > 0 && proven < d.reelsToCopy.length ? " The others are the best of the rest SOCIA read." : ""}
+            Your competitors&apos; Reels that went past {fmtN(VIRAL_MIN_VIEWS)} views in the last {TREND_WINDOW_DAYS} days and that you could make your own version of. Your Content Plans and video ideas build on them too.
           </p>
           <div className="cx3-grid cx5-grid">{comp.map(card)}</div>
         </>
@@ -337,8 +341,15 @@ export function ReelsToCopy({ d }: { d: ReelsToCopyInput }) {
       {nich.length > 0 && (
         <>
           <h3 className="cx5-sub">From your niche</h3>
-          <p className="cx5-lead">Accounts like yours that you don&apos;t track yet, from SOCIA&apos;s suggestions and niche research.</p>
+          <p className="cx5-lead">Reels past {fmtN(VIRAL_MIN_VIEWS)} views from accounts like yours that you don&apos;t track yet.</p>
           <div className="cx3-grid cx5-grid">{nich.map(card)}</div>
+        </>
+      )}
+      {sty.length > 0 && (
+        <>
+          <h3 className="cx5-sub">{d.ownStyle ? `Viral ${d.ownStyle.toLowerCase()} Reels to copy` : "Viral Reels to copy"}</h3>
+          <p className="cx5-lead">Reels past {fmtN(VIRAL_MIN_VIEWS)} views from the accounts you copy, the ones SOCIA found like them, and others made the way your videos are. Any topic: the ones that reached furthest past their followers come first. Copy the style, not the subject.</p>
+          <div className="cx3-grid cx5-grid">{sty.map(card)}</div>
         </>
       )}
       {(hidden > 0 || more) && (

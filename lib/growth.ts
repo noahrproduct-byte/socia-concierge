@@ -11,6 +11,7 @@
 //   - goals: the growth_goals table, because they need progress math.
 
 import type { Understanding } from "./intel/understanding";
+import { normalizeRoutine, routineLines, type Routine } from "./routine";
 
 export type AccountType = "business" | "creator" | "personal_brand" | "organization";
 
@@ -105,11 +106,39 @@ export const MAIN_GOALS = [
 ] as const;
 export type MainGoalId = (typeof MAIN_GOALS)[number]["id"];
 
+/**
+ * How the "customers do something" goal reads for a brand (Noah, 2026-11-16:
+ * an app wants users, a restaurant wants bookings or orders). The goal's id
+ * stays "bookings_orders"; its words and the number it counts follow what the
+ * brand's customers do (lib/goalWording.ts picks which).
+ */
+export const CUSTOMER_GOALS = [
+  { id: "bookings_orders", label: "Increase bookings or orders", metric: "bookings" },
+  { id: "users", label: "Get more users or sign-ups", metric: "signups" },
+  { id: "sales", label: "Increase sales", metric: "sales" },
+  { id: "clients", label: "Get more clients or enquiries", metric: "leads" },
+] as const;
+export type CustomerGoalId = (typeof CUSTOMER_GOALS)[number]["id"];
+
+/** The goals to offer a brand, with the customer goal worded for it. */
+export function mainGoalsFor(customer: CustomerGoalId | null | undefined): { id: MainGoalId; label: string; metric: GoalMetricId }[] {
+  const c = CUSTOMER_GOALS.find((x) => x.id === customer) ?? CUSTOMER_GOALS[0];
+  return MAIN_GOALS.map((m) => (m.id === "bookings_orders" ? { id: m.id, label: c.label, metric: c.metric } : { ...m }));
+}
+
+/** A goal's label for this brand, or null for an unknown id. */
+export const mainGoalLabel = (id: string | null | undefined, g: Pick<GrowthProfile, "customer_goal"> | null | undefined): string | null =>
+  mainGoalsFor(g?.customer_goal).find((m) => m.id === id)?.label ?? null;
+
 export type GrowthProfile = {
   account_type?: AccountType;
   main_goal?: MainGoalId;
   /** Further goals chosen beside the main one, in the order picked. */
   other_goals?: MainGoalId[];
+  /** How the customer goal is worded for this brand (see CUSTOMER_GOALS). */
+  customer_goal?: CustomerGoalId;
+  /** The Creator Routine SIO asks about (lib/routine.ts): posting days, filming days, style, formats, publishing days. */
+  routine?: Routine;
   /** What SOCIA inferred from the connected accounts (lib/intel/understanding.ts); confirmed fields above win. */
   understanding?: Understanding;
   /** What the account is about, in the person's words (narrower than the niche category). */
@@ -167,6 +196,8 @@ export function normalizeGrowth(input: unknown): GrowthProfile {
       account_type: oneOf(i.account_type, ACCOUNT_TYPES),
       main_goal: oneOf(i.main_goal, MAIN_GOALS),
       other_goals: manyOf(i.other_goals, MAIN_GOALS)?.filter((g) => g !== i.main_goal),
+      customer_goal: oneOf(i.customer_goal, CUSTOMER_GOALS),
+      routine: normalizeRoutine(i.routine),
       focus: str(i.focus, 120),
       niche_path: compact({ subcategory: str(obj(i.niche_path).subcategory, 60), specific: str(obj(i.niche_path).specific, 80) }),
       business: compact({ offer: str(b.offer), customer_action: oneOf(b.customer_action, CUSTOMER_ACTIONS), service_area: oneOf(b.service_area, REACH_SCOPES) }),
@@ -205,8 +236,8 @@ export function growthLines(g: GrowthProfile | null | undefined): string[] {
   if (!g) return [];
   const lines: (string | null)[] = [
     g.account_type ? `Account type: ${labelOf(ACCOUNT_TYPES, g.account_type)}` : null,
-    g.main_goal ? `Main goal: ${labelOf(MAIN_GOALS, g.main_goal)}` : null,
-    g.other_goals?.length ? `Other goals: ${g.other_goals.map((x) => labelOf(MAIN_GOALS, x)).join(", ")}` : null,
+    g.main_goal ? `Main goal: ${mainGoalLabel(g.main_goal, g)}` : null,
+    g.other_goals?.length ? `Other goals: ${g.other_goals.map((x) => mainGoalLabel(x, g)).join(", ")}` : null,
     g.niche_path?.subcategory || g.niche_path?.specific ? `Niche in detail: ${[g.niche_path.subcategory, g.niche_path.specific].filter(Boolean).join(" > ")}` : null,
     g.focus ? `What the account is about: ${g.focus}` : null,
     g.business?.offer ? `What they sell or offer: ${g.business.offer}` : null,
@@ -225,6 +256,7 @@ export function growthLines(g: GrowthProfile | null | undefined): string[] {
     g.resources?.makers ? `Who makes the content: ${labelOf(MAKERS, g.resources.makers)}` : null,
     g.resources?.video_maker ? `Who makes the videos: ${labelOf(VIDEO_MAKERS, g.resources.video_maker)}` : null,
     g.resources?.claude_styles?.length ? `Videos their Claude may make: ${g.resources.claude_styles.map((s) => labelOf(CLAUDE_STYLES, s)).join(", ")}` : null,
+    ...routineLines(g.routine),
   ];
   return lines.filter((l): l is string => Boolean(l));
 }
@@ -242,6 +274,7 @@ export type GoalMetricId =
   | "customers"
   | "leads"
   | "bookings"
+  | "signups"
   | "sales"
   | "website_visits";
 
@@ -264,6 +297,7 @@ export const GOAL_METRICS: GoalMetric[] = [
   { id: "customers", label: "New customers from social", unit: "count", measuredOn: [], note: "SOCIA can't see who walked in. You update the number." },
   { id: "leads", label: "Leads or enquiries", unit: "count", measuredOn: [], note: "SOCIA can't see these. You update the number." },
   { id: "bookings", label: "Bookings", unit: "count", measuredOn: [], note: "SOCIA can't see these. You update the number." },
+  { id: "signups", label: "Sign-ups or users", unit: "count", measuredOn: [], note: "SOCIA can't see these. You update the number." },
   { id: "sales", label: "Sales", unit: "count", measuredOn: [], note: "SOCIA can't see these. You update the number." },
   { id: "website_visits", label: "Website visits from social", unit: "count", measuredOn: [], note: "SOCIA can't see these. You update the number." },
 ];

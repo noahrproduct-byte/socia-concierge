@@ -1,0 +1,150 @@
+/* SIO, SOCIA's assistant character (components/sio/Sio.tsx). The character's
+   own colours are fixed: it is the same object on a light or a dark page. The
+   idle motion here (float, blink, the scan while a real job runs) is the
+   recorded exception in the anti-slop standard, section 18.1: small, on the
+   character only, and off with reduced motion or `still`. */
+.sio {
+  --sio-eye: #d9f1ff;
+  --sio-halo: #2f7bff;
+  --sio-shade: #1b2440;
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  flex: none;
+  width: var(--sio-size);
+  line-height: 0;
+  user-select: none;
+}
+.sio-float { position: relative; display: block; width: 100%; aspect-ratio: 950 / 769; animation: sio-float 5.6s ease-in-out infinite; }
+.sio-pose { position: relative; display: block; width: 100%; height: 100%; transform-origin: 50% 70%; transition: transform var(--t-panel) ease; }
+.sio-shell { display: block; width: 100%; height: 100%; }
+.sio-face { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+
+.sio-core { fill: var(--sio-eye); stroke: var(--sio-eye); stroke-linejoin: round; }
+.sio-halo { fill: var(--sio-halo); stroke: var(--sio-halo); stroke-linejoin: round; opacity: 0.7; }
+.sio-core rect, .sio-core ellipse, .sio-halo rect, .sio-halo ellipse { stroke: none; }
+.sio-cheeks { fill: var(--sio-halo); opacity: 0.75; }
+
+/* Eyes close and open about their own middle: the blink, and the change of expression. */
+.sio-eye { transform-box: fill-box; transform-origin: center; transition: transform 140ms ease-out; animation: sio-blink 7.4s linear infinite; }
+.sio.is-swap .sio-eye { transform: scaleY(0.08); transition-duration: 90ms; animation: none; }
+.sio-mouth { transition: opacity 140ms ease-out; }
+.sio.is-swap .sio-mouth { opacity: 0; transition-duration: 90ms; }
+/* Smiling eyes are already closed arcs, and the analysing bars are not eyelids: neither blinks. */
+.sio[data-expr="happy"] .sio-eye, .sio[data-expr="celebrating"] .sio-eye, .sio[data-expr="analyzing"] .sio-eye { animation: none; }
+
+/* How SIO holds its head for each state. */
+.sio[data-expr="thinking"] .sio-pose { transform: rotate(-4deg); }
+.sio[data-expr="listening"] .sio-pose { transform: scale(1.03) translateY(1%); }
+.sio[data-expr="concerned"] .sio-pose { transform: rotate(2.5deg) translateY(1.5%); }
+.sio[data-expr="celebrating"] .sio-pose { animation: sio-hop 620ms ease-out 1; }
+
+/* Speaking: a small nod as each sentence starts. Two names for one motion, so the next nod restarts it. */
+.sio[data-nod="a"] .sio-pose { animation: sio-nod-a 320ms ease-out 1; }
+.sio[data-nod="b"] .sio-pose { animation: sio-nod-b 320ms ease-out 1; }
+
+/* A real job is running: one soft line passes down the glass. */
+.sio-scan { fill: var(--sio-halo); opacity: 0.32; animation: sio-scan 2.4s ease-in-out infinite; }
+
+.sio-shadow { display: block; width: 100%; aspect-ratio: 5 / 1; margin-top: -2%; }
+.sio-shadow ellipse { fill: var(--sio-shade); opacity: 0.22; transform-box: fill-box; transform-origin: center; animation: sio-shadow 5.6s ease-in-out infinite; }
+
+.sio.is-small .sio-halo { display: none; }
+.sio.is-small .sio-float, .sio.is-small .sio-eye { animation: none; }
+
+.sio.is-still .sio-float, .sio.is-still .sio-eye, .sio.is-still .sio-scan, .sio.is-still .sio-shadow ellipse, .sio.is-still .sio-pose, .sio.is-still[data-nod] .sio-pose { animation: none; }
+.sio.is-still .sio-scan { opacity: 0; }
+
+/* SIO in the corner of the app (components/sio/SioCorner.tsx): the Ask SOCIA bubble's face, and a small card above it when SIO has a question. */
+.sio-bubble { overflow: hidden; }
+.sio-corner {
+  position: fixed;
+  right: 20px;
+  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  z-index: 60;
+  width: min(380px, calc(100vw - 32px));
+  max-height: min(72vh, 640px);
+  overflow-y: auto;
+  padding: var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(var(--shadow-rgb), 0.22);
+  animation: ob-stagein var(--t-panel) ease;
+}
+.sio-corner.is-asking { width: min(440px, calc(100vw - 32px)); }
+.sio-corner-x { position: absolute; top: var(--sp-2); right: var(--sp-2); display: inline-flex; padding: var(--sp-1); border: 0; border-radius: var(--r-control); background: none; color: var(--ink-3); cursor: pointer; }
+.sio-corner-x:hover { color: var(--ink); }
+.sio-corner-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.sio-corner-never { display: inline-block; margin-top: var(--sp-3); font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-3); }
+.sio-corner .sio-says { padding-right: var(--sp-5); }
+/* The buttons stay in reach while a long question scrolls inside the card. */
+.sio-corner .ob-actions { position: sticky; bottom: calc(var(--sp-4) * -1); margin: var(--sp-3) calc(var(--sp-4) * -1) calc(var(--sp-4) * -1); padding: var(--sp-3) var(--sp-4); border-top: 1px solid var(--border); background: var(--surface); }
+.sio-corner .ob-fields { gap: var(--sp-3); }
+.sio-corner .gp-choice { padding: var(--sp-2) var(--sp-3); }
+.sio-corner .gp-choice-grid.cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.sio-corner .gp-choice-grid.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.sio-corner .obr-count { margin: 0 0 var(--sp-3); }
+/* Phones have no corner bubble (the headbar's button opens Ask SOCIA): SIO's card sits above the tab bar. */
+@media (max-width: 900px) {
+  .sio-corner { left: 16px; right: 16px; width: auto; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); max-height: 66vh; }
+  .sio-corner.is-asking { width: auto; }
+  .sio-corner .gp-choice-grid.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) { .sio-corner { animation: none; } }
+@media print { .sio-corner { display: none; } }
+
+/* SIO's words arrive one at a time (components/sio/SioWords.tsx): every word holds its place from the start, so nothing moves as they appear. */
+.sio-word { opacity: 0; transition: opacity 110ms ease-out; }
+.sio-word.is-out { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .sio-word { opacity: 1; transition: none; } }
+
+/* SIO beside a heading (components/sio/SioSays.tsx). */
+.sio-says { display: flex; align-items: center; gap: var(--sp-4); margin-bottom: var(--sp-5); }
+.sio-says-text { min-width: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
+.sio-says-text h1 { margin: 0; font-size: var(--fs-display); line-height: var(--lh-display); font-weight: var(--fw-semibold); letter-spacing: var(--tr-display); color: var(--ink); outline: none; text-wrap: balance; }
+.sio-says-sub { margin: 0; max-width: 56ch; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink-2); }
+.sio-says-ack { margin: 0; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+.sio-says.is-large { flex-direction: column; align-items: flex-start; gap: var(--sp-3); }
+.sio-says.is-compact { align-items: flex-start; gap: var(--sp-3); margin-bottom: var(--sp-3); }
+.sio-says.is-compact .sio-says-text { gap: var(--sp-1); }
+.sio-says-line { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); color: var(--ink); }
+.sio-says.is-compact .sio-says-sub { font-size: var(--fs-meta); line-height: var(--lh-meta); }
+@media (max-width: 560px) {
+  .sio-says { align-items: flex-start; gap: var(--sp-3); }
+  .sio-says:not(.is-compact) > .sio { --sio-size: 84px !important; }
+  .sio-says.is-large > .sio { --sio-size: 148px !important; }
+}
+
+@keyframes sio-float {
+  0%, 100% { transform: translateY(0) rotate(-0.5deg); }
+  50% { transform: translateY(-2.2%) rotate(0.5deg); }
+}
+@keyframes sio-shadow {
+  0%, 100% { transform: scaleX(1); opacity: 0.22; }
+  50% { transform: scaleX(0.9); opacity: 0.16; }
+}
+/* Two blinks at uneven spacing, one of them double, in a cycle long enough not to read as a rhythm. */
+@keyframes sio-blink {
+  0%, 38%, 41.4%, 71%, 73.4%, 75%, 77.4%, 100% { transform: scaleY(1); }
+  39.7%, 72.2%, 76.2% { transform: scaleY(0.08); }
+}
+@keyframes sio-scan {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(360px); }
+}
+@keyframes sio-nod-a { 0%, 100% { transform: translateY(0) rotate(0); } 40% { transform: translateY(1.6%) rotate(1.2deg); } }
+@keyframes sio-nod-b { 0%, 100% { transform: translateY(0) rotate(0); } 40% { transform: translateY(1.6%) rotate(1.2deg); } }
+@keyframes sio-hop {
+  0% { transform: translateY(0) scale(1); }
+  35% { transform: translateY(-7%) scale(1.03); }
+  70% { transform: translateY(0.8%) scale(0.995); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sio-float, .sio-eye, .sio-scan, .sio-shadow ellipse, .sio[data-expr="celebrating"] .sio-pose, .sio[data-nod] .sio-pose { animation: none; }
+  .sio-eye, .sio-mouth, .sio-pose { transition: none; }
+  .sio-scan { opacity: 0; }
+}

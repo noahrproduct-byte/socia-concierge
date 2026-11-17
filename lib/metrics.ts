@@ -127,3 +127,15 @@ export const isChartableDay = (
   row: { day: string; source: string | null },
   today: string,
 ): boolean => row.source === DAILY_SERIES_SOURCE && row.day < today;
+
+/**
+ * A rate in percent for display. Small rates keep two significant figures, so a
+ * real 0.03% (5 likes on 23K followers) never reads as "0.0%", which looks like
+ * missing data. Exactly 0 shows as "0%".
+ */
+export function fmtRate(pct: number): string {
+  if (pct === 0) return "0%";
+  if (pct >= 10) return `${Math.round(pct)}%`;
+  if (pct >= 1) return `${pct.toFixed(1).replace(/\.0$/, "")}%`;
+  return `${Number(pct.toPrecision(2))}%`;
+}

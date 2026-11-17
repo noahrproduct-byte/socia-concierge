@@ -10,7 +10,8 @@ import type { BrandDetail } from "@/lib/profile";
 import { anthropic, FAST_MODEL, effortFor } from "@/lib/anthropic";
 import { recordAiUsage } from "@/lib/aiUsage";
 import { coverImage } from "@/lib/nicheScan/study";
-import { accountStyle, isStyle, sanitizeMemory, STYLES, STYLE_MEANS, type AccountStyle, type Style, type StyleMemory } from "./discoverStyle";
+import { brandKind, fitRules } from "./discoverRules";
+import { accountStyle, isStyle, sanitizeMemory, STYLES, STYLE_MEANS, FIT_VERDICTS, type AccountStyle, type FitVerdict, type Style, type StyleMemory } from "./discoverStyle";
 
 /** Covers sent in one model call. */
 const PER_CALL = 20;
@@ -104,7 +105,7 @@ export async function styleAccounts(ownerId: string, accounts: { key: string; th
 // ---------------------------------------------------------------- niche fit ----
 
 export type FitCandidate = { key: string; handle: string; name: string | null; bio: string | null; captions: string[] };
-export type BrandForFit = { name: string | null; niche: string | null; description: string | null };
+export type BrandForFit = { name: string | null; niche: string | null; description: string | null; accountType?: string | null; offer?: string | null };
 
 const FIT_PER_CALL = 12;
 const fitSchema = {
@@ -114,17 +115,18 @@ const fitSchema = {
       type: "array",
       items: {
         type: "object", additionalProperties: false,
-        properties: { id: { type: "string" }, fits: { type: "boolean" } },
-        required: ["id", "fits"],
+        properties: { id: { type: "string" }, verdict: { type: "string", enum: ["competitor", "niche", "off"] } },
+        required: ["id", "verdict"],
       },
     },
   },
   required: ["accounts"],
 } as const;
 
-const FIT_SYSTEM = `You decide whether other Instagram accounts are worth a business studying as competitors or examples.
-An account fits when it is in the same niche as the business, or makes content for the same audience (for example, for a social media app: other social media tools, creator coaches and marketing accounts).
-An account does NOT fit when only its video style is similar but its subject is unrelated (sports, celebrities, news, comedy about something else).
+const FIT_SYSTEM = `You sort other Instagram accounts for a business or creator, using the rules you are given:
+- "competitor": a direct competitor, as the rules define it.
+- "niche": not a competitor, but its videos are about the same subject or show the same kind of products in action, so its Reels are worth copying.
+- "off": neither. An account whose video style is similar but whose subject is unrelated (sports, celebrities, news, comedy about something else) is always off.
 Judge only from the bio and captions given. Return every id you were given.`;
 
 /**
@@ -132,9 +134,14 @@ Judge only from the bio and captions given. Return every id you were given.`;
  * its bio and recent captions (fast model, text only). Accounts left out of the
  * answer, or a failed call, give no verdict (asked again on the next read).
  */
-export async function judgeFit(ownerId: string, brand: BrandForFit, accounts: FitCandidate[]): Promise<Map<string, boolean>> {
-  const out = new Map<string, boolean>();
-  const about = [brand.name ? `Business: ${brand.name}` : null, brand.niche ? `Niche: ${brand.niche}` : null, brand.description ? `What it does: ${brand.description.slice(0, 400)}` : null].filter(Boolean).join("\n");
+export async function judgeFit(ownerId: string, brand: BrandForFit, accounts: FitCandidate[]): Promise<Map<string, FitVerdict>> {
+  const out = new Map<string, FitVerdict>();
+  const kind = brandKind({ accountType: brand.accountType ?? null, name: brand.name, niche: brand.niche, about: [brand.description, brand.offer] });
+  const about = [
+    brand.name ? `Account: ${brand.name}` : null, brand.niche ? `Niche: ${brand.niche}` : null,
+    brand.offer ? `What it offers: ${brand.offer.slice(0, 200)}` : null, brand.description ? `What it does: ${brand.description.slice(0, 400)}` : null,
+    fitRules(kind),
+  ].filter(Boolean).join("\n");
   if (!about) return out;
   for (let i = 0; i < accounts.length; i += FIT_PER_CALL) {
     const batch = accounts.slice(i, i + FIT_PER_CALL);
@@ -150,13 +157,82 @@ export async function judgeFit(ownerId: string, brand: BrandForFit, accounts: Fi
         messages: [{ role: "user", content: `${about}\n\nAccounts:\n${list}` }],
       } as never)) as unknown as { content: { type: string; text?: string }[] };
       recordAiUsage(ownerId, "discover_styles", res);
-      const parsed = JSON.parse(res.content.find((b) => b.type === "text")?.text ?? "{}") as { accounts?: { id?: unknown; fits?: unknown }[] };
+      const parsed = JSON.parse(res.content.find((b) => b.type === "text")?.text ?? "{}") as { accounts?: { id?: unknown; verdict?: unknown }[] };
       for (const r of parsed.accounts ?? []) {
         const j = Number(r.id);
-        if (Number.isInteger(j) && batch[j] && typeof r.fits === "boolean") out.set(batch[j].key, r.fits);
+        if (Number.isInteger(j) && batch[j] && FIT_VERDICTS.includes(r.verdict as FitVerdict)) out.set(batch[j].key, r.verdict as FitVerdict);
       }
     } catch (e) {
       console.error("[discover] niche fit could not be judged:", (e as Error)?.message ?? e);
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- reel check ----
+
+export type ReelCandidate = { key: string; account: string; caption: string | null; thumb: string | null };
+
+const REELS_PER_CALL = 12;
+const reelSchema = {
+  type: "object", additionalProperties: false,
+  properties: {
+    reels: {
+      type: "array",
+      items: {
+        type: "object", additionalProperties: false,
+        properties: { id: { type: "string" }, copyable: { type: "boolean" }, make: { type: "string" } },
+        required: ["id", "copyable", "make"],
+      },
+    },
+  },
+  required: ["reels"],
+} as const;
+
+const REEL_SYSTEM = `You look at Reels from other Instagram accounts and decide which ones a brand could make its own version of.
+A Reel is copyable when the brand could remake it about its own product or subject:
+- it shows a product like the brand's in use, explains a feature, or gives a tip in the brand's space; or
+- it is made in the brand's own video style (for an animated brand: motion graphics, animated explainers, kinetic text), so the brand can swap in its own product and theme.
+It must also look modern and well made: current editing, clean design, sharp picture. A dated, cheap-looking or low-effort Reel is NOT copyable, however relevant.
+A Reel is NOT copyable when it is a showcase of what someone else's product produced (for example AI-made ads for perfume or lipstick from an AI ad tool), an event or brand-collaboration promo, a holiday or greeting post, personal life, or anything the brand could not remake about itself.
+For each copyable Reel, write "make": ONE sentence, under 25 words, telling the brand what to copy and how its version would go, naming its own product. Plain words, no dashes. For a Reel that is not copyable, "make" is "".
+Judge from the cover image and the caption. Return every id you were given.`;
+
+/** Each Reel's verdict, by key. Reels left out of the answer, or a failed call, get none (asked again next read). */
+export async function judgeReels(ownerId: string, brand: BrandForFit & { style?: string | null }, reels: ReelCandidate[]): Promise<Map<string, { ok: boolean; make: string | null }>> {
+  const out = new Map<string, { ok: boolean; make: string | null }>();
+  const about = [
+    brand.name ? `Brand: ${brand.name}` : null, brand.niche ? `Niche: ${brand.niche}` : null,
+    brand.offer ? `What it offers: ${brand.offer.slice(0, 200)}` : null, brand.description ? `What it does: ${brand.description.slice(0, 400)}` : null,
+    brand.style ? `Its own videos are mostly: ${brand.style}` : null,
+  ].filter(Boolean).join("\n");
+  if (!about) return out;
+  for (let i = 0; i < reels.length; i += REELS_PER_CALL) {
+    const batch = reels.slice(i, i + REELS_PER_CALL);
+    const images = await Promise.all(batch.map((r) => coverImage(r.thumb)));
+    type Block = { type: "text"; text: string } | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
+    const content: Block[] = [{ type: "text", text: `${about}\n\nThe Reels:` }];
+    batch.forEach((r, j) => {
+      content.push({ type: "text", text: `[${j}] by @${r.account}. Caption: ${(r.caption ?? "none").replace(/\s+/g, " ").slice(0, 300)}` });
+      const img = images[j];
+      if (img) content.push({ type: "image", source: { type: "base64", media_type: img.media_type, data: img.data } });
+    });
+    try {
+      const res = (await anthropic.messages.create({
+        model: FAST_MODEL, max_tokens: 2000, system: REEL_SYSTEM,
+        output_config: { format: { type: "json_schema", schema: reelSchema }, ...effortFor(FAST_MODEL, "low") },
+        messages: [{ role: "user", content }],
+      } as never)) as unknown as { content: { type: string; text?: string }[] };
+      recordAiUsage(ownerId, "discover_styles", res);
+      const parsed = JSON.parse(res.content.find((b) => b.type === "text")?.text ?? "{}") as { reels?: { id?: unknown; copyable?: unknown; make?: unknown }[] };
+      for (const r of parsed.reels ?? []) {
+        const j = Number(r.id);
+        if (!Number.isInteger(j) || !batch[j] || typeof r.copyable !== "boolean") continue;
+        const make = r.copyable && typeof r.make === "string" && r.make.trim() ? r.make.trim().replace(/\s*[—–]\s*/g, ", ").slice(0, 240) : null;
+        out.set(batch[j].key, { ok: r.copyable, make });
+      }
+    } catch (e) {
+      console.error("[discover] reels could not be judged:", (e as Error)?.message ?? e);
     }
   }
   return out;

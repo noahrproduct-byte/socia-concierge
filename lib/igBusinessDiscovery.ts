@@ -176,7 +176,7 @@ export async function businessDiscovery(
 /** Derived, transparent metrics — computed only from values Meta returned.
  *  Engagement rate here is (likes + comments) / followers, the same
  *  definition SOCIA uses for the user's own account, so the two compare. */
-export function discoveryStats(a: IgDiscoveryAccount): {
+export function discoveryStats(a: Pick<IgDiscoveryAccount, "followers"> & { media: { timestamp: string | null; likes: number | null; comments: number | null }[] }): {
   postsPerWeek: number | null;
   medianEngagement: number | null;
   engagementRate: number | null;
@@ -187,7 +187,8 @@ export function discoveryStats(a: IgDiscoveryAccount): {
     .filter((t) => Number.isFinite(t))
     .sort((x, y) => x - y);
   const spanDays = times.length >= 2 ? (times[times.length - 1] - times[0]) / 86400000 : null;
-  const postsPerWeek = spanDays && spanDays >= 1 ? (times.length / spanDays) * 7 : null;
+  // n posts span n - 1 gaps: 12 posts a day apart cover 11 days, so 7 a week, not 7.6.
+  const postsPerWeek = spanDays && spanDays >= 1 ? ((times.length - 1) / spanDays) * 7 : null;
 
   // Posts with hidden likes are left out: counting them as 0 likes would pull
   // the median down toward comment counts.

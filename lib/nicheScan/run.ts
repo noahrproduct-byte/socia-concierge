@@ -25,7 +25,7 @@ import {
   NICHE_SCAN_KIND, SCAN_SIZES, initialState, mergeReels, nextBatch, pickReels, progressView, readState, stepFits,
   type ScanAccount, type ScanProgress, type ScanSize, type ScanState, type ScanStatus,
 } from "./plan";
-import { buildPlaybook, isFresh, patternCount, playbookInsights, playbookKey, playbookPrompt, readPlaybook, type Playbook, type WatchedReel } from "./playbook";
+import { buildPlaybook, patternCount, standsFor, playbookInsights, playbookKey, playbookPrompt, readPlaybook, type Playbook, type WatchedReel } from "./playbook";
 import { studyBatch, writeTemplates } from "./study";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -84,6 +84,14 @@ function kick(jobId: string): void {
  * is fresh (a manual start ignores freshness). Never throws: a brand without
  * the jobs table, or without a service key, just doesn't get one.
  */
+/** The brand's niche as saved now: the workspace's, or the default brand's from its profile. */
+async function nicheNow(ctx: Ctx): Promise<string | null> {
+  const ws = brandWorkspace(ctx);
+  if (ws) return ws.niche ?? null;
+  const { data } = await ctx.client.from("profiles").select("niche").eq("user_id", ctx.ownerId).maybeSingle();
+  return ((data as { niche?: string | null } | null)?.niche ?? null) || null;
+}
+
 export async function startNicheScan(ctx: Ctx, trigger: "onboarding" | "manual" | "cron", opts: { force?: boolean; now?: Date } = {}): Promise<string | null> {
   const svc = createServiceClient();
   if (!svc) return null;
@@ -95,13 +103,13 @@ export async function startNicheScan(ctx: Ctx, trigger: "onboarding" | "manual" 
       kick(job.id);
       return job.id;
     }
+    const niche = await nicheNow(ctx);
     if (!opts.force) {
       const { playbook } = await readStoredPlaybook(svc, nicheScopeId(ctx));
-      if (isFresh(playbook, now)) return null;
+      if (standsFor(playbook, now, niche)) return null;
     }
     const ent = await getEntitlements(svc, ctx.ownerId).catch(() => null);
     const size: ScanSize = ent && canUseFeature(ent, "niche_intelligence") ? "full" : "lite";
-    const niche = brandWorkspace(ctx)?.niche ?? null;
     const { data, error } = await svc.from("intelligence_jobs")
       .insert({ user_id: ctx.ownerId, workspace_id: wsId, kind: NICHE_SCAN_KIND, trigger, status: "queued", attempts: 0, result: initialState(size, niche, now) })
       .select("id").single();
@@ -372,7 +380,7 @@ export async function readScan(ctx: Ctx, opts: { continueRun?: boolean } = {}): 
     progress: job ? progressView(state, job.status, state?.startedAt ?? job.created_at) : null,
     playbook: stored.playbook,
     playbookAt: stored.updatedAt,
-    niche: state?.niche ?? stored.playbook?.niche ?? brandWorkspace(ctx)?.niche ?? null,
+    niche: state?.niche ?? stored.playbook?.niche ?? (await nicheNow(ctx).catch(() => null)),
   };
 }
 

@@ -573,6 +573,16 @@
 .obp-line { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink-2); }
 .obp-why { list-style: disc; margin: var(--sp-1) 0 0; padding-left: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-1); font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink); }
 .obp-plans .ob-btn { align-self: flex-start; margin-top: var(--sp-2); }
+/* Strategy reveal: every SOCIA tool, grouped by job, each marked with the plan it starts on */
+.obt-group { display: flex; flex-direction: column; gap: var(--sp-2); padding-top: var(--sp-3); }
+.obt-group h3 { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); color: var(--ink); }
+.obt-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 var(--sp-5); }
+.obt-list li { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; padding: var(--sp-3) 0; border-top: 1px solid var(--border); }
+.obt-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--sp-1) var(--sp-3); }
+.obt-top b { font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); color: var(--ink); }
+.obt-list small { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+.obt-from { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-3); white-space: nowrap; }
+.obt-from.is-up { padding: 0 var(--sp-2); border: 1px solid var(--border-strong); border-radius: var(--r-pill); color: var(--ink); }
 /* What a step found arrives with its event, so it fades in when it lands (never on a timer). */
 .obs-body > p, .obs-items li { animation: ob-stagein var(--t-panel) ease; }
 .obs-mark { transition: background-color var(--t-panel) ease, border-color var(--t-panel) ease, color var(--t-panel) ease; }
@@ -580,6 +590,10 @@
   .obs-body > p, .obs-items li { animation: none; }
   .obs-mark { transition: none; }
 }
+/* Onboarding, routine step: SIO's questions */
+.obr-count { margin: calc(var(--sp-5) * -1 + var(--sp-2)) 0 var(--sp-4); font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-3); }
+.obr-time { display: flex; flex-direction: column; gap: var(--sp-2); }
+.obr-toggle { align-self: flex-start; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
 /* Onboarding, goal step: one block per goal picked */
 .obg-goal .gp-row { align-items: end; }
 
@@ -604,6 +618,21 @@
 .mom-strip { list-style: none; margin: 0 0 var(--sp-3); padding: 0; display: flex; gap: var(--sp-1); }
 .mom-strip li { flex: 1 1 0; height: 10px; border-radius: var(--r-pill); background: var(--surface-raised); border: 1px solid var(--border); }
 .mom-strip li.is-on { background: var(--ink); border-color: var(--ink); }
+.mom-strip li.is-hit { background: var(--ink); border-color: var(--ink); }
+.mom-strip li.is-break { background: var(--surface); border-style: dashed; border-color: var(--border-strong); }
+.mom-strip li.is-open { background: var(--surface); border-color: var(--ink-3); }
+.mom-sio { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-3); }
+.mom-sio p { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); color: var(--ink); }
+/* This week's posting days: one mark per day of the target, filled as they are posted. */
+.mom-days { list-style: none; margin: 0 0 var(--sp-3); padding: 0; display: flex; gap: var(--sp-2); }
+.mom-days li { width: 18px; height: 18px; border-radius: var(--r-pill); border: 1px solid var(--border-strong); background: var(--surface); }
+.mom-days li.is-on { background: var(--ink); border-color: var(--ink); }
+.mom-rules { margin-top: var(--sp-3); font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+.mom-rules summary { cursor: pointer; color: var(--ink); }
+.mom-rules ul { margin: var(--sp-2) 0 0; padding-left: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-1); }
+.mom-breaks { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4); margin-top: var(--sp-3); font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+.mom-breaks:empty { display: none; }
+.mom-note + .mom-note { margin-top: var(--sp-2); }
 .mom-note { margin: 0; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
 /* Dashboard, posts that beat the usual */
 .wins { list-style: none; margin: 0 0 var(--sp-3); padding: 0; display: flex; flex-direction: column; }

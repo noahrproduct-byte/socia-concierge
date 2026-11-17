@@ -127,13 +127,16 @@ async function igCompetitorRowsImpl(supabase: Supa, userId: string, handles: str
       const { data } = await supabase.from("ig_competitor_snapshots").select("*").eq("user_id", userId).in("handle", wanted);
       for (const r of data ?? []) {
         if (opts.cacheOnly || (Date.now() - new Date(r.fetched_at).getTime() < FRESH_MS && hasViewsField(r.media) && hasVideoField(r.media))) {
+          // Worked out again from the saved posts, so a change to the maths shows without a new read.
+          const media: IgCompetitorPost[] = Array.isArray(r.media) ? r.media : [];
+          const stats = media.length ? discoveryStats({ followers: r.followers ?? null, media }) : null;
           cached.set(r.handle, {
             handle: r.handle, found: true, displayName: r.display_name, biography: r.biography, profilePicture: r.profile_picture,
             followers: r.followers, mediaCount: r.media_count,
-            postsPerWeek: r.posts_per_week != null ? Number(r.posts_per_week) : null,
-            medianEngagement: r.median_engagement != null ? Number(r.median_engagement) : null,
-            engagementRate: r.engagement_rate != null ? Number(r.engagement_rate) : null,
-            media: r.media ?? [], fetchedAt: r.fetched_at,
+            postsPerWeek: stats ? stats.postsPerWeek : r.posts_per_week != null ? Number(r.posts_per_week) : null,
+            medianEngagement: stats ? stats.medianEngagement : r.median_engagement != null ? Number(r.median_engagement) : null,
+            engagementRate: stats ? stats.engagementRate : r.engagement_rate != null ? Number(r.engagement_rate) : null,
+            media, fetchedAt: r.fetched_at,
           });
         }
       }

@@ -6,6 +6,7 @@ import { getProfile, type BrandDetail } from "@/lib/profile";
 import { resolveContext, brandWorkspace, can, forbiddenCopy } from "@/lib/context";
 import { updateWorkspace, type WorkspacePatch } from "@/lib/workspaces";
 import { mergeGrowth, normalizeGrowth } from "@/lib/growth";
+import { syncPostingTarget } from "@/lib/postingStreakLoad";
 
 export const runtime = "nodejs";
 
@@ -179,5 +180,8 @@ export async function POST(req: Request) {
       { status: 500 },
     );
   }
+  // A new posting target is noted the moment it is chosen, so it starts with the coming week (lib/postingStreak.ts).
+  const chosenDays = (brand.brand_detail as BrandDetail | undefined)?.growth?.routine?.post_days;
+  if (chosenDays && body?.brand_detail?.growth?.routine) await syncPostingTarget(ctx, chosenDays).catch((e) => console.error("[profile] posting target:", (e as Error)?.message ?? e));
   return NextResponse.json({ ok: true, ...(brandSaved !== undefined ? { brandSaved } : {}) });
 }

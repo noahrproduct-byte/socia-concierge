@@ -6,7 +6,7 @@
 // the person's stated time allows, and the primary objective is always their
 // own main goal. Pure.
 
-import { HOURS, MAIN_GOALS, type GrowthProfile } from "./growth";
+import { HOURS, mainGoalLabel, type GrowthProfile } from "./growth";
 
 export type StrategyPillar = { name: string; why: string };
 export type ExperimentStatus = "running" | "done" | "stopped";
@@ -100,7 +100,7 @@ Rules:
 - secondary_objectives: 1 to 3 short objectives that support the main goal.
 - audience: one sentence on who the content is for, from their profile; if it isn't known, say what to confirm.
 - pillars: 3 to 5 content pillars (recurring topics or series). Each "why" names the fact it comes from (a theme, a format that works, a finding, the profile). Never invent a number.
-- posts_per_week: a realistic number at or below the stated maximum; frequency_why says which facts set it (their current pace and their time).
+- posts_per_week: when the profile states a posting target, use exactly that number, and frequency_why says it is their own target and how it compares with their current pace. Otherwise a realistic number at or below the stated maximum; frequency_why says which facts set it (their current pace and their time).
 - experiments: 1 or 2. Each is a hypothesis, the test (what to post, how many, over how long) and the measure against their own median. Phrase hypotheses as possibilities, never as known effects.
 - priorities: the 3 things to focus on next, in order.
 - milestones: 2 or 3 checkpoints over the next 12 weeks; "by" is a date (YYYY-MM-DD) or "", and "measure" names a number SOCIA can read or the person can report.
@@ -114,16 +114,17 @@ const isDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Dat
 
 /** The primary objective is the person's own main goal, never the model's. */
 export function primaryObjective(g: GrowthProfile | null | undefined, goalLine: string | null): string {
-  const main = MAIN_GOALS.find((m) => m.id === g?.main_goal);
   if (goalLine) return goalLine;
-  return main ? main.label : "Set a main goal in your Growth Profile";
+  return mainGoalLabel(g?.main_goal, g) ?? "Set a main goal in your Growth Profile";
 }
 
 /** The model's draft, made safe: lengths bounded, frequency held to the person's time, dates checked. */
 export function normalizeStrategy(raw: Record<string, unknown>, ctx: { growth: GrowthProfile | null; goalLine: string | null; basedOn: string[]; now: Date }): GrowthStrategy {
   const cap = postsCap(ctx.growth);
   const asked = Math.round(Number(raw.posts_per_week));
-  const posts = Number.isFinite(asked) && asked > 0 ? Math.min(asked, cap) : Math.min(3, cap);
+  // The person's own posting target (lib/routine.ts) is the pace: it is their decision, not a suggestion to revise.
+  const own = ctx.growth?.routine?.post_days ?? null;
+  const posts = own ?? (Number.isFinite(asked) && asked > 0 ? Math.min(asked, cap) : Math.min(3, cap));
   const objs = (xs: unknown) => (Array.isArray(xs) ? (xs as Record<string, unknown>[]) : []);
   return {
     v: 1,
@@ -134,7 +135,9 @@ export function normalizeStrategy(raw: Record<string, unknown>, ctx: { growth: G
     frequency: {
       posts_per_week: posts,
       // Capped: the model's reasoning argued for a number that no longer applies.
-      why: posts < asked ? `Held to ${cap} a week, what the time you said you have allows. Change it in your Growth Profile to plan more.` : clip(raw.frequency_why, 300),
+      why: own
+        ? asked === own && clip(raw.frequency_why, 300) ? clip(raw.frequency_why, 300) : `You chose ${own} posting ${own === 1 ? "day" : "days"} a week, so the plan is built around that.`
+        : posts < asked ? `Held to ${cap} a week, what the time you said you have allows. Change it in your Growth Profile to plan more.` : clip(raw.frequency_why, 300),
     },
     experiments: objs(raw.experiments).map((e) => ({ hypothesis: clip(e.hypothesis, 240), test: clip(e.test, 240), measure: clip(e.measure, 200) })).filter((e) => e.hypothesis).slice(0, 2)
       .map((e, i) => ({ id: newId(ctx.now, i), status: "running" as const, started_at: ctx.now.toISOString(), ...e })),

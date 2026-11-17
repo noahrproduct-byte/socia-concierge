@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPlaybook, cleanWatched, isFresh, keepTemplates, patternCount, patternOf, playbookInsights, playbookKey, playbookPrompt, readPlaybook, type WatchedReel } from "./playbook";
+import { buildPlaybook, cleanWatched, isFresh, keepTemplates, nothingRead, standsFor, patternCount, patternOf, playbookInsights, playbookKey, playbookPrompt, readPlaybook, type WatchedReel } from "./playbook";
 import { reusable, FORMAT_LABEL as LABELS } from "./playbook";
 import type { ScanReel } from "./plan";
 
@@ -110,5 +110,18 @@ describe("scan review fixes (2026-11-12)", () => {
   it("uses neutral labels for formats every niche shares", () => {
     expect(LABELS.reaction).toBe("a reaction");
     expect(LABELS.taste_test).not.toMatch(/taste|bite/);
+  });
+});
+
+describe("a read that reached nothing", () => {
+  const blank = (niche: string | null) => ({ v: 1, niche, builtAt: NOW.toISOString(), scanned: { accounts: 0, reels: 0, studied: 0, from: null, to: null }, formats: [], ctas: [], texts: [], hooks: [], avoid: [], notes: [] }) as Parameters<typeof standsFor>[0];
+  it("stops standing once the brand has a niche (it ran on connect, before the niche was confirmed)", () => {
+    expect(nothingRead(blank(null))).toBe(true);
+    expect(standsFor(blank(null), NOW, "Business & Finance")).toBe(false);
+    // Still no niche: nothing new to try, so it waits out the week.
+    expect(standsFor(blank(null), NOW, null)).toBe(true);
+    // A thin niche that really was researched keeps its week.
+    expect(standsFor(blank("Business & Finance"), NOW, "Business & Finance")).toBe(true);
+    expect(standsFor(null, NOW, "Business & Finance")).toBe(false);
   });
 });

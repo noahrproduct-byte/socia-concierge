@@ -4,12 +4,14 @@
 // including the account type. Profile sections save together; goals save
 // as they change.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/system";
-import { GOAL_PLATFORM_NAME, MAIN_GOALS, type Goal, type GoalPlatform, type GrowthProfile, type MainGoalId } from "@/lib/growth";
+import { GOAL_PLATFORM_NAME, mainGoalsFor, type Goal, type GoalPlatform, type GrowthProfile, type MainGoalId } from "@/lib/growth";
 import { confidenceLabel, type Understanding } from "@/lib/intel/understanding";
 import { AccountTypeFields, AudienceFields, Choices, GrowthGroup, PersonalityFields, ResourcesFields, TypeDetailFields } from "./GrowthFields";
 import GoalsEditor from "./GoalsEditor";
+import RoutineStep from "@/components/onboarding/RoutineStep";
+import { FIRST_QUESTIONS, LATER_QUESTIONS, routineSummary } from "@/lib/routine";
 import { Field, Input } from "@/components/system";
 
 export default function GrowthProfileCard({
@@ -33,6 +35,8 @@ export default function GrowthProfileCard({
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const dirty = JSON.stringify(growth) !== saved;
+  const [routineOpen, setRoutineOpen] = useState(false);
+  const routineHead = useRef<HTMLHeadingElement>(null);
 
   async function readAgain() {
     setReading(true);
@@ -71,8 +75,31 @@ export default function GrowthProfileCard({
       <GrowthGroup title="Goals">
         <GoalsEditor initial={goals} tableReady={goalsReady} connected={connected} />
       </GrowthGroup>
+      <GrowthGroup title="Your routine">
+        {routineOpen ? (
+          <RoutineStep corner initial={growth.routine ?? null} recentPerWeek={null} headRef={routineHead} questions={[...FIRST_QUESTIONS, ...LATER_QUESTIONS]} lastLabel="Done" startAtEnd={false}
+            fromStart
+            onSaved={(r) => {
+              // Each answer is already saved; keep it out of the card's own unsaved changes.
+              setGrowth((g) => ({ ...g, routine: r }));
+              setSaved((prev) => { try { return JSON.stringify({ ...JSON.parse(prev), routine: r }); } catch { return prev; } });
+            }}
+            onBack={() => setRoutineOpen(false)} onDone={() => setRoutineOpen(false)} />
+        ) : (
+          <>
+            {routineSummary(growth.routine).length > 0 ? (
+              <dl className="gp-routine">
+                {routineSummary(growth.routine).map((row) => <div key={row.label}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}
+              </dl>
+            ) : (
+              <p className="gp-note">SIO hasn&apos;t asked about your week yet: how often you want to post, what you make, and when you film.</p>
+            )}
+            <div><Button size="sm" variant="secondary" onClick={() => setRoutineOpen(true)}>{routineSummary(growth.routine).length ? "Change" : "Answer SIO's questions"}</Button></div>
+          </>
+        )}
+      </GrowthGroup>
       <GrowthGroup title="Main goal">
-        <Choices label="What matters most right now" options={MAIN_GOALS} columns={3} value={growth.main_goal} onChange={(v) => setGrowth({ ...growth, main_goal: v as MainGoalId })} />
+        <Choices label="What matters most right now" options={mainGoalsFor(growth.customer_goal)} columns={3} value={growth.main_goal} onChange={(v) => setGrowth({ ...growth, main_goal: v as MainGoalId })} />
       </GrowthGroup>
       <GrowthGroup title="What SOCIA read from your accounts">
         {understanding ? (

@@ -77,3 +77,9 @@
 .gp-read { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-1); font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink-2); }
 .gp-read b { color: var(--ink); font-weight: var(--fw-medium); margin-right: var(--sp-1); }
 .gp-read i { font-style: normal; color: var(--ink-3); }
+
+/* The routine as set, in Settings */
+.gp-routine { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--sp-3); }
+.gp-routine div { display: flex; flex-direction: column; min-width: 0; }
+.gp-routine dt { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-3); }
+.gp-routine dd { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink); }

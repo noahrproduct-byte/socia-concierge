@@ -10,6 +10,7 @@ import type { Cell, LeaderRow } from "./competitorRollup";
 import type { Comparison, MetricKey, SimilarPick } from "./similarCompetitor";
 import { locationTokens, tagsFor } from "./competitorPatterns";
 import { styleTags, tagGroup } from "./discovery";
+import { fmtRate } from "./metrics";
 
 export type CompPost = {
   url: string;
@@ -130,7 +131,7 @@ const fmtN = (n: number): string =>
   : Math.round(n).toLocaleString("en-US");
 
 const fmtBy = (unit: Comparison["unit"], v: number) =>
-  unit === "pct" ? `${v.toFixed(1)}%` : unit === "perWeek" ? v.toFixed(1) : fmtN(v);
+  unit === "pct" ? fmtRate(v) : unit === "perWeek" ? v.toFixed(1) : fmtN(v);
 
 /** Why they are ahead: at most three, each from one comparison the user can
  *  see, in a fixed order of usefulness. Nothing without both numbers. */

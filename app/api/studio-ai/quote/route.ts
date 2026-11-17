@@ -25,6 +25,7 @@ export async function POST(req: Request) {
     modelId: String(b?.modelId ?? ""),
     durationSec: typeof b?.durationSec === "number" ? Math.round(b.durationSec) : undefined,
     aspectRatio: typeof b?.aspectRatio === "string" ? b.aspectRatio : undefined,
+    plan: r.ent.plan,
   };
   const checked = checkGeneration(input);
   if ("error" in checked) return NextResponse.json({ error: checked.error }, { status: 400 });

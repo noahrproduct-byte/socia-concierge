@@ -4,15 +4,19 @@
 // Kept short on purpose: SOCIA reads what it can from the connected
 // accounts, the person confirms it and sets one main goal with a target, then
 // watches SOCIA build the strategy for it, sees that strategy and chooses the
-// plan to follow it with (Noah, 2026-11-15). The detailed questions (audience, voice, resources) are
-// optional, in Settings.
-export const STEPS = ["connect", "profile", "goal", "strategy", "plan"] as const;
+// plan to follow it with (Noah, 2026-11-15). Between the goal and the
+// strategy SIO asks about the person's routine: posting days, filming days,
+// how they work, what they make and when they publish (Noah's SIO brief,
+// 2026-11-16; lib/routine.ts). The detailed questions (audience, voice,
+// resources) are optional, in Settings.
+export const STEPS = ["connect", "profile", "goal", "routine", "strategy", "plan"] as const;
 export type Step = (typeof STEPS)[number];
 
 export const STEP_LABEL: Record<Step, string> = {
   connect: "Connect",
   profile: "Your account",
   goal: "Your goals",
+  routine: "Your routine",
   strategy: "Your strategy",
   plan: "Your plan",
 };

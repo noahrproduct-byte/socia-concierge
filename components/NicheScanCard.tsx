@@ -9,7 +9,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Check, ExternalLink, Loader2 } from "lucide-react";
 import { Button, Card, CardHeader, CardSource } from "@/components/system";
 import type { ScanView } from "@/lib/nicheScan/run";
-import type { Evidence, Pattern, Playbook, TextTemplate } from "@/lib/nicheScan/playbook";
+import { nothingRead, type Evidence, type Pattern, type Playbook, type TextTemplate } from "@/lib/nicheScan/playbook";
 
 const POLL_MS = 5000;
 
@@ -149,6 +149,27 @@ export default function NicheScanCard({ compact = false }: { compact?: boolean }
             </li>
           ))}
         </ol>
+      </Card>
+    );
+  }
+
+  // A read that reached no accounts has nothing to show: say so, with the way to start one, and never print zeros as if they were a result.
+  if (view.playbook && nothingRead(view.playbook)) {
+    if (compact) return null;
+    return (
+      <Card className="s-niche">
+        <CardHeader title={`What goes viral in ${niche}`} />
+        <p className="s-niche-lead">
+          {view.niche
+            ? "SOCIA hasn't read any Reels in your niche yet. Start the research and it studies the public Reels and Shorts that took off, then writes a playbook its editor and plans follow. It takes a few minutes."
+            : "SOCIA needs your niche before it can research it. Add it in Settings, then start the research."}
+        </p>
+        {view.niche && (
+          <div>
+            <Button size="sm" onClick={start} disabled={starting}>{starting ? "Starting" : "Research my niche"}</Button>
+          </div>
+        )}
+        {error && <p className="s-niche-note" role="alert">{error}</p>}
       </Card>
     );
   }

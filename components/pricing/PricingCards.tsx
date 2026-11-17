@@ -69,6 +69,7 @@ function highlightsFor(p: PlanConfig): (string | null)[] {
         workspaces,
         credits,
         buys,
+        "AI Studio: AI-made videos and images, clips up to 10 seconds",
         formatHistory(L.analytics_history_days),
         "Cross-brand analytics, client reports and approvals",
         competitors,
@@ -77,9 +78,9 @@ function highlightsFor(p: PlanConfig): (string | null)[] {
       ];
     case "scale":
       return [
-        "AI Studio: AI-made videos and images from your ideas",
         credits,
         buys,
+        "AI Studio premium: Seedance 2.5 and 15-second clips",
         workspaces,
         formatHistory(L.analytics_history_days),
         competitors,

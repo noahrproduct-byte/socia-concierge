@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fitOf, FIT_TTL_MS, accountStyle, mainPlatform, missKind, sameStyle, sanitizeMemory, styleKey, styleStale, styleWord, triedRecently, STYLE_TTL_MS, TRY_TTL_MS } from "./discoverStyle";
+import { reelKey, mentionedHandles, reachesPastFollowers, fitOf, FIT_TTL_MS, accountStyle, mainPlatform, missKind, sameStyle, sanitizeMemory, styleKey, styleStale, styleWord, triedRecently, STYLE_TTL_MS, TRY_TTL_MS } from "./discoverStyle";
 
 const AT = "2026-11-14T12:00:00.000Z";
 
@@ -30,7 +30,7 @@ describe("the saved memory", () => {
     });
     expect(m.own?.style).toBe("animated");
     expect(Object.keys(m.accounts)).toEqual(["instagram:therefundapp"]);
-    expect(sanitizeMemory(null)).toEqual({ own: null, accounts: {}, tried: {}, fit: {} });
+    expect(sanitizeMemory(null)).toEqual({ own: null, accounts: {}, tried: {}, fit: {}, copyFrom: [], copyFound: {}, reels: {} });
   });
   it("is looked at again after a week", () => {
     const s = accountStyle(["animated"], AT)!;
@@ -84,23 +84,70 @@ describe("niche fit", () => {
   const now = new Date("2026-11-15T12:00:00Z");
   it("keeps valid verdicts and drops bad ones", () => {
     const m = sanitizeMemory({ fit: {
-      "instagram:ClarkGary": { ok: false, at: "2026-11-15T10:00:00Z" },
-      "instagram:kristina": { ok: true, at: "2026-11-15T10:00:00Z" },
-      "instagram:x": { ok: "yes", at: "2026-11-15T10:00:00Z" },
-      "bad key": { ok: true, at: "2026-11-15T10:00:00Z" },
+      "instagram:ClarkGary": { verdict: "off", at: "2026-11-15T10:00:00Z", v: 3 },
+      "instagram:nick_saraev": { verdict: "niche", at: "2026-11-15T10:00:00Z" },
+      "instagram:x": { verdict: "yes", at: "2026-11-15T10:00:00Z" },
+      "instagram:old": { ok: true, at: "2026-11-15T10:00:00Z" },
+      "bad key": { verdict: "competitor", at: "2026-11-15T10:00:00Z" },
     } });
     expect(m.fit).toEqual({
-      "instagram:clarkgary": { ok: false, at: "2026-11-15T10:00:00Z" },
-      "instagram:kristina": { ok: true, at: "2026-11-15T10:00:00Z" },
+      "instagram:clarkgary": { verdict: "off", at: "2026-11-15T10:00:00Z", v: 3 },
+      "instagram:nick_saraev": { verdict: "niche", at: "2026-11-15T10:00:00Z" },
     });
   });
   it("reads a verdict for a month, then asks again", () => {
     const m = sanitizeMemory({ fit: {
-      "instagram:a": { ok: false, at: new Date(now.getTime() - FIT_TTL_MS + 60_000).toISOString() },
-      "instagram:b": { ok: true, at: new Date(now.getTime() - FIT_TTL_MS - 60_000).toISOString() },
+      "instagram:a": { verdict: "off", at: new Date(now.getTime() - FIT_TTL_MS + 60_000).toISOString(), v: 3 },
+      "instagram:b": { verdict: "competitor", at: new Date(now.getTime() - FIT_TTL_MS - 60_000).toISOString(), v: 3 },
+      "instagram:old": { verdict: "competitor", at: now.toISOString(), v: 2 },
     } });
-    expect(fitOf(m, "instagram:a", now)).toBe(false);
+    expect(fitOf(m, "instagram:a", now)).toBe("off");
+    // Made under an older rule: judged again.
+    expect(fitOf(m, "instagram:old", now)).toBeNull();
     expect(fitOf(m, "instagram:b", now)).toBeNull();
     expect(fitOf(m, "instagram:c", now)).toBeNull();
+  });
+});
+
+describe("Reels to copy from", () => {
+  it("keeps clean handles on the copy list and found accounts that came from it", () => {
+    const m = sanitizeMemory({
+      copyFrom: ["@MhmdNabDev", "mhmdnabdev", "bad handle!", 5],
+      copyFound: { "Studio.Anim": { from: "mhmdnabdev", at: "2026-11-16T10:00:00Z" }, "x": { from: "", at: "2026-11-16T10:00:00Z" } },
+    });
+    expect(m.copyFrom).toEqual(["mhmdnabdev"]);
+    expect(m.copyFound).toEqual({ "studio.anim": { from: "mhmdnabdev", at: "2026-11-16T10:00:00Z" } });
+  });
+  it("finds the accounts a copy-list account mentions most, not itself or ones already known", () => {
+    const caps = ["Made with @figma and @rive.app", "Thanks @rive.app!", "me: @mhmdnabdev", "email a@b.com", "@known.one"];
+    expect(mentionedHandles(caps, "mhmdnabdev", new Set(["known.one"]))).toEqual(["rive.app", "figma"]);
+  });
+  it("keeps accounts whose Reels travel past their followers (moe.dev: 2.6K followers, 7.1K median views)", () => {
+    expect(reachesPastFollowers([7100, 6000, 9000, 75000], 2600)).toBe(true);
+    expect(reachesPastFollowers([2000, 2500, 3000], 694000)).toBe(false);
+    expect(reachesPastFollowers([500, 600, 50000], 20000)).toBe(true);
+    expect(reachesPastFollowers([], 100)).toBe(false);
+    expect(reachesPastFollowers([100], null)).toBe(false);
+  });
+});
+
+describe("per-Reel check", () => {
+  it("keys a Reel by the id in its link", () => {
+    expect(reelKey("https://www.instagram.com/reel/DfoXo1psPkH/")).toBe("DfoXo1psPkH");
+    expect(reelKey("https://www.instagram.com/reels/DerGGQsFW_p/")).toBe("DerGGQsFW_p");
+    expect(reelKey("https://www.instagram.com/p/Abc_123/")).toBe("Abc_123");
+    expect(reelKey("https://youtube.com/shorts/xyz")).toBeNull();
+  });
+  it("keeps valid verdicts with their make line, and drops bad ones", () => {
+    const m = sanitizeMemory({ reels: {
+      DfoXo1psPkH: { ok: false, make: "", at: "2026-11-16T10:00:00Z" },
+      DerGGQsFW_p: { ok: true, make: "Show SOCIA's research screen step by step", at: "2026-11-16T10:00:00Z" },
+      "bad key!": { ok: true, make: "x", at: "2026-11-16T10:00:00Z" },
+      Abcd1: { ok: "yes", at: "2026-11-16T10:00:00Z" },
+    } });
+    expect(m.reels).toEqual({
+      DfoXo1psPkH: { ok: false, make: null, at: "2026-11-16T10:00:00Z" },
+      DerGGQsFW_p: { ok: true, make: "Show SOCIA's research screen step by step", at: "2026-11-16T10:00:00Z" },
+    });
   });
 });

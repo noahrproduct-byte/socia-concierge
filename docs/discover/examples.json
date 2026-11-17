@@ -1,0 +1,233 @@
+{
+  "about": "Discover training: Noah's verdicts on what SOCIA suggested, used to write the rules in lib/discoverRules.ts. Add a round each time a brand's suggestions are reviewed.",
+  "rounds": [
+    {
+      "date": "2026-11-16",
+      "brand": {
+        "name": "SOCIA (fresh onboarding, brand 'My brand')",
+        "accountType": "business",
+        "kind": "app",
+        "ownStyle": "Animated"
+      },
+      "verdict": "none of these are good since this is an app i have to look for other apps that is kinda similar to or posts similar videos (animated videos that i can copy for myself)",
+      "rule": "A business competes with businesses of its own kind: for an app, other apps and software products, preferring ones whose Reels are animated product videos. Coaches, educators, agencies and influencers are wrong for a business.",
+      "accounts": [
+        {
+          "handle": "holler.academy",
+          "what": "Instagram and content coach",
+          "right": false,
+          "why": "coach, not an app"
+        },
+        {
+          "handle": "jasminestar",
+          "what": "entrepreneur and marketing coach",
+          "right": false,
+          "why": "coach, not an app"
+        },
+        {
+          "handle": "kristina.social",
+          "what": "Instagram growth and marketing educator",
+          "right": false,
+          "why": "educator, not an app"
+        },
+        {
+          "handle": "createcontent.club",
+          "what": "content creation education",
+          "right": false,
+          "why": "educator, not an app"
+        },
+        {
+          "handle": "thedigitalbuzz",
+          "what": "digital marketer",
+          "right": false,
+          "why": "marketer, not an app"
+        },
+        {
+          "handle": "brock11johnson",
+          "what": "Instagram growth coach",
+          "right": false,
+          "why": "coach, not an app"
+        },
+        {
+          "handle": "smallbusinessgrowthclub",
+          "what": "small-business growth",
+          "right": false,
+          "why": "coach, not an app"
+        },
+        {
+          "handle": "thesocialista",
+          "what": "social media marketing",
+          "right": false,
+          "why": "marketer, not an app"
+        }
+      ],
+      "reels": [
+        {
+          "url": "https://www.instagram.com/reel/Dd2gFFxTPp-/",
+          "account": "kristina.social",
+          "right": false,
+          "why": "personal story from a coach"
+        },
+        {
+          "url": "https://www.instagram.com/reel/DfxaLtwk9OT/",
+          "account": "createcontent.club",
+          "right": false,
+          "why": "educator; also posted twice"
+        },
+        {
+          "url": "https://www.instagram.com/reel/Dfxanb2gLU_/",
+          "account": "createcontent.club",
+          "right": false,
+          "why": "duplicate of the one above"
+        },
+        {
+          "url": "https://www.instagram.com/reel/DfxEyp_icRA/",
+          "account": "brock11johnson",
+          "right": false,
+          "why": "coach"
+        },
+        {
+          "url": "https://www.instagram.com/reel/DfkVHBlxwdm/",
+          "account": "jasminestar",
+          "right": false,
+          "why": "coach"
+        },
+        {
+          "url": "https://www.instagram.com/reel/DfcZm5NRYC-/",
+          "account": "jasminestar",
+          "right": false,
+          "why": "personal life, off topic"
+        }
+      ],
+      "earlier": "2026-11-15: an NFL commentator (Clark Gary) appeared in Socia's From your niche Reels because only the video style matched (fixed in PR #336)."
+    }
+  ],
+  "good": [
+    {
+      "date": "2026-11-16",
+      "for": "SOCIA (an AI app for Instagram growth; own videos animated)",
+      "handle": "jayantcreates.ai",
+      "url": "https://www.instagram.com/jayantcreates.ai/",
+      "noah": "look at this account this is a good one",
+      "what": "Founder account (Jayant, verified, 42.2K followers, 452 posts) for the app ootto.ai, bio 'AI for Instagram growth'. Not a brand account: the founder markets his own app.",
+      "videos": "Animated explainers with app UI cards and steps ('Research first. Then the Reels.', 'Connect Claude to your Instagram', 'How to edit video with Claude'), word-by-word captions, a pixel-art mascot; some talking to camera.",
+      "example_reel": "https://www.instagram.com/reels/DerGGQsFW_p/",
+      "why_good": "Same kind of product (an AI app for Instagram growth that also connects Claude), selling to the same customers, with animated product videos SOCIA can copy.",
+      "lesson": "An app's competitor often posts from its founder's personal account, not a brand account. It counts when the account sells or shows its own app (a link to the app, the app's screens in the videos); a coach selling courses or tips does not."
+    },
+    {
+      "date": "2026-11-16",
+      "for": "SOCIA (an AI app for Instagram growth; own videos animated)",
+      "handle": "nick_saraev",
+      "url": "https://www.instagram.com/nick_saraev/",
+      "noah": "look at this one too",
+      "what": "Creator and educator (Nick Saraev, verified, 743K followers; 'Founder @ Maker School', a paid community teaching beginners to land AI clients). Not an app.",
+      "videos": "Talking head with animated app screens over it (a Claude Code timeline, tool windows), word-by-word captions; covers are logos of AI tools (Claude, Grok, Meta AI, GitHub) around his face with a bold red title.",
+      "example_reel": "https://www.instagram.com/reels/De4XVvXPTWY/",
+      "why_good": "His videos are about AI tools and apps and show them in action with animated UI overlays: the format SOCIA can copy, for an audience interested in AI tools.",
+      "lesson": "Not every good account is an app. A creator also counts when the videos show apps or AI tools in action (screens, animated UI demos). The round-1 coaches failed because they gave general marketing tips with no product on screen, not because they were people."
+    },
+    {
+      "date": "2026-11-16",
+      "for": "SOCIA",
+      "handle": "vidiq",
+      "url": "https://www.instagram.com/vidiq/",
+      "what": "AI growth app for YouTube and Instagram; animated Claude explainers, creator with app on screen",
+      "why_good": "An app in the same space: a competitor (Noah: 'those can be my competitors').",
+      "found_by": "Claude, from the rules; confirmed by Noah"
+    },
+    {
+      "date": "2026-11-16",
+      "for": "SOCIA",
+      "handle": "metricool",
+      "url": "https://www.instagram.com/metricool/",
+      "what": "social analytics and scheduling app; designed covers, app screens, Claude how-tos",
+      "why_good": "An app in the same space: a competitor (Noah: 'those can be my competitors').",
+      "found_by": "Claude, from the rules; confirmed by Noah"
+    },
+    {
+      "date": "2026-11-16",
+      "for": "SOCIA",
+      "handle": "predis.ai",
+      "url": "https://www.instagram.com/predis.ai/",
+      "what": "AI app for posts and ads",
+      "why_good": "An app in the same space: a competitor (Noah: 'those can be my competitors').",
+      "found_by": "Claude, from the rules; confirmed by Noah"
+    },
+    {
+      "date": "2026-11-16",
+      "for": "SOCIA",
+      "handle": "opusclip",
+      "url": "https://www.instagram.com/opusclip/",
+      "what": "AI video clipping app, like SOCIA's Clipper",
+      "why_good": "An app in the same space: a competitor (Noah: 'those can be my competitors').",
+      "found_by": "Claude, from the rules; confirmed by Noah"
+    },
+    {
+      "date": "2026-11-16",
+      "for": "SOCIA",
+      "handle": "flick.social",
+      "url": "https://www.instagram.com/flick.social/",
+      "what": "social media platform and agency",
+      "why_good": "An app in the same space: a competitor (Noah: 'those can be my competitors').",
+      "found_by": "Claude, from the rules; confirmed by Noah"
+    },
+    {
+      "date": "2026-11-16",
+      "for": "SOCIA (an AI app for Instagram growth; own videos animated)",
+      "handle": "mhmdnabdev",
+      "url": "https://www.instagram.com/mhmdnabdev/",
+      "list": "reels_to_copy",
+      "noah": "it would be a reasonable account as maybe not a competitor, but for an account to get reels from to copy. Because look, it has similar animation styles to Socia, and if we just change it up a little to match Socia's app and theme, then it will work out.",
+      "what": "moe.dev, a small developer/design account (2.6K followers, median 7.1K views, 1.6% engagement, about 6.5 posts a week). SOCIA read it through Business Discovery: 11 of its last 12 posts are Reels, style read as Animated.",
+      "videos": "Animated app-UI explainers on soft gradient backgrounds: phone mockups, timings ('2.0s'), short headline words ('The only'). Took off: 'Could you spot the fake link?' 75K, '5 signs your app was vibe coded' 16K, 'Outlook and Teams went down' 13K.",
+      "why_good": "Same animation style as SOCIA's videos; swap the subject and theme for SOCIA's app and it works.",
+      "lesson": "A Reels-to-copy source needs the same animation style, not the same business. Small accounts whose views far exceed their followers are the best sources, and web search rarely finds them."
+    }
+  ],
+  "two_lists": {
+    "date": "2026-11-16",
+    "noah": "those can be my competitors but for example for reels in my niche or i can copy could be viral animated reels",
+    "competitors": "Apps in the same space (AI and social media tools), including a founder's account that sells its app. Accepted: vidiq, metricool, predis.ai, opusclip, flick.social, jayantcreates.ai (ootto.ai).",
+    "reels_to_copy": "Not only competitors' Reels: Reels from the niche, and viral animated Reels whose format SOCIA can copy (like nick_saraev's animated app overlays). A creator who isn't a competitor can still be a source of Reels to copy."
+  },
+  "readable": [
+    {
+      "handle": "viewcci",
+      "date": "2026-11-16",
+      "result": "Business Discovery read it: 25K followers, median 2.5K views, 12 of 12 Reels, Talking to camera. Engagement showed 0.0% and posts a week 33 (both suspect: hidden likes; posts close together)."
+    },
+    {
+      "handle": "mhmdnabdev",
+      "date": "2026-11-16",
+      "result": "Business Discovery read it: 2.6K followers, median 7.1K views, Animated."
+    }
+  ],
+  "wrong_reels": [
+    {
+      "date": "2026-11-16",
+      "for": "SOCIA",
+      "url": "https://www.instagram.com/reel/DfoXo1psPkH/",
+      "account": "predis.ai",
+      "what": "AI-made product ad samples (lipstick, lifestyle collage)",
+      "why_wrong": "A showcase of what the app produced, not the app; photo-real, not animated; nothing SOCIA could remake about itself."
+    },
+    {
+      "date": "2026-11-16",
+      "for": "SOCIA",
+      "url": "https://www.instagram.com/reel/Dfrl3PiE_x_/",
+      "account": "predis.ai",
+      "what": "AI-made perfume ad",
+      "why_wrong": "Output showcase, as above."
+    },
+    {
+      "date": "2026-11-16",
+      "for": "SOCIA",
+      "url": "https://www.instagram.com/reel/DfIZGHwnJdu/",
+      "account": "planoly",
+      "what": "'Oui, We x Planoly' brand collaboration / event promo, filmed footage",
+      "why_wrong": "Event promo: no app on screen, no tip, not animated."
+    }
+  ],
+  "reel_rule": "A competitor being right does not make all its Reels copyable. A Reel is copyable when it shows the product in use, explains a feature or gives a tip in the brand's space, or is made in the brand's own style so the brand can swap in its product. Output showcases, event or collab promos, holiday posts and personal life are not. (Noah agreed 2026-11-16: 'build both'.)"
+}

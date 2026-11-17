@@ -70,11 +70,65 @@ export const TRY_TTL_MS = 86_400_000;
  * captions (lib/discoverStyleLoad.ts judgeFit); only accounts that fit are
  * suggested or give "From your niche" Reels.
  */
-export type Fit = { ok: boolean; at: string };
+/** competitor: suggested and its Reels shown; niche: its Reels shown, never suggested (a creator showing tools like the brand's); off: neither. */
+export type FitVerdict = "competitor" | "niche" | "off";
+export const FIT_VERDICTS: readonly FitVerdict[] = ["competitor", "niche", "off"];
+export type Fit = { verdict: FitVerdict; at: string; v?: number };
 /** A fit verdict is looked at again after a month. */
 export const FIT_TTL_MS = 30 * 86_400_000;
+/**
+ * The rule a verdict was made under (lib/discoverRules.ts). Raising it makes
+ * every older verdict count as not judged, so a better rule applies at once.
+ * 2: a business's competitors are businesses of its own kind (2026-11-16).
+ * 3: three answers, competitor / niche / off, from Noah's examples (2026-11-16).
+ */
+export const FIT_VERSION = 3;
 
-export type StyleMemory = { own: AccountStyle | null; accounts: Record<string, AccountStyle>; tried: Record<string, Tried>; fit: Record<string, Fit> };
+/**
+ * An account SOCIA found from one on the copy list (a handle mentioned in its captions), and kept
+ * because its Reels are made the brand's way. `from` is the copy-list account it came from.
+ */
+export type CopyFound = { from: string; at: string };
+
+/** Instagram handles as stored: lower case, no @. */
+export const IG_HANDLE_RE = /^[a-z0-9._]{1,30}$/;
+/** Handles an account on the copy list mentions most, read as candidates in one background read. */
+export const COPY_FIND_PER_READ = 6;
+/** Accounts found from the copy list, kept per brand. */
+export const COPY_FOUND_MAX = 24;
+
+/**
+ * Whether the brand could make its own version of one Reel (Noah, 2026-11-16: Predis.ai's AI-made product
+ * ads and a Planoly event promo were shown for SOCIA, from the right competitors but with nothing to
+ * copy). `make` is one line on how, shown as "Make yours".
+ */
+export type ReelVerdict = { ok: boolean; make: string | null; at: string; v?: number };
+/**
+ * The rule a Reel verdict was made under. Raising it makes older verdicts count as not judged.
+ * 2: the Reel must also look modern and well made (Noah, 2026-11-16: "viral reels ... that is modern and
+ * actually good for socia").
+ */
+export const REEL_RULE_VERSION = 2;
+/** Reel verdicts kept per brand, newest first. */
+export const REEL_VERDICTS_MAX = 150;
+/** Reels judged in one background read (one or two fast-model calls). */
+export const REELS_JUDGED_PER_READ = 24;
+
+export type StyleMemory = {
+  /** Per Reel, by its link (reelKey): can the brand make its own version, and how. */
+  reels: Record<string, ReelVerdict>;
+  own: AccountStyle | null;
+  accounts: Record<string, AccountStyle>;
+  tried: Record<string, Tried>;
+  fit: Record<string, Fit>;
+  /**
+   * "Reels to copy" (Noah, 2026-11-16): Instagram accounts the brand chose to copy Reels from, for
+   * their style, not as competitors (moe.dev for SOCIA). Read like competitors; never counted as one.
+   */
+  copyFrom: string[];
+  /** Accounts found from the copy list, by handle. */
+  copyFound: Record<string, CopyFound>;
+};
 
 const MISSES: readonly string[] = ["not_found", "not_business", "unavailable"];
 const KEY_RE = /^(instagram|youtube|facebook|tiktok):[a-z0-9._-]{1,60}$/;
@@ -118,13 +172,43 @@ export function sanitizeMemory(v: unknown): StyleMemory {
     .map(([k, v]) => {
       const f = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
       const at = typeof f.at === "string" && !Number.isNaN(Date.parse(f.at)) ? f.at : null;
-      return [k.toLowerCase(), at && typeof f.ok === "boolean" ? { ok: f.ok, at } : null] as const;
+      const verdict = FIT_VERDICTS.includes(f.verdict as FitVerdict) ? (f.verdict as FitVerdict) : null;
+      return [k.toLowerCase(), at && verdict ? { verdict, at, ...(typeof f.v === "number" ? { v: f.v } : {}) } : null] as const;
     })
     .filter((e): e is readonly [string, Fit] => KEY_RE.test(e[0]) && e[1] != null)
     .sort((a, b) => Date.parse(b[1].at) - Date.parse(a[1].at))
     .slice(0, MEMORY_MAX)
     .forEach(([k, f]) => { fit[k] = f; });
-  return { own: sanitizeStyle(o.own), accounts, tried, fit };
+  const copyFrom = Array.isArray(o.copyFrom)
+    ? [...new Set((o.copyFrom as unknown[]).filter((h): h is string => typeof h === "string").map((h) => h.toLowerCase().replace(/^@/, "")).filter((h) => IG_HANDLE_RE.test(h)))].slice(0, 60)
+    : [];
+  const copyFound: Record<string, CopyFound> = {};
+  const rawFound = o.copyFound && typeof o.copyFound === "object" ? (o.copyFound as Record<string, unknown>) : {};
+  Object.entries(rawFound)
+    .map(([h, v]) => {
+      const f = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+      const at = typeof f.at === "string" && !Number.isNaN(Date.parse(f.at)) ? f.at : null;
+      const from = typeof f.from === "string" && IG_HANDLE_RE.test(f.from) ? f.from : null;
+      return [h.toLowerCase(), at && from ? { from, at } : null] as const;
+    })
+    .filter((e): e is readonly [string, CopyFound] => IG_HANDLE_RE.test(e[0]) && e[1] != null)
+    .sort((a, b) => Date.parse(b[1].at) - Date.parse(a[1].at))
+    .slice(0, COPY_FOUND_MAX)
+    .forEach(([h, f]) => { copyFound[h] = f; });
+  const reels: Record<string, ReelVerdict> = {};
+  const rawReels = o.reels && typeof o.reels === "object" ? (o.reels as Record<string, unknown>) : {};
+  Object.entries(rawReels)
+    .map(([k, v]) => {
+      const r = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+      const at = typeof r.at === "string" && !Number.isNaN(Date.parse(r.at)) ? r.at : null;
+      const make = typeof r.make === "string" && r.make.trim() ? r.make.trim().slice(0, 240) : null;
+      return [k, at && typeof r.ok === "boolean" ? { ok: r.ok, make, at, ...(typeof r.v === "number" ? { v: r.v } : {}) } : null] as const;
+    })
+    .filter((e): e is readonly [string, ReelVerdict] => /^[a-z0-9_-]{4,40}$/i.test(e[0]) && e[1] != null)
+    .sort((a, b) => Date.parse(b[1].at) - Date.parse(a[1].at))
+    .slice(0, REEL_VERDICTS_MAX)
+    .forEach(([k, r]) => { reels[k] = r; });
+  return { own: sanitizeStyle(o.own), accounts, tried, fit, copyFrom, copyFound, reels };
 }
 
 /** Tried within the last day: don't ask again yet, and don't say it is being read. */
@@ -168,9 +252,51 @@ export function mainPlatform(posts: Partial<Record<Platform, number | null>>): P
 
 export const PLATFORM_WORD: Record<Platform, string> = { instagram: "Instagram", youtube: "YouTube", facebook: "Facebook", tiktok: "TikTok" };
 
-/** The saved verdict on whether an account fits the brand's niche: true, false, or null when not judged or a month old. */
-export function fitOf(m: StyleMemory, key: string, now: Date): boolean | null {
+/** The saved verdict on an account (competitor, niche or off), or null when not judged, judged under an older rule, or a month old. */
+export function fitOf(m: StyleMemory, key: string, now: Date): FitVerdict | null {
   const f = m.fit[key];
-  if (!f || now.getTime() - Date.parse(f.at) > FIT_TTL_MS) return null;
-  return f.ok;
+  if (!f || f.v !== FIT_VERSION || now.getTime() - Date.parse(f.at) > FIT_TTL_MS) return null;
+  return f.verdict;
+}
+
+/**
+ * Handles an account mentions in its captions, most mentioned first, without itself or the ones given
+ * in `skip`. Where SOCIA looks for more accounts like one on the copy list: collaborators and accounts
+ * it credits. Pure.
+ */
+export function mentionedHandles(captions: (string | null | undefined)[], self: string, skip: Set<string> = new Set()): string[] {
+  const counts = new Map<string, number>();
+  for (const c of captions) {
+    for (const m of (c ?? "").matchAll(/(?:^|[^\w@.])@([A-Za-z0-9._]{2,30})/g)) {
+      const h = m[1].toLowerCase().replace(/\.+$/, "");
+      if (!IG_HANDLE_RE.test(h) || h === self.toLowerCase() || skip.has(h)) continue;
+      counts.set(h, (counts.get(h) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([h]) => h);
+}
+
+/**
+ * Whether an account's Reels travel well past its followers (moe.dev: 2.6K followers, 7.1K median
+ * views): its median views at least half its followers, or one Reel past twice its followers. Small
+ * accounts with formats that work pass; big accounts coasting on their size don't. Pure.
+ */
+export function reachesPastFollowers(views: (number | null | undefined)[], followers: number | null): boolean {
+  const vs = views.filter((v): v is number => typeof v === "number" && v >= 0).sort((a, b) => a - b);
+  if (!vs.length || !followers || followers <= 0) return false;
+  const median = vs.length % 2 ? vs[(vs.length - 1) / 2] : (vs[vs.length / 2 - 1] + vs[vs.length / 2]) / 2;
+  return median >= followers * 0.5 || vs[vs.length - 1] >= followers * 2;
+}
+
+/** The id in an Instagram post or Reel link (instagram.com/reel/<id>/), the key a Reel verdict is kept under; null for other links. */
+export function reelKey(url: string | null | undefined): string | null {
+  const m = /instagram\.com\/(?:reels?|p|tv)\/([A-Za-z0-9_-]{4,40})/i.exec(url ?? "");
+  return m ? m[1] : null;
+}
+
+/** A Reel's saved verdict when it was made under the current rule; null otherwise (judged again). */
+export function reelVerdictOf(m: StyleMemory, url: string | null | undefined): ReelVerdict | null {
+  const k = reelKey(url);
+  const v = k ? m.reels[k] : null;
+  return v && v.v === REEL_RULE_VERSION ? v : null;
 }

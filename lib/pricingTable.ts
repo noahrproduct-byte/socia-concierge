@@ -7,7 +7,7 @@
 // Client-safe: no server imports.
 
 import {
-  PLANS, SALE_ORDER, SCALE_ON_SALE, FEATURE_STATUS, FEATURE_LABEL, PLATFORM_NAME, WORKSPACE_PLATFORMS,
+  PLANS, SALE_ORDER, FEATURE_STATUS, FEATURE_LABEL, PLATFORM_NAME, WORKSPACE_PLATFORMS,
   formatHistory,
   type PlanId, type PlanConfig, type FeatureKey, type LimitKey,
 } from "./plans";
@@ -146,8 +146,8 @@ export const COMPARISON: ComparisonCategory[] = [
       { label: "Voiceover", cells: creditCell("voiceovers") },
       { label: "Account audit", cells: creditCell("account_audit") },
       feature("ai_clipper", "Upload a long video; SOCIA returns vertical clips with captions, a title, a score and a caption. Priced by the video's length, shown before anything is spent. Only clip videos you own or have rights to."),
-      // Scale's row, once Scale is on sale (lib/credits/config.ts CREDIT_PRICES_CONFIRMED).
-      ...(SCALE_ON_SALE ? [feature("ai_studio", "Ideas from your brand and niche, turned into AI videos and images on a curated set of models.")] : []),
+      // AI Studio from Pro; Scale adds the premium model and 15-second clips (lib/credits/config.ts).
+      feature("ai_studio", "Ideas from your brand and niche, turned into AI videos and images. Pro makes clips up to 10 seconds on Kling 3.0 and Wan 3.0; Scale adds Seedance 2.5 and 15-second clips. Paid from your monthly credits."),
     ],
   },
   {
