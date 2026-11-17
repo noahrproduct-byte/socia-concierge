@@ -11,7 +11,7 @@
 // connection and the stored results are the workspace owner's (lib/context).
 // Caching, refresh rights and rate limits stay with the caller. Server only.
 
-import { brandKind, competitorWords, researchRules } from "./discoverRules";
+import { brandKind, competitorWords, researchRules, viralSource } from "./discoverRules";
 import { isSocialContentUrl } from "./fetchGuard";
 import { getActiveConnection } from "./instagramSync";
 import { isOwnAccount, ownAccounts, type OwnAccounts } from "./ownAccounts";
@@ -252,6 +252,7 @@ export async function runFreshDiscovery(ctx: Ctx, inputs: DiscoveryInputs): Prom
 
   // Who counts as a competitor for this kind of account (lib/discoverRules.ts, Discover training).
   const kind = brandKind({ accountType: profile.accountType ?? null, name: brandName, niche: nicheLine0(profile), about: [profile.focus, profile.goalText] });
+  const viral = viralSource(kind, ownStyle);
   const who = profile.accountType === "creator" ? "creator" : profile.accountType === "personal_brand" ? "personal brand" : profile.accountType === "organization" ? "organisation" : "business";
   const nicheLine = [profile.niche, profile.subNiche, profile.specific].filter(Boolean).join(" > ");
   const facts = [
@@ -297,9 +298,10 @@ ${seeds.length ? "- accounts like the ones they chose to follow: the same kind o
 ${locationMatters(profile) ? "- successful accounts in the same area, even in a neighbouring category\n" : ""}
 Every account and post must be about this niche or made for the same audience. An account that only shares the video style but is about something unrelated (sports, celebrities, news, comedy about other things) does not count, however well it does.
 
-Search the web and return ${ownStyle ? "ALL THREE" : "BOTH"}:
+Search the web and return ${viral ? "ALL THREE" : "BOTH"}:
 1. Up to 10 real ${webPlatforms} ACCOUNTS from those groups, doing well: posting regularly with an engaged audience.
-2. Up to 5 real recent ${main === "instagram" ? "Instagram Reels" : main === "facebook" ? "Facebook videos" : "Instagram Reels or Facebook videos"} posted by ${competitorWords(kind)} like those in 1${kind.app ? ", or by creators showing apps or AI tools in action on screen" : ""}, that they could make their own version of.${ownStyle ? `
+2. Up to 5 real recent ${main === "instagram" ? "Instagram Reels" : main === "facebook" ? "Facebook videos" : "Instagram Reels or Facebook videos"} posted by ${competitorWords(kind)} like those in 1${kind.app ? ", or by creators showing apps or AI tools in action on screen" : ""}, that they could make their own version of.${viral === "kind" ? `
+3. Up to 6 real Instagram accounts of ${competitorWords(kind)} ANYWHERE in the world, not only nearby, whose Reels often go viral: tens of thousands of views or more. Location does not matter for this list; these are for copying Reels that worked for a business like theirs. Never their own account and never one already in list 1.` : viral === "style" ? `
 3. Up to 6 real Instagram accounts on ANY topic whose Reels are made the same way as theirs (${ownStyle}: for animated, that means motion graphics, animated explainers, kinetic text, illustrated or 3D characters) and often go viral. Their subject does not matter: these are for copying the animation style, not the topic, so the niche rule above does not apply to this list. Never a talking head or filmed footage.` : ""}
 
 ${own.handles.length || ownHandle ? `These are their own accounts; never return them: ${[...new Set([...own.handles, ...(ownHandle ? [ownHandle] : [])])].map((h) => `"@${h}"`).join(", ")}.` : ""}
@@ -311,7 +313,7 @@ STRICT HONESTY RULES:
 
 Output ONLY this JSON, no other text:
 [{"kind":"account","platform":"instagram"|"facebook","handle":"...","name":"...","why":"..."},
- {"kind":"content","platform":"instagram"|"facebook","url":"...","creator":"...","title":"...","why":"..."}${ownStyle ? `,
+ {"kind":"content","platform":"instagram"|"facebook","url":"...","creator":"...","title":"...","why":"..."}${viral ? `,
  {"kind":"style","platform":"instagram","handle":"...","name":"...","why":"..."}` : ""}]`;
 
     try {
@@ -339,7 +341,7 @@ Output ONLY this JSON, no other text:
       for (const raw of parseJsonArray(text)) {
         const r = raw as Record<string, unknown>;
         const platform = r.platform === "facebook" ? "facebook" : "instagram";
-        if (r.kind === "account" || (r.kind === "style" && ownStyle)) {
+        if (r.kind === "account" || (r.kind === "style" && viral)) {
           const handle = typeof r.handle === "string" ? r.handle.trim().replace(/^@/, "") : "";
           if (!/^[a-zA-Z0-9._-]{1,40}$/.test(handle)) continue;
           if ((ownHandle && handle.toLowerCase() === ownHandle.toLowerCase()) || isOwnAccount(own, { handle, name: typeof r.name === "string" ? r.name : null })) continue;

@@ -192,6 +192,7 @@ const reelSchema = {
 const REEL_SYSTEM = `You look at Reels from other Instagram accounts and decide which ones a brand could make its own version of.
 A Reel is copyable when the brand could remake it about its own product or subject:
 - it shows a product like the brand's in use, explains a feature, or gives a tip in the brand's space; or
+- it comes from a business of the same kind anywhere (for a restaurant: another restaurant's dish, kitchen, staff or customer moment), so the brand can film its own version at its own place; or
 - it is made in the brand's own video style (for an animated brand: motion graphics, animated explainers, kinetic text), so the brand can swap in its own product and theme.
 It must also look modern and well made: current editing, clean design, sharp picture. A dated, cheap-looking or low-effort Reel is NOT copyable, however relevant.
 A Reel is NOT copyable when it is a showcase of what someone else's product produced (for example AI-made ads for perfume or lipstick from an AI ad tool), an event or brand-collaboration promo, a holiday or greeting post, personal life, or anything the brand could not remake about itself.

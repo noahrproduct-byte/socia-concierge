@@ -232,6 +232,8 @@ export type ReelsToCopyInput = Pick<CompetitorsData, "nicheAccess" | "nicheUpgra
   /** Viral Reels made the way the brand's own are, any topic (Discover), and that style in words ("Animated"). */
   styleReels?: ProvenReel[];
   ownStyle?: string | null;
+  /** "kind": the group holds businesses like theirs anywhere, not a video style. */
+  viralFrom?: "kind" | "style" | null;
 };
 
 /** Shown before "Show more Reels": the competitors' stay the most. */
@@ -347,8 +349,17 @@ export function ReelsToCopy({ d }: { d: ReelsToCopyInput }) {
       )}
       {sty.length > 0 && (
         <>
-          <h3 className="cx5-sub">{d.ownStyle ? `Viral ${d.ownStyle.toLowerCase()} Reels to copy` : "Viral Reels to copy"}</h3>
-          <p className="cx5-lead">Reels past {fmtN(VIRAL_MIN_VIEWS)} views from the accounts you copy, the ones SOCIA found like them, and others made the way your videos are. Any topic: the ones that reached furthest past their followers come first. Copy the style, not the subject.</p>
+          {d.viralFrom === "kind" ? (
+            <>
+              <h3 className="cx5-sub">Viral Reels from businesses like yours, anywhere</h3>
+              <p className="cx5-lead">Reels past {fmtN(VIRAL_MIN_VIEWS)} views from businesses like yours in any city, and from the accounts you copy. The ones that reached furthest past their followers come first. Make your own version with your own place, product and words.</p>
+            </>
+          ) : (
+            <>
+              <h3 className="cx5-sub">{d.ownStyle ? `Viral ${d.ownStyle.toLowerCase()} Reels to copy` : "Viral Reels to copy"}</h3>
+              <p className="cx5-lead">Reels past {fmtN(VIRAL_MIN_VIEWS)} views from the accounts you copy, the ones SOCIA found like them, and others made the way your videos are. Any topic: the ones that reached furthest past their followers come first. Copy the style, not the subject.</p>
+            </>
+          )}
           <div className="cx3-grid cx5-grid">{sty.map(card)}</div>
         </>
       )}

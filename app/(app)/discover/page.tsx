@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getViewer } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
+import { brandKind, viralSource } from "@/lib/discoverRules";
 import DiscoverPage from "@/components/discover/DiscoverPage";
 import type { Tracked } from "@/components/competitors/types";
 import type { DiscoverAccount, DiscoverData } from "@/components/discover/types";
@@ -270,10 +271,17 @@ export default async function Page() {
   // took off for its account or reached past the account's followers, and the furthest-reaching come first
   // (moe.dev: 2.6K followers, a Reel at 75K).
   const styleAccounts = styleRows.map((r) => build(String(r.platform), String(r.handle), r, null));
+  // A business that isn't an app copies the same kind of business anywhere, whatever their videos look like
+  // (lib/discoverRules.ts viralSource); otherwise research's accounts count only in the brand's own style.
+  const g = profile?.brand_detail?.growth;
+  const viralFrom = viralSource(
+    brandKind({ accountType: g?.account_type ?? null, name: profile?.brand_name ?? null, niche: profile?.niche ?? null, about: [profile?.brand_detail?.description, g?.business?.offer] }),
+    ownForMatch && ownForMatch.style !== "mixed" ? ownForMatch.style : null,
+  );
   const copyAccounts = copyList.map((h) => ({ ...build("instagram", h, null, null), copy: "you" as const }));
   const foundAccounts = copyFoundList.map((h) => ({ ...build("instagram", h, null, null), copy: "found" as const, copyVia: memory.copyFound[h]?.from ?? null }));
   const usedHandles = new Set([...competitors, ...fitting].map((a) => a.handle.toLowerCase()));
-  const copyPool = [...copyAccounts, ...foundAccounts.filter((a) => a.sameStyle), ...styleAccounts.filter((a) => a.sameStyle)]
+  const copyPool = [...copyAccounts, ...foundAccounts.filter((a) => a.sameStyle), ...styleAccounts.filter((a) => viralFrom === "kind" || a.sameStyle)]
     .filter((a) => a.posts.length && !usedHandles.has(a.handle.toLowerCase()) && notOurs(a.handle, a.name));
   const followersOf = new Map(copyPool.map((a) => [a.handle.toLowerCase(), a.audience.value ?? null]));
   const reach = (r: { views: number | null; accountHandle: string | null }) => {
@@ -292,7 +300,7 @@ export default async function Page() {
   const data: DiscoverData = {
     now: now.toISOString(),
     igEnabled: igRes.enabled, igReason: igRes.enabled ? null : (igRes.reason ?? null), ytConfigured: ytConfigured(),
-    main, ownStyle: styleWord(ownForMatch), limit,
+    main, ownStyle: styleWord(ownForMatch), viralFrom, limit,
     tracked, competitors, suggestions,
     reelsToCopy: withRef(reelsToCopy),
     nicheReels: withRef(nicheReels),
