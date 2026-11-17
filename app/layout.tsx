@@ -6,6 +6,7 @@ import ThemeScript from "@/components/ThemeScript";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import SiteAnalytics from "@/components/SiteAnalytics";
 import RefCapture from "@/components/referrals/RefCapture";
+import { instrumentSansHeading } from "@/components/fonts/instrumentSerif";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -48,9 +49,9 @@ export default function RootLayout({
   // before React hydrates, so the server markup and the client differ there on
   // purpose. Everything below <html> hydrates normally.
   return (
-    <html lang="en" className={cn("font-sans", inter.variable)} suppressHydrationWarning>
+    <html lang="en" className={cn("font-sans", inter.variable, instrumentSansHeading.variable)} suppressHydrationWarning>
       <head>
-        <meta name="theme-color" content="#f5f4f1" />
+        <meta name="theme-color" content="#fbfaf9" />
         <ThemeScript />
       </head>
       <body>

@@ -41,6 +41,10 @@ html {
 :where(h1, h2, h3) {
   text-wrap: balance;
 }
+/* Page titles and headlines take the heading face (tokens: --font-heading); a page's own rule can still choose otherwise. */
+:where(h1) {
+  font-family: var(--font-heading);
+}
 :where(p) {
   text-wrap: pretty;
 }
@@ -94,3 +98,26 @@ html {
     animation-duration: 1.8s;
   }
 }
+
+/* The browser's own "Choose file" button, drawn as a secondary control so a native file field matches the system. */
+input[type="file"] {
+  color: var(--ink-2);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+input[type="file"]::file-selector-button {
+  height: var(--control-h);
+  margin-right: var(--sp-3);
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--surface);
+  box-shadow: var(--shadow-ring);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+}
+
