@@ -15,11 +15,11 @@ const METERS = Object.keys(METER_LABEL) as MeterKey[];
 describe("plan configuration", () => {
   it("has the five confirmed plans at the confirmed prices, in order", () => {
     expect(PLAN_ORDER).toEqual(["free", "starter", "growth", "pro", "scale"]);
-    expect(PLANS.scale.priceMonthly).toBe(79.99);
+    expect(PLANS.scale.priceMonthly).toBe(119.99);
     expect(PLANS.free.priceMonthly).toBe(0);
-    expect(PLANS.starter.priceMonthly).toBe(19.99);
-    expect(PLANS.growth.priceMonthly).toBe(34.99);
-    expect(PLANS.pro.priceMonthly).toBe(49.99);
+    expect(PLANS.starter.priceMonthly).toBe(29.99);
+    expect(PLANS.growth.priceMonthly).toBe(49.99);
+    expect(PLANS.pro.priceMonthly).toBe(79.99);
     expect(PLANS.growth.popular).toBe(true);
   });
 
@@ -171,7 +171,7 @@ describe("plan helpers", () => {
 
   it("formats prices, history and pricing links", () => {
     expect(formatPrice(PLANS.free)).toBe("$0");
-    expect(formatPrice(PLANS.pro)).toBe("$49.99");
+    expect(formatPrice(PLANS.pro)).toBe("$79.99");
     expect(formatHistory(30)).toBe("30 days");
     expect(formatHistory(90)).toBe("90 days");
     expect(formatHistory(365)).toBe("1 year");

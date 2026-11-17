@@ -23,10 +23,22 @@ import type { PlanConfig } from "@/lib/plans";
 
 const fmtDay = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
 
+/**
+ * What this person really pays, from their own subscription: a subscriber who
+ * joined at a launch price keeps it, so the plan's price today can be wrong
+ * for them. Yearly plans are stored as their monthly share. null when unknown.
+ */
+function paidText(b: BillingInfo | null, priceCents: number | null | undefined): string | null {
+  if (!b || priceCents == null || priceCents <= 0) return null;
+  const usd = (c: number) => `$${(c / 100).toFixed(2)}`;
+  if (b.interval === "year") return `${usd(priceCents * 12)}/year`;
+  if (b.interval === "month") return `${usd(priceCents)}/month`;
+  return null;
+}
+
 /** One plain sentence about where the subscription stands, from Stripe's last update. */
-function billingLine(b: BillingInfo, cfg: PlanConfig): string | null {
-  // SOCIA sells monthly prices; a yearly subscription (only possible from inside Stripe) shows no amount rather than a wrong one.
-  const amount = b.interval === "month" ? `${formatPrice(cfg)}/month` : null;
+function billingLine(b: BillingInfo, cfg: PlanConfig, priceCents?: number | null): string | null {
+  const amount = paidText(b, priceCents) ?? (b.interval === "month" ? `${formatPrice(cfg)}/month` : null);
   if (b.plan === "free") return b.status === "canceled" ? "Your subscription has ended. You're on Free." : null;
   if (b.status === "past_due") return `Your last payment failed. Update your card in Manage billing to keep ${cfg.name}.`;
   if (b.cancelAt) return `Cancels on ${fmtDay(b.cancelAt)}. You keep ${cfg.name} until then.`;
@@ -144,11 +156,11 @@ export default function PlanBilling({
         <div>
           <div className="st2-plan-name">
             {cfg.name}{" "}
-            <span className="pb-price">· {formatPrice(cfg)}/month</span>{" "}
+            <span className="pb-price">· {paidText(billing, ent.priceCents) ?? `${formatPrice(cfg)}/month`}</span>{" "}
             <span className="st2-badge">Current</span>
           </div>
           <p>{cfg.tagline}</p>
-          {billing && billingLine(billing, cfg) && <p className="pb-billing-line">{billingLine(billing, cfg)}</p>}
+          {billing && billingLine(billing, cfg, ent.priceCents) && <p className="pb-billing-line">{billingLine(billing, cfg, ent.priceCents)}</p>}
         </div>
       </div>
 

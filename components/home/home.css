@@ -977,3 +977,7 @@ html:has(.hm) { background: #f7f6f3; }
   .hmx-audit { grid-template-columns: 1fr; justify-items: center; }
   .hmx-audit ul { width: 100%; }
 }
+
+/* A plan's yearly price under its monthly one (lib/yearly.ts). */
+.hm-price-yearly { margin: 6px 0 0; font-size: 13px; line-height: 1.45; color: var(--hm-ash); }
+.hm-price-yearly b { color: var(--hm-ink); font-weight: 600; }
