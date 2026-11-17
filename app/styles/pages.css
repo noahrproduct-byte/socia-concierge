@@ -546,6 +546,8 @@
 .obs-start div { display: flex; flex-direction: column; padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-control); background: var(--surface); }
 .obs-start dt { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
 .obs-start dd { margin: 0; font-size: var(--fs-title); line-height: var(--lh-title); font-weight: var(--fw-semibold); color: var(--ink); font-variant-numeric: tabular-nums; }
+/* A routine answer is words, not a figure: body size, and free to wrap. */
+.obs-start dd.obs-routine { font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-medium); font-variant-numeric: normal; }
 .obs-start small { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-3); }
 .obs-priorities { list-style: decimal; margin: 0; padding-left: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-2); font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink); }
 .obs-pillars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); }

@@ -16,6 +16,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import BrandMark from "@/components/BrandMark";
 import SioCorner from "@/components/sio/SioCorner";
+import Sio from "@/components/sio/Sio";
 import { usePathname } from "next/navigation";
 import { Sparkles, Send, ArrowRight, Check, Copy, RotateCcw, Paperclip } from "lucide-react";
 import Drawer from "./ov/Drawer";
@@ -304,10 +305,10 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
           )}
           {messages.map((m, i) => m.role === "user"
             ? <div key={i} className="ask-msg user"><p>{m.content}</p></div>
-            : <div key={i} className="ask-msg assistant"><span className="ask-avatar">S</span>{m.answer ? <AnswerView a={m.answer} onProposal={onProposal} applied={applied} setApplied={setApplied} onPlaceScanned={i === messages.length - 1 && !busy ? () => void send("Rewrite this script using the photos of my place, with every shot at a real spot.") : undefined} /> : <p>{m.content}</p>}</div>)}
+            : <div key={i} className="ask-msg assistant"><span className="ask-avatar is-sio"><Sio size={28} shadow={false} /></span>{m.answer ? <AnswerView a={m.answer} onProposal={onProposal} applied={applied} setApplied={setApplied} onPlaceScanned={i === messages.length - 1 && !busy ? () => void send("Rewrite this script using the photos of my place, with every shot at a real spot.") : undefined} /> : <p>{m.content}</p>}</div>)}
           {busy && (
             <div className="ask-msg assistant" aria-live="polite">
-              <span className="ask-avatar">S</span>
+              <span className="ask-avatar is-sio"><Sio size={28} shadow={false} expression="thinking" /></span>
               {live ? <div className="ask-answer"><p className="ask-text">{live}</p></div> : <div className="ask-typing"><span /><span /><span /></div>}
             </div>
           )}
