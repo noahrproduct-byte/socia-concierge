@@ -273,7 +273,7 @@ export default function YouTubeAnalytics({ data: d, gate: gateIn, maxDays }: { d
             {videoTab === "top" && !videoRows.length && <div className="ov-empty small">No videos with views in this period.</div>}
             {videoRows.length > 0 && <VideoTable rows={videoRows} basis={d.videoBasis} />}
             <p className="ov-source">
-              {d.videoBasis === "range" ? `Top ${d.videos.length} videos by views inside the period, from YouTube Analytics. “vs median” compares each video with the median of this list.` : "YouTube didn't return per-video stats for this period, so these are lifetime public totals — newer uploads have had less time to collect views."}
+              {d.videoBasis === "range" ? `Top ${d.videos.length} videos by views inside the period, from YouTube Analytics. “vs median” compares each video with the median of this list.` : "YouTube didn't return per-video stats for this period, so these are lifetime public totals. Newer uploads have had less time to collect views."}
             </p>
           </section>
 
@@ -382,7 +382,7 @@ export default function YouTubeAnalytics({ data: d, gate: gateIn, maxDays }: { d
               <Mounted fallback={<div className="ov-empty small">Computing in your time zone…</div>}>
                 <PostingHeatmap posts={d.timed} formats={{}} unit="views" />
               </Mounted>
-              <p className="ov-source">Based on each upload&apos;s public views against your median upload ({d.timed.length} uploads). Views are lifetime totals, so newer videos have had less time to collect them — read recent uploads with that in mind.</p>
+              <p className="ov-source">Based on each upload&apos;s public views against your median upload ({d.timed.length} uploads). Views are lifetime totals, so newer videos have had less time to collect them. Read recent uploads with that in mind.</p>
             </>
           )}
         </section>

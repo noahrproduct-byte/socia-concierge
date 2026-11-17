@@ -76,7 +76,7 @@ export default function CommentsInbox({ initial, connected, auto: initialAuto, c
         else setErrors((m) => ({ ...m, [d.id]: "Couldn't draft another suggestion right now." }));
       }
     } catch {
-      setErrors((m) => ({ ...m, [d.id]: "Something went wrong. Try again." }));
+      setErrors((m) => ({ ...m, [d.id]: "SOCIA couldn't reach the server for that. Check your connection and try again." }));
     } finally {
       setBusyFor(d.id, null);
     }
@@ -151,7 +151,7 @@ export default function CommentsInbox({ initial, connected, auto: initialAuto, c
                 <div className="cm-draft">
                   <span className="cm-draft-label"><Sparkles size={12} /> SOCIA&apos;s suggested reply</span>
                   {skipSuggested && <p className="cm-skip">SOCIA suggests not replying: this looks like spam or a bot. Skip it, or write a reply yourself.</p>}
-                  <textarea value={value} onChange={(e) => setEdits((m) => ({ ...m, [d.id]: e.target.value }))} placeholder={skipSuggested ? "Write a reply only if you want to answer this one." : d.draft == null ? "SOCIA couldn't draft a reply for this one — write yours here." : ""} aria-label="Reply text" />
+                  <textarea value={value} onChange={(e) => setEdits((m) => ({ ...m, [d.id]: e.target.value }))} placeholder={skipSuggested ? "Write a reply only if you want to answer this one." : d.draft == null ? "SOCIA couldn't draft a reply for this one. Write yours here." : ""} aria-label="Reply text" />
                   <div className="cm-actions">
                     <button type="button" className="cm-btn primary" disabled={Boolean(b) || !value.trim()} onClick={() => act(d, "send")}>
                       {b === "send" ? <Loader2 size={14} className="cp-spin" /> : <Send size={14} />} Approve &amp; send

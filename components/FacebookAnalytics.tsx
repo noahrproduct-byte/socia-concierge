@@ -177,7 +177,7 @@ export default function FacebookAnalytics({ data: d, gate: gateIn, maxDays }: { 
                   <div className="ov-seg" role="tablist" aria-label="Metric">
                     {metrics.map(([m, label, s]) => (
                       <button key={m} type="button" role="tab" aria-selected={metric === m} className={metric === m ? "on" : ""} disabled={!ok(s)}
-                        title={s ? s.note : "Needs the read_insights permission — reconnect Facebook"} onClick={() => setMetric(m)}>{label}</button>
+                        title={s ? s.note : "Needs the read_insights permission. Reconnect Facebook"} onClick={() => setMetric(m)}>{label}</button>
                     ))}
                   </div>
                   <div className="av-controls">

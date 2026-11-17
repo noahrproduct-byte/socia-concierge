@@ -146,7 +146,7 @@ export function YieldView({ y, clips, builds, onOpen, onAddMore, stale, outcomes
           <span>{ORDER_LINE}</span>
           <button type="button" className="ov-btn ghost small" onClick={onAddMore}>Add more clips</button>
         </div>
-        {stale && <p className="cb-stale"><AlertTriangle size={12} /> Footage changed since these results — understand it again to refresh them.</p>}
+        {stale && <p className="cb-stale"><AlertTriangle size={12} /> Footage changed since these results. Understand it again to refresh them.</p>}
       </Reveal>
 
       {y.opportunities.length > 0 && (
@@ -179,7 +179,7 @@ export function YieldView({ y, clips, builds, onOpen, onAddMore, stale, outcomes
         <Reveal index={2 + Math.min(y.opportunities.length, 8)} className="ov-card cb-rejected">
           <h3>Didn&apos;t make the cut</h3>
           <ul>{y.rejected.map((r, i) => <li key={i}><b>{r.title}</b><span>{r.reason}</span></li>)}</ul>
-          <p className="ov-source">An idea is shown only when its clips add up to enough distinct, usable footage. These didn&apos;t — more clips of the same moment would change that.</p>
+          <p className="ov-source">An idea is shown only when its clips add up to enough distinct, usable footage. These didn&apos;t. More clips of the same moment would change that.</p>
         </Reveal>
       )}
     </div>
@@ -266,7 +266,7 @@ export function OpportunityView({ o, build, clips, loading, error, onBack, onRet
                 </div>
               </div>
             )}
-            <p className="ov-source">Times are inside each clip. Cuts avoid the middle of words when a transcript exists. Picture and sound fixes are listed only where the measurements support them. Music is a recommendation — SOCIA never adds a track.</p>
+            <p className="ov-source">Times are inside each clip. Cuts avoid the middle of words when a transcript exists. Picture and sound fixes are listed only where the measurements support them. Music is a recommendation. SOCIA never adds a track.</p>
           </>
         )}
       </Reveal>

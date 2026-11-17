@@ -51,7 +51,7 @@ export default function OpengraphImage() {
             Know what to post before you post it.
           </div>
           <div style={{ display: "flex", marginTop: 24, fontSize: 28, color: "#a6afc3", maxWidth: 880, lineHeight: 1.4 }}>
-            Your AI social strategist — content, audience and competitors, turned into what to post and when.
+            Your AI social strategist: content, audience and competitors, turned into what to post and when.
           </div>
         </div>
 

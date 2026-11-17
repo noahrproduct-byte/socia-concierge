@@ -67,7 +67,7 @@ export default function YouTubeConnect({
         : status === "notconfigured"
           ? "YouTube is not configured on the server yet."
           : status === "error"
-            ? "Something went wrong connecting YouTube. Please try again."
+            ? "YouTube couldn't be connected just now. Try again."
             : status === "forbidden"
               ? "Only the workspace owner or an admin can connect or disconnect accounts."
               : null;

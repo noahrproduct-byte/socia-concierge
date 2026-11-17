@@ -53,7 +53,7 @@ const ERR_COPY: Record<Exclude<ErrKind, "plan">, { title: string; body: string }
   too_short: { title: "Video is too short", body: "SOCIA needs at least one second of video to sample frames." },
   too_long: { title: "Video is too long", body: `Trim to under ${MAX_SECONDS / 60} minutes. Short-form is what this workspace judges.` },
   cors: { title: "Couldn't read this draft's media", body: "The file is stored, but the browser couldn't sample frames from it. Upload the original file instead." },
-  failed: { title: "Analysis failed", body: "Something went wrong reading the result. Try again; if it repeats, use a different export of the video." },
+  failed: { title: "Analysis failed", body: "SOCIA couldn't read the result of the analysis. Try again; if it repeats, use a different export of the video." },
   api: { title: "SOCIA AI is unavailable", body: "The analysis service didn't respond. Try again in a moment." },
   slow: { title: "The analysis took too long", body: "It was stopped before it finished. Try again in a moment." },
 };

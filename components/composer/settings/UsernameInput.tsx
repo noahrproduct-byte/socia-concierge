@@ -219,7 +219,7 @@ export default function UsernameInput({
             );
           })}
           <li className="cp-suggest-foot" aria-hidden>
-            {lookupUnavailable ? `${lookupUnavailable} ` : ""}Suggestions are accounts SOCIA knows for this brand — or keep typing any username.
+            {lookupUnavailable ? `${lookupUnavailable} ` : ""}Suggestions are accounts SOCIA knows for this brand. You can also keep typing any username.
           </li>
         </ul>
       )}

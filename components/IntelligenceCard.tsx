@@ -61,7 +61,7 @@ export default function IntelligenceCard({ intel }: { intel: IntelState }) {
       <div className="st3-intel-empty">
         <p>
           Connect your Instagram and SOCIA reads your real posts to detect your niche, audience,
-          and content signals — then keeps its intelligence fresh automatically.
+          and content signals, then keeps its intelligence fresh automatically.
         </p>
         <Link href="#accounts" className="st2-connect">
           Connect an account <ArrowRight size={13} />

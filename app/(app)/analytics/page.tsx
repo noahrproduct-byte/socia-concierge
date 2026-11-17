@@ -377,7 +377,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     .map((a) => ({ id: a.id, platform: a.platform, label: a.label, points: a.series.views!.points, mode: "sum", trueSeries: true }));
   const overlay = {
     lines: overlayLines,
-    note: "Daily views from the platforms that report a real daily series — Instagram and YouTube. Facebook and TikTok don't provide a daily views trend, so they aren't drawn here.",
+    note: "Daily views from the platforms that report a real daily series: Instagram and YouTube. Facebook and TikTok don't provide a daily views trend, so they aren't drawn here.",
   };
 
   // ---- Content intelligence + Diagnostics (brand-wide, the same sample the Overview reads) ----

@@ -125,7 +125,12 @@ export class HiggsfieldProvider implements GenerationProvider {
     if (!path) throw new GenerationError("That model does not do this kind of generation.", "bad_model");
     const { json } = await this.call(`${BASE}/estimate/${path}`, { method: "POST", body: JSON.stringify(higgsfieldBody(req)) });
     const usd = parseHiggsfieldEstimate(json);
-    if (usd == null) throw new GenerationError("The generation service did not return a price. Try again in a moment.", "no_estimate", true);
+    if (usd == null) {
+      // What came back instead of {"usd": …}, so the cause can be read in the server log. It holds no secret:
+      // it is the provider's own answer to a price question.
+      console.error("[higgsfield] estimate had no price", JSON.stringify({ path, answer: JSON.stringify(json ?? null).slice(0, 400) }));
+      throw new GenerationError("The generation service did not return a price. Try again in a moment.", "no_estimate", true);
+    }
     return usd;
   }
 

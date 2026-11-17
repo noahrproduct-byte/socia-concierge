@@ -466,7 +466,7 @@ export default async function SettingsPage({
                   {syncedRecently ? (
                     <><CheckCircle2 size={13} /> Account health: all systems synced</>
                   ) : (
-                    <><AlertTriangle size={13} /> Data is getting stale — hit Sync now</>
+                    <><AlertTriangle size={13} /> Data is getting stale. Press Sync now</>
                   )}
                 </p>
               )}
@@ -583,7 +583,7 @@ export default async function SettingsPage({
               <div className="st2-card-head">
                 <span className="st2-card-ico"><Bell size={15} /></span>
                 <h3>Notifications &amp; Reports</h3>
-                <span className="st2-card-note">Planned — nothing to configure yet</span>
+                <span className="st2-card-note">Planned. Nothing to set up yet</span>
               </div>
               <ul className="st3-planned">
                 {[

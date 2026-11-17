@@ -6,7 +6,7 @@ import { Plus, Minus } from "lucide-react";
 const FAQS = [
   {
     q: "How does the free audit work?",
-    a: "Connect an account and SOCIA analyzes your recent posts, engagement patterns, and niche in under 60 seconds — then returns a 0–100 health score with your top-3 fixes. No credit card required.",
+    a: "Connect an account and SOCIA analyzes your recent posts, engagement patterns, and niche in under 60 seconds, then returns a 0–100 health score with your top-3 fixes. No credit card required.",
   },
   {
     q: "Can I use SOCIA for multiple social media platforms?",
@@ -18,7 +18,7 @@ const FAQS = [
   },
   {
     q: "What if I don't see results?",
-    a: "Start free and upgrade only when the loop pays for itself. Every plan is month-to-month — cancel anytime, no lock-in.",
+    a: "Start free and upgrade only when the loop pays for itself. Every plan is month-to-month. Cancel anytime, no lock-in.",
   },
 ];
 
