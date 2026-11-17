@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mentionedHandles, reachesPastFollowers, fitOf, FIT_TTL_MS, accountStyle, mainPlatform, missKind, sameStyle, sanitizeMemory, styleKey, styleStale, styleWord, triedRecently, STYLE_TTL_MS, TRY_TTL_MS } from "./discoverStyle";
+import { reelKey, mentionedHandles, reachesPastFollowers, fitOf, FIT_TTL_MS, accountStyle, mainPlatform, missKind, sameStyle, sanitizeMemory, styleKey, styleStale, styleWord, triedRecently, STYLE_TTL_MS, TRY_TTL_MS } from "./discoverStyle";
 
 const AT = "2026-11-14T12:00:00.000Z";
 
@@ -30,7 +30,7 @@ describe("the saved memory", () => {
     });
     expect(m.own?.style).toBe("animated");
     expect(Object.keys(m.accounts)).toEqual(["instagram:therefundapp"]);
-    expect(sanitizeMemory(null)).toEqual({ own: null, accounts: {}, tried: {}, fit: {}, copyFrom: [], copyFound: {} });
+    expect(sanitizeMemory(null)).toEqual({ own: null, accounts: {}, tried: {}, fit: {}, copyFrom: [], copyFound: {}, reels: {} });
   });
   it("is looked at again after a week", () => {
     const s = accountStyle(["animated"], AT)!;
@@ -128,5 +128,26 @@ describe("Reels to copy from", () => {
     expect(reachesPastFollowers([500, 600, 50000], 20000)).toBe(true);
     expect(reachesPastFollowers([], 100)).toBe(false);
     expect(reachesPastFollowers([100], null)).toBe(false);
+  });
+});
+
+describe("per-Reel check", () => {
+  it("keys a Reel by the id in its link", () => {
+    expect(reelKey("https://www.instagram.com/reel/DfoXo1psPkH/")).toBe("DfoXo1psPkH");
+    expect(reelKey("https://www.instagram.com/reels/DerGGQsFW_p/")).toBe("DerGGQsFW_p");
+    expect(reelKey("https://www.instagram.com/p/Abc_123/")).toBe("Abc_123");
+    expect(reelKey("https://youtube.com/shorts/xyz")).toBeNull();
+  });
+  it("keeps valid verdicts with their make line, and drops bad ones", () => {
+    const m = sanitizeMemory({ reels: {
+      DfoXo1psPkH: { ok: false, make: "", at: "2026-11-16T10:00:00Z" },
+      DerGGQsFW_p: { ok: true, make: "Show SOCIA's research screen step by step", at: "2026-11-16T10:00:00Z" },
+      "bad key!": { ok: true, make: "x", at: "2026-11-16T10:00:00Z" },
+      Abcd1: { ok: "yes", at: "2026-11-16T10:00:00Z" },
+    } });
+    expect(m.reels).toEqual({
+      DfoXo1psPkH: { ok: false, make: null, at: "2026-11-16T10:00:00Z" },
+      DerGGQsFW_p: { ok: true, make: "Show SOCIA's research screen step by step", at: "2026-11-16T10:00:00Z" },
+    });
   });
 });

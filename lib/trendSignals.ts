@@ -288,6 +288,8 @@ export type ProvenReel = TrendingReel & {
   track?: TrackRecord;
   /** The Reel's file, signed for the viewer (lib/studioClips/refToken.ts): the Build tab reads it as the reference for their own version. */
   refToken?: string;
+  /** How this brand would make its own version, from the per-Reel check (Discover); replaces the generic recipe. */
+  make?: string;
 };
 
 /** Whether a Reel took off, by its own published numbers. */

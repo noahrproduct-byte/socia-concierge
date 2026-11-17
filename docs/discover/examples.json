@@ -202,5 +202,32 @@
       "date": "2026-11-16",
       "result": "Business Discovery read it: 2.6K followers, median 7.1K views, Animated."
     }
-  ]
+  ],
+  "wrong_reels": [
+    {
+      "date": "2026-11-16",
+      "for": "SOCIA",
+      "url": "https://www.instagram.com/reel/DfoXo1psPkH/",
+      "account": "predis.ai",
+      "what": "AI-made product ad samples (lipstick, lifestyle collage)",
+      "why_wrong": "A showcase of what the app produced, not the app; photo-real, not animated; nothing SOCIA could remake about itself."
+    },
+    {
+      "date": "2026-11-16",
+      "for": "SOCIA",
+      "url": "https://www.instagram.com/reel/Dfrl3PiE_x_/",
+      "account": "predis.ai",
+      "what": "AI-made perfume ad",
+      "why_wrong": "Output showcase, as above."
+    },
+    {
+      "date": "2026-11-16",
+      "for": "SOCIA",
+      "url": "https://www.instagram.com/reel/DfIZGHwnJdu/",
+      "account": "planoly",
+      "what": "'Oui, We x Planoly' brand collaboration / event promo, filmed footage",
+      "why_wrong": "Event promo: no app on screen, no tip, not animated."
+    }
+  ],
+  "reel_rule": "A competitor being right does not make all its Reels copyable. A Reel is copyable when it shows the product in use, explains a feature or gives a tip in the brand's space, or is made in the brand's own style so the brand can swap in its product. Output showcases, event or collab promos, holiday posts and personal life are not. (Noah agreed 2026-11-16: 'build both'.)"
 }
