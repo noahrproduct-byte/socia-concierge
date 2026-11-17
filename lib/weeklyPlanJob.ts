@@ -13,6 +13,7 @@
 // plan made since the Thursday before. Everything else is skipped and
 // counted, never guessed. The plan after onboarding (lib/initialPlan.ts) uses
 // the same inputs.
+import { allRows } from "./supabase/allRows";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getActiveWorkspace, competitorScopeId, type Workspace } from "./workspaces";
 import { brandWorkspace } from "./context";
@@ -147,7 +148,7 @@ async function ownerTimeZone(svc: Supa, ownerId: string): Promise<string> {
 
 async function owners(svc: Supa): Promise<string[]> {
   try {
-    const { data, error } = await svc.from("workspaces").select("owner_id").is("plan_suspended_at", null);
+    const { data, error } = await allRows<{ owner_id: string }>((from, to) => svc.from("workspaces").select("owner_id").is("plan_suspended_at", null).order("owner_id").order("id").range(from, to));
     if (!error && data) return [...new Set((data as { owner_id: string }[]).map((r) => r.owner_id))];
   } catch {
     /* pre-workspaces */

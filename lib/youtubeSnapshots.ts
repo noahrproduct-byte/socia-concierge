@@ -11,6 +11,7 @@
 // Service-role only (cron). Everything is best-effort: a channel that fails to
 // refresh or returns no data is counted and skipped, never guessed.
 
+import { allRows } from "./supabase/allRows";
 import { refreshAccessToken } from "./youtubeAuth";
 import { writePlatformSnapshotsBatch, type PlatformSnapshotRun, type SnapshotUpsertRow } from "./platformSnapshots";
 
@@ -87,7 +88,7 @@ export async function runYouTubeDailySnapshots(supabase: Supa, now = new Date(),
     "user_id, channel_id, access_token, refresh_token, token_expires_at",
   ]) {
     try {
-      const { data, error } = await supabase.from("youtube_connections").select(cols);
+      const { data, error } = await allRows<YtConn>((from, to) => supabase.from("youtube_connections").select(cols).order("user_id").range(from, to));
       if (error) throw error;
       conns = (data ?? []) as YtConn[];
       break;

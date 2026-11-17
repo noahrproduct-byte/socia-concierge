@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { DeadlineError, TOOK_TOO_LONG, deadlineFor, withDeadline } from "@/lib/deadline";
 import { createClient } from "@/lib/supabase/server";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 import { requireUsage } from "@/lib/planGuard";
@@ -64,10 +65,14 @@ export async function POST(req: Request) {
   const u = change ? null : await requireUsage(ctx.client, ctx.ownerId, "animated_videos", { feature: "auto_build" });
   if (u?.denied) return u.denied;
   try {
-    const spec = await writeAnimatedSpec(ctx, source, change ? { change, current } : {});
+    const spec = await withDeadline(writeAnimatedSpec(ctx, source, change ? { change, current } : {}), deadlineFor(maxDuration));
     return NextResponse.json({ spec });
   } catch (e) {
     await u?.release();
+    if (e instanceof DeadlineError) {
+      console.error("[animated/script] stopped at our own time limit");
+      return NextResponse.json({ error: TOOK_TOO_LONG, kind: "timeout" }, { status: 504 });
+    }
     const status = (e as { status?: number }).status;
     if (status && status >= 400 && status < 600) return NextResponse.json({ error: (e as Error).message }, { status });
     console.error("[animated/script]", (e as Error)?.message ?? e);

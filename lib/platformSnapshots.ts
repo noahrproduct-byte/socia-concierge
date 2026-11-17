@@ -13,6 +13,7 @@
 // platform_snapshots table isn't there yet, the job degrades to a no-op rather
 // than throwing.
 
+import { allRows } from "./supabase/allRows";
 import { FB_GRAPH_V } from "./facebook";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -214,7 +215,7 @@ export async function runFacebookDailySnapshots(supabase: Supa, now = new Date()
     "user_id, page_id, access_token",
   ]) {
     try {
-      const { data, error } = await supabase.from("facebook_connections").select(cols);
+      const { data, error } = await allRows<FbConn>((from, to) => supabase.from("facebook_connections").select(cols).order("user_id").range(from, to));
       if (error) throw error;
       conns = (data ?? []) as FbConn[];
       break;

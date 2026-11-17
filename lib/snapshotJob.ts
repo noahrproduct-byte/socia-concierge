@@ -7,6 +7,8 @@
 // Activity metrics come from Meta's finished daily series in syncInstagram.
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+import { allRows } from "./supabase/allRows";
+
 type Supa = any;
 
 const IG_V = "v23.0";
@@ -83,9 +85,10 @@ export async function runDailySnapshots(supabase: Supa, now = new Date(), budget
   // pre-migration schema working.
   let conns: Conn[] | null = null;
   try {
-    const { data, error } = await supabase
+    const { data, error } = await allRows<Conn>((from, to) => supabase
       .from("instagram_connections")
-      .select("user_id, ig_user_id, access_token, plan_suspended_at");
+      .select("user_id, ig_user_id, access_token, plan_suspended_at")
+      .order("user_id").range(from, to));
     if (error) throw error;
     conns = ((data ?? []) as Conn[]).filter((c) => c.access_token && c.plan_suspended_at == null);
   } catch {

@@ -12,6 +12,7 @@
 //
 // Server only (service role).
 
+import { allRows } from "./supabase/allRows";
 import { syncInstagram, SYNC_EVERY_MS } from "@/lib/instagramSync";
 import { syncFacebook } from "@/lib/facebookSync";
 import { runTikTokDailySync, type TikTokSyncRun } from "@/lib/tiktokSync";
@@ -55,7 +56,7 @@ async function readRows(svc: Supa): Promise<SyncRow[]> {
     "user_id, ig_user_id, access_token, last_synced_at",
   ]) {
     try {
-      const { data, error } = await svc.from("instagram_connections").select(cols);
+      const { data, error } = await allRows<SyncRow>((from, to) => svc.from("instagram_connections").select(cols).order("user_id").range(from, to));
       if (!error) return (data ?? []) as SyncRow[];
     } catch {
       /* try the next shape */
@@ -70,7 +71,7 @@ async function readFbRows(svc: Supa): Promise<SyncRow[]> {
     "user_id, access_token, connection_status, last_synced_at",
   ]) {
     try {
-      const { data, error } = await svc.from("facebook_connections").select(cols);
+      const { data, error } = await allRows<SyncRow>((from, to) => svc.from("facebook_connections").select(cols).order("user_id").range(from, to));
       if (!error) return ((data ?? []) as (SyncRow & { connection_status?: string | null })[]).filter((r) => r.connection_status === "connected");
     } catch {
       /* try the next shape */

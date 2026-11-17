@@ -3,6 +3,7 @@
 // competitor/trend alert detectors have prior state to compare against. Public
 // data only, first-of-day wins, no overwrite. Service role, from the daily cron.
 
+import { allRows } from "./supabase/allRows";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { igCompetitorRows } from "./igCompetitorData";
 import { channelStats, ytConfigured } from "./youtube";
@@ -19,7 +20,7 @@ let enabledSince: number | null = null;
 export async function competitorHistoryEnabled(supabase: Supa): Promise<boolean> {
   if (enabledSince != null) return true;
   try {
-    const { error } = await supabase.from("competitor_snapshots").select("handle", { head: true, count: "exact" }).limit(0);
+    const { error } = await supabase.from("competitor_snapshots").select("handle", { head: true }).limit(0);
     if (error) return false;
     enabledSince = Date.now();
     return true;
@@ -56,7 +57,7 @@ export async function recordCompetitorSnapshots(svc: Supa, now = new Date(), bud
   let rows: TrackedRow[] = [];
   try {
     // listTracked is per-user; read the table directly for the cron sweep.
-    const { data, error } = await svc.from("tracked_competitors").select("user_id, platform, handle, is_active");
+    const { data, error } = await allRows<TrackedRow & { is_active?: boolean }>((from, to) => svc.from("tracked_competitors").select("user_id, platform, handle, is_active").order("user_id").order("platform").order("handle").range(from, to));
     if (error) throw error;
     rows = ((data ?? []) as (TrackedRow & { is_active?: boolean })[]).filter((r) => r.is_active !== false);
   } catch {

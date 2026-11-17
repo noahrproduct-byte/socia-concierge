@@ -40,7 +40,7 @@ let enabledSince: number | null = null;
 export async function teamEnabled(supabase: Supa): Promise<boolean> {
   if (enabledSince != null) return true;
   try {
-    const { error } = await supabase.from("workspace_members").select("workspace_id", { head: true, count: "exact" }).limit(0);
+    const { error } = await supabase.from("workspace_members").select("workspace_id", { head: true }).limit(0);
     if (error) return false;
     enabledSince = Date.now();
     return true;

@@ -9,7 +9,8 @@ import { runTikTokDailySync } from "@/lib/tiktokSync";
 import { isCronRequest } from "@/lib/cronAuth";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// The steps below are budgeted at 120 s between them, so the function must be allowed longer than that.
+export const maxDuration = 300;
 
 // Daily snapshot job. The publisher already calls runDailySnapshots on every
 // cron tick, so this route is optional: a dedicated pg_cron job can hit it at

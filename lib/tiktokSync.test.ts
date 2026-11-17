@@ -21,7 +21,8 @@ vi.mock("./platformSnapshots", () => ({
 import { runTikTokDailySync } from "./tiktokSync";
 
 const NOW = new Date("2026-10-29T06:00:00Z");
-const supa = (rows: Row[]) => ({ from: () => ({ select: async () => ({ data: rows, error: null }) }) });
+// The job reads its accounts a page at a time (lib/supabase/allRows.ts).
+const supa = (rows: Row[]) => ({ from: () => ({ select: () => ({ order: () => ({ range: async (from: number, to: number) => ({ data: rows.slice(from, to + 1), error: null }) }) }) }) });
 const row = (over: Partial<Row>): Row => ({ user_id: "u1", workspace_id: "w1", open_id: "o1", access_token: "t", last_synced_at: null, plan_suspended_at: null, ...over });
 
 beforeEach(() => {

@@ -14,6 +14,7 @@
 // The last three are Growth+ features and run daily for EVERY workspace (not
 // only those with Instagram); their fingerprints are namespaced per workspace.
 
+import { allRows } from "./supabase/allRows";
 import { formatOf } from "./overview";
 import type { IgMediaItem } from "./instagramSync";
 import {
@@ -317,9 +318,11 @@ export async function runAlertDetection(svc: Supa, now = new Date(), budgetMs = 
   // accounts (plan downgrade) are not read.
   let conns: IgConn[] = [];
   try {
-    const { data, error } = await svc
+    // Smaller pages here: each row carries the account's recent posts.
+    const { data, error } = await allRows<IgConn>((from, to) => svc
       .from("instagram_connections")
-      .select("user_id, ig_user_id, workspace_id, media, plan_suspended_at");
+      .select("user_id, ig_user_id, workspace_id, media, plan_suspended_at")
+      .order("user_id").range(from, to), 200);
     if (error) throw error;
     conns = ((data ?? []) as IgConn[]).filter((c) => c.plan_suspended_at == null);
   } catch {
@@ -388,7 +391,7 @@ async function runWorkspacePhase2(
   let wss: { id: string; owner_id: string }[] | null = null;
   if (await competitorsScopedEnabled(svc)) {
     try {
-      const { data, error } = await svc.from("workspaces").select("id, owner_id").is("plan_suspended_at", null).order("created_at", { ascending: true });
+      const { data, error } = await allRows<{ id: string; owner_id: string }>((from, to) => svc.from("workspaces").select("id, owner_id").is("plan_suspended_at", null).order("created_at", { ascending: true }).order("id").range(from, to));
       if (!error) wss = (data ?? []) as { id: string; owner_id: string }[];
     } catch {
       wss = null;
