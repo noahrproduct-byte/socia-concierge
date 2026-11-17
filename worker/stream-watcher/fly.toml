@@ -1,0 +1,14 @@
+# SOCIA stream watcher on Fly.io: one small always-on machine, no web traffic.
+# Deploy from the repository root:  fly deploy --config worker/stream-watcher/fly.toml
+app = "socia-stream-watcher"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+
+# No [http_service]: the watcher only makes outgoing connections (Twitch, Supabase).
+# Keep exactly one machine running, or two watchers would clip the same moment twice.

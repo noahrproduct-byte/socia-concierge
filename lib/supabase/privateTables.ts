@@ -22,6 +22,7 @@ export const PRIVATE_TABLES: ReadonlySet<string> = new Set([
   "facebook_connections",
   "youtube_connections",
   "tiktok_connections",
+  "twitch_connections",
   "facebook_pending_tokens",
   // SOCIA's video cuts: the cut is a paid, counted product (Make This Video),
   // so the browser can't read or rewrite it around the routes that count it

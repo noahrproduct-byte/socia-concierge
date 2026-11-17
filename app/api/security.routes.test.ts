@@ -118,7 +118,7 @@ describe("every route without a signed-in user", () => {
   });
 
   it("refuses, or redirects to sign-in or an error, and never answers 200 outside the public list", () => {
-    const allowedRedirect = (loc: string | null) => !loc || /\/login|\/settings\?|\/onboarding\?|\/oauth\/error|[?&](ig|fb|yt|tt)=|error=/.test(loc);
+    const allowedRedirect = (loc: string | null) => !loc || /\/login|\/settings\?|\/onboarding\?|\/oauth\/error|[?&](ig|fb|yt|tt|twitch)=|error=/.test(loc);
     const bad = results.filter((r) => {
       if (r.status === -2) return true; // crashed
       if (r.status >= 200 && r.status < 300) return !PUBLIC_OK.has(r.route);
