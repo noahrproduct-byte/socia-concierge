@@ -4,7 +4,7 @@
 // the key's mode comes from its prefix, and ids are Stripe object ids. Pure.
 
 import { PLANS, type PlanId } from "./plans";
-import { FULL_PRICE, FULL_PRICE_FROM_TEXT, LAUNCH_END_LONG, launchOn } from "./launch";
+import { yearlyTotalCents } from "./yearly";
 
 export type CheckState = "ok" | "fix" | "info";
 export type CheckLine = { id: string; state: CheckState; label: string; detail: string };
@@ -26,6 +26,8 @@ export type BillingFacts = {
   webhookSecretSet: boolean;
   appUrl: string;
   prices: PriceFacts[];
+  /** The yearly prices (STRIPE_PRICE_<PLAN>_ANNUAL); absent or empty before yearly plans are set up. */
+  yearly?: PriceFacts[];
   webhooks: { url: string; status: string; events: string[] }[] | null;
   portal: { active: boolean; isDefault: boolean; updateEnabled: boolean; productIds: string[]; updateProration: string | null; cancelEnabled: boolean; cancelMode: string | null; cardUpdate: boolean } | null;
   /** Active promotion codes (what people type at checkout) and their coupon; null when they couldn't be read. */
@@ -57,7 +59,7 @@ export const SAAS_TAX_CODE = "txcd_10103001";
 
 const usd = (cents: number) => `$${(cents / 100).toFixed(cents % 100 ? 2 : 0)}`;
 
-export function assessBilling(f: BillingFacts, now: number = Date.now()): CheckLine[] {
+export function assessBilling(f: BillingFacts, _now: number = Date.now()): CheckLine[] {
   const out: CheckLine[] = [];
   const line = (id: string, state: CheckState, label: string, detail: string) => out.push({ id, state, label, detail });
 
@@ -93,12 +95,26 @@ export function assessBilling(f: BillingFacts, now: number = Date.now()): CheckL
       tax ? `Product tax code ${tax}${tax === SAAS_TAX_CODE ? " (SaaS, business use)" : ""}.` : `Managed Payments needs a tax code on the product. Set ${SAAS_TAX_CODE} (Software as a service, business use) on "${p.product?.name ?? name}".`);
   }
 
-  // Launch prices (lib/launch.ts): the crossed-out full price is a promise that it really starts the day after.
-  const still = f.prices.filter((p) => PLANS[p.plan].priceMonthly < FULL_PRICE[p.plan]);
-  if (launchOn(now)) {
-    line("launch", "info", "Launch prices", `Pricing shows the full prices crossed out until ${LAUNCH_END_LONG}. On ${FULL_PRICE_FROM_TEXT}, new sign-ups must pay ${f.prices.map((p) => `${PLANS[p.plan].name} ${usd(Math.round(FULL_PRICE[p.plan] * 100))}`).join(", ")}.`);
-  } else if (still.length) {
-    line("launch", "fix", "Launch prices ended", `The launch ended ${LAUNCH_END_LONG}, but ${still.map((p) => PLANS[p.plan].name).join(", ")} still ${still.length === 1 ? "sells" : "sell"} at the launch price. In Stripe, add each full monthly price (tax not included) on the same product and make it the default; keep the old price so current members keep theirs. Then raise priceMonthly in lib/plans.ts to match.`);
+  // Yearly plans (lib/yearly.ts): shown on the pricing page only once all four are set, at the amounts the page states.
+  const yearly = f.yearly ?? [];
+  if (!yearly.length || yearly.every((p) => p.configured === "missing")) {
+    line("yearly", "info", "Yearly plans", "Not on sale: no STRIPE_PRICE_<PLAN>_ANNUAL in Vercel, so the pricing page shows monthly prices only.");
+  } else {
+    for (const p of yearly) {
+      const name = PLANS[p.plan].name;
+      const want = yearlyTotalCents(p.plan);
+      const id = `yearly-${p.plan}`;
+      if (p.configured === "missing") { line(id, "fix", `${name} yearly price`, `No STRIPE_PRICE_${p.plan.toUpperCase()}_ANNUAL in Vercel. Until all four are set the yearly switch stays hidden.`); continue; }
+      if (p.error) { line(id, "fix", `${name} yearly price`, `Stripe said: ${p.error}`); continue; }
+      if (!p.price) { line(id, "fix", `${name} yearly price`, "The variable doesn't lead to an active yearly price."); continue; }
+      const problems: string[] = [];
+      if (!p.price.active) problems.push("the price is archived");
+      if (p.price.interval !== "year") problems.push(`it bills every ${p.price.interval ?? "one time"}, not yearly`);
+      if (p.price.currency !== "usd") problems.push(`it is in ${p.price.currency.toUpperCase()}, not USD`);
+      if (p.price.unitAmount !== want) problems.push(`it charges ${p.price.unitAmount == null ? "a custom amount" : usd(p.price.unitAmount)}, but the pricing page says ${usd(want)} a year`);
+      if (p.price.taxBehavior !== "exclusive") problems.push('"Include tax in price" must be No');
+      line(id, problems.length ? "fix" : "ok", `${name} yearly price`, problems.length ? `Fix in Stripe: ${problems.join("; ")}.` : `${usd(want)} a year (${p.price.id}).`);
+    }
   }
 
   const target = `${f.appUrl.replace(/\/$/, "")}/api/stripe/webhook`;

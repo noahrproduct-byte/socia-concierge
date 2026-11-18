@@ -1,4 +1,9 @@
-// Launch prices (Noah, 2026-11-15; shortened the same day to one month). Until the end of December 15, 2026
+// Launch prices (Noah, 2026-11-15). ENDED EARLY on November 17, 2026 (Noah): the
+// launch prices became the yearly plans' monthly price (lib/yearly.ts) and the
+// monthly plans moved to the full price. Everything below now reads "over", so
+// the crossed-out prices and the countdown no longer show anywhere.
+//
+// Original: until the end of December 15, 2026
 // (Central time, where SOCIA LLC is), each paid plan sells at its launch price
 // (PLANS[plan].priceMonthly, what Stripe charges today) and the pricing shows
 // the full price crossed out next to it, with a countdown to the end.
@@ -11,8 +16,8 @@
 // After the end, nothing here shows any more. Client-safe.
 import type { PlanId } from "./plans";
 
-/** The first moment after the launch: midnight starting December 16, 2026, Central time (UTC-6). */
-export const LAUNCH_ENDS_AT = Date.parse("2026-12-16T00:00:00-06:00");
+/** The first moment after the launch. Planned for December 16; it ended at midnight starting November 17, 2026, Central time. */
+export const LAUNCH_ENDS_AT = Date.parse("2026-11-17T00:00:00-06:00");
 
 /** How the end reads in copy. */
 export const LAUNCH_END_TEXT = "December 15";

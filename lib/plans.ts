@@ -336,7 +336,11 @@ export const LIMIT_UNIT: Record<LimitKey, { one: string; many: string }> = {
 export type PlanConfig = {
   id: PlanId;
   name: string;
-  /** USD per month. 0 for Free. Plans are billed monthly only. */
+  /**
+   * USD per month on a monthly plan. 0 for Free. Since 2026-11-17 (Noah) these are the full
+   * prices; a yearly plan costs less each month (lib/yearly.ts). Subscribers who joined at the
+   * launch prices keep them (their Stripe price never changes).
+   */
   priceMonthly: number;
   /**
    * The most this plan's AI may cost SOCIA in a calendar month (Claude, transcription, music), in USD.
@@ -460,7 +464,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
   starter: {
     id: "starter",
     name: "Starter",
-    priceMonthly: 19.99,
+    priceMonthly: 29.99,
     aiSpendCapUsd: 15,
     tagline: "Run up to two brands with SOCIA.",
     audience: "Creators and small businesses managing one or two brands.",
@@ -472,7 +476,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
   growth: {
     id: "growth",
     name: "Growth",
-    priceMonthly: 34.99,
+    priceMonthly: 49.99,
     aiSpendCapUsd: 28,
     tagline: "Grow multiple brands across every platform.",
     audience: "Growing creators and businesses managing multiple brands and social platforms.",
@@ -485,7 +489,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
   pro: {
     id: "pro",
     name: "Pro",
-    priceMonthly: 49.99,
+    priceMonthly: 79.99,
     aiSpendCapUsd: 42,
     tagline: "Manage brands, clients, and teams at scale.",
     audience: "Agencies, teams, multi-location businesses, and people managing many brands or clients.",
@@ -501,7 +505,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
   scale: {
     id: "scale",
     name: "Scale",
-    priceMonthly: 79.99,
+    priceMonthly: 119.99,
     // Scale's AI budget is Pro's; the Clipper and AI Studio are paid for in
     // credits on top (lib/credits/config.ts), priced from what they cost SOCIA.
     aiSpendCapUsd: 42,
@@ -558,8 +562,7 @@ export function formatPrice(p: PlanConfig): string {
   return p.priceMonthly === 0 ? "$0" : `$${p.priceMonthly}`;
 }
 
-/** How a subscription is billed. SOCIA sells monthly prices; "year" only
- *  appears if a subscription was ever put on a yearly price inside Stripe. */
+/** How a subscription is billed: monthly, or yearly (lib/yearly.ts). */
 export type BillingInterval = "month" | "year";
 
 /** "30 days", "90 days", "1 year" or "All retained history" from the history limit. */

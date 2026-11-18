@@ -1,7 +1,8 @@
 import { Check } from "lucide-react";
 import { openPlatformsText } from "@/lib/platformStatus";
-import { PLANS, SALE_ORDER, FEATURE_LABEL, FEATURE_STATUS, formatPrice, formatHistory, type PlanId, type PlanConfig } from "@/lib/plans";
-import { creditsBuy, creditsOnSale } from "@/lib/credits/config";
+import { PLANS, SALE_ORDER, FEATURE_LABEL, FEATURE_STATUS, formatPrice, formatHistory, type BillingInterval, type PlanId, type PlanConfig } from "@/lib/plans";
+import { creditsBuy, creditsOnSale, planCredits } from "@/lib/credits/config";
+import { YEARLY_PER_MONTH, isPaidPlanId, money, yearlyPercent, yearlySaving, yearlyTotal } from "@/lib/yearly";
 import { comingSoonFor } from "@/lib/pricingTable";
 import PlanCta from "./PlanCta";
 import { LaunchWas } from "./Launch";
@@ -15,13 +16,18 @@ import { LaunchWas } from "./Launch";
 
 const n = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
-function highlightsFor(p: PlanConfig): (string | null)[] {
+/** The monthly credits a plan comes with, paid monthly or yearly (a yearly plan's credits follow its monthly price, lib/credits/config.ts). */
+const creditsFor = (p: PlanConfig, interval: BillingInterval) =>
+  interval === "year" && isPaidPlanId(p.id) ? planCredits(p.id, Math.round(YEARLY_PER_MONTH[p.id] * 100)) : creditsOnSale(p.id);
+
+function highlightsFor(p: PlanConfig, interval: BillingInterval): (string | null)[] {
   const L = p.limits;
   const workspaces = n(L.workspaces, "Brand Workspace", "Brand Workspaces");
   // Every AI feature runs on one monthly credit balance (lib/credits/config.ts):
   // the card says how many credits and what they buy, not a list of per-feature counts.
-  const credits = `${creditsOnSale(p.id).toLocaleString("en-US")} AI credits a month, for any AI feature`;
-  const buys = `That's ${creditsBuy(creditsOnSale(p.id), (a) => p.meters[a] > 0)}`;
+  const monthly = creditsFor(p, interval);
+  const credits = `${monthly.toLocaleString("en-US")} AI credits a month, for any AI feature`;
+  const buys = `That's ${creditsBuy(monthly, (a) => p.meters[a] > 0)}`;
   const competitors = `${n(L.competitors, "competitor", "competitors")} per brand`;
   // Team members are a headline only once invites exist; until then the seat
   // count would be a promise about a feature that is not built, so it lives in
@@ -99,13 +105,21 @@ export default function PricingCards({
   signedIn,
   checkout,
   highlight,
+  interval = "month",
+  yearly = false,
 }: {
   currentPlan: PlanId | null;
   signedIn: boolean;
   checkout: boolean;
   /** From ?plan=; that card is outlined and scrolled to. */
   highlight: PlanId | null;
+  /** Which prices the cards show: monthly, or yearly (lib/yearly.ts). */
+  interval?: BillingInterval;
+  /** Yearly plans are on sale (all four yearly prices exist), so a monthly card can mention them. */
+  yearly?: boolean;
 }) {
+  // The two sets of cards are both in the page (the switch shows one), so the yearly ids are kept apart.
+  const sfx = interval === "year" ? "-yearly" : "";
   return (
     <div className="pr-grid" style={{ "--plans": SALE_ORDER.length } as React.CSSProperties}>
       {SALE_ORDER.map((id) => {
@@ -115,22 +129,41 @@ export default function PricingCards({
         const below = SALE_ORDER[SALE_ORDER.indexOf(id) - 1];
         const soon = comingSoonFor(id).filter((k) => !below || !PLANS[below].features[k]);
         return (
-          <article key={id} id={`plan-${id}`} className={cls} aria-labelledby={`plan-${id}-name`}>
+          <article key={id} id={`plan-${id}${sfx}`} className={cls} aria-labelledby={`plan-${id}${sfx}-name`}>
             <div className="pr-card-head">
-              <h3 id={`plan-${id}-name`} className="pr-card-name">{p.name}</h3>
+              <h3 id={`plan-${id}${sfx}-name`} className="pr-card-name">{p.name}</h3>
               {p.popular && <span className="pr-popular">Recommended</span>}
             </div>
-            <LaunchWas plan={id} price={p.priceMonthly} />
-            <div className="pr-price">
-              <span className="pr-price-amount">{formatPrice(p)}</span>
-              <span className="pr-price-per">/month</span>
-            </div>
+            {interval === "year" && isPaidPlanId(id) ? (
+              <>
+                <div className="pr-was">
+                  <s><span className="ln-sr">Monthly price </span>{formatPrice(p)}</s>
+                  <span className="pr-save-tag">Save {yearlyPercent(id)}%</span>
+                </div>
+                <div className="pr-price">
+                  <span className="pr-price-amount">{money(YEARLY_PER_MONTH[id])}</span>
+                  <span className="pr-price-per">/month</span>
+                </div>
+                <p className="pr-yearly-line">Billed yearly at {money(yearlyTotal(id))}. You save <b>{money(yearlySaving(id))}</b> on paying monthly.</p>
+              </>
+            ) : (
+              <>
+                {/* On the yearly cards Free keeps an empty row the height of the crossed-out price, so every price sits on one line. */}
+                {interval === "year" && <div className="pr-was" aria-hidden />}
+                <LaunchWas plan={id} price={p.priceMonthly} />
+                <div className="pr-price">
+                  <span className="pr-price-amount">{formatPrice(p)}</span>
+                  <span className="pr-price-per">/month</span>
+                </div>
+                {yearly && isPaidPlanId(id) && <p className="pr-yearly-line">Or {money(YEARLY_PER_MONTH[id])} a month, billed yearly.</p>}
+              </>
+            )}
             <p className="pr-tagline">{p.tagline}</p>
             <p className="pr-audience">{p.audience}</p>
-            <PlanCta plan={id} currentPlan={currentPlan} signedIn={signedIn} checkout={checkout} highlighted={highlight === id} />
+            <PlanCta plan={id} currentPlan={currentPlan} signedIn={signedIn} checkout={checkout} highlighted={highlight === id} interval={interval} />
             {below && <p className="pr-everything">Everything in {PLANS[below].name}, plus:</p>}
             <ul className="pr-list">
-              {highlightsFor(p).filter((t): t is string => Boolean(t)).map((text) => (
+              {highlightsFor(p, interval).filter((t): t is string => Boolean(t)).map((text) => (
                 <li key={text}>
                   <Check size={14} aria-hidden />
                   <span>{text}</span>
