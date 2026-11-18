@@ -234,6 +234,7 @@ export type ReelsToCopyInput = Pick<CompetitorsData, "nicheAccess" | "nicheUpgra
   ownStyle?: string | null;
   /** "kind": the group holds businesses like theirs anywhere, not a video style. */
   viralFrom?: "kind" | "style" | null;
+  viralWho?: "businesses" | "creators";
 };
 
 /** Shown before "Show more Reels": the competitors' stay the most. */
@@ -351,8 +352,17 @@ export function ReelsToCopy({ d }: { d: ReelsToCopyInput }) {
         <>
           {d.viralFrom === "kind" ? (
             <>
-              <h3 className="cx5-sub">Viral Reels from businesses like yours, anywhere</h3>
-              <p className="cx5-lead">Reels past {fmtN(VIRAL_MIN_VIEWS)} views from businesses like yours in any city, and from the accounts you copy. The ones that reached furthest past their followers come first. Make your own version with your own place, product and words.</p>
+              {d.viralWho === "creators" ? (
+                <>
+                  <h3 className="cx5-sub">Viral Reels from creators like you, anywhere</h3>
+                  <p className="cx5-lead">Reels past {fmtN(VIRAL_MIN_VIEWS)} views from creators in your niche, and from the accounts you copy. The ones that reached furthest past their followers come first. Make your own version with your own story and words.</p>
+                </>
+              ) : (
+                <>
+                  <h3 className="cx5-sub">Viral Reels from businesses like yours, anywhere</h3>
+                  <p className="cx5-lead">Reels past {fmtN(VIRAL_MIN_VIEWS)} views from businesses like yours in any city, and from the accounts you copy. The ones that reached furthest past their followers come first. Make your own version with your own place, product and words.</p>
+                </>
+              )}
             </>
           ) : (
             <>

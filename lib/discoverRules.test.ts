@@ -38,6 +38,9 @@ describe("where viral Reels come from", () => {
     expect(viralSource(pizza, null)).toBe("kind");
     expect(viralSource(socia, "animated")).toBe("style");
     expect(viralSource(socia, null)).toBeNull();
-    expect(viralSource(creator, null)).toBeNull();
+    // Creators copy creators in their niche anywhere (2026-11-17, @rogalfx), unless their videos are animated.
+    expect(viralSource(creator, null)).toBe("kind");
+    expect(viralSource(creator, "filmed")).toBe("kind");
+    expect(viralSource(creator, "animated")).toBe("style");
   });
 });

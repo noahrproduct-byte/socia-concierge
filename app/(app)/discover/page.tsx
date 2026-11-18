@@ -8,7 +8,7 @@ import type { DiscoverAccount, DiscoverData } from "@/components/discover/types"
 import { getIgSnapshot } from "@/lib/instagramSync";
 import { channelStats, ytConfigured, type YtStats } from "@/lib/youtube";
 import { youtubeRecentUploads } from "@/lib/youtubeData";
-import { isStyleSource, nicheVetted } from "@/lib/discovery";
+import { isStyleSource, isYoutubeTwin, nicheVetted, sameCreatorName } from "@/lib/discovery";
 import { cell, absent } from "@/lib/competitorRollup";
 import { competitorScopeId } from "@/lib/workspaces";
 import { type CompetitorRow } from "@/lib/competitorIntel";
@@ -219,8 +219,15 @@ export default async function Page() {
   // shows as a suggestion; the background read judges it.
   const fitFor = (a: { platform: string; handle: string }) => fitOf(memory, styleKey(a.platform, a.handle), now);
   const judged = suggested.map((r) => build(String(r.platform), String(r.handle), r, null));
+  // An Instagram handle guessed from a YouTube creator counts only once Instagram returned it under a matching name.
+  const twinNames = new Map(suggested.filter(isYoutubeTwin).map((r) => [String(r.handle).toLowerCase(), String(r.display_name ?? "")]));
+  const twinOk = (a: { platform: string; handle: string; posts: unknown[] }) => {
+    const h = a.handle.toLowerCase();
+    if (a.platform !== "instagram" || !twinNames.has(h)) return true;
+    return a.posts.length > 0 && sameCreatorName(ig.get(h)?.displayName ?? null, twinNames.get(h) ?? null);
+  };
   const suggestions = judged
-    .filter((a) => { const v = fitFor(a); return (v === "competitor" || v == null) && !tooSmallToSuggest(a.audience.value); })
+    .filter((a) => { const v = fitFor(a); return (v === "competitor" || v == null) && !tooSmallToSuggest(a.audience.value) && twinOk(a); })
     .sort((a, b) => Number(fitFor(b) === "competitor") - Number(fitFor(a) === "competitor") || Number(b.posts.length > 0) - Number(a.posts.length > 0) || Number(b.sameStyle) - Number(a.sameStyle) || (b.match ?? 0) - (a.match ?? 0))
     .slice(0, SUGGESTIONS_SHOWN);
 
@@ -255,7 +262,7 @@ export default async function Page() {
       why: null, dataSource: String(r.data_source ?? "web_research"),
     }));
   // Only from accounts judged to fit the niche: a Reel from research is kept only when its account is one of them.
-  const fitting = judged.filter((a) => { const v = fitFor(a); return a.posts.length > 0 && (v === "competitor" || v === "niche") && notOurs(a.handle, a.name); });
+  const fitting = judged.filter((a) => { const v = fitFor(a); return a.posts.length > 0 && (v === "competitor" || v === "niche") && notOurs(a.handle, a.name) && twinOk(a); });
   const fittingHandles = new Set(fitting.map((a) => a.handle.toLowerCase()));
   const nicheAll = rankTrendingReels(
     fitting.map((r) => ({ platform: r.platform, name: r.name, handle: r.handle, avatar: r.avatar, posts: r.posts })),
@@ -274,10 +281,8 @@ export default async function Page() {
   // A business that isn't an app copies the same kind of business anywhere, whatever their videos look like
   // (lib/discoverRules.ts viralSource); otherwise research's accounts count only in the brand's own style.
   const g = profile?.brand_detail?.growth;
-  const viralFrom = viralSource(
-    brandKind({ accountType: g?.account_type ?? null, name: profile?.brand_name ?? null, niche: profile?.niche ?? null, about: [profile?.brand_detail?.description, g?.business?.offer] }),
-    ownForMatch && ownForMatch.style !== "mixed" ? ownForMatch.style : null,
-  );
+  const brandIs = brandKind({ accountType: g?.account_type ?? null, name: profile?.brand_name ?? null, niche: profile?.niche ?? null, about: [profile?.brand_detail?.description, g?.business?.offer] });
+  const viralFrom = viralSource(brandIs, ownForMatch && ownForMatch.style !== "mixed" ? ownForMatch.style : null);
   const copyAccounts = copyList.map((h) => ({ ...build("instagram", h, null, null), copy: "you" as const }));
   const foundAccounts = copyFoundList.map((h) => ({ ...build("instagram", h, null, null), copy: "found" as const, copyVia: memory.copyFound[h]?.from ?? null }));
   const usedHandles = new Set([...competitors, ...fitting].map((a) => a.handle.toLowerCase()));
@@ -300,7 +305,7 @@ export default async function Page() {
   const data: DiscoverData = {
     now: now.toISOString(),
     igEnabled: igRes.enabled, igReason: igRes.enabled ? null : (igRes.reason ?? null), ytConfigured: ytConfigured(),
-    main, ownStyle: styleWord(ownForMatch), viralFrom, limit,
+    main, ownStyle: styleWord(ownForMatch), viralFrom, viralWho: brandIs.business ? "businesses" : "creators", limit,
     tracked, competitors, suggestions,
     reelsToCopy: withRef(reelsToCopy),
     nicheReels: withRef(nicheReels),

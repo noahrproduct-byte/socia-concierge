@@ -211,6 +211,8 @@ export type AccountCandidate = {
   nicheChecked?: boolean;
   /** Found as a source of viral Reels in the brand's own video style, on any topic: never a competitor. */
   styleSource?: boolean;
+  /** An Instagram handle guessed from a YouTube creator SOCIA found (the same handle on both): shown only once read. */
+  youtubeTwin?: boolean;
 };
 
 /** The reason a YouTube search result carries once it passed the niche check. */
@@ -222,6 +224,27 @@ export const NICHE_CHECKED = "Checked against your niche";
  * style"). Such accounts give Reels to copy and are never suggested as competitors.
  */
 export const STYLE_SOURCE = "Viral in your video style";
+
+/**
+ * The reason an Instagram account carries when its handle came from a YouTube creator research found
+ * (Noah, 2026-11-17: many creators use one handle on both). It is a guess, so Discover shows it only once
+ * Instagram returns the account under a matching name.
+ */
+export const YOUTUBE_TWIN = "Same handle as a YouTube creator SOCIA found";
+export const isYoutubeTwin = (row: object): boolean => {
+  const r = row as { relevance_reasons?: unknown };
+  return Array.isArray(r.relevance_reasons) && r.relevance_reasons.includes(YOUTUBE_TWIN);
+};
+
+/** Whether two account names belong to the same creator: one contains the other, or they share a word of 4+ letters. */
+export function sameCreatorName(a: string | null | undefined, b: string | null | undefined): boolean {
+  const words = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(Boolean);
+  const wa = words(a ?? ""), wb = words(b ?? "");
+  if (!wa.length || !wb.length) return false;
+  const ja = wa.join(""), jb = wb.join("");
+  if (ja.length >= 4 && jb.length >= 4 && (ja.includes(jb) || jb.includes(ja))) return true;
+  return wa.some((w) => w.length >= 4 && wb.includes(w));
+}
 
 /** Whether a stored discovered account is a style source rather than a possible competitor. */
 export const isStyleSource = (row: object): boolean => {
@@ -340,6 +363,7 @@ export function scoreAccount(c: AccountCandidate, p: DiscoveryProfile): ScoredAc
   }
   if (c.nicheChecked) reasons.push(NICHE_CHECKED);
   if (c.styleSource) reasons.push(STYLE_SOURCE);
+  if (c.youtubeTwin) reasons.push(YOUTUBE_TWIN);
 
   return {
     ...c,
