@@ -112,7 +112,7 @@ export const REEL_RULE_VERSION = 2;
 /** Reel verdicts kept per brand, newest first. */
 export const REEL_VERDICTS_MAX = 150;
 /** Reels judged in one background read (one or two fast-model calls). */
-export const REELS_JUDGED_PER_READ = 24;
+export const REELS_JUDGED_PER_READ = 36;
 
 export type StyleMemory = {
   /** Per Reel, by its link (reelKey): can the brand make its own version, and how. */

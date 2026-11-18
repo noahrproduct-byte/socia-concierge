@@ -299,9 +299,9 @@ ${locationMatters(profile) ? "- successful accounts in the same area, even in a 
 Every account and post must be about this niche or made for the same audience. An account that only shares the video style but is about something unrelated (sports, celebrities, news, comedy about other things) does not count, however well it does.
 
 Search the web and return ${viral ? "ALL THREE" : "BOTH"}:
-1. Up to 10 real ${webPlatforms} ACCOUNTS from those groups, doing well: posting regularly with an engaged audience.
+1. Up to 15 real ${webPlatforms} ACCOUNTS from those groups, doing well: posting regularly with an engaged audience.
 2. Up to 5 real recent ${main === "instagram" ? "Instagram Reels" : main === "facebook" ? "Facebook videos" : "Instagram Reels or Facebook videos"} posted by ${competitorWords(kind)} like those in 1${kind.app ? ", or by creators showing apps or AI tools in action on screen" : ""}, that they could make their own version of.${viral === "kind" ? `
-3. Up to 8 real Instagram accounts of ${competitorWords(kind)} ANYWHERE in the world, not only nearby, whose Reels regularly get tens of thousands of views or more. Lead with the large, well-known accounts in this space (usually 100K+ followers) that people in it already watch and copy; smaller accounts only when their Reels clearly go viral. Location does not matter for this list; these are for copying Reels that worked for an account like theirs. Give each account's exact official Instagram handle, never a fan page, repost page or lookalike handle. Never their own account and never one already in list 1.` : viral === "style" ? `
+3. Up to 10 real Instagram accounts of ${competitorWords(kind)} ANYWHERE in the world, not only nearby, whose Reels regularly get tens of thousands of views or more. Lead with the large, well-known accounts in this space (usually 100K+ followers) that people in it already watch and copy; smaller accounts only when their Reels clearly go viral. Location does not matter for this list; these are for copying Reels that worked for an account like theirs. Give each account's exact official Instagram handle, never a fan page, repost page or lookalike handle. Never their own account and never one already in list 1.` : viral === "style" ? `
 3. Up to 6 real Instagram accounts on ANY topic whose Reels are made the same way as theirs (${ownStyle}: for animated, that means motion graphics, animated explainers, kinetic text, illustrated or 3D characters) and often go viral. Their subject does not matter: these are for copying the animation style, not the topic, so the niche rule above does not apply to this list. Never a talking head or filmed footage.` : ""}
 
 ${own.handles.length || ownHandle ? `These are their own accounts; never return them: ${[...new Set([...own.handles, ...(ownHandle ? [ownHandle] : [])])].map((h) => `"@${h}"`).join(", ")}.` : ""}
@@ -386,6 +386,24 @@ Output ONLY this JSON, no other text:
       sources.web = "ok";
     } catch (e) {
       sources.web = aiFailure("competitors/intel", e);
+    }
+  }
+
+  // ---- the creators of the Reels research found ----------------------------
+  // A Reel from the web has no numbers until its account is read (Noah, 2026-11-17: "it doesn't have to be only
+  // the reels from the accounts, it can be just reels in that niche"). For a brand that copies its own kind,
+  // their creators join the anywhere list, so their Reels are read with real views.
+  if (viral === "kind") {
+    const have = new Set(accountCandidates.filter((c) => c.platform === "instagram").map((c) => (c.handle ?? "").toLowerCase()));
+    for (const c of contentCandidates.filter((x) => x.platform === "instagram" && x.dataSource === "web_research")) {
+      const h = (c.accountHandle ?? "").replace(/^@/, "").toLowerCase();
+      if (!IG_HANDLE_RE.test(h) || have.has(h)) continue;
+      have.add(h);
+      accountCandidates.push({
+        platform: "instagram", platformAccountId: h, handle: h, displayName: c.accountName ?? h,
+        profileImage: null, profileUrl: `https://instagram.com/${h}`, followers: null, location: null, category: null,
+        dataSource: "web_research", note: c.why ?? null, styleSource: true,
+      });
     }
   }
 

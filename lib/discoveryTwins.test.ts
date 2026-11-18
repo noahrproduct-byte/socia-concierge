@@ -27,3 +27,14 @@ describe("viral for creators", () => {
     expect(isViralFor(true, { views: 20_000, multiplier: null })).toBe(true);
   });
 });
+
+describe("reading 30 posts", () => {
+  it("reads a 12-post row again only when the account has more posts", async () => {
+    const { shortRead, POSTS_READ } = await import("./igCompetitorData");
+    expect(POSTS_READ).toBe(30);
+    expect(shortRead(new Array(12).fill({}), 161)).toBe(true);
+    expect(shortRead(new Array(12).fill({}), 12)).toBe(false);
+    expect(shortRead(new Array(30).fill({}), 161)).toBe(false);
+    expect(shortRead(null, 161)).toBe(false);
+  });
+});

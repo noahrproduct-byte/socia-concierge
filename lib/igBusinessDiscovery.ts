@@ -124,6 +124,8 @@ export async function businessDiscovery(
     let j = await ask(mediaLimit > 0);
     // Meta refusing view_count must not cost the followers, likes and comments.
     if (j.error && mediaLimit > 0 && /view_count|nonexisting field/i.test(j.error.message ?? "")) j = await ask(false);
+    // Too much in one answer: the usual 12 posts rather than nothing.
+    if (j.error && mediaLimit > 12 && /reduce the amount of data/i.test(j.error.message ?? "")) return businessDiscovery(igUserId, pageToken, competitor, 12);
 
     if (j.error) {
       const msg = (j.error.message ?? "").toLowerCase();
