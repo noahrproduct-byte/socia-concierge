@@ -474,19 +474,56 @@ export type UpdateDestinationOptions = {
    * meanwhile started uploading.
    */
   onlyIfUntouched?: DestinationStatus;
+  /**
+   * Write only while the row still has this status. Returns false when it no
+   * longer does: another run moved it first, and the caller must leave it alone.
+   */
+  ifStatus?: DestinationStatus;
 };
 
-export async function updateDestination(supabase: Supa, id: string, patch: Partial<Destination>, opts: UpdateDestinationOptions = {}): Promise<void> {
+export async function updateDestination(supabase: Supa, id: string, patch: Partial<Destination>, opts: UpdateDestinationOptions = {}): Promise<boolean> {
   const row = destinationPatchToRow(patch);
   row.updated_at = new Date().toISOString();
   let q = supabase.from("post_destinations").update(row).eq("id", id);
   if (opts.unlessPublished && patch.status !== "published") q = q.neq("status", "published");
   if (opts.onlyIfUntouched) q = q.eq("status", opts.onlyIfUntouched).is("external_post_id", null);
-  const { error } = await q;
+  if (opts.ifStatus) q = q.eq("status", opts.ifStatus).select("id");
+  const { data, error } = await q;
   if (error) {
     if (isMissingTableError(error)) throw new MissingTableError();
     throw new Error(error.message ?? "Could not update the destination.");
   }
+  return opts.ifStatus ? Array.isArray(data) && data.length > 0 : true;
+}
+
+/**
+ * Take one publish or poll step for a destination before talking to the
+ * platform. "start" moves a row that is not yet on the platform to uploading,
+ * only while it still has the status this caller read; "resume" re-stamps an
+ * in-flight row only while it is exactly as read (same status and
+ * updated_at). Two runs (the cron and Publish now, or two clicks) can read the
+ * same row; only the one whose write lands goes on, so a post is never sent
+ * twice. Returns true when this caller holds the step.
+ */
+export async function claimDestination(
+  supabase: Supa,
+  d: Pick<Destination, "id" | "status" | "updatedAt">,
+  mode: "start" | "resume",
+): Promise<boolean> {
+  const iso = new Date().toISOString();
+  let q = supabase
+    .from("post_destinations")
+    .update(mode === "start" ? { status: "uploading", updated_at: iso } : { updated_at: iso })
+    .eq("id", d.id)
+    .eq("status", d.status)
+    .is("external_post_id", null);
+  if (mode === "resume") q = q.eq("updated_at", d.updatedAt);
+  const { data, error } = await q.select("id");
+  if (error) {
+    if (isMissingTableError(error)) throw new MissingTableError();
+    throw new Error(error.message ?? "Could not claim the destination.");
+  }
+  return Array.isArray(data) && data.length > 0;
 }
 
 /**

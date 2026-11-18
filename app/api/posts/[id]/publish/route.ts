@@ -52,13 +52,17 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   try {
     const nowIso = now.toISOString();
+    const moved = new Set<string>();
     for (const d of pending) {
       if (d.status === "uploading" || d.status === "processing") continue;
       // A YouTube row already uploaded keeps its external id and is polled, not re-uploaded.
-      await updateDestination(ctx.client, d.id, { status: "scheduled", scheduledAt: nowIso, errorCode: null, errorMessage: null, nextRetryAt: null, retryCount: 0 });
+      // The reset lands only while the row is as read: a row another run has
+      // meanwhile claimed is left to that run, never reset and sent again.
+      const ok = await updateDestination(ctx.client, d.id, { status: "scheduled", scheduledAt: nowIso, errorCode: null, errorMessage: null, nextRetryAt: null, retryCount: 0 }, { ifStatus: d.status });
+      if (!ok) { moved.add(d.id); continue; }
       d.status = "scheduled"; d.scheduledAt = nowIso; d.errorCode = null; d.errorMessage = null; d.nextRetryAt = null; d.retryCount = 0;
     }
-    const { uploads } = await publishNow(ctx.client, ctx.ownerId, item, pending, 40_000);
+    const { uploads } = await publishNow(ctx.client, ctx.ownerId, item, pending.filter((d) => !moved.has(d.id)), 40_000);
     const after = (await loadItem(ctx.client, id, ctx.ownerId, ctx.workspace?.id ?? null)) ?? item;
     // Publishing a post that was waiting for approval (or marked ready) is the approval.
     await onScheduledByReviewer(ctx, id, null);

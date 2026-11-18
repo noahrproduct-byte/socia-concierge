@@ -4,7 +4,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import {
   createContainer, containerStatus, publishContainer, mediaPermalink, canPublish,
 } from "@/lib/igPublish";
-import { isDue, nextAction, MAX_ATTEMPTS, DAILY_PUBLISH_CAP, GRACE_HOURS, type ScheduledPost } from "@/lib/scheduling";
+import { isDue, nextAction, MAX_ATTEMPTS, DAILY_PUBLISH_CAP, GRACE_HOURS, publishHeld, publishFailureIsFinal, claimPost, type ScheduledPost } from "@/lib/scheduling";
 import { runDailySnapshots, type SnapshotRun } from "@/lib/snapshotJob";
 import { runFacebookDailySnapshots, type PlatformSnapshotRun } from "@/lib/platformSnapshots";
 import { runYouTubeDailySnapshots } from "@/lib/youtubeSnapshots";
@@ -66,9 +66,13 @@ async function setPost(supabase: Supa, id: string, patch: Record<string, unknown
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+const HELD = "skipped: another run holds it";
+
 /** Push one post as far as it can go within `budgetMs`. */
 async function publishOne(supabase: Supa, post: ScheduledPost, budgetMs: number): Promise<{ id: string; result: string }> {
   const started = Date.now();
+  // Another run (the cron or a second Publish now) is working on it.
+  if (publishHeld(post, new Date())) return { id: post.id, result: HELD };
   const conn = await connectionFor(supabase, post);
   if (!conn) {
     await setPost(supabase, post.id, { status: "failed", error: "No Instagram connection for this account." });
@@ -90,15 +94,22 @@ async function publishOne(supabase: Supa, post: ScheduledPost, budgetMs: number)
     return { id: post.id, result: "failed: missing media or account" };
   }
 
-  // Step 1 — container (skipped if a previous run already made one).
+  // Step 1 — container (skipped if a previous run already made one). Claimed
+  // first, so two runs never make two containers for one post.
   let containerId = post.container_id;
+  let attempts = post.attempts;
+  let status: string = post.status;
   if (!containerId) {
-    await setPost(supabase, post.id, { status: "publishing", attempts: post.attempts + 1, error: null });
+    if (!(await claimPost(supabase, post.id, { attempts, status }, { status: "publishing", error: null }, { noContainer: true }))) {
+      return { id: post.id, result: HELD };
+    }
+    attempts += 1;
+    status = "publishing";
     const c = await createContainer(igUserId, conn.access_token, {
       mediaType: post.media_type, mediaUrl: post.media_url, caption: post.caption,
     });
     if (!c.ok) {
-      const terminal = post.attempts + 1 >= MAX_ATTEMPTS;
+      const terminal = attempts >= MAX_ATTEMPTS;
       await setPost(supabase, post.id, { status: terminal ? "failed" : "scheduled", error: c.error });
       return { id: post.id, result: `container error: ${c.error}` };
     }
@@ -123,10 +134,17 @@ async function publishOne(supabase: Supa, post: ScheduledPost, budgetMs: number)
       await setPost(supabase, post.id, { status: "published" });
       return { id: post.id, result: "already published" };
     }
-    // Step 3 — publish.
+    // Step 3 — publish. Claimed too: a run that resumed this container while
+    // another waited on it must not publish it a second time.
+    if (!(await claimPost(supabase, post.id, { attempts, status }, { status: "publishing" }))) {
+      return { id: post.id, result: HELD };
+    }
+    attempts += 1;
     const p = await publishContainer(igUserId, conn.access_token, containerId);
     if (!p.ok) {
-      const terminal = post.attempts >= MAX_ATTEMPTS;
+      // Every try counts, so a container Instagram keeps refusing ends as
+      // failed with its reason instead of sitting in "publishing" for good.
+      const terminal = publishFailureIsFinal(attempts);
       await setPost(supabase, post.id, { status: terminal ? "failed" : "publishing", error: p.error });
       return { id: post.id, result: `publish error: ${p.error}` };
     }
