@@ -17,7 +17,11 @@ import { loadSchedulable, schedulableBlock, type Schedulable } from "@/lib/assis
 import { planReschedule } from "@/lib/assistant/reschedule";
 import { instagramAsk, ratedBlock, sanitizeRated } from "@/lib/assistant/askExtras";
 import { fileLabel, postLabel } from "@/lib/publishing/postLabel";
-import { isMissingColumnError } from "@/lib/workspaces";
+import { competitorScopeId, isMissingColumnError } from "@/lib/workspaces";
+import { intentBlock, linkIn, planSources } from "@/lib/research/intent";
+import { readIntent } from "@/lib/research/readIntent";
+import { gatherResearch, type Research } from "@/lib/research/gather";
+import { buildResearch } from "@/lib/research/answer";
 
 export const runtime = "nodejs";
 
@@ -58,6 +62,16 @@ const SCHEDULE_RULES = `Scheduling: when the user asks to schedule, post, spread
 - collaborators: the Instagram usernames they name as collaborators, exactly as they wrote them; never add one they didn't write. [] otherwise.
 - ideas: when they ask to fill the calendar with ideas, planned videos or posts they'll film or make later (not posts they already have), one entry per post: title (2 to 6 words), hook (the first line they'd say or show), concept (one sentence: what to film). Write them for this brand from its data, varied, each easy to make. As many as they asked for ("2 a day for a week" = 14; "fill my week" = their saved posts-a-week pace, else 5), at most 21. Leave posts [] unless they also mean existing drafts. [] otherwise.
 Never work out or state the times yourself: SOCIA calculates them and shows the list for the person to confirm. In "text", say in one sentence what you understood. A post listed as "Can't be moved" stays where it is. When they aren't asking to schedule, want is false, posts [], videos [], collaborators [], ideas [], strings "", numbers 0, times [], trialReel "unchanged" and trialShare "default".`;
+
+const RESEARCH_RULES = `Research answers: when the evidence has "Comparable public videos SOCIA found" (or the request is to make content, study a niche, plan a week or recreate a reference), fill "research"; otherwise approach "", examples [], why "", test "", steps [].
+- Base the answer on the request and the research, not on the user's past posts. Use the user's own posts only when the evidence lists them and they genuinely help.
+- approach: the recommended approach in at most two sentences.
+- examples: the 2 or 3 most comparable videos by their [R#] and, for each, why it is comparable in one short line (technique, structure or subject; no numbers, SOCIA shows them). Never refer to a video that isn't listed; never say you watched one (SOCIA read titles and numbers only).
+- why: one to three sentences on what recurs across the examples and how the approach uses it. Keep apart what was observed (a pattern in these titles or numbers) from your reading of it, and never present correlation as cause. When no examples were found, say so here and that the approach rests on general practice.
+- test: how to judge it after posting, in one or two sentences (what to compare, after how long).
+- steps: 1 to 3 of content_plan (add it to their plan), writer (write the post in Create Post), editor (make the video in the Video editor), idea (save it as a calendar draft), with a short label.
+- For a video or pitch request also write the full script in "draft" (the creative-director standard), with an "Editing:" part (pacing, captions, visual changes) after "Filming notes:". Each request gets its own structure from its research; never reuse one template.
+- "text" stays one sentence; observed, derived, interpretation and recommendation stay empty unless they add something the card doesn't.`;
 
 function parseJson(text: string): ModelAnswer | null {
   const cleaned = text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
@@ -114,8 +128,21 @@ export async function POST(req: Request) {
   const tz = zoneOr(askCtx.tz);
   const nowDate = new Date();
   const entP = getEntitlements(ctx.client, ctx.ownerId);
+  // One question per unit of the Ask SOCIA allowance, counted before any model
+  // call (reading the request is one) and given back when no answer comes.
+  const u = await requireUsage(ctx.client, ctx.ownerId, "ask_socia", { ent: await entP });
+  if (u.denied) return u.denied;
+  // What this request is about, then the evidence it needs (lib/research).
+  const earlierUser = messages.slice(0, -1).filter((m) => m.role === "user").map((m) => m.content).slice(-2).join(" | ");
+  const latestText = latest.role === "user" ? latest.content : "";
+  const { intent } = await readIntent({ ownerId: ctx.ownerId, question: latestText, earlier: earlierUser, page: askCtx.page, brand: ctx.workspace?.name ?? "" });
+  const sources = planSources(intent, { linkInQuestion: Boolean(linkIn(latestText)), page: askCtx.page });
+  const researchP: Promise<Research> = (sources.external || sources.niche || sources.reference)
+    ? competitorScopeId(ctx.client, wsId).catch(() => wsId).then((scopeId) => gatherResearch({ client: ctx.client, ownerId: ctx.ownerId, scopeId, question: latestText, intent, plan: sources, now: new Date() }))
+      .catch(() => ({ evidence: "", examples: [], notes: ["The research couldn't run this time."], reference: null }))
+    : Promise.resolve({ evidence: "", examples: [], notes: [], reference: null });
   const schedP = loadSchedulable(ctx.client, ctx.ownerId, wsId, nowDate).catch(() => ({ posts: [] as Schedulable[], others: [] }));
-  const evidenceFor = () => buildAskEvidence(ctx.client, ctx.ownerId, askCtx, wsId, brandWorkspace(ctx));
+  const evidenceFor = () => buildAskEvidence(ctx.client, ctx.ownerId, askCtx, wsId, brandWorkspace(ctx), sources).catch(async (e) => { await u.release(); throw e; });
   let ent: Awaited<typeof entP>;
   let ev: Awaited<ReturnType<typeof evidenceFor>>;
   if (askCtx.range) {
@@ -126,27 +153,27 @@ export async function POST(req: Request) {
     [ent, ev] = await Promise.all([entP, evidenceFor()]);
   }
   const sched = await schedP;
+  const research = await researchP;
+  const researchEvidence = [intentBlock(intent, sources), research.evidence, research.notes.length ? `# What SOCIA could and couldn't research\n${research.notes.map((x) => `- ${x}`).join("\n")}` : ""].filter(Boolean).join("\n\n");
   const nowLocal = new Intl.DateTimeFormat("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: tz }).format(nowDate);
   const rated = sanitizeRated(askCtx.rated);
   delete askCtx.rated;
   const ratedEvidence = ratedBlock(rated, nowDate);
   const schedEvidence = `# Posts SOCIA can schedule or move (the user's time zone is ${tz}; it is now ${nowLocal})\n${schedulableBlock(sched.posts, tz, new Set((Array.isArray(askCtx.newPosts) ? askCtx.newPosts : []).filter((x): x is string => typeof x === "string")))}${ratedEvidence ? `\n\n${ratedEvidence}` : ""}`;
   const first = messages[0];
-  const convo: Msg[] = [{ role: "user", content: `${ev.evidence}\n\n${schedEvidence}\n\n# The user's question\n${first.content}` }, ...messages.slice(1)];
-  // A follow-up needs the current list too: it may have changed since the first turn.
-  if (convo.length > 1 && convo[convo.length - 1].role === "user") convo[convo.length - 1] = { role: "user", content: `${schedEvidence}\n\n# The user's message\n${convo[convo.length - 1].content}` };
+  const convo: Msg[] = [{ role: "user", content: `${ev.evidence}\n\n${schedEvidence}\n\n${messages.length === 1 ? `${researchEvidence}\n\n` : ""}# The user's question\n${first.content}` }, ...messages.slice(1)];
+  // A follow-up needs the current list too (it may have changed since the
+  // first turn) and its own research: a new request in the same chat is
+  // researched for itself.
+  if (convo.length > 1 && convo[convo.length - 1].role === "user") convo[convo.length - 1] = { role: "user", content: `${schedEvidence}\n\n${researchEvidence}\n\n# The user's message\n${convo[convo.length - 1].content}` };
 
-  // One question per unit of the Ask SOCIA allowance; counted right before
-  // the model is called, and given back when the call produces no answer.
-  const u = await requireUsage(ctx.client, ctx.ownerId, "ask_socia", { ent });
-  if (u.denied) return u.denied;
 
   const model = modelFor("ask");
   const params = {
     model,
     // Room for a full script or caption in "draft" as well as the answer.
     max_tokens: 4000,
-    system: `${ev.system}\n${SCHEDULE_RULES}`,
+    system: `${ev.system}\n${RESEARCH_RULES}\n${SCHEDULE_RULES}`,
     output_config: { format: { type: "json_schema", schema: askAnswerSchema }, ...effortFor(model, "medium") },
     messages: convo,
   };
@@ -230,8 +257,14 @@ export async function POST(req: Request) {
     // Post ids are for the model's postId field, never for prose; and the
     // product's copy rule (no em dashes) applies to SOCIA's answers too.
     const clean = (t: string) => (t ?? "").replace(/\[\d{6,}\]\s*/g, "").replace(/\s*—\s*/g, ", ").replace(/\s*–\s*/g, " to ").trim();
+    const draftBody = raw.draft && raw.draft.kind !== "none" ? raw.draft.body ?? "" : "";
     const answer: AskAnswer = {
       text: clean(raw.text),
+      research: buildResearch({
+        raw: raw.research, kind: intent.kind, examples: research.examples, notes: research.notes, clean,
+        seed: clean(raw.research?.approach ?? "") || clean(raw.text),
+        caption: /^Caption:\s*(.+(?:\n(?!\s*\n)(?![A-Z][a-z]+:).+)*)/m.exec(draftBody)?.[1]?.trim() ?? null,
+      }),
       observed: (raw.observed ?? []).slice(0, 5).map(clean),
       derived: (raw.derived ?? []).slice(0, 4).map(clean),
       interpretation: clean(raw.interpretation),

@@ -19,6 +19,8 @@ export type Deliverable = {
     format: string;
     whyItWins: string;
     gap: string; // what they do that this account doesn't
+    /** "measured" when it rests on numbers SOCIA read for that account; "general" for a pattern from general knowledge, which names no account. Older plans lack it. */
+    basis?: "measured" | "general";
   }[];
   weeklyPlan: {
     day: string;
@@ -45,6 +47,14 @@ export type Deliverable = {
     beats?: PlanBeat[];
     /** The one number that says whether it worked, against the account's own median. */
     successMetric?: string;
+    /** The one action the post asks the viewer to take, in the account's words. Plans before 2026-11-17 lack it. */
+    cta?: string;
+    /** How to edit it: cuts, captions, pacing, within the editing skill the person has. Plans before 2026-11-17 lack it. */
+    editing?: string;
+    /** The account's own posts this one draws on, as SOCIA read them (from the P# ids the model cited). Set by SOCIA, never by the model. */
+    ownPosts?: import("./planEvidenceFormat").OwnPostRef[];
+    /** The evidence kept in three kinds: what SOCIA's numbers show, what the AI reads into them, and what to expect (a guess). Plans before 2026-11-17 lack it. */
+    evidenceSplit?: EvidenceSplit;
     /** The running experiment this post tests (its id in the Growth Strategy), when it tests one. */
     experiment?: string;
     /** The id of the niche Reel the model built this post on ("R2"), as it wrote it; replaced by `ref` when the plan is saved. */
@@ -74,8 +84,17 @@ export type Deliverable = {
 
 import type { ProductionGuide } from "./studioGuide";
 
-/** One timed beat of a planned video: "The problem", 0 to 7 seconds, what is on screen and said. */
-export type PlanBeat = { label: string; from: number; to: number; show: string };
+/** One timed beat of a planned video: "The problem", 0 to 7 seconds, what is on screen, and the words said or written. */
+export type PlanBeat = { label: string; from: number; to: number; show: string; say?: string };
+
+/**
+ * A planned post's evidence in three kinds that are never mixed. `observed`
+ * lines restate numbers from the evidence and each names the id it comes from
+ * (P# for the account's own posts, R# for niche Reels); SOCIA drops any that
+ * doesn't. `basis` is "thin" when there is too little of the account's own data
+ * to stand on, and "experiment" when the post is a test.
+ */
+export type EvidenceSplit = { observed: string[]; reading: string; expect: string; basis: "data" | "thin" | "experiment" };
 
 export type PlanDecision = { status: "approved" | "rejected"; at: string; reasons?: string[]; note?: string | null };
 
@@ -128,8 +147,9 @@ export const deliverableSchema = {
           format: { type: "string" },
           whyItWins: { type: "string" },
           gap: { type: "string" },
+          basis: { type: "string", enum: ["measured", "general"] },
         },
-        required: ["competitor", "whatsWorking", "format", "whyItWins", "gap"],
+        required: ["competitor", "whatsWorking", "format", "whyItWins", "gap", "basis"],
       },
     },
     weeklyPlan: {
@@ -158,16 +178,34 @@ export const deliverableSchema = {
             items: {
               type: "object",
               additionalProperties: false,
-              properties: { label: { type: "string" }, from: { type: "integer" }, to: { type: "integer" }, show: { type: "string" } },
-              required: ["label", "from", "to", "show"],
+              properties: { label: { type: "string" }, from: { type: "integer" }, to: { type: "integer" }, show: { type: "string" }, say: { type: "string" } },
+              required: ["label", "from", "to", "show", "say"],
             },
           },
           maker: { type: "string", enum: ["you", "claude"] },
           reference: { type: "string" },
+          cta: { type: "string" },
+          editing: { type: "string" },
+          ownRefs: { type: "array", items: { type: "string" } },
+          evidenceSplit: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              observed: { type: "array", items: { type: "string" } },
+              reading: { type: "string" },
+              expect: { type: "string" },
+              basis: { type: "string", enum: ["data", "thin", "experiment"] },
+            },
+            required: ["observed", "reading", "expect", "basis"],
+          },
         },
         required: [
           "maker",
           "reference",
+          "cta",
+          "editing",
+          "ownRefs",
+          "evidenceSplit",
           "day",
           "concept",
           "hook",

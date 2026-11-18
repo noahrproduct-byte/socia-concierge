@@ -115,7 +115,7 @@ export async function planInputsFor(svc: Supa, ownerId: string, ws: Workspace | 
   };
   if (!input.clientHandle && !input.niche) return null;
   const outcomes = await recentPlanOutcomes(svc, ownerId, wsId).catch(() => []);
-  const evidence = await loadEvidence(svc, ownerId, snap, await competitorScopeId(svc, wsId), { outcomes, strategy: profile?.brand_detail?.strategy ?? null, location: profile?.brand_detail?.location ?? null });
+  const evidence = await loadEvidence(svc, ownerId, snap, await competitorScopeId(svc, wsId), { outcomes, strategy: profile?.brand_detail?.strategy ?? null, location: profile?.brand_detail?.location ?? null, brandWorkspaceId: wsId, timeZone: profile?.brand_detail?.timezone ?? null });
   // The week follows the brand's own way of posting: its last plan's mix of filmed and animated posts (lib/planMix.ts).
   const start = await startingMix(svc, ownerId, wsId, profile?.brand_detail ?? null).catch(() => null);
   if (start) Object.assign(input, { onCamera: start.mix.onCamera, animated: start.mix.animated });

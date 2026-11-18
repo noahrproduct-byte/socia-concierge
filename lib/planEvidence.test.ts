@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ownPostsBlock, competitorsBlock, igSnapLine, outcomesBlock } from "./planEvidence";
+import { ownPostsBlock, ownPostRefs, calendarBlock, goalsBlock, competitorsBlock, igSnapLine, outcomesBlock } from "./planEvidence";
 import type { PlanOutcome, ItemOutcome } from "./planOutcomes";
 
 describe("plan evidence: own posts", () => {
@@ -19,14 +19,52 @@ describe("plan evidence: own posts", () => {
       { timestamp: "2026-08-25T11:00:00+0000", media_type: "IMAGE", caption: "Menu update", like_count: 10, comments_count: 1 },
     ];
     const b = ownPostsBlock(media, 12177);
-    expect(b).toContain('- 2026-09-01 · Reel · "Two crusts. One pizza." · 1900 likes, 109 comments');
-    expect(b).toContain('- 2026-08-25 · Static · "Menu update" · 10 likes, 1 comments');
+    expect(b).toContain('- [P1] 2026-09-01 · Reel · "Two crusts. One pizza." · 1,900 likes, 109 comments');
+    expect(b).toContain('- [P2] 2026-08-25 · Static · "Menu update" · 10 likes, 1 comments');
+    // No insights returned: views, saves and shares are left out, never shown as zero.
+    expect(b).not.toMatch(/0 views|0 saves/);
     expect(b).toContain("Followers: 12,177");
     expect(b).toContain("Reel: 1 post, median 2009 engagement");
     expect(b).toContain("Static: 1 post, median 11 engagement");
-    expect(b).toContain('Strongest posts: "Two crusts. One pizza." (Reel, 2009)');
+    expect(b).toContain('Strongest posts: [P1] "Two crusts. One pizza." (Reel, 2009)');
     // Too few posts to call any of them "weakest".
     expect(b).not.toContain("Weakest posts");
+  });
+});
+
+describe("plan evidence: own posts with insights", () => {
+  it("adds views, reach, saves and shares where Instagram returned them, with a median of views", () => {
+    const media = [1, 2, 3].map((i) => ({ timestamp: `2026-09-0${i}T10:00:00+0000`, media_type: "VIDEO", caption: `Reel ${i}`, like_count: 10 * i, comments_count: i, permalink: `https://www.instagram.com/reel/x${i}/`, insights: { views: 1000 * i, reach: 800 * i, saved: i, shares: i } }));
+    const b = ownPostsBlock(media, 500);
+    expect(b).toContain("[P1] 2026-09-01 · Reel · \"Reel 1\" · 10 likes, 1 comments, 1,000 views, 800 reached, 1 saves, 1 shares");
+    expect(b).toContain("Median views per post: 2,000 (3 posts with views)");
+    const refs = ownPostRefs(media);
+    expect(refs[2]).toMatchObject({ id: "P3", url: "https://www.instagram.com/reel/x3/", views: 3000, saved: 3 });
+  });
+});
+
+describe("plan evidence: calendar and goals", () => {
+  it("lists drafts and scheduled posts, and nothing when there are none", () => {
+    expect(calendarBlock([], "UTC")).toBe("");
+    const b = calendarBlock([
+      { scheduled_at: "2026-11-18T17:00:00Z", caption: "Pepperoni pull\nmore text", status: "scheduled", plan_id: "p1" },
+      { scheduled_at: "2026-11-19T17:00:00Z", caption: "", status: "draft" },
+      { scheduled_at: "2026-11-20T17:00:00Z", caption: "Gone", status: "published" },
+    ], "UTC");
+    expect(b).toContain('Wednesday, Nov 18 · scheduled · "Pepperoni pull" · from an earlier plan');
+    expect(b).toContain("Thursday, Nov 19 · draft");
+    expect(b).not.toContain("Gone");
+  });
+  it("states each live goal with where it stands, and says when SOCIA can't see the number", () => {
+    expect(goalsBlock([])).toBe("");
+    const b = goalsBlock([
+      { kind: "primary", metric: "followers", platforms: ["instagram"], baseline: 12000, target: 15000, due_date: "2027-01-31", status: "active" },
+      { kind: "secondary", metric: "bookings", platforms: [], baseline: null, current_value: 40, target: 60, due_date: null, status: "active" },
+      { kind: "secondary", metric: "leads", platforms: [], baseline: 1, target: 2, due_date: null, status: "dropped" },
+    ]);
+    expect(b).toContain("Main goal: Followers or subscribers: from 12,000 to 15,000 by 2027-01-31");
+    expect(b).toContain("Also: Bookings: from 40 to 60 (the person reports this number; SOCIA can't see it)");
+    expect(b).not.toContain("Leads");
   });
 });
 

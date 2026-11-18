@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizePlanItem, platformName, sanitizePlanItems, withItemIds } from "./planItems";
+import { cleanEvidenceSplit, normalizePlanItem, platformName, sanitizeOwnPost, sanitizePlanItems, withItemIds } from "./planItems";
 import { buildUserPrompt, SYSTEM } from "./prompt";
 import { deliverableSchema } from "./schema";
 
@@ -84,5 +84,60 @@ describe("the Reel a plan post is built on", () => {
 
   it("survives an edit sent back by the browser", () => {
     expect(sanitizePlanItems([{ ...post, ref }])[0].ref).toEqual(ref);
+  });
+});
+
+describe("a post's evidence in three kinds", () => {
+  const known = new Set(["P1", "P3", "R2"]);
+  it("keeps an observed line only when every id it cites was shown to the model", () => {
+    const s = cleanEvidenceSplit({ observed: ["[P3] Your kitchen Reel had 412 interactions", "[R9] A Reel that was never listed", "Posts do well on Fridays", "[P1] and [R2] both open on a face"], reading: "Faces first.", expect: "Above your median, a guess.", basis: "data" }, known);
+    expect(s?.observed).toEqual(["[P3] Your kitchen Reel had 412 interactions", "[P1] and [R2] both open on a face"]);
+    expect(s?.basis).toBe("data");
+  });
+  it("calls the basis thin when no observed line survives", () => {
+    const s = cleanEvidenceSplit({ observed: ["Everyone loves pizza"], reading: "A guess at what works.", expect: "Unknown.", basis: "data" }, known);
+    expect(s).toEqual({ observed: [], reading: "A guess at what works.", expect: "Unknown.", basis: "thin" });
+  });
+  it("keeps an experiment an experiment, and drops an empty split", () => {
+    expect(cleanEvidenceSplit({ observed: [], reading: "Test a menu POV.", expect: "", basis: "experiment" }, known)?.basis).toBe("experiment");
+    expect(cleanEvidenceSplit({ observed: [], reading: "", expect: "", basis: "data" }, known)).toBeUndefined();
+    expect(cleanEvidenceSplit(null, known)).toBeUndefined();
+  });
+});
+
+describe("own posts a plan post cites", () => {
+  it("reads back only a real post reference, bounded", () => {
+    expect(sanitizeOwnPost({ id: "P4", url: "https://www.instagram.com/reel/a/", date: "2026-11-01", title: "Hi", format: "Reel", likes: 3, comments: 1, views: 200, reach: null })).toMatchObject({ id: "P4", views: 200, reach: null, saved: null });
+    expect(sanitizeOwnPost({ id: "R4", likes: 1 })).toBeNull();
+    expect(sanitizeOwnPost({ id: "P4", url: "javascript:alert(1)" })?.url).toBeNull();
+  });
+  it("survives a round trip through the browser with the new fields", () => {
+    const [item] = sanitizePlanItems([{ day: "Monday", concept: "A", hook: "B", format: "Reel", rationale: "", evidence: "", predictedPerformance: "", cta: "Book a table", editing: "Cut on every beat", evidenceSplit: { observed: ["[P1] 10 likes"], reading: "r", expect: "e", basis: "data" }, ownPosts: [{ id: "P1", likes: 10, comments: 1 }], beats: [{ label: "Hook", from: 0, to: 3, show: "Face", say: "Stop scrolling" }, { label: "End", from: 3, to: 8, show: "Plate", say: "" }] }]);
+    expect(item.cta).toBe("Book a table");
+    expect(item.editing).toBe("Cut on every beat");
+    expect(item.evidenceSplit?.observed).toEqual(["[P1] 10 likes"]);
+    expect(item.ownPosts?.[0].id).toBe("P1");
+    expect(item.beats?.[0].say).toBe("Stop scrolling");
+    expect(item.beats?.[1].say).toBeUndefined();
+  });
+});
+
+describe("the plan prompt", () => {
+  const input = { clientHandle: "@cafe", niche: "Cafe", platform: "Instagram", brandVoice: "", recentPosts: "", competitors: "", goal: "" };
+  it("asks for split evidence, a script, a call to action and editing, and only measurable success measures", () => {
+    expect(SYSTEM).toContain("evidenceSplit");
+    expect(SYSTEM).toContain("say (the actual words spoken or written");
+    expect(SYSTEM).toContain("cta (the one action");
+    expect(SYSTEM).toContain('"Interactions against your median"');
+    expect(SYSTEM).not.toContain("Saves against your median");
+    for (const f of ["cta", "editing", "ownRefs", "evidenceSplit"]) expect(deliverableSchema.properties.weeklyPlan.items.required).toContain(f);
+  });
+  it("passes the week's Calendar and the measurable goals when there are some", () => {
+    const ev = { postsBlock: "", competitorsBlock: "", outcomesBlock: "", formatsBlock: "", decisionsBlock: "", experimentsBlock: "", trendsBlock: "", calendarBlock: "- Wednesday, Nov 18 · scheduled · \"Pull\"", goalsBlock: "- Main goal: Bookings: to 60", used: { outcomes: 0, posts: 0, competitors: 0, winning: 0, windows: false, followers: null, trends: 0 } };
+    const p = buildUserPrompt(input, null, ev);
+    expect(p).toContain("# Already on the Calendar for the next two weeks");
+    expect(p).toContain("# The account's measurable goals");
+    // With no posts of its own, every post is a test.
+    expect(p).toContain('basis of "thin" or "experiment"');
   });
 });

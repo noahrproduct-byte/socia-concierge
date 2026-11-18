@@ -63,6 +63,7 @@ export function Storyboard({ beats }: { beats: PlanBeat[] }) {
           </span>
           <b>{b.label}</b>
           <p>{b.show}</p>
+          {b.say && <p className="pf-beat-say"><span className="sr-only">Said: </span>&ldquo;{b.say}&rdquo;</p>}
         </li>
       ))}
     </ol>

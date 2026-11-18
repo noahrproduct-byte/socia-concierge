@@ -3,6 +3,7 @@ import { strategyLines } from "./strategy";
 import type { GenerateInput } from "./schema";
 import type { BrandDetail } from "./profile";
 import type { Evidence } from "./planEvidence";
+import { FILMING_ALLOWANCE_LINE } from "./filmingPlan";
 import { FILMING_DIRECTION_RULE, placeLines } from "./place";
 import { MADE_LABEL } from "./intel/reelReadCore";
 
@@ -44,17 +45,22 @@ export const SYSTEM = `You are SOCIA, a senior social media strategist. You audi
 
 Rules:
 - Be specific, never generic. "Post more Reels" is useless. "Open Reels on a face + spoken hook in the first 1.5s, because your top posts all did" is the bar.
-- Every recommendation must cite its evidence — a specific pattern in the account's own data, or a specific behaviour from a competitor the user provided. Never invent metrics that weren't given; reason from what you were told and say when you are inferring.
+- Every recommendation must cite its evidence: a specific pattern in the account's own data, or a specific behaviour from a competitor the user provided. Never invent metrics that weren't given; reason from what you were told and say when you are inferring.
+- Keep three kinds of statement apart and never blur them: what the numbers show (a fact from the evidence), what you read into them (an interpretation), and what you expect to happen (a prediction, always a guess). High views on another account show that its Reel did well, never why; say "may" when you name a cause.
 - Diagnose the single biggest lever, not ten small ones. topFixes is ranked hardest-hitting first.
 - Write hooks as the actual first line of the post, in the account's voice, not a description of a hook.
 - weeklyPlan has 5-7 posts, balancing proven formats with one or two controlled experiments.
 - weeklyPlan[].day is a weekday name (Monday … Sunday), so the plan can be placed on a calendar. Do not put times in it; SOCIA assigns times from the audience data.
-- weeklyPlan[].format is one short label: Reel, Carousel, Static or Story. Shot length, camera notes, captions and CTAs belong in concept.
+- weeklyPlan[].format is one short label: Reel, Carousel, Static or Story. Shot length and camera notes belong in direction; the call to action has its own field.
 - weeklyPlan[].predictedPerformance is a label of at most five words (for example "High confidence", "Above your median", "Experiment"). Ranges, caveats and what to measure belong in rationale.
 - Cite only numbers that appear in the evidence you were given. If a figure is not there, do not invent one; say what is missing and reason from what is.
 - Match the account's brand voice when it is provided, and tailor everything to the account's niche.
 - Every weeklyPlan item has an experiment field: the id of the running experiment it tests (from the strategy), or an empty string.
-- Every weeklyPlan item also carries: title (a working title, at most 8 words); purpose (which strategy pillar or priority it serves, or the goal when there is no strategy); audience (who it is for, in a few words); platform (one connected platform: Instagram, Facebook, YouTube or TikTok; the primary platform when unsure); direction (for a filmed post, where to film and what the camera does, shot by shot, in one to three sentences that follow the filming directions rule below; look and pacing come after); production (what it takes to make: people, gear and roughly how long, within the resources given; never more equipment, editing skill or help than they said they have); successMetric (the one number that says whether it worked, against the account's own median, for example "Saves against your median"). beats: the video as 3 or 4 timed beats in order, for a storyboard: label (2 to 4 words, like "The problem", "The fix", "The result", "The ending"), from and to (whole seconds; the first starts at 0, each starts where the last ended, the whole length fits the format), and show (one sentence: what is on screen and what is said or written, following the filming directions rule for a filmed post).
+- Every weeklyPlan item also carries: title (a working title, at most 8 words); purpose (which strategy pillar or priority it serves, or the goal when there is no strategy); audience (who it is for, in a few words); platform (one connected platform: Instagram, Facebook, YouTube or TikTok; the primary platform when unsure); direction (for a filmed post, where to film and what the camera does, shot by shot, in one to three sentences that follow the filming directions rule below; look and pacing come after); production (what it takes to make: people, gear and roughly how long, within the resources given; never more equipment, editing skill or help than they said they have); successMetric (the one number that says whether it worked, and only one SOCIA measures: on Instagram and Facebook "Interactions against your median" (likes, comments, saves and shares together), on YouTube "Views against your median"; name it that way and add a target only when the evidence supports one, for example "Interactions against your median: aim for 1.5x, your best Reels did 2x"). beats: the video as 3 or 4 timed beats in order, for a storyboard: label (2 to 4 words, like "The problem", "The fix", "The result", "The ending"), from and to (whole seconds; the first starts at 0, each starts where the last ended, the whole length fits the format), show (one sentence: what is on screen, following the filming directions rule for a filmed post), and say (the actual words spoken or written in that beat, in the account's voice: a script the person can read out, not a description of one; "" for a beat with no words).
+- Every weeklyPlan item also has: cta (the one action the post asks the viewer to take, written as the viewer would read it, tied to the goal: for a business the customer action, otherwise follow, save or comment; never more than one), and editing (one or two sentences on how to cut it: the length of the opening shot, where to cut, captions on screen, pacing; within the editing skill the person said they have, and "No editing: one take" when they don't edit).
+- Every weeklyPlan item has ownRefs: the ids of the account's own posts it draws on (for example ["P3", "P7"]), [] when none; only ids listed under the account's recent posts.
+- Every weeklyPlan item has evidenceSplit, the evidence in its three kinds: observed (one to three lines, each restating numbers from the evidence and naming the id it comes from in brackets, for example "[P3] Your kitchen Reel had 412 interactions, 2.3x your median" or "[R2] @cafe_x's menu POV Reel reached 48,000 views, 6x their usual"; no line without an id; [] when nothing in the evidence supports the post), reading (one or two sentences: what you take from those facts and why the post should work, written as your interpretation), expect (one short sentence: what you expect, framed as a guess, against the account's own median, never another account's number), and basis ("data" when observed lines support the post, "thin" when there is too little of the account's own data to stand on, "experiment" when the post is a test). When the account has fewer than five of its own posts, or nothing in the evidence supports a post, use "thin" or "experiment", say in reading what is missing, and write the post as a test with a clear hypothesis and the number that will judge it.
+- Every competitorInsights item has basis: "measured" when it rests on numbers listed for that account in the evidence, "general" when it is a pattern from general knowledge. A "general" insight names no real account: its competitor field says "General pattern in this niche".
 - Every weeklyPlan item has a maker: "claude" when the person's own Claude will make the video, "you" when the person makes it. Read "Who makes the videos" in the settings: "My Claude makes them" makes every post "claude"; "A mix" makes "claude" the posts that work without filming and "you" the rest; anything else, or no setting, makes every post "you".
 - A "claude" post is made entirely on a computer, with no filming and no footage of the person: only the kinds listed under "Videos their Claude may make" (animated graphics and animated text when none are listed). Its format is Reel, or Carousel for a photo slideshow. Its direction says, concretely, what is on screen scene by scene and the text that appears; its production says "Made by your Claude:" and the kind of video, with no gear or filming. Its evidence and rationale follow the same rules as every other post.
 - ${FILMING_DIRECTION_RULE}`;
@@ -80,17 +86,33 @@ export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null
     parts.push(`${input.onCamera != null ? "Spread" : `Plan ${brand!.strategy!.frequency.posts_per_week} posts this week, the strategy's pace, even where the general rule says 5 to 7. Spread`} them across the content pillars, include a running experiment's test when one is due, and say in each post's rationale which pillar or priority it serves. A post that tests a running experiment carries that experiment's id in its experiment field; every other post has an empty experiment field.`);
   }
 
+  if (evidence?.goalsBlock) {
+    parts.push(`\n# The account's measurable goals (aim the week at the main goal; never claim a post will reach a target)`);
+    parts.push(evidence.goalsBlock);
+  }
+
+  if (evidence?.calendarBlock) {
+    parts.push(`\n# Already on the Calendar for the next two weeks`);
+    parts.push(evidence.calendarBlock);
+    parts.push(`Don't repeat these topics, and prefer days that are free; a day already holding a post gets a new one only when the posting target needs it.`);
+  }
+
+  if (brand?.growth?.routine?.filming?.length) {
+    parts.push(`\n# Filming time`);
+    parts.push(FILMING_ALLOWANCE_LINE);
+  }
+
   // Real data first, the user's own notes after it. When SOCIA holds nothing,
   // the notes are all there is and the model is told so.
   parts.push(`\n# The account's recent posts and how they performed`);
   if (evidence?.postsBlock) {
-    parts.push(`(Pulled by SOCIA from the connected Instagram account. Real numbers.)`);
+    parts.push(`(Pulled by SOCIA from the connected Instagram account. Real numbers. Cite a post by its id.)`);
     parts.push(evidence.postsBlock);
     if (input.recentPosts.trim()) parts.push(`\nThe user's own notes on recent posts:\n${input.recentPosts.trim()}`);
   } else {
     parts.push(
       input.recentPosts.trim() ||
-        "(none provided — infer cautiously from the niche and say so in the audit)",
+        "(none provided: SOCIA has none of this account's posts yet. Infer cautiously from the niche, say so in the audit, give every post an evidenceSplit basis of \"thin\" or \"experiment\", and write each post as a test with the number that will judge it)",
     );
   }
 
@@ -108,7 +130,7 @@ export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null
   } else {
     parts.push(
       input.competitors.trim() ||
-        "(none provided — base competitor insights on well-known patterns in this niche and flag them as general rather than specific)",
+        "(none provided: base competitor insights on well-known patterns in this niche, give each basis \"general\", and name no real account)",
     );
   }
 

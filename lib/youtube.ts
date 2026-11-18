@@ -373,3 +373,64 @@ export async function channelMedianViews(uploadsPlaylist: string): Promise<numbe
   const m = Math.floor(xs.length / 2);
   return xs.length % 2 ? xs[m] : (xs[m - 1] + xs[m]) / 2;
 }
+
+/**
+ * Videos for a research question (Ask SOCIA): search ordered by relevance in
+ * a freshness window, optionally short videos only (YouTube's own filter is
+ * under four minutes; callers keep three minutes and under), with each
+ * video's public numbers. One search (100 units) plus one videos read (1 unit).
+ */
+export async function researchVideos(
+  query: string,
+  opts: { max?: number; days?: number; short?: boolean } = {},
+): Promise<(YtVideo & { channelId: string; channelTitle: string; url: string })[]> {
+  const after = new Date(Date.now() - (opts.days ?? 365) * 86400000).toISOString();
+  const found = await ytFetch<{ items?: { id?: { videoId?: string } }[] }>("search", {
+    part: "snippet", type: "video", order: "relevance", maxResults: "15", q: query,
+    publishedAfter: after, relevanceLanguage: "en", safeSearch: "moderate",
+    ...(opts.short ? { videoDuration: "short" } : {}),
+  });
+  const ids = [...new Set((found?.items ?? []).map((i) => i.id?.videoId).filter((v): v is string => Boolean(v)))].slice(0, 15);
+  if (!ids.length) return [];
+  const vids = await ytFetch<{ items?: { id: string; snippet?: { title?: string; publishedAt?: string; channelId?: string; channelTitle?: string; thumbnails?: { medium?: { url?: string }; high?: { url?: string } } }; statistics?: { viewCount?: string; likeCount?: string; commentCount?: string }; contentDetails?: { duration?: string } }[] }>(
+    "videos", { part: "snippet,statistics,contentDetails", id: ids.join(",") });
+  return (vids?.items ?? []).map((v) => {
+    const durationSec = isoDurationSec(v.contentDetails?.duration);
+    return {
+      videoId: v.id, title: v.snippet?.title ?? "", publishedAt: v.snippet?.publishedAt ?? "",
+      thumb: v.snippet?.thumbnails?.high?.url ?? v.snippet?.thumbnails?.medium?.url ?? null,
+      views: num(v.statistics?.viewCount), likes: num(v.statistics?.likeCount), comments: num(v.statistics?.commentCount),
+      durationSec, channelId: v.snippet?.channelId ?? "", channelTitle: v.snippet?.channelTitle ?? "",
+      url: durationSec != null && durationSec <= 180 ? `https://youtube.com/shorts/${v.id}` : `https://youtube.com/watch?v=${v.id}`,
+    };
+  }).slice(0, opts.max ?? 15);
+}
+
+/** Each channel's lifetime views per video, the "usual" a video is compared with. One unit per 50 channels. */
+export async function channelAverages(channelIds: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  const ids = [...new Set(channelIds.filter(Boolean))];
+  for (let i = 0; i < ids.length; i += 50) {
+    const j = await ytFetch<{ items?: ChannelItem[] }>("channels", { part: "statistics", id: ids.slice(i, i + 50).join(",") });
+    for (const it of j?.items ?? []) {
+      const views = num(it.statistics?.viewCount), count = num(it.statistics?.videoCount);
+      if (views != null && count != null && count >= 3) out.set(it.id, views / count);
+    }
+  }
+  return out;
+}
+
+/** One video's public numbers by id, for a link the person pasted. One unit. */
+export async function videoById(id: string): Promise<(YtVideo & { channelId: string; channelTitle: string; description: string | null; tags: string[] }) | null> {
+  const j = await ytFetch<{ items?: { id: string; snippet?: { title?: string; description?: string; tags?: string[]; publishedAt?: string; channelId?: string; channelTitle?: string; thumbnails?: { medium?: { url?: string }; high?: { url?: string } } }; statistics?: { viewCount?: string; likeCount?: string; commentCount?: string }; contentDetails?: { duration?: string } }[] }>(
+    "videos", { part: "snippet,statistics,contentDetails", id });
+  const v = j?.items?.[0];
+  if (!v) return null;
+  return {
+    videoId: v.id, title: v.snippet?.title ?? "", publishedAt: v.snippet?.publishedAt ?? "",
+    thumb: v.snippet?.thumbnails?.high?.url ?? v.snippet?.thumbnails?.medium?.url ?? null,
+    views: num(v.statistics?.viewCount), likes: num(v.statistics?.likeCount), comments: num(v.statistics?.commentCount),
+    durationSec: isoDurationSec(v.contentDetails?.duration), channelId: v.snippet?.channelId ?? "", channelTitle: v.snippet?.channelTitle ?? "",
+    description: v.snippet?.description?.trim().slice(0, 800) || null, tags: (v.snippet?.tags ?? []).slice(0, 15),
+  };
+}

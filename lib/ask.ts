@@ -6,6 +6,8 @@
 // proposals the user can apply. Browser-safe: no SDK imports.
 
 import type { AskInstagram, AskRatedVideo } from "./assistant/askExtras";
+import type { ResearchExample } from "./research/examples";
+import type { IntentKind } from "./research/intent";
 
 export type AskPage = "global" | "dashboard" | "analytics" | "post" | "competitors" | "plan" | "studio";
 
@@ -75,8 +77,30 @@ export type AskProposal =
   | { kind: "text"; field: "hook" | "caption" | "cta" | "onscreen"; label: string; options: string[] };
 export type AskPost = { id: string; title: string; thumb: string | null; stat: string; permalink: string | null };
 
+/** Where a research answer's next step goes (lib/research/steps.ts maps it to a page). */
+export const RESEARCH_STEPS = ["content_plan", "writer", "editor", "idea"] as const;
+export type ResearchStep = (typeof RESEARCH_STEPS)[number];
+
+/** A research answer (create a video, study a niche, recreate a reference): shown as its own card. */
+export type AskResearch = {
+  kind: IntentKind;
+  /** the recommended approach, in two sentences */
+  approach: string;
+  /** real videos SOCIA found, each with why it is comparable; every number comes from the platform */
+  examples: (ResearchExample & { why: string })[];
+  /** how the research supports the approach: patterns, kept apart from guesses */
+  why: string;
+  /** how to judge the result after posting */
+  test: string;
+  steps: AskAction[];
+  /** what SOCIA searched and what it couldn't */
+  notes: string[];
+};
+
 export type AskAnswer = {
   text: string;
+  /** present when the request called for research */
+  research?: AskResearch | null;
   observed: string[];
   derived: string[];
   interpretation: string;
@@ -157,6 +181,8 @@ export type ModelAnswer = {
   }[];
   /** kind "none" when nothing was asked to be written */
   draft: { kind: AskDraftKind | "none"; title: string; body: string };
+  /** a research answer; approach "" and examples [] when the request wasn't one */
+  research: { approach: string; examples: { ref: string; why: string }[]; why: string; test: string; steps: { type: ResearchStep; label: string }[] };
   postId: string;
   /** Scheduling: what the person asked for, in their own terms. The server works out the times. */
   schedule: {
@@ -230,6 +256,18 @@ export const askAnswerSchema = {
       },
       required: ["kind", "title", "body"],
     },
+    research: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        approach: { type: "string" },
+        examples: { type: "array", items: { type: "object", additionalProperties: false, properties: { ref: { type: "string" }, why: { type: "string" } }, required: ["ref", "why"] } },
+        why: { type: "string" },
+        test: { type: "string" },
+        steps: { type: "array", items: { type: "object", additionalProperties: false, properties: { type: { type: "string", enum: [...RESEARCH_STEPS] }, label: { type: "string" } }, required: ["type", "label"] } },
+      },
+      required: ["approach", "examples", "why", "test", "steps"],
+    },
     schedule: {
       type: "object",
       additionalProperties: false,
@@ -258,5 +296,5 @@ export const askAnswerSchema = {
       required: ["want", "posts", "startLocal", "spacingMinutes", "perDay", "times", "days", "videos", "trialReel", "trialShare", "collaborators", "ideas"],
     },
   },
-  required: ["text", "observed", "derived", "interpretation", "recommendation", "actions", "proposals", "postId", "draft", "schedule"],
+  required: ["text", "observed", "derived", "interpretation", "recommendation", "actions", "proposals", "postId", "draft", "research", "schedule"],
 } as const;

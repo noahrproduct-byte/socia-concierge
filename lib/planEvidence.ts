@@ -23,6 +23,9 @@ import { provenEvidence, trendsEvidence, type ProvenReel } from "./trendSignals"
 import { isOwnAccount, ownAccounts } from "./ownAccounts";
 import { createServiceClient } from "./supabase/service";
 import { dismissedHandles } from "./competitorAutoPick";
+import { ownPostNumbers, type OwnPostRef } from "./planEvidenceFormat";
+export { ownPostNumbers, type OwnPostRef };
+import { goalMetric, type Goal } from "./growth";
 
 export type Evidence = {
   postsBlock: string;
@@ -42,6 +45,12 @@ export type Evidence = {
   /** The niche's Reels that took off, each with the id a post cites (lib/trendSignals.ts provenEvidence), and the Reels behind those ids. */
   provenBlock?: string;
   proven?: ProvenReel[];
+  /** The account's own posts behind the P# ids in postsBlock, so a post's cited ids can be turned into links. */
+  ownPosts?: OwnPostRef[];
+  /** Drafts and scheduled posts already on the Calendar for the next two weeks (calendarBlock); "" when none. */
+  calendarBlock?: string;
+  /** The brand's measurable goals with where they stand (goalsBlock); "" when none. */
+  goalsBlock?: string;
   used: EvidenceUsed;
 };
 
@@ -52,42 +61,85 @@ const firstLine = (s?: string | null) =>
 const dayOf = (iso?: string | null) => (iso ? iso.slice(0, 10) : "unknown date");
 const n = (x: number | null | undefined) => (typeof x === "number" ? x.toLocaleString("en-US") : null);
 
-/** The account's own posts as evidence: each post with its real numbers, then
- *  the few aggregates a strategist would compute from them. Nothing estimated. */
+/** The posts the plan sees, newest first, each with the id a post may cite (P1 is the newest). */
+export function ownPostRefs(media: IgMediaItem[]): OwnPostRef[] {
+  return media.filter((m) => m.timestamp || m.caption).slice(0, 25).map((m, i) => ({
+    id: `P${i + 1}`,
+    url: typeof m.permalink === "string" && /^https:\/\//.test(m.permalink) ? m.permalink : null,
+    date: m.timestamp ? m.timestamp.slice(0, 10) : null,
+    title: firstLine(m.caption),
+    format: fmtOf(m),
+    likes: m.like_count ?? 0,
+    comments: m.comments_count ?? 0,
+    views: m.insights?.views ?? null,
+    reach: m.insights?.reach ?? null,
+    saved: m.insights?.saved ?? null,
+    shares: m.insights?.shares ?? null,
+  }));
+}
+
+/** The account's own posts as evidence: each post with its id and its real
+ *  numbers, then the few aggregates a strategist would compute from them.
+ *  Nothing estimated: a number Instagram didn't return is left out, not zero. */
 export function ownPostsBlock(media: IgMediaItem[], followers: number | null): string {
   const posts = media.filter((m) => m.timestamp || m.caption).slice(0, 25);
   if (!posts.length) return "";
-  const lines = posts.map(
-    (m) =>
-      `- ${dayOf(m.timestamp)} · ${fmtOf(m)} · "${firstLine(m.caption)}" · ${m.like_count ?? 0} likes, ${m.comments_count ?? 0} comments`,
-  );
+  const refs = ownPostRefs(media);
+  const lines = refs.map((r) => `- [${r.id}] ${r.date ?? "unknown date"} · ${r.format} · "${r.title}" · ${ownPostNumbers(r)}`);
   const byFmt = new Map<string, number[]>();
   for (const m of posts) byFmt.set(fmtOf(m), [...(byFmt.get(fmtOf(m)) ?? []), engagementOf(m)]);
   const fmtLines = [...byFmt.entries()].map(
     ([f, xs]) => `${f}: ${xs.length} post${xs.length === 1 ? "" : "s"}, median ${median(xs)} engagement`,
   );
-  const sorted = [...posts].sort((a, b) => engagementOf(b) - engagementOf(a));
-  const describe = (m: IgMediaItem) => `"${firstLine(m.caption)}" (${fmtOf(m)}, ${engagementOf(m)})`;
-  const top = sorted.slice(0, 3).map(describe);
-  const bottom = sorted.length > 3 ? sorted.slice(-3).reverse().map(describe) : [];
+  const ranked = refs.map((r, i) => ({ r, e: engagementOf(posts[i]) })).sort((a, b) => b.e - a.e);
+  const describe = (x: { r: OwnPostRef; e: number }) => `[${x.r.id}] "${x.r.title}" (${x.r.format}, ${x.e})`;
+  const top = ranked.slice(0, 3).map(describe);
+  const bottom = ranked.length > 3 ? ranked.slice(-3).reverse().map(describe) : [];
   const ppw = postsPerWeek(posts.map((p) => p.timestamp));
   const allMed = median(posts.map(engagementOf));
   const rate = followers && allMed != null ? `${((allMed / followers) * 100).toFixed(2)}% of followers` : null;
+  const views = refs.map((r) => r.views).filter((v): v is number => v != null);
+  const medViews = views.length >= 3 ? median(views) : null;
 
   return [
-    `${posts.length} most recent posts, newest first (engagement = likes + comments; the Instagram API exposes no views or saves for these):`,
+    `${posts.length} most recent posts, newest first. Each has an id (P1 is the newest) that a planned post may cite. Engagement = likes + comments. Views, reach, saves and shares appear only where Instagram's insights returned them; where they are missing they are unknown, never zero, and must not be estimated:`,
     ...lines,
     ``,
     `Aggregates SOCIA computed from the list above:`,
     `- Followers: ${n(followers) ?? "unknown"}`,
     `- Cadence: ${ppw != null ? `${ppw.toFixed(1)} posts/week over the last 30 days` : "no posts in the last 30 days"}`,
     `- Median engagement per post: ${allMed ?? "n/a"}${rate ? ` (${rate})` : ""}`,
+    medViews != null ? `- Median views per post: ${n(medViews)} (${views.length} posts with views)` : null,
     `- By format: ${fmtLines.join("; ")}`,
     `- Strongest posts: ${top.join("; ")}`,
     bottom.length ? `- Weakest posts: ${bottom.join("; ")}` : null,
   ]
     .filter((l): l is string => l !== null)
     .join("\n");
+}
+
+/** The brand's measurable goals with where they stand, for the plan to aim at. "" when it has none. */
+export function goalsBlock(goals: Goal[]): string {
+  const live = goals.filter((g) => g.status !== "dropped" && g.status !== "achieved").slice(0, 5);
+  if (!live.length) return "";
+  return live.map((g) => {
+    const m = goalMetric(g.metric);
+    const now = g.current_value ?? g.baseline;
+    return `- ${g.kind === "primary" ? "Main goal" : "Also"}: ${m?.label ?? g.metric}: ${now != null ? `from ${n(now)} ` : ""}to ${n(g.target)}${g.due_date ? ` by ${g.due_date}` : ""}${m && !m.measuredOn.length ? " (the person reports this number; SOCIA can't see it)" : ""}`;
+  }).join("\n");
+}
+
+/** One post already on the Calendar in the coming two weeks, as the plan is told about it. */
+export type CalendarRow = { scheduled_at: string; caption: string | null; status: string; plan_id?: string | null };
+
+/** What is already on the Calendar for the next two weeks, so a new plan neither double-books a day nor repeats a topic. "" when nothing is. */
+export function calendarBlock(rows: CalendarRow[], timeZone: string | null): string {
+  const live = rows.filter((r) => r.status === "draft" || r.status === "scheduled").slice(0, 20);
+  if (!live.length) return "";
+  const fmt = (iso: string) => {
+    try { return new Date(iso).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", ...(timeZone ? { timeZone } : {}) }); } catch { return iso.slice(0, 10); }
+  };
+  return live.map((r) => `- ${fmt(r.scheduled_at)} · ${r.status === "scheduled" ? "scheduled" : "draft"} · "${firstLine(r.caption) || "(no caption yet)"}"${r.plan_id ? " · from an earlier plan" : ""}`).join("\n");
 }
 
 export type CompetitorRow = {
@@ -386,7 +438,7 @@ export async function planCompetitors(supabase: Supa, userId: string, workspaceI
 
 /** Everything the strategist may cite, read from the user's own rows. Each
  *  source is best-effort: a missing table simply contributes nothing. */
-export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnapshot | null, workspaceId?: string | null, opts: { outcomes?: PlanOutcome[]; strategy?: GrowthStrategy | null; location?: string | null; skip?: string[] } = {}): Promise<Evidence> {
+export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnapshot | null, workspaceId?: string | null, opts: { outcomes?: PlanOutcome[]; strategy?: GrowthStrategy | null; location?: string | null; skip?: string[]; timeZone?: string | null; now?: Date; brandWorkspaceId?: string | null } = {}): Promise<Evidence> {
   // Competitors the person unticked on the form, and accounts they removed on Discover, are left out of this plan entirely.
   const skip = new Set((opts.skip ?? []).map(handleKey).filter(Boolean));
   try {
@@ -441,6 +493,26 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
   } catch { /* none */ }
 
   const postsBlock = ownPostsBlock(media, followers);
+  // What is already on the Calendar for the next two weeks (drafts and scheduled posts).
+  // Read for the brand's own workspace only (the competitor scope above can be broader); a caller that doesn't name it skips both.
+  const brandWs = opts.brandWorkspaceId;
+  let calendar = "";
+  if (brandWs !== undefined) try {
+    const now = opts.now ?? new Date();
+    const { data } = await scopeToWorkspace(supabase.from("scheduled_posts").select("scheduled_at, caption, status, plan_id").eq("user_id", userId), brandWs)
+      .gte("scheduled_at", now.toISOString())
+      .lt("scheduled_at", new Date(now.getTime() + 14 * 86_400_000).toISOString())
+      .in("status", ["draft", "scheduled"])
+      .order("scheduled_at", { ascending: true })
+      .limit(20);
+    calendar = calendarBlock((data ?? []) as CalendarRow[], opts.timeZone ?? null);
+  } catch { /* table or column missing: nothing to tell */ }
+  let goals = "";
+  if (brandWs !== undefined) try {
+    const { data } = await scopeToWorkspace(supabase.from("growth_goals").select("kind, metric, baseline, current_value, target, due_date, status").eq("user_id", userId), brandWs)
+      .neq("status", "dropped").order("created_at", { ascending: true }).limit(5);
+    goals = goalsBlock((data ?? []) as Goal[]);
+  } catch { /* none */ }
   const niche = await trendsP;
   const trends = niche?.signals ?? null;
   // A competitor's Reel goes into one plan only: Reels an earlier plan already built a post on are left out.
@@ -464,6 +536,9 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
     // Each Reel says whether it's from one of the competitors on Discover or another account in the niche.
     provenBlock: provenEvidence(proven, (r) => trackedKeys.has(handleKey(r.accountHandle ?? r.accountName))),
     proven,
+    ownPosts: postsBlock ? ownPostRefs(media) : [],
+    calendarBlock: calendar,
+    goalsBlock: goals,
     used: {
       outcomes: outcomesBlock_ ? outcomeItems : 0,
       posts: postsBlock ? Math.min(media.length, 25) : 0,
