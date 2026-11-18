@@ -83,7 +83,8 @@ function installMock(thumbs: fx.Thumb[], durationSec: number, screen: Screen): (
     if (p.startsWith("/api/studio/audio/")) return json({ ok: true });
     if (p === "/api/studio/voices") return json({ voices: [] });
     if (p === "/api/studio/projects" && method === "GET") return json({ projects: [fx.summary()], limits: { clipsPerProject: 30, footageMinutes: 30, uploadMb: 2000 }, usage: { meter: "content_build", used: 1, limit: 10, remaining: 9, resetsOn: "2026-12-01" }, transcription: true, features: { autoBuild: true } });
-    if (p === "/api/studio/projects" && method === "POST") return json({ id: fx.PROJECT_ID });
+    // A new video in the fresh lab starts with no clips, as a new project does (an earlier try's clip doesn't stay).
+    if (p === "/api/studio/projects" && method === "POST") { if (fresh) { labClips.length = 0; freshEdl = null; } return json({ id: fx.PROJECT_ID }); }
     if (fresh && p === `/api/studio/projects/${fx.PROJECT_ID}` && method === "GET") return json({ ...fx.project(thumbs, durationSec, state), clips: labClips });
     if (fresh && p === `/api/studio/projects/${fx.PROJECT_ID}/clip-build`) return json(freshBuild());
     if (fresh && p.startsWith("/api/studio/builds/") && method === "GET") return json(freshData());

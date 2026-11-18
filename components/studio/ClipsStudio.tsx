@@ -131,7 +131,8 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
         // upload): it isn't usable, so it says so instead of "Ready".
         if (c.status === "registered") {
           if (prev && prev.phase !== "done" && prev.phase !== "error") return prev;
-          return { key: c.id, name: c.name, phase: "error", progress: 0, stageNote: null, error: "This clip didn't finish uploading. Remove it and add it again.", thumb: prev?.thumb ?? null, clip: c, durationSec: c.durationSec, reused: c.reused };
+          // What went wrong in this tab is kept (too big to convert, signed out, storage refused it): it says what to do.
+          return { key: c.id, name: c.name, phase: "error", progress: 0, stageNote: null, error: prev?.phase === "error" && prev.error ? prev.error : "This clip didn't finish uploading. Remove it and add it again.", thumb: prev?.thumb ?? null, clip: c, durationSec: c.durationSec, reused: c.reused };
         }
         return {
           key: c.id, name: c.name, phase: c.status === "failed" ? "error" : "done", progress: 1, stageNote: null,
