@@ -15,3 +15,15 @@ describe("Instagram twins of YouTube creators", () => {
     expect(isYoutubeTwin({ relevance_reasons: ["Same niche"] })).toBe(false);
   });
 });
+
+describe("viral for creators", () => {
+  it("counts 15K for everyone, and a 5x breakout from 5K views for creators only", async () => {
+    const { isViralFor } = await import("./trendSignals");
+    expect(isViralFor(false, { views: 15_000, multiplier: 1 })).toBe(true);
+    expect(isViralFor(false, { views: 9_000, multiplier: 6 })).toBe(false);
+    expect(isViralFor(true, { views: 9_000, multiplier: 6 })).toBe(true);
+    expect(isViralFor(true, { views: 9_000, multiplier: 4.9 })).toBe(false);
+    expect(isViralFor(true, { views: 4_000, multiplier: 20 })).toBe(false);
+    expect(isViralFor(true, { views: 20_000, multiplier: null })).toBe(true);
+  });
+});
