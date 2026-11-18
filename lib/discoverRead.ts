@@ -22,11 +22,11 @@ import { getProfile } from "@/lib/profile";
 import { brandWorkspace } from "@/lib/context";
 
 /** Suggestions read with the roster, so they show their picture and numbers. */
-export const SUGGESTIONS_READ = 12;
+export const SUGGESTIONS_READ = 16;
 /** Accounts read for viral Reels in the brand's own style, any topic (lib/discovery.ts STYLE_SOURCE). */
-export const STYLE_SOURCES_READ = 8;
+export const STYLE_SOURCES_READ = 10;
 /** Reels per account checked for whether the brand could copy them: the ones with the most views. */
-const REELS_PER_ACCOUNT = 4;
+const REELS_PER_ACCOUNT = 6;
 /** Only Reels this recent are checked (the page shows the last 60 days). */
 const REEL_WINDOW_DAYS = 60;
 /** Suggested accounts judged for niche fit in one read (one fast-model call). */
