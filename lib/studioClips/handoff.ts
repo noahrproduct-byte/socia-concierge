@@ -18,8 +18,12 @@ let pending: { files: File[]; to: string; data: HandoffData; at: number } | null
 /** A handoff is for the click that made it: one not taken within this long is dropped. */
 const HANDOFF_MS = 2 * 60_000;
 
+/** Fired when a handoff is made, so a part that is already open (Ask SOCIA on the Video editor page) takes it at once. */
+export const HANDOFF_EVENT = "socia:studio-handoff";
+
 export function handFiles(to: string, files: File[], data: HandoffData = {}): void {
   pending = { files, to, data, at: Date.now() };
+  try { window.dispatchEvent(new CustomEvent(HANDOFF_EVENT, { detail: { to } })); } catch { /* not in a browser */ }
 }
 
 /** The files (and what goes with them) handed to this part, once. */

@@ -23,7 +23,7 @@ import BatchPanel from "./BatchPanel";
 import BriefPanel from "./BriefPanel";
 import VideoList from "./VideoList";
 import ClipLibrary from "./ClipLibrary";
-import { takeHandoff , type HandoffReference } from "@/lib/studioClips/handoff";
+import { HANDOFF_EVENT, takeHandoff, type HandoffReference } from "@/lib/studioClips/handoff";
 import { overlayStyle } from "@/lib/studioClips/overlay";
 import { applyCuts } from "@/lib/studioFixes";
 import type { HandoffFix } from "@/lib/studioClips/handoff";
@@ -305,15 +305,21 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
   }, [ensureProject, registerFile, uploadFile, openProject, loadMeta, editing, audio]);
 
   // Rate → "Add music" (Audio) or "Put the text on the video" (Video editor): the video comes with it.
+  // Ask SOCIA can hand clips over while this page is already open: then the event brings them.
   useEffect(() => {
     if (!audio && !editing) return;
-    const handed = takeHandoff(audio ? "audio" : "edit");
-    if (editing && handed.data.prompt) setStartPrompt(handed.data.prompt);
-    if (editing && handed.data.reference) setStartReference(handed.data.reference);
-    if (!handed.files.length) return;
-    if (editing) { overlaysRef.current = handed.data.layers?.length ? handed.data.layers : null; fixRef.current = handed.data.fix ?? null; }
-    void onFiles(handed.files);
-    // Once, on arrival.
+    const take = () => {
+      const handed = takeHandoff(audio ? "audio" : "edit");
+      if (editing && handed.data.prompt) setStartPrompt(handed.data.prompt);
+      if (editing && handed.data.reference) setStartReference(handed.data.reference);
+      if (!handed.files.length) return;
+      if (editing) { overlaysRef.current = handed.data.layers?.length ? handed.data.layers : null; fixRef.current = handed.data.fix ?? null; }
+      void onFiles(handed.files);
+    };
+    take();
+    window.addEventListener(HANDOFF_EVENT, take);
+    return () => window.removeEventListener(HANDOFF_EVENT, take);
+    // On arrival, and for each handoff after it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
