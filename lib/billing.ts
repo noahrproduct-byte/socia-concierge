@@ -71,7 +71,8 @@ export function stateFromSubscription(sub: Stripe.Subscription): SubscriptionSta
   return {
     plan: ended ? "free" : known?.plan ?? null,
     status: sub.status,
-    interval: known?.interval ?? fallbackInterval,
+    // The price says how often it bills; the plan match can hit the product, which holds both a monthly and a yearly price.
+    interval: fallbackInterval ?? known?.interval ?? null,
     currentPeriodEnd,
     cancelAt: ended ? null : iso(sub.cancel_at) ?? (sub.cancel_at_period_end ? currentPeriodEnd : null),
     trialEnd: iso(sub.trial_end),
