@@ -9,7 +9,7 @@
 import { adapterFor, unavailable, type PublishAdapter, type PublishContext, type PublishOutcome } from "./adapter";
 import { CAPABILITIES } from "./capabilities";
 import type { ContentItem, Destination, DestinationStatus, Platform } from "./types";
-import { listDue, loadItem, refreshParent, updateDestination, MissingTableError, type DueDestination } from "./db";
+import { claimDestination, listDue, loadItem, refreshParent, updateDestination, MissingTableError, type DueDestination } from "./db";
 import { getEntitlements, checkFeature, type Entitlements } from "../entitlements";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -117,6 +117,38 @@ export function awaitingBrowser(d: Pick<Destination, "platform" | "status" | "sc
   return since >= 0 && since < BROWSER_GRACE_MINUTES * 60_000;
 }
 
+/**
+ * Platforms whose publish step creates the post from the server. A second run
+ * of that step would create a second post, so every step on these is claimed
+ * first (claimDestination). YouTube's bytes come from the browser and keep
+ * their own flow.
+ */
+const SERVER_CREATE: Platform[] = ["instagram", "facebook", "tiktok"];
+
+/**
+ * How long a run may hold an in-flight row before another run may resume it.
+ * Every route that runs a step stops within 60 s, so a row untouched for
+ * longer than this has no live run behind it.
+ */
+export const CLAIM_LEASE_MS = 90_000;
+
+export type ClaimPlan = "none" | "start" | "resume" | "busy";
+
+/**
+ * What a run must do before its step. "start": claim a row that is not on
+ * the platform yet. "resume": claim an in-flight row that no run has touched
+ * within the lease. "busy": another run touched it within the lease, so this
+ * run leaves it alone. "none": nothing to guard (published already, or a
+ * browser-upload platform).
+ */
+export function claimPlan(d: Pick<Destination, "platform" | "status" | "externalPostId" | "updatedAt">, now: Date): ClaimPlan {
+  if (!SERVER_CREATE.includes(d.platform) || d.externalPostId) return "none";
+  if (!IN_FLIGHT.includes(d.status)) return "start";
+  const t = d.updatedAt ? new Date(d.updatedAt).getTime() : NaN;
+  if (Number.isFinite(t) && now.getTime() - t < CLAIM_LEASE_MS) return "busy";
+  return "resume";
+}
+
 export type SweepDecision = "demote" | "missed" | "stale_upload" | "run";
 
 /**
@@ -195,6 +227,11 @@ export function applyOutcome(dest: Destination, outcome: PublishOutcome, now: Da
  */
 export async function publishDestination(ctx: PublishContext): Promise<PublishOutcome> {
   const { destination: dest, supabase, now } = ctx;
+  // Claim the step first. A run that loses sends nothing and writes nothing.
+  const plan = claimPlan(dest, now);
+  if (plan === "busy" || ((plan === "start" || plan === "resume") && !(await claimDestination(supabase, dest, plan)))) {
+    return { status: dest.status, busy: true };
+  }
   let outcome: PublishOutcome;
   try {
     const adapter = await loadAdapter(dest.platform);
@@ -370,7 +407,9 @@ export async function runDueDestinations(svc: Supa, opts: { now: Date; budgetMs:
         budgetMs: Math.min(STEP_BUDGET_MS, deadline - Date.now() - 1_000), now,
         interactive: false,
       });
-      row.result = outcome.status === "failed" ? `failed: ${outcome.errorMessage ?? "no reason given"}` : outcome.status;
+      row.result = outcome.busy
+        ? "skipped: another run holds it"
+        : outcome.status === "failed" ? `failed: ${outcome.errorMessage ?? "no reason given"}` : outcome.status;
     } catch (e) {
       // A database error on one row must not stop the others.
       row.result = `error: ${e instanceof Error ? e.message : String(e)}`;

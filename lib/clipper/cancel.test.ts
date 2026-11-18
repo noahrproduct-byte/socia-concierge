@@ -48,7 +48,7 @@ vi.mock("./socia", () => ({
   clipRows: async () => [{ job_id: "j1", provider_clip_id: "socia-1" }],
 }));
 
-const { cancelClipJob, pollClipJob, loadClipJob } = await import("./server");
+const { cancelClipJob, pollClipJob, loadClipJob, finishClipJob } = await import("./server");
 const base = { id: "j1", user_id: "u1", workspace_id: null, source_kind: "upload", source_url: "x", source_path: "u1/clipper-sources/a.mp4", source_minutes: 5, options: {}, provider: "socia", provider_job_id: "t1", credits_reserved: 23, credits_charged: null, error: null, created_at: new Date().toISOString(), updated_at: "", last_polled_at: null, finished_at: null } as never as Parameters<typeof cancelClipJob>[0];
 
 beforeEach(() => { refund.mockClear(); spend.mockClear(); startTranscription.mockClear(); removed.length = 0; updates = []; deletes = []; selects.length = 0; answer = (_t, patch) => ({ id: "j1", ...patch }); reads = () => TRANSCRIPT; });
@@ -157,5 +157,22 @@ describe("a clip job that fails", () => {
     expect(out).toMatchObject({ status: "failed", credits_charged: 0 });
     expect(refund).toHaveBeenCalledTimes(1);
     expect(spend).not.toHaveBeenCalled();
+  });
+
+  it("ends a job stuck in the queue past the time limit, with every credit back and nothing sent", async () => {
+    const old = new Date(Date.now() - 7 * 3600_000).toISOString();
+    const out = await pollClipJob(svc, { ...base, status: "queued", provider_job_id: null, created_at: old });
+    expect(out).toMatchObject({ status: "failed", credits_charged: 0 });
+    expect(startTranscription).not.toHaveBeenCalled();
+    expect(refund).toHaveBeenCalledTimes(1);
+  });
+
+  it("never marks a job done (or charges it) once it was cancelled while the clips came in", async () => {
+    answer = (_t, patch) => (patch.status === "done" ? null : { id: "j1", ...patch });
+    reads = (table) => (table === "clip_jobs" ? { ...base, status: "cancelled", credits_charged: 0 } : TRANSCRIPT);
+    const out = await finishClipJob(svc, { ...base, status: "processing", provider: "vizard" }, []);
+    const done = updates.find((u) => u.patch.status === "done")!;
+    expect(done.filters).toContainEqual(["in", "status", ["queued", "processing"]]);
+    expect(out).toMatchObject({ status: "cancelled", credits_charged: 0 });
   });
 });

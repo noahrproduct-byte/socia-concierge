@@ -34,6 +34,11 @@ export type PublishOutcome = {
    */
   /** A sealed handle (youtubeRelay.ts): never a token or the raw session URI. */
   clientAction?: { kind: "youtube_resumable_upload"; uploadHandle: string; mediaId: string; videoId: string | null };
+  /**
+   * Set by the runner, never by an adapter: another run holds this step, so
+   * nothing was sent and nothing was written. The status is the row's own.
+   */
+  busy?: true;
 };
 
 export type PublishContext = {
