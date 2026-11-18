@@ -53,6 +53,18 @@ describe("stateFromSubscription", () => {
     expect(stateFromSubscription(sub()).priceCents).toBeNull();
   });
 
+  it("a yearly price on the same product as the monthly one reads as yearly", () => {
+    process.env.STRIPE_PRICE_GROWTH_MONTHLY = "prod_growth";
+    try {
+      const s = stateFromSubscription(sub({}, { price: { id: "price_new_y", product: "prod_growth", unit_amount: 41988, recurring: { interval: "year" } } }));
+      expect(s.plan).toBe("growth");
+      expect(s.interval).toBe("year");
+      expect(s.priceCents).toBe(3499);
+    } finally {
+      process.env.STRIPE_PRICE_GROWTH_MONTHLY = "price_growth_m";
+    }
+  });
+
   it("derives the plan from the live price, with the renewal date from the item", () => {
     const s = stateFromSubscription(sub());
     expect(s.plan).toBe("growth");
