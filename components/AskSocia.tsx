@@ -25,6 +25,7 @@ import { isPlanError, type PlanError } from "@/lib/planErrors";
 import type { UsageSnapshot } from "@/lib/entitlements";
 import PlanNotice, { UsageLine } from "./PlanNotice";
 import ScheduleProposal from "./ask/ScheduleProposal";
+import ResearchCard from "./ask/ResearchCard";
 import { ratedVideos, scopeRated } from "@/lib/assistant/rated";
 import FootageTray, { MAX_FOOTAGE, type FootageResult } from "./ask/FootageTray";
 import { acceptFor } from "./composer/MediaSection";
@@ -100,6 +101,31 @@ function AnswerView({ a, onProposal, applied, setApplied, onPlaceScanned }: {
 }) {
   const [copied, setCopied] = useState<string | null>(null);
   const copy = async (s: string) => { try { await navigator.clipboard.writeText(s); setCopied(s); setTimeout(() => setCopied(null), 1200); } catch { /* no clipboard */ } };
+  const draftBox = a.draft ? (
+    <div className="ask-draft">
+      <div className="ask-draft-head">
+        <small>{a.draft.title}</small>
+        <button type="button" className="ov-btn ghost small" onClick={() => void copy(a.draft!.body)}>{copied === a.draft.body ? "Copied" : "Copy"}</button>
+      </div>
+      <pre>{a.draft.body}</pre>
+      {a.draft.kind === "script" && onPlaceScanned && <PlaceScan variant="inline" onScanned={onPlaceScanned} />}
+    </div>
+  ) : null;
+  // A research answer is its own card; the labelled evidence lines go in its fold.
+  if (a.research) {
+    const lines = [
+      ...(a.observed.length ? [<div key="o" className="ov-why-block"><small>Observed</small><ul>{a.observed.map((o, i) => <li key={i}>{o}</li>)}</ul></div>] : []),
+      ...(a.derived.length ? [<div key="d" className="ov-why-block"><small>Derived</small><ul>{a.derived.map((o, i) => <li key={i}>{o}</li>)}</ul></div>] : []),
+      ...(a.interpretation ? [<div key="i" className="ov-why-block ai"><small>SOCIA&apos;s interpretation</small><p>{a.interpretation}</p></div>] : []),
+    ];
+    return (
+      <div className="ask-answer">
+        {a.text && <p className="ask-text">{a.text}</p>}
+        <ResearchCard r={a.research} version={draftBox} details={lines.length ? <>{lines}</> : undefined} />
+        {a.recommendation && <div className="ov-why-block rec"><small>Recommendation</small><p>{a.recommendation}</p></div>}
+      </div>
+    );
+  }
   return (
     <div className="ask-answer">
       {a.text && <p className="ask-text">{a.text}</p>}
@@ -336,7 +362,7 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
           <input value={input} onChange={(e) => setInput(e.target.value)} placeholder={planError ? "Allowance used for this period" : context.page === "studio" ? "Ask SOCIA about this content…" : "Ask SOCIA…"} aria-label="Ask SOCIA" disabled={busy || Boolean(planError)} />
           <button type="submit" disabled={busy || saving || Boolean(planError) || !input.trim()} aria-label="Send"><Send size={14} /></button>
         </form>
-        <p className="ask-disclaimer">SOCIA cites only your own data. Review before publishing.</p>
+        <p className="ask-disclaimer">SOCIA cites your data and the public videos it shows you. Review before publishing.</p>
       </div>
     </Drawer>
   );

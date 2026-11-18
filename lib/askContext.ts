@@ -26,6 +26,7 @@ import { listTracked } from "./trackedCompetitors";
 import { nicheVetted } from "./discovery";
 import type { SavedPlan } from "./schema";
 import { planHeadline } from "./planHeadline";
+import type { SourcePlan } from "./research/intent";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
@@ -85,7 +86,7 @@ ${PAGE_RULES[page]}
 ${acct}${brandContext(profile?.brand_detail)}`;
 }
 
-async function accountBlock(supabase: Supa, userId: string, workspaceId: string | null): Promise<{ text: string; posts: PostCard[]; media: IgMediaItem[]; handle: string | null; followers: number | null; daily: DailySnapshot[] }> {
+async function accountBlock(supabase: Supa, userId: string, workspaceId: string | null, depth: "full" | "summary" = "full"): Promise<{ text: string; posts: PostCard[]; media: IgMediaItem[]; handle: string | null; followers: number | null; daily: DailySnapshot[] }> {
   // The brand being viewed, not whichever workspace the owner last made active.
   const snap = await getIgSnapshot(supabase, userId, workspaceId).catch(() => null);
   const media: IgMediaItem[] = snap?.media ?? [];
@@ -98,6 +99,14 @@ async function accountBlock(supabase: Supa, userId: string, workspaceId: string 
   const ppw = postsPerWeek(media.map((m) => m.timestamp), 30);
   const byViews = [...posts].sort((a, b) => (b.views ?? -1) - (a.views ?? -1)).slice(0, 5);
   const fs = summarizeFollowers(followerPoints(daily));
+  // A request about something else (a new video, the niche) gets only who the
+  // account is: listing its top posts made every answer about those posts.
+  if (depth === "summary") {
+    return { text: [
+      `Account @${snap?.username ?? "unknown"}: ${n(followers)} followers, ${posts.length} posts synced. Median post: ${n(baseline != null ? Math.round(baseline) : null)} interactions. Cadence: ${ppw != null ? `${ppw.toFixed(1)} posts/week over the last 30 days` : "no posts in the last 30 days"}.`,
+      `The account's individual posts are left out on purpose: this request is not about them. Don't base the answer on the user's past posts unless they ask.`,
+    ].join("\n"), posts, media, handle: snap?.username ?? null, followers, daily };
+  }
   const lines = [
     `Account @${snap?.username ?? "unknown"}: ${n(followers)} followers, ${posts.length} posts synced (${day(posts[posts.length - 1].published)} to ${day(posts[0].published)}).`,
     `Median post: ${n(baseline != null ? Math.round(baseline) : null)} interactions (likes + comments + saves + shares). Engagement rate ${er.value != null ? `${er.value.toFixed(2)}% ${er.suffix}` : "not available"} (${er.formula}).`,
@@ -109,15 +118,25 @@ async function accountBlock(supabase: Supa, userId: string, workspaceId: string 
   return { text: lines.join("\n"), posts, media, handle: snap?.username ?? null, followers, daily };
 }
 
-export async function buildAskEvidence(supabase: Supa, userId: string, ctx: AskContext, workspaceId?: string | null, brandWs?: BrandSource | null): Promise<AskEvidence> {
+/**
+ * The evidence for one request. `sources` (lib/research/intent.ts) says how much
+ * of the account it needs: everything, a summary, or nothing. Without it the
+ * whole account is used, as before.
+ */
+export async function buildAskEvidence(supabase: Supa, userId: string, ctx: AskContext, workspaceId?: string | null, brandWs?: BrandSource | null, sources?: SourcePlan | null): Promise<AskEvidence> {
   const profile = await getProfile(supabase, userId, brandWs).catch(() => null);
-  const acct = await accountBlock(supabase, userId, workspaceId ?? null);
-  const parts: string[] = [`# Account evidence (assembled by SOCIA from the connected account)`, acct.text];
+  const depth = sources?.account ?? "full";
+  // A page about the account (a post, Analytics with a range) always gets the account.
+  const wantFull = depth === "full" || Boolean(ctx.postId) || Boolean(ctx.day) || ctx.page === "analytics" || ctx.page === "post";
+  const acct = await accountBlock(supabase, userId, workspaceId ?? null, wantFull ? "full" : "summary");
+  const parts: string[] = depth === "none" && !wantFull
+    ? [`# Account evidence`, `Not used for this request (it isn't about the user's own posts or numbers).`]
+    : [`# Account evidence (assembled by SOCIA from the connected account)`, acct.text];
   let plan: SavedPlan | null = null;
   const now = new Date();
 
   // Insights and gaps: the same deterministic detectors the pages show.
-  if (acct.media.length >= 5) {
+  if (wantFull && acct.media.length >= 5) {
     const baseline = median(acct.media.map(interactionsTotal));
     const insights = buildInsights({ media: acct.media, baseline, location: profile?.brand_detail?.location ?? null, handle: acct.handle });
     if (insights.length) parts.push(`# Insights SOCIA computed`, ...insights.map((i) => `- ${i.tag}: ${i.title}. ${i.observed.join(" | ")}`));
@@ -127,7 +146,7 @@ export async function buildAskEvidence(supabase: Supa, userId: string, ctx: AskC
     if (gaps.length) parts.push(`# What's Missing (SOCIA's ranked gaps)`, ...gaps.map((g) => `- ${g.title} [${g.impact}]: ${g.headline} Observed: ${g.observed.join(" | ")}`));
   }
 
-  if (ctx.page === "analytics" || ctx.page === "dashboard" || ctx.page === "global") {
+  if (wantFull && (ctx.page === "analytics" || ctx.page === "dashboard" || ctx.page === "global")) {
     const days = rangeDays(ctx.range);
     const kpis = buildKpis({ media: acct.media, daily: acct.daily, followers: acct.followers, days, now });
     parts.push(`# KPIs, last ${days} days`, ...kpis.map((k) => `- ${k.label}: ${k.value}${k.deltaText ? ` (${k.deltaText} ${k.note})` : ` (${k.note})`}`));
@@ -158,7 +177,7 @@ export async function buildAskEvidence(supabase: Supa, userId: string, ctx: AskC
     if (p) parts.push(`# The post the user is looking at`, postLine(p), `Caption: """${p.caption.slice(0, 600)}"""`);
   }
 
-  if (ctx.page === "competitors") {
+  if (ctx.page === "competitors" || sources?.competitors) {
     let accounts: { platform: string; handle: string | null; display_name: string | null; followers: number | null; location: string | null; category: string | null; classification: string; relevance_score: number | null; platform_account_id?: string }[] = [];
     let tracked: { platform: string; handle: string }[] = [];
     let winning: { platform: string; account_name: string | null; title: string | null; views: number | null; likes: number | null; comments: number | null; multiplier: number | null; trend_tags: string[] | null; why_recommended: string | null; published_at: string | null }[] = [];
@@ -187,7 +206,7 @@ export async function buildAskEvidence(supabase: Supa, userId: string, ctx: AskC
   }
 
   // What the experiments have shown so far (lib/experiments.ts), on the pages where it guides a decision.
-  if (ctx.page === "plan" || ctx.page === "global" || ctx.page === "dashboard") {
+  if (wantFull && (ctx.page === "plan" || ctx.page === "global" || ctx.page === "dashboard")) {
     const ex = experimentsEvidence(await experimentResults(supabase, userId, workspaceId ?? null, profile?.brand_detail?.strategy).catch(() => []));
     if (ex) parts.push(`# The strategy's experiments and how they're going (each test post against the account's own median; 3 settled posts before a verdict)`, ex);
   }
