@@ -480,6 +480,19 @@
 .pf-beat-time { font-size: var(--fs-meta); color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .pf-beat b { font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink); }
 .pf-beat p { margin: 0; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+/* The words of the beat, the script the person reads out. */
+.pf-beat .pf-beat-say { color: var(--ink); font-size: var(--fs-body); line-height: var(--lh-body); }
+a.pf-basis { text-decoration: none; }
+a.pf-basis:hover { text-decoration: underline; }
+/* A post's evidence in three kinds (components/plan/EvidenceSplitView.tsx). */
+.pf-split { display: flex; flex-direction: column; gap: var(--sp-4); }
+.pf-split section { display: flex; flex-direction: column; gap: var(--sp-1); }
+.pf-split h4 { margin: 0; color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); font-weight: var(--fw-medium); }
+.pf-split h4 small { font-weight: var(--fw-regular); }
+.pf-split ul { margin: 0; padding-left: var(--sp-4); list-style: disc; display: flex; flex-direction: column; gap: var(--sp-1); }
+.pf-split li, .pf-split p { margin: 0; color: var(--ink); font-size: var(--fs-body); line-height: var(--lh-body); }
+.pf-split li small { color: var(--ink-3); }
+.pf-split-basis { padding: var(--sp-2) var(--sp-3); border-radius: var(--r-control); background: var(--warning-bg); color: var(--warning-ink) !important; }
 .pf-note { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink-2); }
 .pf-tabs { margin-bottom: var(--sp-3); }
 .pf-panel { display: flex; flex-direction: column; gap: var(--sp-3); }

@@ -121,3 +121,7 @@ export function unplacedWhy(u: Unplaced): string {
     ? `No filming day before it goes out on ${long(u.item.publish)}.`
     : `Your filming time before ${long(u.item.publish)} is already full.`;
 }
+
+/** The same allowance, said to the Content Plan writer so a week's filmed posts fit the filming time (lib/prompt.ts). */
+export const FILMING_ALLOWANCE_LINE = `Plan each filmed video at about ${FILM_MINUTES.video} minutes of filming and each photo or carousel at about ${FILM_MINUTES.still}; the week's filmed posts must fit inside the filming time listed in the routine, and a post that doesn't fit is better left out than rushed.`;
+
