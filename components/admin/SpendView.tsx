@@ -30,7 +30,7 @@ export default function SpendView({ s }: { s: SpendSummary }) {
               <KpiStrip cols={3}>
                 <KpiCell label="So far" value={usd(s.ai.month)} note={s.ai.calls == null ? undefined : `${s.ai.calls.toLocaleString("en-US")} calls`} />
                 <KpiCell label="Month at this pace" value={usd(s.ai.forecast)} />
-                <KpiCell label="Last month" value={s.ai.lastMonth == null ? null : usd(s.ai.lastMonth)} reason="Last month couldn't be read." />
+                <KpiCell label="Last month" value={s.ai.lastMonth == null ? null : usd(s.ai.lastMonth)} reason="Nothing recorded for last month." />
               </KpiStrip>
               <p>Set Anthropic&apos;s auto-reload to add about <b>{usd(s.ai.reload)}</b> when the balance drops under that amount (about a week at this pace). Anthropic Console, Settings, Billing.</p>
             </>

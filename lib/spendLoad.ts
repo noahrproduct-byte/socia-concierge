@@ -35,7 +35,8 @@ export async function loadSpendFacts(now = new Date()): Promise<SpendFacts> {
   const rows = thisRows.error ? null : (thisRows.data ?? []) as { user_id: string; micro_usd: number; calls: number }[];
   const aiMonthMicros = rows ? rows.reduce((s, r) => s + Number(r.micro_usd || 0), 0) : null;
   const aiMonthCalls = rows ? rows.reduce((s, r) => s + Number(r.calls || 0), 0) : null;
-  const aiLastMonthMicros = lastRows.error ? null : (lastRows.data ?? []).reduce((s, r) => s + Number((r as { micro_usd: number }).micro_usd || 0), 0);
+  // No rows at all means nothing was recorded that month (costs were first recorded in November 2026), not $0.
+  const aiLastMonthMicros = lastRows.error || !(lastRows.data ?? []).length ? null : (lastRows.data ?? []).reduce((s, r) => s + Number((r as { micro_usd: number }).micro_usd || 0), 0);
 
   let topAccounts: SpendFacts["topAccounts"] = null;
   if (rows) {
