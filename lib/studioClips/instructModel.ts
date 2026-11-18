@@ -13,7 +13,7 @@ Operations (JSON objects; "index" is a cut number, or "all"; cut numbers and lin
 - {"op":"volume","index":N|"all"|"silent","level":0..2} (0 mutes; "silent" = every cut where no one speaks; "turn the background sound off" = "silent" at 0)
 - {"op":"speed","index":N|"all","rate":0.25..2}
 - {"op":"zoom","index":N|"all","kind":"none"|"in"|"out","amount":1.02..1.6}
-- {"op":"transition","index":N|"all","kind":"cut"|"fade"|"zoom"|"whip"|"flash"|"tape"|"slide"} ("no transitions" = "cut"; "dissolve" = "fade")
+- {"op":"transition","index":N|"all","kind":"cut"|"fade"|"zoom"|"whip"|"flash"|"tape"|"slide"|"leak"|"tear"|"pushin"|"motionblur"} ("no transitions" = "cut"; "dissolve" = "fade"; "paper tear" = "tear"; "push in" = "pushin")
 - {"op":"theme","id":"<theme id or name>"}
 - {"op":"captions","on":true|false}
 - {"op":"caption_style","preset":"classic"|"karaoke"|"highlight"|"pop"|"boxed"|"vox"|"subtitle"|"script","size":"s"|"m"|"l","position":"top"|"middle"|"lower"|"bottom","highlight":"#rrggbb","uppercase":bool,"animation":"none"|"pop"|"rise"|"fade"|"typewriter"|"bounce","font":"<font id>","box":bool} (only the fields asked for; "bigger" = size "l", "smaller" = "s")

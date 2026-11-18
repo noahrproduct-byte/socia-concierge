@@ -17,6 +17,8 @@ import { isPlanError, type PlanError } from "@/lib/planErrors";
 import { createClient } from "@/lib/supabase/client";
 import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import { ClipComposition } from "./remotion/ClipComposition";
+import CaptionStylesPanel from "./CaptionStylesPanel";
+import { captionMotion, type CaptionOverride } from "@/lib/studioClips/captionMotion";
 import AudioPanel from "./AudioPanel";
 import MusicBox from "./MusicBox";
 import VoiceoverCard from "./VoiceoverCard";
@@ -57,7 +59,7 @@ import "@/app/(app)/studio/studio-motion.css";
 import "@/app/(app)/dashboard/dashboard.css";
 import { motion } from "framer-motion";
 import { Bar, Details, Reveal, Ring, useMotionOk } from "@/components/dashboard/motion";
-import { CAPCUT_FONTS, CAPTION_ANIMATIONS, CAPTION_STYLES, DEFAULT_STYLE, FONTS, THEME_FONTS, captionStyle, withCaptionStyle, type CaptionAnimation, type EdlStyle, type VideoPresets } from "@/lib/studioClips/style";
+import { CAPCUT_FONTS, CAPTION_ANIMATIONS, CAPTION_STYLES, DEFAULT_STYLE, FONTS, THEME_FONTS, captionStyle, withCaptionStyle, type CaptionAnimation, type CaptionStyleId, type EdlStyle, type VideoPresets } from "@/lib/studioClips/style";
 import { ASPECTS, clipLabel, fmtClock, OUTPUT, REGENERATE_OPTIONS, MAX_REGENERATIONS, TRANSITIONS, type BuildPlayerData, type BuildSource, type Edl, type RegenerateDirective, type StudioBuild, type TransitionKind } from "@/lib/studioClips/types";
 
 const MIN_SEG = 0.8;
@@ -72,6 +74,7 @@ const r2 = (n: number) => Number(n.toFixed(2));
 const THUMB_FROM: Record<TransitionKind, { opacity: number; scale: number; x: string }> = {
   cut: { opacity: 0, scale: 1, x: "0%" }, fade: { opacity: 0, scale: 1, x: "0%" }, zoom: { opacity: 0, scale: 1.6, x: "0%" }, whip: { opacity: 1, scale: 1, x: "100%" }, flash: { opacity: 0, scale: 1, x: "0%" },
   tape: { opacity: 1, scale: 1, x: "0%" }, slide: { opacity: 1, scale: 1, x: "100%" }, leak: { opacity: 0, scale: 1, x: "0%" },
+  tear: { opacity: 1, scale: 1, x: "-100%" }, pushin: { opacity: 0, scale: 1.4, x: "0%" }, motionblur: { opacity: 0, scale: 1, x: "0%" },
 };
 function TransitionThumb({ kind, play }: { kind: TransitionKind; play: number }) {
   const ok = useMotionOk();
@@ -709,7 +712,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
       const renderTl = timeline(toRender);
       // The export waits for the cleaned sound, so the video sounds like the preview.
       const cleaned = cleanOn ? { ...cleanAudio, ...(await cleanFor()) } : {};
-      const props = exportProps({ edl: toRender, sources, musicUrl, voiceUrls, cleanAudio: cleaned, watermarkUrl });
+      const props = exportProps({ edl: toRender, sources, musicUrl, voiceUrls, cleanAudio: cleaned, watermarkUrl, beat });
       const render = async (message: string | null) => {
         setExp({ phase: "rendering", progress: 0, message, postId: null });
         const { getBlob } = await renderMediaOnWeb({
@@ -778,7 +781,45 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     if (i < 0) i = segs.length - 1;
     if (i !== playCut.current) { playCut.current = i; setPlaySec(sec); }
   }, []);
-  const select = (next: TimelineSelection) => { setSel(next); if (next?.kind === "text") setPanel("words"); else if (next?.kind === "cut" || next?.kind === "broll") setPanel("cut"); };
+  const select = (next: TimelineSelection) => { setSel(next); if (next?.kind === "text" || next?.kind === "caption") setPanel("words"); else if (next?.kind === "cut" || next?.kind === "broll") setPanel("cut"); };
+  // ---- captions styled one at a time (lib/studioClips/captionMotion.ts) ----
+  const selCaption = useMemo(() => (sel?.kind === "caption" ? tracks?.captions.find((c) => c.key === sel.key) ?? null : null), [sel, tracks]);
+  const selOverride = sel?.kind === "caption" ? edl?.captionOverrides?.[sel.key] : undefined;
+  const overridesWithPreset = useMemo(() => Object.values(edl?.captionOverrides ?? {}).filter((o) => o.preset).length, [edl?.captionOverrides]);
+  /** One caption's changes merged in (an undefined field clears it); an empty record is dropped. */
+  const setCaptionOverride = (key: string, patch: Partial<CaptionOverride> | null) => {
+    if (!edl) return;
+    const all = { ...(edl.captionOverrides ?? {}) };
+    const merged: Record<string, unknown> = patch === null ? {} : { ...all[key], ...patch };
+    for (const k of Object.keys(merged)) if (merged[k] === undefined) delete merged[k];
+    if (Object.keys(merged).length) all[key] = merged as CaptionOverride; else delete all[key];
+    const { captionOverrides: _o, ...rest } = edl; void _o;
+    commit(Object.keys(all).length ? { ...rest, captionOverrides: all } : rest);
+  };
+  /** A caption style on every caption, in one undo step: the track's style changes and the styles single captions carried go. */
+  const applyTrackPreset = (id: CaptionStyleId) => {
+    if (!edl) return;
+    const next = withCaptionStyle(st, id);
+    const all = Object.fromEntries(Object.entries(edl.captionOverrides ?? {}).flatMap(([k, o]) => { const { preset: _p, ...keep } = o; void _p; return Object.keys(keep).length ? [[k, keep]] : []; }));
+    const { captionOverrides: _o, ...rest } = edl; void _o;
+    const base: Edl = Object.keys(all).length ? { ...rest, captionOverrides: all } : rest;
+    if (!base.theme) commit({ ...base, style: { ...st, font: next.font, textBox: next.textBox, captions: next.captions } });
+    else commit(setThemeOverride(base, { typography: { font: next.font, textBox: next.textBox, captionPreset: id, captionPosition: next.captions.position, sizeScale: next.captions.size === "s" ? 0.85 : next.captions.size === "l" ? 1.2 : 1, pill: next.captions.box, transform: next.captions.uppercase ? "upper" : "none", highlight: next.captions.highlight } }, applyCtx));
+    setStyleNote(`${captionStyle(id).label} captions: ${captionStyle(id).hint}`);
+  };
+  /** Play the picked caption in the preview (or the captions from the first one). */
+  const replayCaption = () => {
+    const p = player.current;
+    const c = selCaption ?? tracks?.captions[0];
+    if (!p || !c) return;
+    p.seekTo(Math.max(0, Math.round(c.start * OUTPUT.fps) - 2));
+    p.play();
+  };
+  /** The join every cut has now, when they agree; null otherwise. */
+  const everyJoin = useMemo((): TransitionKind | null => { if (!edl || edl.segments.length < 2) return null; const k = edl.segments[1].transition ?? "cut"; return edl.segments.slice(1).every((x) => (x.transition ?? "cut") === k) ? k : null; }, [edl]);
+  // Placing a callout's point: a click on the preview sets where the leader line starts.
+  const [placing, setPlacing] = useState(false);
+  useEffect(() => { if (sel?.kind !== "caption") setPlacing(false); }, [sel]);
   const brollLive = (i: number, at: number) => { setEdl((cur) => (cur?.broll ? { ...cur, broll: cur.broll.map((b, k) => (k === i ? { ...b, at: r2(at) } : b)) } : cur)); setDirty(true); };
   const removeBroll = (i: number) => { if (!edl?.broll) return; const broll = edl.broll.filter((_, k) => k !== i); const { broll: _b, ...rest } = edl; void _b; commit(broll.length ? { ...rest, broll } : rest); };
   const trimBase = useRef<Edl | null>(null);
@@ -801,6 +842,10 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     } else if (sel.kind === "broll") {
       if (!edl.broll?.[sel.index]) return setSel(null);
       removeBroll(sel.index);
+    } else if (sel.kind === "caption") {
+      // Captions are the words said: a caption goes when captions are switched off, not one at a time.
+      if (edl.captionOverrides?.[sel.key]) setCaptionOverride(sel.key, null);
+      return setHereNote("Captions come from the words said. Switch captions off in Words to remove them; this caption's own style was cleared.");
     } else {
       if (!edl.text[sel.index]) return setSel(null);
       removeText(sel.index);
@@ -842,7 +887,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   const watermarkUrl = edl?.theme?.id === "socia-brand" ? "/brand/socia-mark.png" : null;
   // The preview's props come from the same builder as the export's (lib/studioClips/renderProps.ts): the parity test keeps them one.
   // Hooks run before the loading guard below: with no cut yet (a build still loading from the server) there are no props.
-  const playerProps = useMemo(() => (edl ? previewProps({ edl, sources, musicUrl, voiceUrls, cleanAudio, watermarkUrl, finishOn: compare === "after", guide }) : null), [edl, sources, compare, musicUrl, voiceUrls, cleanAudio, guide, watermarkUrl]);
+  const playerProps = useMemo(() => (edl ? previewProps({ edl, sources, musicUrl, voiceUrls, cleanAudio, watermarkUrl, beat, finishOn: compare === "after", guide }) : null), [edl, sources, compare, musicUrl, voiceUrls, cleanAudio, guide, watermarkUrl, beat]);
 
   // -------------------------------------------------------------- render ----
   if (planError) return <div className="cbb"><button type="button" className="cb-back" onClick={onBack}><ChevronLeft size={14} /> Back to the guide</button><div className="ov-card st-error"><span className="st-error-ico"><AlertTriangle size={16} /></span><div><PlanNotice error={planError} compact /></div></div></div>;
@@ -873,7 +918,17 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
       <div className="sd-stage">
         <div className="sd-stage-player">
           <div className="ov-card cbb-player-card">
-            <div className="cbb-player">
+            <div className="cbb-player" style={placing ? { position: "relative" } : undefined}>
+              {placing && sel?.kind === "caption" && (
+                <button
+                  type="button"
+                  className="cbb-capmo-place"
+                  aria-label="Click where the leader line should start"
+                  onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setCaptionOverride(sel.key, { anchor: { x: Math.round(((e.clientX - r.left) / r.width) * 1000) / 1000, y: Math.round(((e.clientY - r.top) / r.height) * 1000) / 1000 } }); setPlacing(false); }}
+                >
+                  <span>Click the product to place the point</span>
+                </button>
+              )}
               <Player
                 ref={player}
                 component={ClipComposition}
@@ -1262,6 +1317,28 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                 <label className="cbb-check"><input type="checkbox" checked={st.captions.uppercase} disabled={!data.canEdit || busy} onChange={(e) => captionChange({ uppercase: e.target.checked })} /> Capital letters</label>
                 {styleNote && <small role="status">{styleNote}</small>}
               </div>
+              {captionsOn && (
+                <CaptionStylesPanel
+                  style={st}
+                  width={edl.width}
+                  height={edl.height}
+                  canEdit={data.canEdit}
+                  busy={busy}
+                  selected={selCaption}
+                  override={selOverride}
+                  overridesWithPreset={overridesWithPreset}
+                  onTrackPreset={applyTrackPreset}
+                  onCaptionPreset={(id) => { if (sel?.kind === "caption") setCaptionOverride(sel.key, { preset: id }); }}
+                  onOverride={(patch) => { if (sel?.kind === "caption") setCaptionOverride(sel.key, patch); }}
+                  onClearCaption={() => { if (sel?.kind === "caption") setCaptionOverride(sel.key, null); }}
+                  onReplay={replayCaption}
+                  everyJoin={everyJoin}
+                  canJoin={edl.segments.length > 1}
+                  onUseTransition={(kind) => { setAllTransitions(kind); if (edl.theme) override({ motion: { transition: kind } }); setHereNote(`${TRANSITIONS.find((t) => t.id === kind)?.label ?? kind} on every join.`); }}
+                  placing={placing}
+                  onPlacing={captionMotion(selOverride?.preset ?? st.captions.preset)?.anchor ? setPlacing : undefined}
+                />
+              )}
             </div>
           )}
           </section>

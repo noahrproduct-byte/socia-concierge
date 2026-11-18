@@ -17,7 +17,7 @@ import { Pause, Play, Redo2, Scissors, Trash2, Undo2, ZoomIn, ZoomOut } from "lu
 import { dropIndex, dropMarker, fmtTenths, moveSpan, reorder, resizeSpan, rulerTicks, snapTo, type Tracks } from "@/lib/studioClips/tracks";
 import "@/app/(app)/studio/studio-motion.css";
 
-export type TimelineSelection = { kind: "cut" | "text" | "broll"; index: number } | null;
+export type TimelineSelection = { kind: "cut" | "text" | "broll"; index: number } | { kind: "caption"; index: number; /** the caption's key (edl.captionOverrides) */ key: string } | null;
 
 type Drag =
   | { kind: "scrub" }
@@ -262,7 +262,7 @@ export default function Timeline({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
-  const isSel = (kind: "cut" | "text" | "broll", i: number) => selected?.kind === kind && selected.index === i;
+  const isSel = (kind: "cut" | "text" | "broll" | "caption", i: number) => selected?.kind === kind && selected.index === i;
   // While a cut is dragged, where every other cut would start once it is dropped: they slide there.
   const shifted = (() => {
     if (!ghost) return null;
@@ -370,7 +370,22 @@ export default function Timeline({
             </div>
             {tracks.captions.length > 0 && (
               <div className="cbb-tl-track">
-                {tracks.captions.map((c, i) => <span key={i} className="cbb-tl-cap" style={{ left: pct(c.start), width: width(c.start, c.end) }} />)}
+                {tracks.captions.map((c) => (
+                  // A caption (one page of words) is picked to style it on its own; its words and times come from the transcript.
+                  <button
+                    key={c.key}
+                    type="button"
+                    className={`cbb-tl-cap${isSel("caption", c.index) ? " on" : ""}`}
+                    style={{ left: pct(c.start), width: width(c.start, c.end) }}
+                    title={`Caption: ${c.label}, ${c.start.toFixed(1)}s to ${c.end.toFixed(1)}s. Click to style this caption.`}
+                    aria-label={`Caption: ${c.label}`}
+                    aria-pressed={isSel("caption", c.index)}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => { e.stopPropagation(); onSelect({ kind: "caption", index: c.index, key: c.key }); const p = player.current; if (p) { p.pause(); p.seekTo(Math.round(c.start * fps)); } }}
+                  >
+                    <em>{c.label}</em>
+                  </button>
+                ))}
               </div>
             )}
             <span className="cbb-tl-head" ref={head} style={{ left: pct(now) }} aria-hidden />

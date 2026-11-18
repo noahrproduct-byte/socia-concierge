@@ -7,6 +7,7 @@ import { createTikTokStyleCaptions, type TikTokPage } from "@remotion/captions";
 import { cleanCaptionWords } from "./captionClean";
 import { clipSecAt, segmentFrames } from "./motion";
 import { resolveTheme } from "./themes/apply";
+import { captionKey } from "./captionMotion";
 
 export const FPS = OUTPUT.fps;
 export const secToFrames = (s: number): number => Math.max(0, Math.round(s * FPS));
@@ -20,6 +21,8 @@ export const TRANSITION_FRAMES = 9;
 /** Frames a cut overlaps the one before it: none for a hard cut, and never more than half of either cut. */
 export function overlapFrames(kind: TransitionKind | undefined, prevFrames: number, curFrames: number, frames: number = TRANSITION_FRAMES): number {
   if (!kind || kind === "cut" || kind === "flash" || kind === "tape" || kind === "leak") return 0;
+  // A paper tear and a push-in hold both shots a little longer than a blend (the edge has to cross the frame).
+  if (kind === "tear" || kind === "pushin") return Math.max(0, Math.min(Math.max(frames, 12), Math.floor(prevFrames / 2), Math.floor(curFrames / 2)));
   return Math.max(0, Math.min(frames, Math.floor(prevFrames / 2), Math.floor(curFrames / 2)));
 }
 
@@ -59,7 +62,7 @@ export function timeline(edl: Edl): Timeline {
 }
 
 /** The shape @remotion/captions expects (kept local so this module stays dependency-free). */
-export type CaptionLike = { text: string; startMs: number; endMs: number; timestampMs: number | null; confidence: number | null };
+export type CaptionLike = { text: string; startMs: number; endMs: number; timestampMs: number | null; confidence: number | null; /** the clip and the word's time in it (lib/studioClips/captionMotion.ts captionKey): the same through trims and moves */ key?: string };
 
 /**
  * Transcript words that fall inside each segment's trim, moved onto the
@@ -88,6 +91,7 @@ export function captionsForEdl(edl: Edl, words: Record<string, TranscriptWord[] 
         endMs: toOut(Math.min(outMs, w.endMs)),
         timestampMs: toOut(mid),
         confidence: w.confidence,
+        key: captionKey(s.clipId, w.startMs),
       });
     }
   }
@@ -100,7 +104,7 @@ export function captionsForEdl(edl: Edl, words: Record<string, TranscriptWord[] 
       for (const w of l.words) {
         const startMs = Math.round((l.at + w.start) * 1000), wEnd = Math.round((l.at + w.end) * 1000);
         if (startMs >= endMs) continue;
-        out.push({ text: ` ${w.text}`, startMs, endMs: Math.min(wEnd, Math.round(endMs)), timestampMs: Math.round((startMs + wEnd) / 2), confidence: 1 });
+        out.push({ text: ` ${w.text}`, startMs, endMs: Math.min(wEnd, Math.round(endMs)), timestampMs: Math.round((startMs + wEnd) / 2), confidence: 1, key: captionKey(`vo-${l.id}`, w.start * 1000) });
       }
     }
   }
@@ -161,7 +165,7 @@ export function videoBox(srcW: number | null, srcH: number | null, outW: number,
 /** Captions page every ~1.2 s, like the short-form captions people are used to. */
 export const CAPTION_PAGE_MS = 1200;
 
-export type CaptionPageSpan = { page: TikTokPage; from: number; durationInFrames: number };
+export type CaptionPageSpan = { page: TikTokPage; from: number; durationInFrames: number; /** the key of the page's first word (edl.captionOverrides) */ key: string };
 
 /** One page as several of at most `maxWords` words, each new one starting when its first word is spoken. A sentence's end always closes a page. */
 export function splitCaptionPage(page: TikTokPage, maxWords: number): TikTokPage[] {
@@ -198,12 +202,15 @@ export function captionPages(edl: Edl, words: Record<string, TranscriptWord[] | 
     return maxWords > 0 ? splitPages(made, maxWords) : made;
   });
   const out: CaptionPageSpan[] = [];
+  // A page is known by its first word's key, so a change made to it is found again after a trim.
+  const keyAt = new Map<number, string>();
+  for (const c of captions) if (c.key && !keyAt.has(c.startMs)) keyAt.set(c.startMs, c.key);
   pages.forEach((page, i) => {
     const from = Math.round((page.startMs / 1000) * fps);
     const lastMs = Math.max(page.startMs + pageMs, ...page.tokens.map((t) => t.toMs));
     const next = pages[i + 1];
     const end = Math.min(next ? Math.round((next.startMs / 1000) * fps) : total, Math.round((lastMs / 1000) * fps), total);
-    if (end - from > 0) out.push({ page, from, durationInFrames: end - from });
+    if (end - from > 0) out.push({ page, from, durationInFrames: end - from, key: keyAt.get(page.tokens[0]?.fromMs ?? page.startMs) ?? keyAt.get(page.startMs) ?? `page@${page.startMs}` });
   });
   return out;
 }

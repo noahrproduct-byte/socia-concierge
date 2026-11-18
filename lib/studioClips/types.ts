@@ -8,6 +8,7 @@ import type { TextPresetId, TextSlot } from "@/lib/textPresets";
 import type { Soundtrack } from "@/lib/music/taste";
 import type { EditStyleId } from "./profiles";
 import type { HouseGenre } from "./houseStyle";
+import type { CaptionOverride } from "./captionMotion";
 
 export type { Transcript, TranscriptWord };
 
@@ -264,6 +265,13 @@ export const TRANSITIONS = [
   { id: "slide", label: "Slide" },
   // A warm light-leak wash across the join (the owner's act change in the Osh reel, 2026-11-16).
   { id: "leak", label: "Light leak" },
+  // The joins that match the caption motion presets (lib/studioClips/captionMotion.ts, Nov 2026).
+  // A torn-paper edge wipes the next shot in (Editorial Highlight).
+  { id: "tear", label: "Paper tear" },
+  // The shot pushes into its centre and the next one is revealed from the same place, settling back (Documentary Annotation).
+  { id: "pushin", label: "Push in" },
+  // Both shots move up through a directional blur, so the movement carries across the cut (Cinematic Title).
+  { id: "motionblur", label: "Motion blur" },
 ] as const;
 export type TransitionKind = (typeof TRANSITIONS)[number]["id"];
 export const isTransition = (v: unknown): v is TransitionKind => TRANSITIONS.some((t) => t.id === v);
@@ -375,6 +383,8 @@ export type Edl = {
   lowerThird?: { name: string; line: string };
   /** B-roll over the main picture (its sound stays off): the talking-head themes place it, the person moves it. */
   broll?: BrollItem[];
+  /** The person's changes to single captions (a style, the emphasised word, its beat, a callout's anchor), by caption key (lib/studioClips/captionMotion.ts). */
+  captionOverrides?: Record<string, CaptionOverride>;
 };
 
 /** A theme by id, and the person's overrides as a diff on top of it (a partial Theme, lib/studioClips/themes/schema.ts). */

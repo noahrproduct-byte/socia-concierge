@@ -37,6 +37,11 @@ export type TransitionLook = {
   leak: number;
   /** the cut's sound level through its transitions, 0..1 */
   sound: number;
+  /** a torn-paper edge is wiping this cut in (a tear transition): `wipe` is how far across the edge is, 0..1 */
+  tearing: boolean;
+  wipe: number;
+  /** the blur runs one way only: along x (a whip) or along y (a motion blur); null = all ways */
+  blurAxis: "x" | "y" | null;
 };
 
 /** A tape roll settles in this many frames. */
@@ -63,7 +68,7 @@ export function transitionSound(frame: number, frames: number, overlapIn: number
 
 export function transitionLook(a: { frame: number; frames: number; into?: TransitionKind; overlapIn: number; out?: TransitionKind; overlapOut: number }): TransitionLook {
   const { inP, outP } = progress(a.frame, a.frames, a.into ? a.overlapIn : 0, a.out ? a.overlapOut : 0);
-  const look: TransitionLook = { opacity: 1, scale: 1, x: 0, y: 0, noise: 0, zoomBlur: 0, blur: 0, whip: false, flash: 0, leak: 0, sound: Math.min(1 - inP, 1 - outP) };
+  const look: TransitionLook = { opacity: 1, scale: 1, x: 0, y: 0, noise: 0, zoomBlur: 0, blur: 0, whip: false, flash: 0, leak: 0, sound: Math.min(1 - inP, 1 - outP), tearing: false, wipe: 0, blurAxis: null };
   switch (a.into) {
     case "fade": look.opacity = 1 - inP; break;
     // Slide: the incoming picture comes in from the right over the shot before, opaque the whole way.
@@ -77,13 +82,23 @@ export function transitionLook(a: { frame: number; frames: number; into?: Transi
     // Leak: a hard cut (no overlap, no second sound) under a warm wash that peaks on the cut: it fades off the
     // incoming shot's first frames here, and builds over the outgoing shot's last frames below.
     case "leak": look.leak = Math.max(look.leak, 1 - ease(clamp01(a.frame / LEAK_FRAMES))); break;
+    // Tear: the incoming shot is whole and opaque under a torn-paper edge that crosses the frame (the edge is drawn by the layer).
+    case "tear": look.tearing = inP > 0; look.wipe = 1 - inP; break;
+    // Push in: the incoming shot starts pushed in close and soft, in the same place, and settles back sharp.
+    case "pushin": look.opacity = clamp01((1 - inP) / 0.5); look.scale *= 1 + 0.4 * inP; look.zoomBlur += 28 * inP; break;
+    // Motion blur: the incoming shot rises into place through a vertical blur, carrying the move across the cut.
+    case "motionblur": look.opacity = clamp01((1 - inP) / 0.4); look.y += 30 * inP; look.blur += 40 * inP; look.blurAxis = "y"; break;
   }
   switch (a.out) {
     case "leak": look.leak = Math.max(look.leak, ease(clamp01((a.frame - (a.frames - LEAK_FRAMES)) / LEAK_FRAMES))); break;
     case "zoom": look.scale *= 1 + 0.08 * outP; look.zoomBlur += 20 * outP; break;
     // slide: the outgoing cut stays as it is under the incoming one.
     case "whip": look.x -= 35 * outP; look.blur += 40 * outP; look.whip = true; break;
+    // tear: the outgoing shot stays whole under the tear.
+    case "pushin": look.scale *= 1 + 0.5 * outP; look.zoomBlur += 28 * outP; break;
+    case "motionblur": look.y -= 30 * outP; look.blur += 40 * outP; look.blurAxis = "y"; break;
     // fade: the outgoing cut stays as it is under the incoming one.
   }
+  if (look.whip) look.blurAxis = "x";
   return look;
 }

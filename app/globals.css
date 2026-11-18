@@ -11617,6 +11617,29 @@ p.cbm-muted { display: block; }
 .cbb-capstyle.is-vox .cbb-capstyle-demo em { box-shadow: inset 0 -0.45em 0 var(--cap-hi); }
 .cbb-capstyle.is-subtitle .cbb-capstyle-demo { font-weight: 600; }
 .cbb-capstyle.is-subtitle .cbb-capstyle-demo i, .cbb-capstyle.is-subtitle .cbb-capstyle-demo em { background: rgba(0, 0, 0, 0.5); padding: 0 0.2em; }
+/* The caption motion picker (components/studio/CaptionStylesPanel.tsx): ten looping previews of the same phrase. */
+.cbb-capmo { display: grid; gap: var(--sp-2); }
+.cbb-capmo > b { display: block; }
+.cbb-capmo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr)); gap: var(--sp-2); }
+.cbb-capmo-card { position: relative; }
+.cbb-capmo-pick { display: grid; gap: 2px; width: 100%; padding: 0 0 var(--sp-1); border: 1px solid var(--border); border-radius: var(--r-control); background: var(--surface); color: var(--text-primary); cursor: pointer; text-align: left; overflow: hidden; }
+.cbb-capmo-card.on .cbb-capmo-pick { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+.cbb-capmo-pick:disabled { opacity: 0.6; cursor: not-allowed; }
+.cbb-capmo-pick:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cbb-capmo-demo { display: block; width: 100%; background: #2a2a2e; pointer-events: none; }
+.cbb-capmo-name { display: flex; align-items: center; gap: 4px; padding: var(--sp-1) var(--sp-1) 0; font-size: var(--fs-meta); font-weight: 650; line-height: 1.2; }
+.cbb-capmo-ref { padding: 0 var(--sp-1); font-size: 11px; color: var(--text-muted); }
+.cbb-capmo-replay { position: absolute; top: 4px; right: 4px; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: none; border-radius: var(--r-chip); background: rgba(0, 0, 0, 0.55); color: #fff; cursor: pointer; }
+.cbb-capmo-this { display: grid; gap: var(--sp-2); padding-top: var(--sp-2); border-top: 1px solid var(--border); }
+.cbb-capmo-row { display: flex; flex-wrap: wrap; gap: var(--sp-1); align-items: center; }
+.cbb-capmo-words { display: flex; flex-wrap: wrap; gap: var(--sp-1); align-items: center; }
+.cbb-capmo-label { font-size: var(--fs-meta); color: var(--text-secondary); margin-right: 2px; }
+.cbb-capmo-word { padding: 2px 10px; border: 1px solid var(--border); border-radius: var(--r-chip); background: var(--surface); color: var(--text-primary); font: inherit; font-size: var(--fs-meta); cursor: pointer; }
+.cbb-capmo-word.on { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.cbb-capmo-word:disabled { opacity: 0.6; cursor: not-allowed; }
+.cbb-capmo-join { display: flex; flex-wrap: wrap; gap: var(--sp-1); align-items: center; justify-content: space-between; padding-top: var(--sp-2); border-top: 1px solid var(--border); }
+.cbb-capmo-place { position: absolute; inset: 0; z-index: 2; display: flex; align-items: flex-start; justify-content: center; padding-top: 12px; border: 2px dashed #fff; background: rgba(0, 0, 0, 0.15); color: #fff; font: inherit; cursor: crosshair; }
+.cbb-capmo-place span { padding: 4px 10px; border-radius: var(--r-chip); background: rgba(0, 0, 0, 0.7); font-size: var(--fs-meta); }
 
 /* Editor V2: multi-track timeline (components/studio/Timeline.tsx) */
 .cbb-tl-card { padding: var(--sp-3); }
@@ -11655,7 +11678,10 @@ p.cbm-muted { display: block; }
 .cbb-tl-text:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .cbb-tl-text em { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-style: normal; padding: 0 var(--sp-1); }
 .cbb-tl-edge { flex: none; width: 6px; align-self: stretch; cursor: ew-resize; background: var(--warning); opacity: 0.5; }
-.cbb-tl-cap { background: var(--surface-hover); border: 1px dashed var(--border-strong); }
+.cbb-tl-cap { display: flex; align-items: center; padding: 0; background: var(--surface-hover); border: 1px dashed var(--border-strong); color: var(--text-secondary); font: inherit; cursor: pointer; }
+.cbb-tl-cap em { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-style: normal; font-size: 11px; padding: 0 var(--sp-1); }
+.cbb-tl-cap.on { outline: 2px solid var(--ink); outline-offset: -1px; border-style: solid; color: var(--ink); z-index: 1; }
+.cbb-tl-cap:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .cbb-tl-head { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--negative); pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .cbb-tl-head { transition: none; } }
 .cbb > .cbb-tl-card { margin-top: var(--gap); }

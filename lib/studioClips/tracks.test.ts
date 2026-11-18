@@ -6,12 +6,12 @@ const edl: Edl = { version: 1, fps: 30, width: 1080, height: 1920, targetSec: { 
 const words = { a: [{ text: "hello", startMs: 1200, endMs: 1500, confidence: 1 }, { text: "there", startMs: 1600, endMs: 1900, confidence: 1 }, { text: "later", startMs: 3200, endMs: 3600, confidence: 1 }] } as never;
 
 describe("the timeline's tracks", () => {
-  it("places cuts end to end, text by its times, and merges close captions", () => {
+  it("places cuts end to end, text by its times, and captions as the pages the composition shows", () => {
     const t = tracksFor(edl, (id) => `Clip ${id}`, words, true);
     expect(t.duration).toBeCloseTo(5.5, 1);
     expect(t.video.map((v) => [v.start, v.end])).toEqual([[0, 3], [3, 5.5]]);
     expect(t.text[0]).toMatchObject({ start: 0.5, end: 3, label: "Hook" });
-    expect(t.captions).toEqual([{ start: 0.2, end: 0.9 }, { start: 2.2, end: 2.6 }]);
+    expect(t.captions.map((c) => ({ start: c.start, end: c.end, key: c.key, label: c.label }))).toEqual([{ start: 0.2, end: 2.6, key: "a@1200", label: "hello there later" }]);
     expect(tracksFor(edl, (id) => id, words, false).captions).toEqual([]);
   });
 });

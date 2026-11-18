@@ -24,7 +24,10 @@ import { clipSecAt, motionAt, speedPieces, transformCss } from "@/lib/studioClip
 import { letterboxPx, lookCssFilter, lookPlan, type LookStep } from "@/lib/studioClips/look";
 import { resolveTheme } from "@/lib/studioClips/themes/apply";
 import type { Theme } from "@/lib/studioClips/themes/schema";
-import { DEFAULT_STYLE, captionLayout, captionStyle, type EdlStyle, type FontId } from "@/lib/studioClips/style";
+import { DEFAULT_STYLE, captionLayout, captionStyle, withCaptionStyle, type EdlStyle, type FontId } from "@/lib/studioClips/style";
+import { MotionCaption, captionMotionOf } from "./CaptionMotion";
+import { tearClip, type CaptionOverride } from "@/lib/studioClips/captionMotion";
+import type { Beat } from "@/lib/studioClips/beats";
 import { presetOf, safeZoneFor } from "@/lib/textPresets";
 import { renderTextLayer } from "@/lib/textRender";
 import { familyOf, loadEditorFont } from "@/lib/editorFonts";
@@ -67,6 +70,8 @@ export type ClipCompositionProps = {
   voiceUrls?: Record<string, string>;
   /** each clip's sound with the background noise reduced (lib/studioClips/cleanSound.ts), played instead of its own when edl.cleanSound is on */
   cleanAudio?: Record<string, string>;
+  /** the measured beat of the cut's soundtrack, when it has one: the Beat Cutout captions land on it */
+  beat?: Beat | null;
   /** draw the text safe zone over the picture (preview check only; the export never sets it) */
   safeZoneGuide?: boolean;
   /** the brand mark for a theme with a watermark slot; absent = the slot stays empty */
@@ -311,11 +316,17 @@ const VOICE_TAIL_FRAMES = 6;
  * the page coming in with the style's motion. Everything is driven by the
  * frame, so the Player and the browser render agree.
  */
-export function CaptionPage({ page, style, fontFamily, scriptFamily, emphasis, theme, lowerThird }: { page: TikTokPage; style: EdlStyle; fontFamily: string; /** the face the key word of a "script" page is set in; absent = the caption face */ scriptFamily?: string; /** normalised words to colour, one a line at most (lib/clipper/emphasis.ts) */ emphasis?: string[]; /** the cut's theme, for its type scale, spacing, alignment and pill colour */ theme?: Theme | null; /** a lower third is on screen: captions keep clear of it */ lowerThird?: boolean }) {
+export function CaptionPage({ page, style: trackStyle, fontFamily: trackFamily, scriptFamily, emphasis, theme, lowerThird, override, durationInFrames, beat }: { page: TikTokPage; style: EdlStyle; fontFamily: string; /** the face the key word of a "script" page is set in; absent = the caption face */ scriptFamily?: string; /** normalised words to colour, one a line at most (lib/clipper/emphasis.ts) */ emphasis?: string[]; /** the cut's theme, for its type scale, spacing, alignment and pill colour */ theme?: Theme | null; /** a lower third is on screen: captions keep clear of it */ lowerThird?: boolean; /** the person's changes to this one caption (lib/studioClips/captionMotion.ts) */ override?: CaptionOverride; /** frames this page is on screen */ durationInFrames?: number; /** the cut's measured beat, for Beat Cutout */ beat?: Beat | null }) {
   const frame = useCurrentFrame();
-  const { fps, width } = useVideoConfig();
+  const { fps, width, durationInFrames: seqFrames } = useVideoConfig();
+  // A caption styled on its own takes that style's face and colour; the track's size, position and case stay.
+  const style = override?.preset && override.preset !== trackStyle.captions.preset ? withCaptionStyle(trackStyle, override.preset) : trackStyle;
+  const fontFamily = style === trackStyle ? trackFamily : familyFor(style.font);
   const nowMs = page.startMs + (frame / fps) * 1000;
   const spec = captionStyle(style.captions.preset);
+  if (spec.mark === "motion") {
+    return <MotionCaption page={page} durationInFrames={durationInFrames ?? seqFrames} style={style} spec={captionMotionOf(spec.id)} fontFamily={fontFamily} override={override} highlighted={emphasis} beat={beat} lowerThird={lowerThird} />;
+  }
   const base0 = captionLayout(style.captions);
   const ty = theme?.typography;
   // A lower third sits at the bottom of the safe zone: captions set low move up above it so the two never overlap.
@@ -472,14 +483,20 @@ function SegmentLayer({ s, index, into, out, effects, theme, softenFrom, childre
   const css = transformCss({ ...mo, scale: mo.scale * look.scale * punch, x: mo.x + look.x / 100, y: mo.y + look.y / 100 });
   const fx: Effects = [...(effects ?? []), ...lookEffects(lookPlan(theme?.color.grade, s.startFrame + f, width))];
   if (look.zoomBlur > 0.5) fx.push(zoomBlur({ amount: look.zoomBlur, samples: 16 }));
-  if (look.blur > 0.5) fx.push(blur({ radius: look.blur, vertical: look.whip ? false : true }));
+  if (look.blur > 0.5) fx.push(blur({ radius: look.blur, horizontal: look.blurAxis !== "y", vertical: look.blurAxis !== "x" }));
   if (look.noise > 0) fx.push(noise({ amount: 0.6 * look.noise, seed: f }));
   // The Player's video element takes no WebGL effects: the grade and a join's blur become a CSS filter there.
   const cssFilter = [lookCssFilter(theme?.color.grade), look.blur > 0.5 ? `blur(${Math.round(look.blur / 4)}px)` : undefined, look.zoomBlur > 0.5 ? `blur(${Math.round(look.zoomBlur / 8)}px)` : undefined].filter(Boolean).join(" ") || undefined;
   // Behind the ending the picture stays sharp (its last shot is the payoff); only the bottom darkens for the words.
+  // A paper tear (lib/studioClips/transitions.ts): the incoming shot is revealed behind a torn edge that crosses the frame,
+  // with a strip of paper showing along the tear.
+  const tearing = look.tearing;
   return (
-    <AbsoluteFill style={{ opacity: look.opacity, transform: css.transform, transformOrigin: css.transformOrigin }}>
-      {children({ effects: fx.length ? fx : undefined, frame: f, cssFilter })}
+    <AbsoluteFill style={{ opacity: look.opacity, transform: css.transform, transformOrigin: css.transformOrigin, clipPath: tearing ? tearClip(Math.min(1, look.wipe + 0.035), 3) : undefined }}>
+      {tearing ? <AbsoluteFill style={{ background: "#f3ead8", pointerEvents: "none" }} /> : null}
+      <AbsoluteFill style={{ clipPath: tearing ? tearClip(look.wipe, 3) : undefined }}>
+        {children({ effects: fx.length ? fx : undefined, frame: f, cssFilter })}
+      </AbsoluteFill>
       {look.flash > 0 ? <AbsoluteFill style={{ background: "#fff", opacity: look.flash, pointerEvents: "none" }} /> : null}
       {look.leak > 0 ? <AbsoluteFill style={{ background: "linear-gradient(115deg, rgba(255,140,40,0.95) 0%, rgba(255,232,190,1) 55%, rgba(255,110,30,0.9) 100%)", opacity: Math.min(1, look.leak * 1.05), mixBlendMode: "screen", pointerEvents: "none" }} /> : null}
       {soft > 0 && <AbsoluteFill style={{ background: "linear-gradient(to top, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.25) 45%, rgba(0,0,0,0) 70%)", opacity: soft }} />}
@@ -615,7 +632,7 @@ function Watermark({ url }: { url: string }) {
   return <Img src={url} style={{ position: "absolute", right: width - (zone.x + zone.width), top: zone.y, width: size, height: size, objectFit: "contain", opacity: 0.85 }} pauseWhenLoading />;
 }
 
-export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, captionsOn, ranking, captionWords, emphasis, finishOn, musicUrl, voiceUrls, cleanAudio, safeZoneGuide, watermarkUrl, preview }) => {
+export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, captionsOn, ranking, captionWords, emphasis, finishOn, musicUrl, voiceUrls, cleanAudio, safeZoneGuide, watermarkUrl, preview, beat }) => {
   const { fps, width, height } = useVideoConfig();
   const style = edl.style ?? DEFAULT_STYLE;
   // The cut's theme with the person's overrides (lib/studioClips/themes): the look, the overlays, the caption type.
@@ -636,6 +653,13 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
     const handle = delayRender(`font ${style.font}`, { timeoutInMilliseconds: 30_000 });
     loadEditorFont(style.font).catch(() => null).finally(() => continueRender(handle));
   }, [style.font]);
+  // A caption styled on its own may be set in another face: those load with the cut too.
+  const overrideFonts = useMemo(() => Array.from(new Set(Object.values(edl.captionOverrides ?? {}).flatMap((o) => (o.preset ? [withCaptionStyle(style, o.preset).font] : [])))).filter((f) => f !== style.font).join(","), [edl.captionOverrides, style]);
+  useEffect(() => {
+    if (!overrideFonts) return;
+    const handle = delayRender(`caption fonts ${overrideFonts}`, { timeoutInMilliseconds: 30_000 });
+    Promise.all(overrideFonts.split(",").map((f) => loadEditorFont(f as FontId).catch(() => null))).finally(() => continueRender(handle));
+  }, [overrideFonts]);
   // Shots that change during the cut (the AI Clipper): the picture for this frame on its path.
   const pathBox = (s: { clipId: string; frame?: SegmentFrame }, local: number) => {
     const src = sources[s.clipId];
@@ -795,7 +819,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
       {ranking && <RankingLayer ranking={ranking} fontFamily={fontFamily} />}
       {pages.map((p, i) => (
         <Sequence key={`c${i}`} from={p.from} durationInFrames={p.durationInFrames} name="captions">
-          <CaptionPage page={p.page} style={style} fontFamily={fontFamily} scriptFamily={scriptFamily} emphasis={emphasis ?? edl.emphasis} theme={theme} lowerThird={hasLowerThird} />
+          <CaptionPage page={p.page} style={style} fontFamily={fontFamily} scriptFamily={scriptFamily} emphasis={emphasis ?? edl.emphasis} theme={theme} lowerThird={hasLowerThird} override={edl.captionOverrides?.[p.key]} durationInFrames={p.durationInFrames} beat={beat} />
         </Sequence>
       ))}
       {card && (

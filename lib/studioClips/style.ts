@@ -3,6 +3,7 @@
 // stored on the edit and rendered identically in the preview and the export;
 // a brand keeps one preset and a few named templates (brand_detail.video).
 // Everything from the browser is bounded here. Pure.
+import { CAPTION_MOTION_DEFAULTS } from "./captionMotion";
 
 export const FONTS = [
   { id: "inter", label: "Inter" },
@@ -56,6 +57,18 @@ export const CAPTION_STYLES = [
   { id: "subtitle", label: "Subtitle", hint: "Small, calm, in a soft box. No animation.", maxWords: 7, pageMs: 1800, animation: "none", mark: "none" },
   // The hand-cut rug reels (Nov 2026): a phrase at a time in a dark pill, each word slamming in as it is said, the key word in gold script.
   { id: "script", label: "Script key word", hint: "A phrase at a time, each word landing as it is said, the key word big in gold script.", maxWords: 5, pageMs: 1500, animation: "none", mark: "script" },
+  // Caption motion presets (lib/studioClips/captionMotion.ts, Nov 2026): an entrance, an emphasis on the key word and an exit,
+  // drawn by components/studio/remotion/CaptionMotion.tsx. The hint is the technique; the reference creator is listed there.
+  { id: "editorial", label: "Editorial Highlight", hint: "A yellow marker wipes in behind the line, an underline draws under the key word, the paper tears away.", maxWords: 4, pageMs: 1500, animation: "none", mark: "motion" },
+  { id: "serif", label: "Cinematic Serif", hint: "A thin serif fades in; the key word turns giant italic and pushes forward; the line blurs out.", maxWords: 4, pageMs: 1600, animation: "none", mark: "motion" },
+  { id: "annotation", label: "Documentary Annotation", hint: "A label types onto a paper strip, a rough red circle goes round the key word, the label is carried out.", maxWords: 4, pageMs: 1600, animation: "none", mark: "motion" },
+  { id: "callout", label: "Clean Callout", hint: "A rounded cream card slides up, a pastel pill grows behind the spoken word, the card slides down.", maxWords: 5, pageMs: 1500, animation: "none", mark: "motion" },
+  { id: "punch", label: "Punch Captions", hint: "Heavy outlined capitals, three words at a time; the stressed word jumps forward in the accent colour.", maxWords: 3, pageMs: 900, animation: "none", mark: "motion" },
+  { id: "title", label: "Cinematic Title", hint: "Thin spaced capitals fade in and keep opening up, then dissolve into light.", maxWords: 4, pageMs: 1800, animation: "none", mark: "motion" },
+  { id: "tape", label: "Handwritten Tape", hint: "Marker lettering writes across masking tape, a double underline under the key word, the tape peels off.", maxWords: 4, pageMs: 1600, animation: "none", mark: "motion" },
+  { id: "product", label: "Product Callout", hint: "A leader line draws from a point you place on the picture to a small label; the line retracts.", maxWords: 4, pageMs: 1600, animation: "none", mark: "motion" },
+  { id: "cutout", label: "Beat Cutout", hint: "Cut-paper letters slam in on the beat, a green duplicate jitters on the key word, the letters scatter.", maxWords: 3, pageMs: 1200, animation: "none", mark: "motion" },
+  { id: "titlecard", label: "Symmetrical Title Card", hint: "A hard cut to a centred serif on a flat colour card, two rules extend from either side, a hard cut away.", maxWords: 4, pageMs: 1800, animation: "none", mark: "motion" },
 ] as const;
 export type CaptionStyleId = (typeof CAPTION_STYLES)[number]["id"];
 /** How a caption page comes in: the style's own, or one set by a theme or the person. */
@@ -77,7 +90,7 @@ export const captionStyle = (id: CaptionStyleId) => CAPTION_STYLES.find((s) => s
  * it afterwards): the font and case it is known for, where it sits and
  * whether it has a box. Keeps the brand colour and the highlight.
  */
-export const CAPTION_STYLE_DEFAULTS: Record<CaptionStyleId, { font: FontId; textBox: TextBox; captions: Omit<EdlStyle["captions"], "preset" | "highlight"> }> = {
+export const CAPTION_STYLE_DEFAULTS: Record<CaptionStyleId, { font: FontId; textBox: TextBox; /** the colour the preset is known for; absent = the person's highlight stays */ highlight?: string; captions: Omit<EdlStyle["captions"], "preset" | "highlight" | "animation"> }> = {
   classic: { font: "montserrat", textBox: "outline", captions: { position: "bottom", size: "m", box: false, uppercase: false } },
   karaoke: { font: "montserrat", textBox: "outline", captions: { position: "bottom", size: "m", box: false, uppercase: false } },
   highlight: { font: "montserrat", textBox: "outline", captions: { position: "middle", size: "l", box: false, uppercase: true } },
@@ -86,7 +99,11 @@ export const CAPTION_STYLE_DEFAULTS: Record<CaptionStyleId, { font: FontId; text
   vox: { font: "inter", textBox: "none", captions: { position: "bottom", size: "m", box: false, uppercase: false } },
   subtitle: { font: "inter", textBox: "dark", captions: { position: "bottom", size: "s", box: true, uppercase: false } },
   script: { font: "intertight", textBox: "dark", captions: { position: "lower", size: "l", box: true, uppercase: false } },
+  ...(CAPTION_MOTION_DEFAULTS as Record<CaptionMotionStyleId, (typeof CAPTION_MOTION_DEFAULTS)[string]>),
 };
+/** The caption styles that are motion presets (an entrance, an emphasis and an exit). */
+export type CaptionMotionStyleId = "editorial" | "serif" | "annotation" | "callout" | "punch" | "title" | "tape" | "product" | "cutout" | "titlecard";
+export const isCaptionStyleId = (v: unknown): v is CaptionStyleId => CAPTION_STYLES.some((s) => s.id === v);
 
 /** The marker and highlight colour new styles start with: CapCut's yellow. */
 export const DEFAULT_HIGHLIGHT = "#ffd60a";
@@ -116,7 +133,10 @@ export const CAPCUT_STYLE: EdlStyle = { font: "montserrat", accent: "#5b4bd6", t
 /** A style with a caption style applied: the style's own font, case, position and box, everything else kept. */
 export function withCaptionStyle(style: EdlStyle, id: CaptionStyleId): EdlStyle {
   const d = CAPTION_STYLE_DEFAULTS[id];
-  return { ...style, font: d.font, textBox: d.textBox, captions: { ...style.captions, ...d.captions, preset: id } };
+  // A motion preset brings its own colour and drops a page animation set for another style; the person changes both after.
+  const { animation: _a, ...rest } = style.captions; void _a;
+  const captions = d.highlight ? { ...rest, ...d.captions, preset: id, highlight: d.highlight } : { ...style.captions, ...d.captions, preset: id };
+  return { ...style, font: d.font, textBox: d.textBox, captions };
 }
 
 /**

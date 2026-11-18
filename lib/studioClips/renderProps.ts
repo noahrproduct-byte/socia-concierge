@@ -3,10 +3,11 @@
 // export must not have (the safe-zone guide, the Before/After switch). The
 // parity test (parity.test.ts) checks the plans frame by frame.
 import type { BuildSource, Edl } from "./types";
+import type { Beat } from "./beats";
 
-export type RenderInputs = { edl: Edl; sources: Record<string, BuildSource>; musicUrl: string | null; voiceUrls: Record<string, string>; cleanAudio: Record<string, string>; watermarkUrl: string | null };
+export type RenderInputs = { edl: Edl; sources: Record<string, BuildSource>; musicUrl: string | null; voiceUrls: Record<string, string>; cleanAudio: Record<string, string>; watermarkUrl: string | null; /** the soundtrack's measured beat, when there is one (Beat Cutout captions land on it) */ beat?: Beat | null };
 
-export const exportProps = (a: RenderInputs) => ({ edl: a.edl, sources: a.sources, captionsOn: Boolean(a.edl.captions), musicUrl: a.musicUrl, voiceUrls: a.voiceUrls, cleanAudio: a.cleanAudio, watermarkUrl: a.watermarkUrl });
+export const exportProps = (a: RenderInputs) => ({ edl: a.edl, sources: a.sources, captionsOn: Boolean(a.edl.captions), musicUrl: a.musicUrl, voiceUrls: a.voiceUrls, cleanAudio: a.cleanAudio, watermarkUrl: a.watermarkUrl, beat: a.beat ?? null });
 
 // `preview` only tells the composition it is in the Player, where shots are drawn with the browser's video
 // element (ClipComposition.tsx ShotVideo); the plan is the same.
