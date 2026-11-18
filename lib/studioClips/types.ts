@@ -9,6 +9,7 @@ import type { Soundtrack } from "@/lib/music/taste";
 import type { EditStyleId } from "./profiles";
 import type { HouseGenre } from "./houseStyle";
 import type { CaptionOverride } from "./captionMotion";
+import type { EdlScene } from "./scenes";
 
 export type { Transcript, TranscriptWord };
 
@@ -385,6 +386,8 @@ export type Edl = {
   broll?: BrollItem[];
   /** The person's changes to single captions (a style, the emphasised word, its beat, a callout's anchor), by caption key (lib/studioClips/captionMotion.ts). */
   captionOverrides?: Record<string, CaptionOverride>;
+  /** Graphic scenes over the picture, each anchored to the word it starts on (lib/studioClips/scenes.ts). Every word on them was said in the cut. */
+  scenes?: EdlScene[];
 };
 
 /** A theme by id, and the person's overrides as a diff on top of it (a partial Theme, lib/studioClips/themes/schema.ts). */

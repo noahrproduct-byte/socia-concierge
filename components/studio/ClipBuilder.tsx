@@ -24,6 +24,8 @@ import MusicBox from "./MusicBox";
 import VoiceoverCard from "./VoiceoverCard";
 import FinishPanel from "./FinishPanel";
 import TextLayersPanel from "./TextLayersPanel";
+import ScenesPanel from "./ScenesPanel";
+import { findScenes, sceneSpans } from "@/lib/studioClips/scenes";
 import { useSafeZoneGuide } from "./TextOverlay";
 import Timeline, { editorKey, type TimelineSelection } from "./Timeline";
 import { reorder, tracksFor, trimCut } from "@/lib/studioClips/tracks";
@@ -1238,6 +1240,15 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                 playhead={() => at()?.sec ?? null}
                 openId={sel?.kind === "text" ? edl.text[sel.index]?.id ?? null : null}
                 onOpen={(l) => { const p = player.current; if (p) { p.pause(); p.seekTo(Math.min(tl.durationFrames - 1, Math.round(l.at * OUTPUT.fps) + 1)); } }}
+              />
+              <ScenesPanel
+                scenes={edl.scenes ?? []}
+                spans={sceneSpans(edl, applyCtx.words)}
+                disabled={!data.canEdit || busy}
+                hasWords={anySpeech}
+                onChange={(scenes) => { const { scenes: _old, ...rest } = edl; commit(scenes.length ? { ...rest, scenes } : rest); }}
+                onFind={() => { const { scenes: _old, ...rest } = edl; const found = findScenes(rest, applyCtx.words); commit(found.length ? { ...rest, scenes: found } : rest); return found.length; }}
+                onShow={(span) => { const p = player.current; if (p) { p.pause(); p.seekTo(Math.min(tl.durationFrames - 1, span.from + 12)); } }}
               />
               <div className="ov-card cbb-caption-copy">
                 <b><Type size={14} /> Lower third</b>

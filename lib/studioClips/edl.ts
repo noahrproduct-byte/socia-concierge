@@ -17,6 +17,7 @@ import { cleanEndCard } from "./teach";
 import { isEditStyle } from "./profiles";
 import { readEmphasis } from "@/lib/clipper/emphasis";
 import { sanitizeCaptionOverrides } from "./captionMotion";
+import { sanitizeScenes } from "./scenes";
 
 /** The most highlighted words a cut keeps. */
 const MAX_EMPHASIS = 40;
@@ -381,6 +382,9 @@ export function revalidateEdl(edited: Edl, clips: ClipForEdl[]): { edl: Edl; war
   // The person's changes to single captions (lib/studioClips/captionMotion.ts), bounded.
   const overrides = sanitizeCaptionOverrides(edited.captionOverrides, isCaptionStyleId);
   if (overrides) r.edl.captionOverrides = overrides;
+  // Graphic scenes (lib/studioClips/scenes.ts), bounded, for the clips still in the cut.
+  const scenes = sanitizeScenes(edited.scenes, new Set(r.edl.segments.map((s) => s.clipId)));
+  if (scenes) r.edl.scenes = scenes;
   if (typeof edited.lookAuto === "string" && !Number.isNaN(Date.parse(edited.lookAuto))) r.edl.lookAuto = new Date(edited.lookAuto).toISOString();
   return r;
 }

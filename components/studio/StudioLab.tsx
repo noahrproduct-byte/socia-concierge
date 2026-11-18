@@ -69,6 +69,10 @@ function installMock(thumbs: fx.Thumb[], durationSec: number, screen: Screen): (
     if (p === `/api/studio/projects/${fx.PROJECT_ID}/batch`) return json({ existing: [], history: null, accounts: [], accountsComplete: true, builds: [], canSchedule: true, planError: null, roleBlocked: false });
     if (p === `/api/studio/projects/${fx.PROJECT_ID}/brief` && method === "GET") return json({ builds: [] });
     if (p === `/api/studio/projects/${fx.PROJECT_ID}/edit`) return json(fx.build(thumbs, durationSec, -1));
+    // The one-drop screen (QuickEdit): one clip as its own cut, the brief fitted and made, all from the fixtures.
+    if (p === `/api/studio/projects/${fx.PROJECT_ID}/clip-build`) return json(fx.build(thumbs, durationSec, -1));
+    if (p === `/api/studio/projects/${fx.PROJECT_ID}/brief/enhance`) return json({ prompt: (init?.body ? (JSON.parse(String(init.body)) as { prompt?: string }).prompt : "") ?? "", added: [] });
+    if (p === `/api/studio/projects/${fx.PROJECT_ID}/brief` && method === "POST") return json({ build: fx.build(thumbs, durationSec, 0), breakdown: null });
     if (p.startsWith("/api/studio/builds/") && method === "GET") return json(fx.playerData(thumbs, durationSec, p.includes(fx.MANUAL_BUILD_ID) ? -1 : 0));
     if (p.startsWith("/api/studio/builds/") && method === "PATCH") { const b = (await (init?.body ? JSON.parse(String(init.body)) : null)) as { edl?: unknown } | null; const base = fx.build(thumbs, durationSec, p.includes(fx.MANUAL_BUILD_ID) ? -1 : 0); return json({ ...base, edl: b?.edl ?? base.edl }); }
     if (p === "/api/studio/learn") return json({ outcomes: [], lessons: { published: 0, settledCount: 0, lessons: [], best: null, summary: "No posts made in Content Studio have been published yet." } });

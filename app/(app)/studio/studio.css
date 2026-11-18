@@ -1774,3 +1774,10 @@
 .sd-mic-live { position: absolute; inset: 2px; color: rgba(255, 255, 255, 0.85); }
 .sd-mic-live svg { width: 100%; height: 100%; }
 
+
+/* ---- animated graphics in the Words tool (components/studio/ScenesPanel.tsx) ---- */
+.sd-scene { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-control); }
+.sd-scene-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+.sd-scene-head > span { font-weight: var(--fw-semibold); color: var(--ink); }
+.sd-scene-head > small { color: var(--ink-3); }
+.sd-scene-head > button:last-child { margin-left: auto; }

@@ -36,6 +36,8 @@ import type { CaptionAnimation } from "@/lib/studioClips/style";
 import { rankingBox, type RankingOverlay } from "@/lib/clipper/ranking";
 import { emphasisIndex } from "@/lib/clipper/emphasis";
 import { RankingLayer } from "./RankingLayer";
+import { SceneLayer } from "./SceneLayer";
+import { sceneSpans } from "@/lib/studioClips/scenes";
 import type { BuildSource, Edl, EdlText, EndCard } from "@/lib/studioClips/types";
 import { END_CARD_SEC, endLineSize } from "@/lib/studioClips/teach";
 import { viewAt, viewBox } from "@/lib/clipper/reframe";
@@ -696,6 +698,8 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
   // The Editorial theme's captions sit lower left, away from any line, so they stay up there too.
   const linesClearCaptions = theme?.typography.titleAnimation !== "letters" && theme?.typography.captionPreset !== "vox";
   const pages = useMemo(() => (captionsOn ? clearOfText(captionPages(edl, words, fps, pageMs, pageWords), linesClearCaptions ? edl : { text: [] }, fps, cardFrom) : []), [edl, words, captionsOn, fps, pageMs, pageWords, cardFrom, linesClearCaptions]);
+  // Graphic scenes (lib/studioClips/scenes.ts): each sits where the word it is anchored to is now.
+  const scenes = useMemo(() => sceneSpans(edl, words, fps), [edl, words, fps]);
   // With ducking on, the music sits low under speech and comes up between (lib/studioClips/musicDuck.ts).
   const spoken = useMemo(() => (music?.duck ? speechSpans(edl, words) : []), [music?.duck, edl, words]);
   // A voiceover (lib/studioClips/voiceover.ts): its voiced lines play where they sit, and the
@@ -817,6 +821,11 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
         </Sequence>
       ))}
       {ranking && <RankingLayer ranking={ranking} fontFamily={fontFamily} />}
+      {scenes.map((sp) => (
+        <Sequence key={sp.scene.id} from={sp.from} durationInFrames={sp.durationInFrames} name={`scene · ${sp.scene.kind}`}>
+          <SceneLayer span={sp} fontFamily={fontFamily} accent={theme?.color.accent ?? style.accent} low={style.captions.position === "top"} />
+        </Sequence>
+      ))}
       {pages.map((p, i) => (
         <Sequence key={`c${i}`} from={p.from} durationInFrames={p.durationInFrames} name="captions">
           <CaptionPage page={p.page} style={style} fontFamily={fontFamily} scriptFamily={scriptFamily} emphasis={emphasis ?? edl.emphasis} theme={theme} lowerThird={hasLowerThird} override={edl.captionOverrides?.[p.key]} durationInFrames={p.durationInFrames} beat={beat} />
