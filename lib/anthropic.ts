@@ -1,7 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { watchedAnthropicFetch } from "./providerAlarm";
 
-// Zero-arg constructor reads ANTHROPIC_API_KEY from the environment.
-export const anthropic = new Anthropic();
+// Reads ANTHROPIC_API_KEY from the environment. Every answer passes through a
+// watcher that tells the admins when SOCIA's credit balance runs out (lib/providerAlarm.ts).
+export const anthropic = new Anthropic({ fetch: watchedAnthropicFetch() });
 
 /** The most output a retried call may ask for. */
 export const RETRY_MAX_TOKENS = 32_000;

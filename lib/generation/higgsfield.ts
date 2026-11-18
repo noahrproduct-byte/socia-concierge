@@ -4,6 +4,7 @@
 // expire after seven days, so the job runner copies them into SOCIA's bucket.
 // Prices come from POST /estimate/{endpoint} with the same body. Server only.
 import { GenerationError, type GenerationOutput, type GenerationProvider, type GenerationRequest, type GenerationStatus } from "./provider";
+import { raiseProviderAlarm } from "@/lib/providerAlarm";
 
 const BASE = "https://api.higgsfield.ai";
 
@@ -131,7 +132,12 @@ export class HiggsfieldProvider implements GenerationProvider {
       const j = (json ?? {}) as Record<string, unknown>;
       const detail = str(j.detail) ?? str(j.error) ?? str(j.message);
       const retry = res.status === 429 || res.status >= 500;
-      if (res.status === 402) throw new GenerationError("SOCIA's generation balance is empty. Contact us and we'll sort it out.", "provider_balance");
+      // 402, or any refusal that says the balance is short (the exact answer isn't documented).
+      if (res.status === 402 || /insufficient (balance|funds|credits?)|balance is (too low|empty)|not enough (balance|credits?|funds)/i.test(detail ?? "")) {
+        // SOCIA's own Higgsfield balance is empty: the admins hear about it at once (lib/providerAlarm.ts).
+        raiseProviderAlarm("higgsfield", detail ?? undefined);
+        throw new GenerationError("SOCIA's generation balance is empty. Contact us and we'll sort it out.", "provider_balance");
+      }
       throw new GenerationError(retry ? "The generation service is busy. Try again in a few minutes." : `The generation service refused the request${detail ? `: ${detail}` : "."}`, `http_${res.status}`, retry);
     }
     return { status: res.status, json };
