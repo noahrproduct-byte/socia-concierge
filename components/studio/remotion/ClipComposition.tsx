@@ -37,7 +37,8 @@ import { rankingBox, type RankingOverlay } from "@/lib/clipper/ranking";
 import { emphasisIndex } from "@/lib/clipper/emphasis";
 import { RankingLayer } from "./RankingLayer";
 import { SceneLayer } from "./SceneLayer";
-import { sceneSpans } from "@/lib/studioClips/scenes";
+import { cutoutSpans, sceneSpans } from "@/lib/studioClips/scenes";
+import { PersonCutout } from "./PersonCutout";
 import type { BuildSource, Edl, EdlText, EndCard } from "@/lib/studioClips/types";
 import { END_CARD_SEC, endLineSize } from "@/lib/studioClips/teach";
 import { viewAt, viewBox } from "@/lib/clipper/reframe";
@@ -506,6 +507,28 @@ function SegmentLayer({ s, index, into, out, effects, theme, softenFrom, childre
   );
 }
 
+/**
+ * The person in a cut, drawn again above a graphic scene (PersonCutout): the same move the cut under it makes
+ * (its slow move, punch-ins and shake), shown only in the band at the top of the frame where the scenes sit, so
+ * nothing of the second copy is seen anywhere a graphic is not.
+ */
+function CutoutFrame({ s, index, offset, low, children }: { s: TimelineSegment; index: number; /** frames into the cut where this run starts */ offset: number; low: boolean; children: React.ReactNode }) {
+  const f = useCurrentFrame() + offset;
+  const { width, height } = useVideoConfig();
+  const zone = safeZoneFor(width, height);
+  const clipSec = clipSecAt(s, f);
+  const punch = s.punches?.length ? punchScaleAt(s, clipSec) : 1;
+  const mo = motionAt(s.motion, f, s.durationFrames, clipSec, index);
+  const css = transformCss({ ...mo, scale: mo.scale * punch });
+  const top = Math.max(0, Math.round(zone.y + (low ? zone.height * 0.3 : 0) - height * 0.02));
+  const band = Math.round(height * 0.42);
+  return (
+    <div style={{ position: "absolute", left: 0, top, width, height: band, overflow: "hidden", pointerEvents: "none" }}>
+      <div style={{ position: "absolute", left: 0, top: -top, width, height, transform: css.transform, transformOrigin: css.transformOrigin }}>{children}</div>
+    </div>
+  );
+}
+
 /** A clip's picture inside a cut, in constant-rate pieces (a speed ramp is two or three of them). Sound stays on the first child's volume callback. */
 function SegmentVideo({ s, src, effects, cssFilter, volume, muted, objectFit, style }: { s: TimelineSegment; src: string; effects: Effects | undefined; /** the look for the Player's video element (no WebGL there) */ cssFilter?: string; volume: (f: number) => number; muted: boolean; objectFit: "cover" | "fill"; style: React.CSSProperties }) {
   const preview = useContext(PreviewCtx);
@@ -700,6 +723,8 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
   const pages = useMemo(() => (captionsOn ? clearOfText(captionPages(edl, words, fps, pageMs, pageWords), linesClearCaptions ? edl : { text: [] }, fps, cardFrom) : []), [edl, words, captionsOn, fps, pageMs, pageWords, cardFrom, linesClearCaptions]);
   // Graphic scenes (lib/studioClips/scenes.ts): each sits where the word it is anchored to is now.
   const scenes = useMemo(() => sceneSpans(edl, words, fps), [edl, words, fps]);
+  // With the scenes behind the person: the stretch of each cut a scene runs over, where the person is drawn again on top.
+  const cutouts = useMemo(() => (edl.scenesBehind ? cutoutSpans(scenes, tl.segments) : []), [edl.scenesBehind, scenes, tl]);
   // With ducking on, the music sits low under speech and comes up between (lib/studioClips/musicDuck.ts).
   const spoken = useMemo(() => (music?.duck ? speechSpans(edl, words) : []), [music?.duck, edl, words]);
   // A voiceover (lib/studioClips/voiceover.ts): its voiced lines play where they sit, and the
@@ -826,6 +851,21 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
           <SceneLayer span={sp} fontFamily={fontFamily} accent={theme?.color.accent ?? style.accent} low={style.captions.position === "top"} />
         </Sequence>
       ))}
+      {cutouts.map((c) => {
+        const s = tl.segments[c.seg];
+        const src = s ? sources[s.clipId] : undefined;
+        const b = s ? box(s) : null;
+        // Not where the picture's size is unknown, the frame moves on a path, or the clip carries a measured
+        // colour correction the cut-out could not match: the graphic stays in front there.
+        if (!s || !src || !b || s.frame?.path || effects[s.clipId]?.length) return null;
+        return (
+          <Sequence key={c.id} from={c.from} durationInFrames={c.frames} premountFor={PREMOUNT_FRAMES} name="person in front">
+            <CutoutFrame s={s} index={c.seg} offset={c.offset} low={style.captions.position === "top"}>
+              <PersonCutout src={(s.stabilize && src.stable?.[s.stabilize.strength]) || src.url} trimBefore={s.inFrame + c.offset} frames={c.frames} style={b} filter={lookCssFilter(theme?.color.grade)} />
+            </CutoutFrame>
+          </Sequence>
+        );
+      })}
       {pages.map((p, i) => (
         <Sequence key={`c${i}`} from={p.from} durationInFrames={p.durationInFrames} name="captions">
           <CaptionPage page={p.page} style={style} fontFamily={fontFamily} scriptFamily={scriptFamily} emphasis={emphasis ?? edl.emphasis} theme={theme} lowerThird={hasLowerThird} override={edl.captionOverrides?.[p.key]} durationInFrames={p.durationInFrames} beat={beat} />

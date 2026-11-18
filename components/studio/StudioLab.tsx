@@ -32,12 +32,32 @@ function installMock(thumbs: fx.Thumb[], durationSec: number, screen: Screen): (
   // Clips dropped in this tab, so the project lists them after a reload of its data.
   const labClips: fx.LabClip[] = [];
   const state = screen === "build-collect" ? "collecting" : "ready";
+  // ?fresh=1 on the edit screen: the project starts with no clips, so one clip dropped on the one-drop screen goes
+  // down the talking-clip path. Its picture is public/dev-talk.mp4 (not in the repository) and its words are
+  // stand-ins with a long pause and a figure in them: they exercise the cut, they are not what is said.
+  const fresh = screen === "edit" && new URLSearchParams(window.location.search).get("fresh") === "1";
+  let freshEdl: unknown = null;
+  const say = (text: string, at: number) => { let t = at; return text.split(" ").map((word) => { const w = { text: word, startMs: Math.round(t * 1000), endMs: Math.round((t + 0.26) * 1000), confidence: 1 }; t += /[.!?]$/.test(word) ? 0.55 : 0.29; return w; }); };
+  const freshWords = [...say("Welcome to the showroom everybody.", 0.3), ...say("We have 500 rugs in stock right now.", 3.4), ...say("Come and see us.", 6.4)];
+  const freshBuild = () => {
+    const c = labClips[0];
+    const b = fx.build(thumbs, durationSec, -1);
+    const dur = c?.durationSec ?? durationSec;
+    const edl = freshEdl ?? { ...b.edl, targetSec: { min: 1, max: Math.ceil(dur) + 1 }, segments: [{ id: "s1", clipId: c?.id ?? "lab-4", in: 0, out: dur, role: "opener", note: "" }], text: [], enhance: [], audio: [], cta: null, caption: "" };
+    return { ...b, edl, durationSec: dur } as ReturnType<typeof fx.build>;
+  };
+  const freshData = () => {
+    const c = labClips[0];
+    const d = fx.playerData(thumbs, durationSec, -1);
+    return { ...d, build: freshBuild(), sources: c ? [{ clipId: c.id, position: 0, name: c.name, url: "/dev-talk.mp4", thumb: null, durationSec: c.durationSec ?? durationSec, width: 1080, height: 1920, words: freshWords, moments: [] }] : [] };
+  };
   window.fetch = async (input, init) => {
     const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, window.location.href);
     const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
     const p = url.pathname;
     // Storage uploads (the WAV for transcription) land nowhere.
-    if (url.hostname.endsWith("placeholder.supabase.co")) return json({ Key: p, Id: "lab" });
+    // (Also when the lab runs beside a real project's keys: nothing of the lab's is ever sent to its storage.)
+    if (url.hostname.endsWith("placeholder.supabase.co") || p.startsWith("/storage/v1/object/")) return json({ Key: p, Id: "lab" });
     // Only this app's own API is answered here: Remotion's licence ping and any other host go out as they are.
     if (url.origin !== window.location.origin || !p.startsWith("/api/")) return real(input, init);
     // The upload flow: a dropped file is registered, its uploads land nowhere, and it is completed, so the whole
@@ -64,6 +84,11 @@ function installMock(thumbs: fx.Thumb[], durationSec: number, screen: Screen): (
     if (p === "/api/studio/voices") return json({ voices: [] });
     if (p === "/api/studio/projects" && method === "GET") return json({ projects: [fx.summary()], limits: { clipsPerProject: 30, footageMinutes: 30, uploadMb: 2000 }, usage: { meter: "content_build", used: 1, limit: 10, remaining: 9, resetsOn: "2026-12-01" }, transcription: true, features: { autoBuild: true } });
     if (p === "/api/studio/projects" && method === "POST") return json({ id: fx.PROJECT_ID });
+    if (fresh && p === `/api/studio/projects/${fx.PROJECT_ID}` && method === "GET") return json({ ...fx.project(thumbs, durationSec, state), clips: labClips });
+    if (fresh && p === `/api/studio/projects/${fx.PROJECT_ID}/clip-build`) return json(freshBuild());
+    if (fresh && p.startsWith("/api/studio/builds/") && method === "GET") return json(freshData());
+    if (fresh && p.startsWith("/api/studio/builds/") && method === "PATCH") { freshEdl = (init?.body ? (JSON.parse(String(init.body)) as { edl?: unknown }).edl : null) ?? freshEdl; return json(freshBuild()); }
+    if (fresh && p === `/api/studio/projects/${fx.PROJECT_ID}/transcribe`) return json({ ok: true });
     if (p === `/api/studio/projects/${fx.PROJECT_ID}` && method === "GET") { const pr = fx.project(thumbs, durationSec, state); return json({ ...pr, clips: [...pr.clips, ...labClips] }); }
     if (p === `/api/studio/projects/${fx.PROJECT_ID}/opportunities/0`) return json(fx.build(thumbs, durationSec, 0));
     if (p === `/api/studio/projects/${fx.PROJECT_ID}/batch`) return json({ existing: [], history: null, accounts: [], accountsComplete: true, builds: [], canSchedule: true, planError: null, roleBlocked: false });

@@ -40,6 +40,8 @@ phone-agent/
 
 # Self-hosted ffmpeg.wasm core (copied from @ffmpeg/core on install)
 /public/ffmpeg/
+# MediaPipe vision runtime (copied from @mediapipe/tasks-vision on install); the model beside it is kept
+/public/mediapipe/wasm/
 
 # promo video (HyperFrames renders and artifacts)
 /marketing/promo-video/renders/

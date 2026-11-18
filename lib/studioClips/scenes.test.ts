@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { findScenes, sanitizeScenes, sceneSpans } from "./scenes";
+import { cutoutSpans, findScenes, sanitizeScenes, sceneSpans, type SceneSpan } from "./scenes";
+import { alphaOf } from "./matte";
 import { revalidateEdl } from "./edl";
 import type { ClipForEdl } from "./edl";
 import type { Edl, TranscriptWord } from "./types";
@@ -97,5 +98,28 @@ describe("saving", () => {
     expect(long[0].dur).toBeLessThanOrEqual(14);
     expect(long[0].text.length).toBe(60);
     expect(revalidateEdl(edl, clips).edl.scenes).toBeUndefined();
+  });
+});
+
+describe("behind the person", () => {
+  const span = (from: number, frames: number): SceneSpan => ({ scene: { id: "g1", kind: "stat", key: "talk@0", dur: frames / 30, text: "9" }, from, durationInFrames: frames, rows: [] });
+  it("covers the part of each cut a scene runs over, and skips a cut whose speed was changed", () => {
+    const cuts = [{ startFrame: 0, durationFrames: 100 }, { startFrame: 100, durationFrames: 50, motion: { speed: { rate: 2 } } }, { startFrame: 150, durationFrames: 90 }];
+    expect(cutoutSpans([span(80, 100)], cuts)).toEqual([
+      { id: "g1-0", seg: 0, from: 80, frames: 20, offset: 80 },
+      { id: "g1-2", seg: 2, from: 150, frames: 30, offset: 0 },
+    ]);
+    // A sliver of two frames is not worth a second decode.
+    expect(cutoutSpans([span(98, 30)], [{ startFrame: 0, durationFrames: 100 }])).toEqual([]);
+  });
+
+  it("is kept through a save only with scenes, and the edge of the mask is soft", () => {
+    const scenes = findScenes(edl, words);
+    expect(revalidateEdl({ ...edl, scenes, scenesBehind: true }, clips).edl.scenesBehind).toBe(true);
+    expect(revalidateEdl({ ...edl, scenesBehind: true }, clips).edl.scenesBehind).toBeUndefined();
+    expect(alphaOf(0.1)).toBe(0);
+    expect(alphaOf(0.95)).toBe(255);
+    expect(alphaOf(0.525)).toBeGreaterThan(100);
+    expect(alphaOf(0.525)).toBeLessThan(160);
   });
 });

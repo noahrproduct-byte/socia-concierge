@@ -388,6 +388,8 @@ export type Edl = {
   captionOverrides?: Record<string, CaptionOverride>;
   /** Graphic scenes over the picture, each anchored to the word it starts on (lib/studioClips/scenes.ts). Every word on them was said in the cut. */
   scenes?: EdlScene[];
+  /** The graphic scenes sit behind the person talking, who is cut out of the shot in the browser (lib/studioClips/matte.ts). Absent = in front. */
+  scenesBehind?: true;
 };
 
 /** A theme by id, and the person's overrides as a diff on top of it (a partial Theme, lib/studioClips/themes/schema.ts). */

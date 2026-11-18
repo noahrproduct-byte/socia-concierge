@@ -8,13 +8,16 @@ import { useState } from "react";
 import { LayoutPanelTop, RefreshCw, Trash2 } from "lucide-react";
 import { SCENE_ITEMS_MAX, SCENE_KIND_LABEL, SCENE_LABEL_MAX, SCENE_TEXT_MAX, type EdlScene, type SceneSpan } from "@/lib/studioClips/scenes";
 
-export default function ScenesPanel({ scenes, spans, disabled, hasWords, onChange, onFind, onShow }: {
+export default function ScenesPanel({ scenes, spans, disabled, hasWords, behind, onBehind, onChange, onFind, onShow }: {
   scenes: EdlScene[];
   /** where each scene sits in the cut now; a scene whose words were cut has none */
   spans: SceneSpan[];
   disabled: boolean;
   /** the cut has spoken words to look through */
   hasWords: boolean;
+  /** the graphics sit behind the person talking */
+  behind: boolean;
+  onBehind: (on: boolean) => void;
   onChange: (scenes: EdlScene[]) => void;
   /** look through what is said again; returns how many it found */
   onFind: () => number;
@@ -54,6 +57,12 @@ export default function ScenesPanel({ scenes, spans, disabled, hasWords, onChang
           </div>
         );
       })}
+      {scenes.length > 0 && (
+        <>
+          <label className="cbb-check"><input type="checkbox" checked={behind} disabled={disabled} onChange={(e) => onBehind(e.target.checked)} /> Put the graphics behind the person talking</label>
+          <small className="sd-fx-note">The person is found in the picture on this computer and drawn in front of the card wherever the two cross. Where no one is found, or the clip carries a colour correction, the card stays in front.</small>
+        </>
+      )}
       <div className="sd-done-actions">
         <button type="button" className="ov-btn ghost small" disabled={disabled || !hasWords} onClick={find}><RefreshCw size={12} aria-hidden /> {scenes.length ? "Find them again" : "Find them in what is said"}</button>
         {!hasWords && <small className="sd-fx-note">No speech in this cut, so there is nothing to make a graphic from.</small>}

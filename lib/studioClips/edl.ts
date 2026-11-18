@@ -385,6 +385,7 @@ export function revalidateEdl(edited: Edl, clips: ClipForEdl[]): { edl: Edl; war
   // Graphic scenes (lib/studioClips/scenes.ts), bounded, for the clips still in the cut.
   const scenes = sanitizeScenes(edited.scenes, new Set(r.edl.segments.map((s) => s.clipId)));
   if (scenes) r.edl.scenes = scenes;
+  if (scenes && edited.scenesBehind === true) r.edl.scenesBehind = true;
   if (typeof edited.lookAuto === "string" && !Number.isNaN(Date.parse(edited.lookAuto))) r.edl.lookAuto = new Date(edited.lookAuto).toISOString();
   return r;
 }

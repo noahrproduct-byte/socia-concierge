@@ -210,6 +210,25 @@ export function sceneSpans(edl: Edl, words: Record<string, TranscriptWord[] | nu
   return out.filter((s, i) => i === 0 || s.from >= out[i - 1].from + out[i - 1].durationInFrames);
 }
 
+export type CutoutSpan = { /** the scene and the cut it is over */ id: string; seg: number; from: number; frames: number; /** frames into the cut where it starts */ offset: number };
+
+/**
+ * Where the person is drawn again above a scene: the part of each cut a scene
+ * runs over. A cut whose speed was changed is left out (its frames don't map
+ * one to one), and so is a sliver shorter than three frames.
+ */
+export function cutoutSpans(spans: SceneSpan[], segments: { startFrame: number; durationFrames: number; motion?: { speed?: { rate: number } } }[]): CutoutSpan[] {
+  const out: CutoutSpan[] = [];
+  for (const sp of spans) {
+    segments.forEach((s, seg) => {
+      if (s.motion?.speed && s.motion.speed.rate !== 1) return;
+      const from = Math.max(sp.from, s.startFrame), to = Math.min(sp.from + sp.durationInFrames, s.startFrame + s.durationFrames);
+      if (to - from >= 3) out.push({ id: `${sp.scene.id}-${seg}`, seg, from, frames: to - from, offset: from - s.startFrame });
+    });
+  }
+  return out;
+}
+
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/—/g, ",").replace(/\s+/g, " ").trim().slice(0, max) : "");
 
 /** Scenes from anywhere (the browser, stored JSON), bounded; undefined when there are none. */
