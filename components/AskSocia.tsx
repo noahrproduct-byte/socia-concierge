@@ -17,7 +17,9 @@ import Link from "next/link";
 import BrandMark from "@/components/BrandMark";
 import SioCorner from "@/components/sio/SioCorner";
 import Sio from "@/components/sio/Sio";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { editorPrompt, isFilmedScript } from "@/lib/assistant/editorBrief";
+import { handFiles } from "@/lib/studioClips/handoff";
 import { Sparkles, Send, ArrowRight, Check, Copy, RotateCcw, Paperclip } from "lucide-react";
 import Drawer from "./ov/Drawer";
 import { ASK_EVENT, ASK_PAGE_LABEL, ASK_SUGGESTIONS, pageForPath, type AskAnswer, type AskContext, type AskEvent, type AskMessage, type AskProposal } from "@/lib/ask";
@@ -94,8 +96,10 @@ async function askApi(context: AskContext, messages: AskMessage[], onText?: (tex
   return { ok: true, answer: final.answer as AskAnswer, usage: (final.usage as UsageSnapshot | undefined) ?? null };
 }
 
-function AnswerView({ a, onProposal, applied, setApplied, onPlaceScanned }: {
+function AnswerView({ a, onProposal, applied, setApplied, onPlaceScanned, onAddClips }: {
   a: AskAnswer; onProposal?: ProposalHandler; applied: Record<string, string>; setApplied: (k: string, v: string) => void;
+  /** On the latest filmed script only: pick the clips, which then go to the AI editor with this script. */
+  onAddClips?: () => void;
   /** On the latest script only: photos of the place were just scanned, so rewrite it with real spots. */
   onPlaceScanned?: () => void;
 }) {
@@ -109,6 +113,12 @@ function AnswerView({ a, onProposal, applied, setApplied, onPlaceScanned }: {
       </div>
       <pre>{a.draft.body}</pre>
       {a.draft.kind === "script" && onPlaceScanned && <PlaceScan variant="inline" onScanned={onPlaceScanned} />}
+      {onAddClips && isFilmedScript(a.draft) && (
+        <div className="ask-to-editor">
+          <p>Once you&apos;ve filmed it, add your clips here. SOCIA sends them to the AI editor with this script and its editing directions.</p>
+          <button type="button" className="ov-btn ghost small" onClick={onAddClips}><Paperclip size={12} /> Add my clips</button>
+        </div>
+      )}
     </div>
   ) : null;
   // A research answer is its own card; the labelled evidence lines go in its fold.
@@ -129,16 +139,7 @@ function AnswerView({ a, onProposal, applied, setApplied, onPlaceScanned }: {
   return (
     <div className="ask-answer">
       {a.text && <p className="ask-text">{a.text}</p>}
-      {a.draft && (
-        <div className="ask-draft">
-          <div className="ask-draft-head">
-            <small>{a.draft.title}</small>
-            <button type="button" className="ov-btn ghost small" onClick={() => void copy(a.draft!.body)}>{copied === a.draft.body ? "Copied" : "Copy"}</button>
-          </div>
-          <pre>{a.draft.body}</pre>
-          {a.draft.kind === "script" && onPlaceScanned && <PlaceScan variant="inline" onScanned={onPlaceScanned} />}
-        </div>
-      )}
+      {draftBox}
       {a.observed.length > 0 && <div className="ov-why-block"><small>Observed</small><ul>{a.observed.map((o, i) => <li key={i}>{o}</li>)}</ul></div>}
       {a.post && (
         <a className="ask-post" href={a.post.permalink ?? "#"} target={a.post.permalink ? "_blank" : undefined} rel="noreferrer">
@@ -242,6 +243,24 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
       return next;
     });
   }, [accept]);
+  const router = useRouter();
+  // The latest script to film in this chat: clips added after it can go to the AI editor with it.
+  const scriptAt = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) if (messages[i].role === "assistant" && isFilmedScript(messages[i].answer?.draft)) return i;
+    return -1;
+  }, [messages]);
+  const latestScript = scriptAt >= 0 ? messages[scriptAt].answer! : null;
+  const toEditor = useMemo(() => (latestScript?.draft ? { title: latestScript.draft.title, prompt: editorPrompt(latestScript.draft, { approach: latestScript.research?.approach }) } : null), [latestScript]);
+  const sendToEditor = useCallback((sent: File[]) => {
+    if (!toEditor) return;
+    handFiles("edit", sent, { prompt: toEditor.prompt });
+    const n = sent.length;
+    const text = `Sent ${n} ${n === 1 ? "clip" : "clips"} and the script “${toEditor.title}” to the Video editor. Check the brief there, then make the video.`;
+    setMessages((m) => [...m, { role: "user", content: `Added ${n} ${n === 1 ? "clip" : "clips"} for “${toEditor.title}”` }, { role: "assistant", content: text, answer: { text, observed: [], derived: [], interpretation: "", recommendation: "", proposals: [], post: null, actions: [{ label: "Open the Video editor", href: "/studio?mode=edit" }] } }]);
+    setFiles([]); setFileNote(null);
+    router.push("/studio?mode=edit");
+    onClose();
+  }, [toEditor, router, onClose]);
   const footageDone = useCallback((r: FootageResult) => {
     const names = r.names.length > 3 ? `${r.names.slice(0, 3).join(", ")} and ${r.names.length - 3} more` : r.names.join(", ");
     const saved = r.drafts.length;
@@ -331,7 +350,7 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
           )}
           {messages.map((m, i) => m.role === "user"
             ? <div key={i} className="ask-msg user"><p>{m.content}</p></div>
-            : <div key={i} className="ask-msg assistant"><span className="ask-avatar is-sio"><Sio size={28} shadow={false} /></span>{m.answer ? <AnswerView a={m.answer} onProposal={onProposal} applied={applied} setApplied={setApplied} onPlaceScanned={i === messages.length - 1 && !busy ? () => void send("Rewrite this script using the photos of my place, with every shot at a real spot.") : undefined} /> : <p>{m.content}</p>}</div>)}
+            : <div key={i} className="ask-msg assistant"><span className="ask-avatar is-sio"><Sio size={28} shadow={false} /></span>{m.answer ? <AnswerView a={m.answer} onProposal={onProposal} applied={applied} setApplied={setApplied} onPlaceScanned={i === messages.length - 1 && !busy ? () => void send("Rewrite this script using the photos of my place, with every shot at a real spot.") : undefined} onAddClips={footage && i === scriptAt && !saving ? () => pickRef.current?.click() : undefined} /> : <p>{m.content}</p>}</div>)}
           {busy && (
             <div className="ask-msg assistant" aria-live="polite">
               <span className="ask-avatar is-sio"><Sio size={28} shadow={false} expression="thinking" /></span>
@@ -339,7 +358,7 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
             </div>
           )}
           {footage && files.length > 0 && (
-            <FootageTray files={files} onRemove={(i) => setFiles((f) => f.filter((_, j) => j !== i))} onClear={() => { setFiles([]); setFileNote(null); }} onDone={footageDone} onBusy={setSaving} />
+            <FootageTray files={files} onRemove={(i) => setFiles((f) => f.filter((_, j) => j !== i))} onClear={() => { setFiles([]); setFileNote(null); }} onDone={footageDone} onBusy={setSaving} toEditor={toEditor ? { title: toEditor.title, send: () => sendToEditor(files) } : null} />
           )}
           {footage && fileNote && <p className="ask-footage-note" role="status">{fileNote}</p>}
           {planError && <PlanNotice error={planError} compact />}

@@ -11938,3 +11938,7 @@ p.cbm-muted { display: block; }
 .rs-more summary:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; border-radius: 4px; }
 .rs-more ul { margin: 8px 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; line-height: 1.5; }
 .rs-more .ov-why-block { margin-top: 8px; }
+
+/* Ask SOCIA: under a script to film, the way to the AI editor */
+.ask-to-editor { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.ask-to-editor p { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--text-secondary); }
