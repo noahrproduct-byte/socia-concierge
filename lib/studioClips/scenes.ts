@@ -2,6 +2,8 @@
 // what is said. Three kinds, and every word on them is a word that was spoken
 // in the cut (nothing is written by a model, nothing is invented):
 //   stat   a figure that was said, big, with the words it counts under it;
+//   change two figures said as a change ("from 65 seconds to 38"): the old
+//          one is struck out and the new one lands;
 //   steps  a list said in order ("first ... second ... third"), each row
 //          landing as its line is spoken;
 //   line   a short sentence that carries the point, word by word.
@@ -13,7 +15,7 @@ import { captionKey } from "./captionMotion";
 import { captionsForEdl, FPS, timeline, type CaptionLike } from "./timeline";
 import type { Edl, TranscriptWord } from "./types";
 
-export type SceneKind = "stat" | "steps" | "line";
+export type SceneKind = "stat" | "change" | "steps" | "line";
 export type SceneItem = { /** the word the row lands on */ key: string; text: string };
 export type EdlScene = {
   id: string;
@@ -22,8 +24,10 @@ export type EdlScene = {
   key: string;
   /** how long it stays, seconds (a list stays until its last row has been read) */
   dur: number;
-  /** stat: the figure. line: the sentence. steps: unused ("") */
+  /** stat: the figure. change: the figure it became. line: the sentence. steps: unused ("") */
   text: string;
+  /** change: the figure it was */
+  was?: string;
   /** stat: the words the figure counts */
   label?: string;
   /** steps: the rows, in the order said */
@@ -35,7 +39,7 @@ export const SCENE_TEXT_MAX = 60;
 export const SCENE_LABEL_MAX = 40;
 export const SCENE_ITEMS_MAX = 5;
 const KEY = /^[\w-]{1,64}@\d{1,9}$/;
-const KINDS: SceneKind[] = ["stat", "steps", "line"];
+const KINDS: SceneKind[] = ["stat", "change", "steps", "line"];
 
 /** The opening seconds belong to the hook line, the last to the ending. */
 const HEAD_SEC = 3, TAIL_SEC = 2.5;
@@ -120,6 +124,30 @@ function findStats(toks: Tok[], ranges: [number, number][]): Found[] {
   return out;
 }
 
+/** A change said with its two figures: "from 65 seconds to 38", "went from $200 to $90 a week". */
+function findChanges(toks: Tok[], ranges: [number, number][]): Found[] {
+  const out: Found[] = [];
+  const fig = (i: number) => { const w = bare(toks[i].text).replace(/[.!?]+$/, ""); return FIGURE.test(w) && !YEAR.test(w) ? w : null; };
+  for (const [a, b] of ranges) {
+    for (let i = a; i + 3 <= b; i++) {
+      if (!/^from$/i.test(plain(toks[i].text))) continue;
+      const was = fig(i + 1);
+      if (!was) continue;
+      // The unit may be said after the first figure ("from 65 seconds to 38").
+      let j = i + 2, unit = "";
+      if (j <= b && !/^to$/i.test(plain(toks[j].text))) { unit = plain(toks[j].text); j += 1; }
+      if (j + 1 > b || !/^to$/i.test(plain(toks[j].text))) continue;
+      const now = fig(j + 1);
+      if (!now) continue;
+      const after = toks.slice(j + 2, b + 1).map((t) => plain(t.text)).filter(Boolean);
+      const label = labelOf(after) || unit;
+      out.push({ id: "", kind: "change", key: toks[i + 1].key, dur: STAT_SEC + 0.6, text: now.slice(0, SCENE_TEXT_MAX), was: was.slice(0, SCENE_TEXT_MAX), ...(label ? { label: label.slice(0, SCENE_LABEL_MAX) } : {}), at: toks[i + 1].startMs / 1000, rank: 2.5 });
+      break;
+    }
+  }
+  return out;
+}
+
 /** A list counted out loud: rows where the count runs 1, 2, 3 in order. */
 function findSteps(toks: Tok[], ranges: [number, number][]): Found[] {
   type Row = { n: number; from: number; to: number };
@@ -176,7 +204,7 @@ export function findScenes(edl: Edl, words: Record<string, TranscriptWord[] | nu
   const ranges = sentenceRanges(toks);
   const busy = edl.text.filter((t) => t.text.trim()).map((t) => [t.at - CLEAR_SEC, t.end + CLEAR_SEC] as [number, number]);
   const free = (at: number, dur: number) => at >= HEAD_SEC && at + dur <= total - TAIL_SEC && !busy.some(([s, e]) => at < e && at + dur > s);
-  const found = [...findSteps(toks, ranges), ...findStats(toks, ranges), ...findLines(toks, ranges)].filter((f) => free(f.at, Math.min(f.dur, STAT_SEC)));
+  const found = [...findSteps(toks, ranges), ...findChanges(toks, ranges), ...findStats(toks, ranges), ...findLines(toks, ranges)].filter((f) => free(f.at, Math.min(f.dur, STAT_SEC)));
   // The strongest first, then anything that doesn't crowd one already taken.
   const taken: Found[] = [];
   for (const f of found.sort((x, y) => y.rank - x.rank || x.at - y.at)) {
@@ -242,7 +270,8 @@ export function sanitizeScenes(v: unknown, clipIds: Set<string>): EdlScene[] | u
     const kind = KINDS.find((k) => k === o.kind);
     if (!kind || !okKey(o.key) || typeof o.dur !== "number" || !Number.isFinite(o.dur)) continue;
     const scene: EdlScene = { id: `g${out.length + 1}`, kind, key: o.key, dur: r2(Math.min(STEPS_MAX_SEC, Math.max(0.8, o.dur))), text: str(o.text, SCENE_TEXT_MAX) };
-    if (kind === "stat") { const label = str(o.label, SCENE_LABEL_MAX); if (label) scene.label = label; }
+    if (kind === "stat" || kind === "change") { const label = str(o.label, SCENE_LABEL_MAX); if (label) scene.label = label; }
+    if (kind === "change") { const was = str(o.was, SCENE_TEXT_MAX); if (!was) continue; scene.was = was; }
     if (kind === "steps") {
       const items = (Array.isArray(o.items) ? o.items : []).flatMap((it) => { const r = it as Record<string, unknown> | null; const text = str(r?.text, SCENE_TEXT_MAX); return r && okKey(r.key) && text ? [{ key: r.key, text }] : []; }).slice(0, SCENE_ITEMS_MAX);
       if (items.length < 2) continue;
@@ -254,6 +283,6 @@ export function sanitizeScenes(v: unknown, clipIds: Set<string>): EdlScene[] | u
 }
 
 /** What a scene shows, in a few words, for a list. */
-export const sceneSummary = (s: EdlScene): string => (s.kind === "stat" ? `${s.text}${s.label ? ` ${s.label}` : ""}` : s.kind === "steps" ? (s.items ?? []).map((i) => i.text).join(" · ") : s.text);
-export const SCENE_KIND_LABEL: Record<SceneKind, string> = { stat: "Figure", steps: "List", line: "Key line" };
+export const sceneSummary = (s: EdlScene): string => (s.kind === "change" ? `${s.was ?? ""} to ${s.text}${s.label ? ` ${s.label}` : ""}` : s.kind === "stat" ? `${s.text}${s.label ? ` ${s.label}` : ""}` : s.kind === "steps" ? (s.items ?? []).map((i) => i.text).join(" · ") : s.text);
+export const SCENE_KIND_LABEL: Record<SceneKind, string> = { stat: "Figure", change: "Before and after", steps: "List", line: "Key line" };
 export { captionKey };

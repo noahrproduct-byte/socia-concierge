@@ -45,7 +45,7 @@ export function editorKey(target: EventTarget | null, key: string): boolean {
 const SNAP_PX = 8;
 
 export default function Timeline({
-  tracks, fps, player, canEdit, selected, onSelect,
+  tracks, fps, player, canEdit, selected, onSelect, onScene,
   onTextStart, onTextLive, onCutStart, onCutTrimLive, onCutMove, onBrollLive,
   onSplit, onDelete, onUndo, onRedo, canUndo, canRedo, note, onTime,
 }: {
@@ -55,6 +55,8 @@ export default function Timeline({
   canEdit: boolean;
   selected: TimelineSelection;
   onSelect: (s: TimelineSelection) => void;
+  /** a graphic scene was clicked: the editor opens where it is changed */
+  onScene?: () => void;
   /** The playhead in output seconds, ten times a second while playing. */
   onTime?: (sec: number) => void;
   /** Called once when a text drag or key change begins (pushes one undo step). */
@@ -300,6 +302,7 @@ export default function Timeline({
           <span>Video</span>
           <span>Text</span>
           {tracks.captions.length > 0 && <span>Captions</span>}
+          {tracks.scenes.length > 0 && <span>Graphics</span>}
         </div>
         <div className="cbb-tl-scroll" ref={scroller}>
           <div
@@ -384,6 +387,25 @@ export default function Timeline({
                     onClick={(e) => { e.stopPropagation(); onSelect({ kind: "caption", index: c.index, key: c.key }); const p = player.current; if (p) { p.pause(); p.seekTo(Math.round(c.start * fps)); } }}
                   >
                     <em>{c.label}</em>
+                  </button>
+                ))}
+              </div>
+            )}
+            {tracks.scenes.length > 0 && (
+              <div className="cbb-tl-track">
+                {tracks.scenes.map((g) => (
+                  // A graphic scene sits on the words it shows: it is not dragged here; a click shows it and opens it under Words.
+                  <button
+                    key={g.index}
+                    type="button"
+                    className="cbb-tl-cap"
+                    style={{ left: pct(g.start), width: width(g.start, g.end) }}
+                    title={`${g.label}, ${g.start.toFixed(1)}s to ${g.end.toFixed(1)}s. Click to see it and change it under Words.`}
+                    aria-label={g.label}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => { e.stopPropagation(); onScene?.(); const p = player.current; if (p) { p.pause(); p.seekTo(Math.round(g.start * fps) + 14); } }}
+                  >
+                    <em>{g.label}</em>
                   </button>
                 ))}
               </div>

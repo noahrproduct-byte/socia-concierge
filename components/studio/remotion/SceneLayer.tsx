@@ -5,6 +5,8 @@
 //   stat   the figure counts up to the number that was said and lands big in
 //          the cut's accent, a rule draws out from the middle, and what it
 //          counts sits under it in spaced capitals;
+//   change the figure it was lands first and is struck out, an arrow draws,
+//          and the figure it became pops in the accent;
 //   steps  a checklist: each row slides in as its line is said, its number
 //          fills with the accent, and a track down the side fills to the row
 //          being said;
@@ -76,6 +78,29 @@ export function SceneLayer({ span, fontFamily, accent, low }: {
         <div style={{ fontSize: size * s, lineHeight: 1, fontWeight: 800, letterSpacing: `${-0.03 * size * s}px`, color: accent, transform: `scale(${0.8 + 0.2 * land})` }}>{countTo(scene.text, share)}</div>
         <div style={{ margin: `${22 * s}px auto 0`, height: Math.max(3, Math.round(6 * s)), width: `${interpolate(f, [8, 22], [0, 46], EASE)}%`, borderRadius: 999, backgroundColor: "#fff", opacity: 0.9 }} />
         {scene.label && <div style={{ marginTop: 22 * s, fontSize: 50 * s, lineHeight: 1.15, fontWeight: 800, textTransform: "uppercase", letterSpacing: `${0.05 * 50 * s}px`, opacity: interpolate(f, [10, 18], [0, 1], CLAMP), transform: `translateY(${interpolate(f, [10, 18], [14, 0], EASE) * s}px)` }}>{scene.label}</div>}
+      </div>
+    );
+  }
+
+  if (scene.kind === "change") {
+    const was = scene.was ?? "";
+    const longest = Math.max(was.length, scene.text.length);
+    const size = longest <= 3 ? 190 : longest <= 5 ? 150 : 110;
+    const strike = interpolate(f, [12, 22], [0, 100], EASE);
+    const arrow = interpolate(f, [18, 28], [0, 1], EASE);
+    const pop = spring({ frame: f - 24, fps, config: { damping: 11, stiffness: 190 }, durationInFrames: 14 });
+    return (
+      <div style={{ ...card, textAlign: "center" }}>
+        {bar}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 30 * s }}>
+          <span style={{ position: "relative", fontSize: size * 0.72 * s, lineHeight: 1, fontWeight: 800, color: "#fff" }}>
+            <span style={{ opacity: 0.45 + 0.55 * (1 - strike / 100) }}>{was}</span>
+            <span style={{ position: "absolute", left: "-6%", top: "50%", height: Math.max(4, Math.round(10 * s)), width: `${strike * 1.12}%`, borderRadius: 999, backgroundColor: accent }} />
+          </span>
+          <span style={{ width: 90 * s, height: Math.max(4, Math.round(8 * s)), borderRadius: 999, backgroundColor: "rgba(255,255,255,0.9)", transform: `scaleX(${arrow})`, transformOrigin: "left center" }} />
+          <span style={{ fontSize: size * s, lineHeight: 1, fontWeight: 800, letterSpacing: `${-0.03 * size * s}px`, color: accent, opacity: Math.min(1, Math.max(0, (f - 24) / 3)), transform: `scale(${0.5 + 0.5 * pop})` }}>{scene.text}</span>
+        </div>
+        {scene.label && <div style={{ marginTop: 26 * s, fontSize: 48 * s, lineHeight: 1.15, fontWeight: 800, textTransform: "uppercase", letterSpacing: `${0.05 * 48 * s}px`, opacity: interpolate(f, [26, 34], [0, 1], CLAMP) }}>{scene.label}</div>}
       </div>
     );
   }

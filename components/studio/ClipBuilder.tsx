@@ -1065,6 +1065,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
             canEdit={data.canEdit && !busy}
             selected={sel}
             onSelect={select}
+            onScene={() => setPanel("words")}
             onTime={onPlayTime}
             onTextStart={beginLive}
             onTextLive={(i, at, end) => { setEdl((cur) => (cur ? { ...cur, text: cur.text.map((t, k) => (k === i ? { ...t, at, end } : t)) } : cur)); setDirty(true); }}

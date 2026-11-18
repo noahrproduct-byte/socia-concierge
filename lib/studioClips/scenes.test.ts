@@ -44,6 +44,14 @@ describe("findScenes", () => {
     expect(findScenes(edl, { talk: one }).find((s) => s.kind === "stat")?.label).toBe("of these a day");
   });
 
+  it("shows a change with the figure it was and the figure it became", () => {
+    const one = say("So here is what happened to this video when we ran it. It went from 65 seconds to 38 with the pauses gone. That is the whole trick and it took a minute.", 0.2);
+    const change = findScenes(edl, { talk: one }).find((s) => s.kind === "change");
+    expect([change?.was, change?.text, change?.label]).toEqual(["65", "38", "with the pauses gone"]);
+    expect(findScenes(edl, { talk: one }).some((s) => s.kind === "stat")).toBe(false);
+    expect(sanitizeScenes([{ kind: "change", key: "talk@100", dur: 3, text: "38" }], new Set(["talk"]))).toBeUndefined();
+  });
+
   it("keeps clear of the opening, the ending, the text lines and each other", () => {
     const spans = sceneSpans({ ...edl, scenes }, words);
     expect(spans.length).toBe(scenes.length);

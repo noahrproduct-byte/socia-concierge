@@ -2,6 +2,7 @@
 // where, in output seconds, and how a text line moves or resizes when it is
 // dragged. Shared by the timeline component and the tests. Pure.
 
+import { SCENE_KIND_LABEL, sceneSpans, sceneSummary } from "./scenes";
 import type { Edl } from "./types";
 import { timeline, captionPages } from "./timeline";
 import { DEFAULT_STYLE, captionStyle } from "./style";
@@ -10,7 +11,7 @@ import type { TranscriptWord } from "@/lib/transcribe/types";
 export type TrackItem = { index: number; start: number; end: number; label: string };
 /** One caption on the track: a page of words, selectable by its key (edl.captionOverrides). */
 export type CaptionItem = { index: number; start: number; end: number; key: string; label: string; /** the page's words, as said */ words: string[]; /** output ms the page starts at */ startMs: number; tokens: { text: string; fromMs: number; toMs: number }[] };
-export type Tracks = { duration: number; video: TrackItem[]; text: TrackItem[]; captions: CaptionItem[]; /** B-roll laid over the picture (edl.broll), by its index */ broll: TrackItem[] };
+export type Tracks = { duration: number; video: TrackItem[]; text: TrackItem[]; captions: CaptionItem[]; /** B-roll laid over the picture (edl.broll), by its index */ broll: TrackItem[]; /** the graphic scenes where they sit now (lib/studioClips/scenes.ts); one whose words were cut is not on the track */ scenes: TrackItem[] };
 /** The shortest a text line may be. */
 export const MIN_TEXT_SEC = 0.5;
 
@@ -31,7 +32,8 @@ export function tracksFor(edl: Edl, label: (clipId: string) => string, words: Re
     });
   }
   const broll = (edl.broll ?? []).map((b, index) => ({ index, start: b.at, end: r2(b.at + (b.out - b.in)), label: label(b.clipId) }));
-  return { duration: tl.durationSec, video, text, captions, broll };
+  const scenes = sceneSpans(edl, words, edl.fps).map((sp, index) => ({ index, start: r2(sp.from / edl.fps), end: r2((sp.from + sp.durationInFrames) / edl.fps), label: `${SCENE_KIND_LABEL[sp.scene.kind]}: ${sceneSummary(sp.scene)}` }));
+  return { duration: tl.durationSec, video, text, captions, broll, scenes };
 }
 
 /** Move a span by delta seconds, kept inside 0..total and its length unchanged. */

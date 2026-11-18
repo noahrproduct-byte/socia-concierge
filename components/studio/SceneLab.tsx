@@ -12,6 +12,7 @@ import type { SceneSpan } from "@/lib/studioClips/scenes";
 const FPS = 30;
 const SPANS: { name: string; what: string; span: SceneSpan; frames: number; stills: number[] }[] = [
   { name: "Figure", what: "When a number is said: \"we sell 200 burgers a day\".", frames: 96, stills: [15, 21, 60], span: { scene: { id: "g1", kind: "stat", key: "lab@0", dur: 2.6, text: "200", label: "burgers a day" }, from: 0, durationInFrames: 78, rows: [] } },
+  { name: "Before and after", what: "When a change is said with its two numbers: \"from 65 seconds to 38\".", frames: 112, stills: [20, 34, 70], span: { scene: { id: "g4", kind: "change", key: "lab@0", dur: 3, text: "38", was: "65", label: "seconds" }, from: 0, durationInFrames: 92, rows: [] } },
   { name: "List", what: "When a list is counted out loud: \"first... second... third\".", frames: 170, stills: [16, 58, 110], span: { scene: { id: "g2", kind: "steps", key: "lab@0", dur: 5, text: "", items: [] }, from: 0, durationInFrames: 152, rows: [{ text: "we smash the beef", at: 0 }, { text: "we toast the buns", at: 36 }, { text: "we stack it high", at: 72 }] } },
   { name: "Key line", what: "When a short line carries the point: \"nobody else does it this way\".", frames: 108, stills: [16, 30, 70], span: { scene: { id: "g3", kind: "line", key: "lab@0", dur: 3, text: "Nobody else does it this way" }, from: 0, durationInFrames: 90, rows: [] } },
 ];
@@ -37,7 +38,7 @@ export default function SceneLab() {
   return (
     <main style={{ minHeight: "100vh", padding: "32px 24px 48px", background: "#08090c", color: "#f4f5f7", fontFamily: "Inter, system-ui, sans-serif" }}>
       <h1 style={{ margin: 0, fontSize: 28, lineHeight: "34px" }}>Animated graphics</h1>
-      <p style={{ margin: "8px 0 20px", maxWidth: 640, fontSize: 14, lineHeight: "20px", color: "rgba(244,245,247,0.62)" }}>The three cards SOCIA can place over a video, each playing on a loop. The grey area stands in for your footage. The colour follows the look you pick; try a few here.</p>
+      <p style={{ margin: "8px 0 20px", maxWidth: 640, fontSize: 14, lineHeight: "20px", color: "rgba(244,245,247,0.62)" }}>The four cards SOCIA can place over a video, each playing on a loop. The grey area stands in for your footage. The colour follows the look you pick; try a few here.</p>
       <div role="group" aria-label="Accent colour" style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 24 }}>
         {ACCENTS.map(([name, hex]) => (
           <button key={hex} type="button" aria-pressed={accent === hex} onClick={() => setAccent(hex)} style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 36, padding: "0 12px", borderRadius: 10, border: `1px solid ${accent === hex ? "#f4f5f7" : "rgba(255,255,255,0.14)"}`, background: "#111318", color: "#f4f5f7", font: "inherit", fontSize: 13, cursor: "pointer" }}>
@@ -57,7 +58,7 @@ export default function SceneLab() {
       </div>
       <h2 style={{ margin: "40px 0 6px", fontSize: 20, lineHeight: "28px" }}>Each one, step by step</h2>
       <p style={{ margin: "0 0 16px", maxWidth: 640, fontSize: 14, lineHeight: "20px", color: "rgba(244,245,247,0.62)" }}>Three moments of each card: as it comes on, part way through, and as it holds.</p>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(9, minmax(0, 150px))", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(12, minmax(0, 112px))", gap: 10 }}>
         {SPANS.flatMap((x) => x.stills.map((frame) => (
           <figure key={`${x.name}-${frame}`} style={{ margin: 0 }}>
             <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)" }}>

@@ -49,6 +49,13 @@ export default function ScenesPanel({ scenes, spans, disabled, hasWords, behind,
                   <label>What it counts<input type="text" maxLength={SCENE_LABEL_MAX} value={s.label ?? ""} disabled={disabled} onChange={(e) => set(s.id, { label: e.target.value })} /></label>
                 </>
               )}
+              {s.kind === "change" && (
+                <>
+                  <label>Before<input type="text" maxLength={12} value={s.was ?? ""} disabled={disabled} onChange={(e) => set(s.id, { was: e.target.value })} /></label>
+                  <label>After<input type="text" maxLength={12} value={s.text} disabled={disabled} onChange={(e) => set(s.id, { text: e.target.value })} /></label>
+                  <label>What it counts<input type="text" maxLength={SCENE_LABEL_MAX} value={s.label ?? ""} disabled={disabled} onChange={(e) => set(s.id, { label: e.target.value })} /></label>
+                </>
+              )}
               {s.kind === "line" && <label>Line<input type="text" maxLength={SCENE_TEXT_MAX} value={s.text} disabled={disabled} onChange={(e) => set(s.id, { text: e.target.value })} /></label>}
               {s.kind === "steps" && (s.items ?? []).slice(0, SCENE_ITEMS_MAX).map((it, i) => (
                 <label key={it.key}>Row {i + 1}<input type="text" maxLength={SCENE_TEXT_MAX} value={it.text} disabled={disabled} onChange={(e) => set(s.id, { items: (s.items ?? []).map((x, k) => (k === i ? { ...x, text: e.target.value } : x)) })} /></label>

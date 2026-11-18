@@ -67,7 +67,7 @@ export function quickStats(base: Edl, cut: Edl, words: WordsById): QuickStats {
 /** One line for the cut's notes: the scenes that were added, by kind. */
 export function sceneNote(scenes: EdlScene[]): string {
   const n = (kind: EdlScene["kind"]) => scenes.filter((s) => s.kind === kind).length;
-  const parts = [n("stat") ? `${n("stat")} figure${n("stat") === 1 ? "" : "s"}` : "", n("steps") ? `${n("steps")} list${n("steps") === 1 ? "" : "s"}` : "", n("line") ? `${n("line")} key line${n("line") === 1 ? "" : "s"}` : ""].filter(Boolean);
+  const parts = [n("stat") ? `${n("stat")} figure${n("stat") === 1 ? "" : "s"}` : "", n("change") ? `${n("change")} before and after` : "", n("steps") ? `${n("steps")} list${n("steps") === 1 ? "" : "s"}` : "", n("line") ? `${n("line")} key line${n("line") === 1 ? "" : "s"}` : ""].filter(Boolean);
   return `${scenes.length} animated graphic${scenes.length === 1 ? "" : "s"} from what is said: ${parts.join(", ")}. Change or remove them in the editor, under Words.`;
 }
 
