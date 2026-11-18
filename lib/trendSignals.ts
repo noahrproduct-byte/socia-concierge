@@ -283,6 +283,19 @@ export const PROVEN_VIEWS = 100_000;
 export const VIRAL_MIN_VIEWS = 15_000;
 export const isViral = (r: { views: number | null }): boolean => (r.views ?? 0) >= VIRAL_MIN_VIEWS;
 
+/**
+ * For creators and personal brands, a Reel that broke out for its own account counts too: at least
+ * BREAKOUT_MULTIPLE times that account's usual views and BREAKOUT_MIN_VIEWS views (Noah, 2026-11-17, after
+ * an ads-agency founder's Discover found accounts whose usual is 5K: 15K or 5x their usual, so a 5K-usual
+ * account needs 25K and a 1.5K-usual one 7.5K). Businesses keep the plain 15K floor.
+ */
+export const BREAKOUT_MULTIPLE = 5;
+export const BREAKOUT_MIN_VIEWS = 5_000;
+export function isViralFor(creator: boolean, r: { views: number | null; multiplier?: number | null }): boolean {
+  if (isViral(r)) return true;
+  return creator && (r.multiplier ?? 0) >= BREAKOUT_MULTIPLE && (r.views ?? 0) >= BREAKOUT_MIN_VIEWS;
+}
+
 export type ProvenReel = TrendingReel & {
   /** R1, R2... its id in a prompt. */
   id: string;
