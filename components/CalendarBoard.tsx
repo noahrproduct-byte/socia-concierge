@@ -8,6 +8,7 @@
 // doesn't render. Nothing on this page is a sample.
 
 import { useEffect, useMemo, useState } from "react";
+import { WEEKDAYS, filmTime } from "@/lib/routine";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -345,7 +346,10 @@ export default function CalendarBoard({
   scheduled,
   userId,
   publish,
+  filming = [],
 }: {
+  /** The days the person said they can film, with the time they have (lib/routine.ts). Marked on the week. */
+  filming?: { day: string; minutes: number }[];
   posts: CalPost[];
   igUsername: string | null;
   connected: boolean;
@@ -538,7 +542,10 @@ export default function CalendarBoard({
 
   const drafts = items.filter((p) => p.status === "draft").length;
   const queued = items.filter((p) => p.status === "scheduled").length;
-  const failed = items.filter((p) => p.status === "failed").length;
+  // Failures from the last 30 days only: an old one still shows on its own day, but a post that failed months
+  // ago is not a problem with publishing today, and counting it here made the status line read as one.
+  const failedSince = Date.now() - 30 * 86_400_000;
+  const failed = items.filter((p) => p.status === "failed" && new Date(p.scheduled_at).getTime() >= failedSince).length;
   const canSchedule = publish.canSchedule;
 
   return (
@@ -612,6 +619,7 @@ export default function CalendarBoard({
                 onOpen={openItem}
                 onNew={openNew}
                 drafts={drafts_}
+                filming={filming}
               />
             ) : (
               <MonthGrid
@@ -727,7 +735,7 @@ function AutoPublishStatus({
     <span className="cal2-auto-counts">
       {queued > 0 && <em>{queued} scheduled</em>}
       {drafts > 0 && <em>{drafts} draft{drafts === 1 ? "" : "s"}</em>}
-      {failed > 0 && <em className="bad">{failed} failed</em>}
+      {failed > 0 && <em className="bad" title="Posts that failed to publish in the last 30 days. Each one says why on its day.">{failed} failed in the last 30 days</em>}
     </span>
   );
   // The plan comes first: on a plan without scheduling, connection and cron
@@ -1032,7 +1040,9 @@ function WeekGrid({
   onOpen,
   onNew,
   drafts,
+  filming,
 }: {
+  filming: { day: string; minutes: number }[];
   now: Date;
   weekOffset: number;
   aud: Audience;
@@ -1043,6 +1053,8 @@ function WeekGrid({
   drafts: DraftOps;
 }) {
   const monday = new Date(mondayOf(now).getTime() + weekOffset * 7 * DAY_MS);
+  // The person's filming time on a date's weekday, when they said they film that day.
+  const filmingOn = (date: Date): number | null => filming.find((f) => f.day === WEEKDAYS[(date.getDay() + 6) % 7].id)?.minutes ?? null;
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const placed = useMemo(() => placeItems(items), [items]);
 
@@ -1063,6 +1075,7 @@ function WeekGrid({
             <div className="cal2-dayhead">
               <span className="cal2-dow">{dow}</span>
               <span className={`cal2-num${isToday ? " today" : ""}`}>{date.getDate()}</span>
+              {filmingOn(date) != null && <span className="cal2-film" title="A day you said you can film">Filming, {filmTime(filmingOn(date)!)}</span>}
               {best && (
                 <span className="cal2-best">
                   <Star size={9} fill="currentColor" /> BEST
@@ -1391,7 +1404,7 @@ function Composer({
       );
       onClose();
     } catch (e) {
-      fail(e, "Something went wrong.");
+      fail(e, "The post couldn't be saved just now. Try again.");
     } finally {
       setBusy(null);
     }
@@ -1411,7 +1424,7 @@ function Composer({
       else notify(j.post.error ?? "Instagram didn't publish the post.");
       onClose();
     } catch (e) {
-      fail(e, "Something went wrong.");
+      fail(e, "The post couldn't be published just now. It is still saved. Try again.");
     } finally {
       setBusy(null);
     }

@@ -190,3 +190,18 @@ export function weekLine(t: PostingStreak["thisWeek"]): string {
   if (left === 1) return "One more posting day and you'll complete your weekly goal.";
   return `You're at ${t.days} of your ${days(t.target)} this week.`;
 }
+
+export type WeekDayCell = { date: string; state: "posted" | "today" | "past" | "later" };
+
+/**
+ * The seven days of a week for the streak card: a day with a post, today
+ * without one yet, an earlier day without one, or a day still to come. Pure.
+ */
+export function weekDayCells(start: string, today: string, posted: string[]): WeekDayCell[] {
+  const on = new Set(posted);
+  return Array.from({ length: 7 }, (_, i) => {
+    const date = addDays(start, i);
+    return { date, state: on.has(date) ? "posted" : date === today ? "today" : date < today ? "past" : "later" };
+  });
+}
+

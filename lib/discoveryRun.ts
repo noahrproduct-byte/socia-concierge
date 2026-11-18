@@ -11,7 +11,7 @@
 // connection and the stored results are the workspace owner's (lib/context).
 // Caching, refresh rights and rate limits stay with the caller. Server only.
 
-import { brandKind, competitorWords, researchRules } from "./discoverRules";
+import { brandKind, competitorWords, researchRules, viralSource } from "./discoverRules";
 import { isSocialContentUrl } from "./fetchGuard";
 import { getActiveConnection } from "./instagramSync";
 import { isOwnAccount, ownAccounts, type OwnAccounts } from "./ownAccounts";
@@ -27,7 +27,7 @@ import {
   type ScoredAccount, type ScoredContent, type TrendRollup,
 } from "./discovery";
 import { verifySuggestions, type Pick } from "./competitorAutoPick";
-import { mainPlatform, STYLE_MEANS, type Platform } from "./discoverStyle";
+import { IG_HANDLE_RE, mainPlatform, STYLE_MEANS, type Platform } from "./discoverStyle";
 import { readStyleMemory } from "./discoverStyleLoad";
 import { youtubeRecentUploads } from "./youtubeData";
 import { listTracked } from "./trackedCompetitors";
@@ -252,6 +252,7 @@ export async function runFreshDiscovery(ctx: Ctx, inputs: DiscoveryInputs): Prom
 
   // Who counts as a competitor for this kind of account (lib/discoverRules.ts, Discover training).
   const kind = brandKind({ accountType: profile.accountType ?? null, name: brandName, niche: nicheLine0(profile), about: [profile.focus, profile.goalText] });
+  const viral = viralSource(kind, ownStyle === STYLE_MEANS.animated ? "animated" : ownStyle ? "other" : null);
   const who = profile.accountType === "creator" ? "creator" : profile.accountType === "personal_brand" ? "personal brand" : profile.accountType === "organization" ? "organisation" : "business";
   const nicheLine = [profile.niche, profile.subNiche, profile.specific].filter(Boolean).join(" > ");
   const facts = [
@@ -297,9 +298,10 @@ ${seeds.length ? "- accounts like the ones they chose to follow: the same kind o
 ${locationMatters(profile) ? "- successful accounts in the same area, even in a neighbouring category\n" : ""}
 Every account and post must be about this niche or made for the same audience. An account that only shares the video style but is about something unrelated (sports, celebrities, news, comedy about other things) does not count, however well it does.
 
-Search the web and return ${ownStyle ? "ALL THREE" : "BOTH"}:
-1. Up to 10 real ${webPlatforms} ACCOUNTS from those groups, doing well: posting regularly with an engaged audience.
-2. Up to 5 real recent ${main === "instagram" ? "Instagram Reels" : main === "facebook" ? "Facebook videos" : "Instagram Reels or Facebook videos"} posted by ${competitorWords(kind)} like those in 1${kind.app ? ", or by creators showing apps or AI tools in action on screen" : ""}, that they could make their own version of.${ownStyle ? `
+Search the web and return ${viral ? "ALL THREE" : "BOTH"}:
+1. Up to 15 real ${webPlatforms} ACCOUNTS from those groups, doing well: posting regularly with an engaged audience.
+2. Up to 5 real recent ${main === "instagram" ? "Instagram Reels" : main === "facebook" ? "Facebook videos" : "Instagram Reels or Facebook videos"} posted by ${competitorWords(kind)} like those in 1${kind.app ? ", or by creators showing apps or AI tools in action on screen" : ""}, that they could make their own version of.${viral === "kind" ? `
+3. Up to 10 real Instagram accounts of ${competitorWords(kind)} ANYWHERE in the world, not only nearby, whose Reels regularly get tens of thousands of views or more. Lead with the large, well-known accounts in this space (usually 100K+ followers) that people in it already watch and copy; smaller accounts only when their Reels clearly go viral. Location does not matter for this list; these are for copying Reels that worked for an account like theirs. Give each account's exact official Instagram handle, never a fan page, repost page or lookalike handle. Never their own account and never one already in list 1.` : viral === "style" ? `
 3. Up to 6 real Instagram accounts on ANY topic whose Reels are made the same way as theirs (${ownStyle}: for animated, that means motion graphics, animated explainers, kinetic text, illustrated or 3D characters) and often go viral. Their subject does not matter: these are for copying the animation style, not the topic, so the niche rule above does not apply to this list. Never a talking head or filmed footage.` : ""}
 
 ${own.handles.length || ownHandle ? `These are their own accounts; never return them: ${[...new Set([...own.handles, ...(ownHandle ? [ownHandle] : [])])].map((h) => `"@${h}"`).join(", ")}.` : ""}
@@ -311,7 +313,7 @@ STRICT HONESTY RULES:
 
 Output ONLY this JSON, no other text:
 [{"kind":"account","platform":"instagram"|"facebook","handle":"...","name":"...","why":"..."},
- {"kind":"content","platform":"instagram"|"facebook","url":"...","creator":"...","title":"...","why":"..."}${ownStyle ? `,
+ {"kind":"content","platform":"instagram"|"facebook","url":"...","creator":"...","title":"...","why":"..."}${viral ? `,
  {"kind":"style","platform":"instagram","handle":"...","name":"...","why":"..."}` : ""}]`;
 
     try {
@@ -339,7 +341,7 @@ Output ONLY this JSON, no other text:
       for (const raw of parseJsonArray(text)) {
         const r = raw as Record<string, unknown>;
         const platform = r.platform === "facebook" ? "facebook" : "instagram";
-        if (r.kind === "account" || (r.kind === "style" && ownStyle)) {
+        if (r.kind === "account" || (r.kind === "style" && viral)) {
           const handle = typeof r.handle === "string" ? r.handle.trim().replace(/^@/, "") : "";
           if (!/^[a-zA-Z0-9._-]{1,40}$/.test(handle)) continue;
           if ((ownHandle && handle.toLowerCase() === ownHandle.toLowerCase()) || isOwnAccount(own, { handle, name: typeof r.name === "string" ? r.name : null })) continue;
@@ -384,6 +386,42 @@ Output ONLY this JSON, no other text:
       sources.web = "ok";
     } catch (e) {
       sources.web = aiFailure("competitors/intel", e);
+    }
+  }
+
+  // ---- the creators of the Reels research found ----------------------------
+  // A Reel from the web has no numbers until its account is read (Noah, 2026-11-17: "it doesn't have to be only
+  // the reels from the accounts, it can be just reels in that niche"). For a brand that copies its own kind,
+  // their creators join the anywhere list, so their Reels are read with real views.
+  if (viral === "kind") {
+    const have = new Set(accountCandidates.filter((c) => c.platform === "instagram").map((c) => (c.handle ?? "").toLowerCase()));
+    for (const c of contentCandidates.filter((x) => x.platform === "instagram" && x.dataSource === "web_research")) {
+      const h = (c.accountHandle ?? "").replace(/^@/, "").toLowerCase();
+      if (!IG_HANDLE_RE.test(h) || have.has(h)) continue;
+      have.add(h);
+      accountCandidates.push({
+        platform: "instagram", platformAccountId: h, handle: h, displayName: c.accountName ?? h,
+        profileImage: null, profileUrl: `https://instagram.com/${h}`, followers: null, location: null, category: null,
+        dataSource: "web_research", note: c.why ?? null, styleSource: true,
+      });
+    }
+  }
+
+  // ---- Instagram twins of the YouTube creators found ----------------------
+  // Many creators use one handle on both (Noah, 2026-11-17: @rogalfx's search found Liam Ottley and five
+  // more on YouTube but two accounts on Instagram). A guess: Discover shows one only once Instagram
+  // returns it under a matching name (lib/discovery.ts YOUTUBE_TWIN).
+  if (main !== "youtube") {
+    const igHave = new Set(accountCandidates.filter((c) => c.platform === "instagram").map((c) => (c.handle ?? "").toLowerCase()));
+    for (const c of accountCandidates.filter((x) => x.platform === "youtube" && x.nicheChecked)) {
+      const h = (c.handle ?? "").replace(/^@/, "").toLowerCase();
+      if (!IG_HANDLE_RE.test(h) || igHave.has(h)) continue;
+      igHave.add(h);
+      accountCandidates.push({
+        platform: "instagram", platformAccountId: h, handle: h, displayName: c.displayName,
+        profileImage: null, profileUrl: `https://instagram.com/${h}`, followers: null, location: null, category: null,
+        dataSource: "web_research", note: c.note ?? null, matchedIntent: c.matchedIntent, youtubeTwin: true,
+      });
     }
   }
 

@@ -27,3 +27,20 @@ describe("who counts as a competitor", () => {
     expect(researchRules(k, null)).not.toMatch(/NOT competitors/);
   });
 });
+
+describe("where viral Reels come from", () => {
+  it("a local business copies the same kind of business anywhere; an app copies its video style", async () => {
+    const { viralSource } = await import("./discoverRules");
+    const pizza = brandKind({ accountType: "business", name: "Salvo's Pizza", niche: "Pizza restaurant" });
+    const socia = brandKind({ accountType: "business", name: "SOCIA", niche: "AI app for Instagram growth" });
+    const creator = brandKind({ accountType: "creator", name: "Ana", niche: "Fitness" });
+    expect(viralSource(pizza, "filmed footage")).toBe("kind");
+    expect(viralSource(pizza, null)).toBe("kind");
+    expect(viralSource(socia, "animated")).toBe("style");
+    expect(viralSource(socia, null)).toBeNull();
+    // Creators copy creators in their niche anywhere (2026-11-17, @rogalfx), unless their videos are animated.
+    expect(viralSource(creator, null)).toBe("kind");
+    expect(viralSource(creator, "filmed")).toBe("kind");
+    expect(viralSource(creator, "animated")).toBe("style");
+  });
+});

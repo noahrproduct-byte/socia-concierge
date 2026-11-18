@@ -211,3 +211,54 @@
 
 /* the launch countdown between the header and the plan cards */
 .pr-launch { margin-bottom: 40px; }
+
+/* ---- monthly or yearly (components/pricing/BillingSwitch.tsx, lib/yearly.ts) ---- */
+.pr-switch-row { display: flex; justify-content: center; margin: 0 0 24px; }
+.pr-switch { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--hm-recessed); }
+.pr-switch button {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 18px; border: 0; border-radius: 999px; background: transparent;
+  font: inherit; font-size: 14px; font-weight: 500; color: var(--hm-ash); cursor: pointer;
+}
+.pr-switch button.on { background: var(--hm-card); color: var(--hm-ink); box-shadow: var(--hm-key-soft); }
+.pr-switch button:focus-visible { outline: 2px solid var(--hm-ink); outline-offset: 2px; }
+.pr-switch-save { font-size: 12px; font-weight: 600; color: var(--hm-gold); white-space: nowrap; }
+
+/* A yearly card: the monthly price crossed out above the yearly one, and what a year saves. */
+.pr-was { display: flex; align-items: baseline; gap: 10px; min-height: 26px; margin-bottom: 6px; }
+.pr-was s { font-size: var(--hm-fs-lg); color: var(--hm-smoke); text-decoration-thickness: 1.5px; text-decoration-color: var(--hm-ash); font-variant-numeric: tabular-nums; }
+.pr-save-tag { font-size: 12px; font-weight: 600; color: var(--hm-gold); background: var(--hm-gold-tint); border-radius: var(--hm-r-badge); padding: 2px 8px; white-space: nowrap; }
+.pr-yearly-line { margin: -2px 0 12px; font-size: 12.5px; line-height: 1.5; color: var(--so-dim); }
+.pr-yearly-line b { color: var(--hm-ink); font-weight: 600; }
+
+/* The year side by side: twelve monthly payments against one yearly payment, drawn to scale. */
+.pr-year { margin-top: 56px; padding: 32px; border-radius: var(--hm-r-card); background: var(--hm-card); box-shadow: var(--hm-key-soft); }
+.pr-year-head { margin-bottom: 24px; }
+.pr-year-rows { display: flex; flex-direction: column; gap: 18px; }
+.pr-year-row { display: grid; grid-template-columns: 96px minmax(0, 1fr) 140px; align-items: center; gap: 16px; }
+.pr-year-name { font-size: 15px; font-weight: 500; color: var(--hm-ink); }
+.pr-year-bars { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pr-year-bar {
+  width: var(--w); max-width: 100%;
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  padding: 7px 12px; border-radius: 8px; font-size: 12.5px; line-height: 1.3; font-variant-numeric: tabular-nums;
+}
+.pr-year-bar span { color: inherit; opacity: 0.85; }
+.pr-year-bar b { font-weight: 600; color: inherit; white-space: nowrap; }
+.pr-year-bar span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pr-year-bar.is-month { background: var(--hm-recessed); color: var(--hm-ash); }
+.pr-year-bar.is-year { background: var(--hm-ink); color: var(--hm-card); }
+.pr-year-keep { margin: 0; font-size: 13px; color: var(--hm-ash); text-align: right; }
+.pr-year-keep b { display: block; font-size: 22px; line-height: 1.2; font-weight: 600; color: var(--hm-gold); font-variant-numeric: tabular-nums; }
+.pr-year-why { list-style: none; margin: 28px 0 0; padding: 24px 0 0; border-top: 1px solid var(--hm-rule); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+.pr-year-why li { font-size: 13px; line-height: 1.55; color: var(--hm-ash); }
+.pr-year-why b { display: block; margin-bottom: 4px; color: var(--hm-ink); font-weight: 600; }
+.pr-year-cta { margin: 24px 0 0; text-align: center; }
+@media (max-width: 760px) {
+  .pr-year { padding: 20px 16px; }
+  .pr-year-row { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .pr-year-keep { text-align: left; }
+  .pr-year-keep b { display: inline; margin-left: 6px; font-size: 18px; }
+  .pr-year-bar { min-width: 0; }
+  .pr-year-why { grid-template-columns: minmax(0, 1fr); }
+}

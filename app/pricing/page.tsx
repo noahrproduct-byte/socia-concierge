@@ -1,10 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { getEntitlements } from "@/lib/entitlements";
 import { recordEvent } from "@/lib/planGuard";
-import { PLANS, checkoutAvailable, contactHref, isPlanId, type PlanId } from "@/lib/plans";
+import { PLANS, SALE_ORDER, checkoutAvailable, contactHref, isPlanId, type PlanId } from "@/lib/plans";
 import HomeNav from "@/components/home/HomeNav";
 import HomeFooter from "@/components/home/HomeFooter";
 import PricingCards from "@/components/pricing/PricingCards";
+import BillingSwitch from "@/components/pricing/BillingSwitch";
+import { priceIdFor } from "@/lib/stripe";
+import { isPaidPlanId } from "@/lib/yearly";
 import ComparisonTable from "@/components/pricing/ComparisonTable";
 import { LaunchCountdown } from "@/components/pricing/Launch";
 import "@/components/home/home.css";
@@ -37,8 +40,15 @@ async function readVisitor(): Promise<{ signedIn: boolean; plan: PlanId | null }
   }
 }
 
-export default async function PricingPage({ searchParams }: { searchParams: Promise<{ plan?: string; billing?: string }> }) {
-  const [{ signedIn, plan }, { plan: wanted, billing }] = await Promise.all([readVisitor(), searchParams]);
+/** Yearly plans are on sale once all four yearly prices are set in Vercel (STRIPE_PRICE_<PLAN>_ANNUAL). */
+const PAID = SALE_ORDER.filter(isPaidPlanId);
+const yearlyOnSale = () => PAID.every((p) => priceIdFor(p, "year"));
+
+export default async function PricingPage({ searchParams }: { searchParams: Promise<{ plan?: string; billing?: string; interval?: string }> }) {
+  const [{ signedIn, plan }, { plan: wanted, billing, interval: askedInterval }] = await Promise.all([readVisitor(), searchParams]);
+  const yearly = yearlyOnSale();
+  // The yearly prices open first when they are on sale; ?interval=month opens the monthly ones.
+  const start = yearly && askedInterval !== "month" ? "year" : "month";
   const highlight = isPlanId(wanted) ? wanted : null;
   const checkout = checkoutAvailable();
   const pro = PLANS.pro.limits;
@@ -64,7 +74,7 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
           )}
           {checkout && (
             <p className="pr-fine">
-              Have a promo code from one of our videos? Enter it on the checkout page.{" "}
+              Have a promo code from one of our videos? Enter it on the checkout page of a monthly plan.{" "}
               Prices in USD before tax. Payments are handled by Stripe and sold through Link, which adds sales tax at checkout where it applies; charges show as LINK.COM* on your statement.
             </p>
           )}
@@ -75,7 +85,16 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
         </div>
 
         <section className="hm-wrap" aria-label="Plans">
-          <PricingCards currentPlan={plan} signedIn={signedIn} checkout={checkout} highlight={highlight} />
+          {yearly ? (
+            <BillingSwitch
+              plans={PAID}
+              start={start}
+              monthly={<PricingCards currentPlan={plan} signedIn={signedIn} checkout={checkout} highlight={start === "month" ? highlight : null} interval="month" yearly />}
+              yearly={<PricingCards currentPlan={plan} signedIn={signedIn} checkout={checkout} highlight={start === "year" ? highlight : null} interval="year" />}
+            />
+          ) : (
+            <PricingCards currentPlan={plan} signedIn={signedIn} checkout={checkout} highlight={highlight} />
+          )}
         </section>
 
         <section className="hm-wrap pr-compare" aria-labelledby="compare-heading">

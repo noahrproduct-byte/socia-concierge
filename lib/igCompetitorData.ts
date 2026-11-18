@@ -30,6 +30,16 @@ export function hasVideoField(media: unknown): boolean {
   return media.every((m) => !m || typeof m !== "object" || (m as { mediaType?: unknown }).mediaType !== "VIDEO" || "video" in m);
 }
 
+/**
+ * Posts read per account (Noah, 2026-11-17: big creators mix slides and Reels, and Iman Gadzhi's last 12 were
+ * all slides, so Discover saw none of his Reels). Was 12.
+ */
+export const POSTS_READ = 30;
+/** A row read when only 12 posts were asked for, from an account that has more: read again once. */
+export function shortRead(media: unknown, mediaCount: number | null | undefined): boolean {
+  return Array.isArray(media) && media.length === 12 && (mediaCount ?? 0) > 12;
+}
+
 export type IgCompetitorPost = {
   permalink: string | null; caption: string | null; thumbnail: string | null;
   likes: number | null; comments: number | null; timestamp: string | null; mediaType: string | null;
@@ -52,7 +62,7 @@ export type IgCompetitor = {
   postsPerWeek?: number | null;
   medianEngagement?: number | null;
   engagementRate?: number | null;
-  /** Recent media Meta returned (up to 12), newest first. */
+  /** Recent media Meta returned (up to POSTS_READ), newest first. */
   media?: IgCompetitorPost[];
   fetchedAt?: string;
 };
@@ -126,7 +136,7 @@ async function igCompetitorRowsImpl(supabase: Supa, userId: string, handles: str
     try {
       const { data } = await supabase.from("ig_competitor_snapshots").select("*").eq("user_id", userId).in("handle", wanted);
       for (const r of data ?? []) {
-        if (opts.cacheOnly || (Date.now() - new Date(r.fetched_at).getTime() < FRESH_MS && hasViewsField(r.media) && hasVideoField(r.media))) {
+        if (opts.cacheOnly || (Date.now() - new Date(r.fetched_at).getTime() < FRESH_MS && hasViewsField(r.media) && hasVideoField(r.media) && !shortRead(r.media, r.media_count))) {
           // Worked out again from the saved posts, so a change to the maths shows without a new read.
           const media: IgCompetitorPost[] = Array.isArray(r.media) ? r.media : [];
           const stats = media.length ? discoveryStats({ followers: r.followers ?? null, media }) : null;
@@ -152,7 +162,7 @@ async function igCompetitorRowsImpl(supabase: Supa, userId: string, handles: str
   const readOne = async (h: string): Promise<IgCompetitor> => {
       const hit = cached.get(h);
       if (hit) return hit;
-      const res = await businessDiscovery(conn.igUserId, conn.pageToken, h);
+      const res = await businessDiscovery(conn.igUserId, conn.pageToken, h, POSTS_READ);
       if (!res.ok) {
         // A permission problem on SOCIA's research account is SOCIA's to fix;
         // telling the customer to reconnect Facebook would be wrong.
@@ -193,8 +203,8 @@ async function igCompetitorRowsImpl(supabase: Supa, userId: string, handles: str
 }
 
 /** Whether a saved row is due to be read again. */
-export const igRowStale = (c: Pick<IgCompetitor, "found" | "fetchedAt">, now: Date = new Date()): boolean =>
-  !c.found || !c.fetchedAt || now.getTime() - Date.parse(c.fetchedAt) >= FRESH_MS;
+export const igRowStale = (c: Pick<IgCompetitor, "found" | "fetchedAt"> & Partial<Pick<IgCompetitor, "media" | "mediaCount">>, now: Date = new Date()): boolean =>
+  !c.found || !c.fetchedAt || now.getTime() - Date.parse(c.fetchedAt) >= FRESH_MS || shortRead(c.media, c.mediaCount);
 
 /** igCompetitorRows, logged when slow (lib/timing.ts). */
 export const igCompetitorRows = timedFn("igCompetitorRows", igCompetitorRowsImpl);

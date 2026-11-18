@@ -3,23 +3,23 @@ import { FULL_PRICE, LAUNCH_ENDS_AT, launchFullPrice, launchOn, timeLeft } from 
 import { PLANS } from "./plans";
 
 describe("launch prices", () => {
-  it("ends at the end of December 15, 2026, Central time", () => {
-    expect(launchOn(Date.parse("2026-12-15T23:59:59-06:00"))).toBe(true);
-    expect(launchOn(Date.parse("2026-12-16T00:00:00-06:00"))).toBe(false);
-    expect(new Date(LAUNCH_ENDS_AT).toISOString()).toBe("2026-12-16T06:00:00.000Z");
+  it("ended early, at the start of November 17, 2026, Central time (Noah)", () => {
+    expect(launchOn(Date.parse("2026-11-16T23:59:59-06:00"))).toBe(true);
+    expect(launchOn(Date.parse("2026-11-17T00:00:00-06:00"))).toBe(false);
+    expect(new Date(LAUNCH_ENDS_AT).toISOString()).toBe("2026-11-17T06:00:00.000Z");
   });
 
   it("crosses out a full price that is really higher, never on Free or after the end", () => {
-    const during = Date.parse("2026-11-20T12:00:00-06:00");
-    expect(launchFullPrice("starter", PLANS.starter.priceMonthly, during)).toBe(29.99);
+    const during = Date.parse("2026-11-10T12:00:00-06:00");
+    expect(launchFullPrice("starter", 19.99, during)).toBe(29.99);
     expect(launchFullPrice("free", 0, during)).toBeNull();
     expect(launchFullPrice("starter", PLANS.starter.priceMonthly, LAUNCH_ENDS_AT)).toBeNull();
     // Once priceMonthly is raised to the full price there is nothing to cross out.
     expect(launchFullPrice("pro", FULL_PRICE.pro, during)).toBeNull();
   });
 
-  it("every full price is above today's launch price", () => {
-    for (const plan of ["starter", "growth", "pro", "scale"] as const) expect(FULL_PRICE[plan]).toBeGreaterThan(PLANS[plan].priceMonthly);
+  it("the monthly plans now sell at the full price", () => {
+    for (const plan of ["starter", "growth", "pro", "scale"] as const) expect(PLANS[plan].priceMonthly).toBe(FULL_PRICE[plan]);
   });
 
   it("counts down in days, hours, minutes and seconds, stopping at zero", () => {

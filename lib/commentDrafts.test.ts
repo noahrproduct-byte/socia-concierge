@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // The sync with its platform reads and the AI stubbed out, so what's tested is
 // what SOCIA does with the comments: draft, save, and say when it can't.
 const create = vi.fn(async () => ({ model: "claude-opus-5-5", content: [{ type: "text", text: "Thanks! We're open 10 to 4 on Sundays." }], usage: { input_tokens: 10, output_tokens: 5 } }));
-vi.mock("./anthropic", () => ({ anthropic: { messages: { create } }, MODEL: "claude-opus-5-5", effortFor: () => ({}) }));
+vi.mock("./anthropic", () => ({ anthropic: { messages: { create } }, MODEL: "claude-opus-5-5", modelFor: () => "claude-haiku-5-5", effortFor: () => ({}) }));
 vi.mock("./aiUsage", () => ({ recordAiUsage: () => {} }));
 vi.mock("./facebookSync", () => ({ getFbSnapshot: async () => null }));
 vi.mock("./instagramSync", () => ({

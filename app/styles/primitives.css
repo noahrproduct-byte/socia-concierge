@@ -26,9 +26,10 @@
   user-select: none;
   flex: none;
   transition:
-    background-color var(--t-press) var(--ease-out),
-    border-color var(--t-press) var(--ease-out),
-    color var(--t-press) var(--ease-out),
+    background-color var(--t-press) var(--ease-standard),
+    border-color var(--t-press) var(--ease-standard),
+    box-shadow var(--t-press) var(--ease-standard),
+    color var(--t-press) var(--ease-standard),
     transform var(--t-press) var(--ease-out);
 }
 .s-btn svg {
@@ -39,14 +40,17 @@
 .s-btn:active:not(:disabled):not([aria-disabled="true"]) {
   transform: scale(0.97);
 }
+/* The primary action is near-black (the reference spends no hue on chrome). */
 .s-btn--primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
+  background: var(--action);
+  border-color: var(--action);
+  color: var(--on-action);
 }
+/* Secondary: a white control lifted by a half-pixel ring and two soft drops, no border line. */
 .s-btn--secondary {
   background: var(--surface);
-  border-color: var(--border-strong);
+  border-color: transparent;
+  box-shadow: var(--shadow-ring);
 }
 .s-btn--ghost {
   color: var(--ink-2);
@@ -81,14 +85,15 @@
 .s-btn:disabled,
 .s-btn[aria-disabled="true"] {
   background: var(--surface-raised);
-  border-color: var(--border);
-  color: var(--ink-3);
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--ink-disabled);
   cursor: not-allowed;
 }
 @media (hover: hover) and (pointer: fine) {
   .s-btn--primary:hover:not(:disabled) {
-    background: var(--accent-hover);
-    border-color: var(--accent-hover);
+    background: var(--action-hover);
+    border-color: var(--action-hover);
   }
   .s-btn--secondary:hover:not(:disabled),
   .s-btn--ghost:hover:not(:disabled) {
@@ -120,10 +125,10 @@
   align-items: center;
   gap: 2px;
   height: var(--control-h);
-  padding: 2px;
-  border: 1px solid var(--border);
+  padding: 3px;
+  border: 0;
   border-radius: var(--r-control);
-  background: var(--surface-raised);
+  background: var(--nav-active);
   flex: none;
   max-width: 100%;
   overflow-x: auto;
@@ -133,10 +138,10 @@
   display: none;
 }
 .s-seg > * {
-  height: 26px;
+  height: calc(var(--control-h) - 6px);
   padding: 0 var(--sp-3);
   border: 0;
-  border-radius: var(--r-chip);
+  border-radius: calc(var(--r-control) - 3px);
   background: transparent;
   color: var(--ink-2);
   font-family: var(--font);
@@ -145,14 +150,14 @@
   font-weight: var(--fw-medium);
   white-space: nowrap;
   cursor: pointer;
-  transition: background-color var(--t-press) var(--ease-out), color var(--t-press) var(--ease-out);
+  transition: background-color var(--t-press) var(--ease-standard), color var(--t-press) var(--ease-standard), box-shadow var(--t-press) var(--ease-standard);
 }
 .s-seg > [aria-selected="true"],
 .s-seg > [aria-checked="true"],
 .s-seg > [data-selected] {
   background: var(--surface);
   color: var(--ink);
-  box-shadow: 0 0 0 1px var(--border);
+  box-shadow: var(--shadow-ring);
 }
 .s-seg > :disabled {
   color: var(--ink-disabled);
@@ -271,8 +276,9 @@
   display: grid;
   grid-template-columns: repeat(var(--kpi-cols, 4), minmax(0, 1fr));
   border: 1px solid var(--border);
-  border-radius: var(--r-card);
+  border-radius: var(--r-panel);
   background: var(--surface);
+  box-shadow: var(--shadow-card);
   overflow: hidden;
 }
 .s-kpi {
@@ -378,7 +384,7 @@
   color: var(--ink);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
   min-width: 0;
 }
 .s-card-period {
@@ -559,7 +565,7 @@
   font-family: var(--font);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
-  transition: border-color var(--t-press) var(--ease-out);
+  transition: border-color var(--t-press) var(--ease-standard), box-shadow var(--t-press) var(--ease-standard);
 }
 .s-select {
   padding-right: var(--sp-8);
@@ -582,9 +588,10 @@
 .s-input:focus-visible,
 .s-select:focus-visible,
 .s-textarea:focus-visible {
-  outline-offset: 0;
+  outline: 0;
   border-color: var(--accent);
   border-radius: var(--r-control);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
 }
 .s-input[aria-invalid="true"],
 .s-textarea[aria-invalid="true"] {
@@ -661,8 +668,8 @@
   min-width: 200px;
   max-width: 320px;
   padding: var(--sp-1);
-  border: 1px solid var(--border);
-  border-radius: var(--r-card);
+  border: 0;
+  border-radius: var(--r-panel);
   background: var(--surface);
   color: var(--ink);
   box-shadow: var(--shadow-float);
@@ -681,7 +688,8 @@
   gap: var(--sp-2);
   height: var(--control-h);
   padding: 0 var(--sp-2);
-  border-radius: var(--r-chip);
+  /* Concentric with the menu: its radius less its padding. */
+  border-radius: calc(var(--r-panel) - var(--sp-1));
   color: var(--ink);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
@@ -738,8 +746,8 @@
 }
 .s-popover {
   padding: var(--sp-4);
-  border: 1px solid var(--border);
-  border-radius: var(--r-card);
+  border: 0;
+  border-radius: var(--r-panel);
   background: var(--surface);
   color: var(--ink);
   box-shadow: var(--shadow-float);
@@ -782,7 +790,7 @@
 .s-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.4);
+  background: rgba(15, 15, 16, 0.32);
   z-index: var(--z-drawer);
   transition: opacity var(--t-panel) var(--ease-out);
 }
@@ -850,8 +858,8 @@
   max-height: calc(100vh - 32px);
   overflow: auto;
   padding: var(--sp-6);
-  border: 1px solid var(--border);
-  border-radius: var(--r-panel);
+  border: 0;
+  border-radius: calc(var(--r-panel) + var(--sp-2));
   background: var(--surface);
   color: var(--ink);
   box-shadow: var(--shadow-dialog);
@@ -1015,11 +1023,12 @@
   margin-bottom: var(--sp-6);
   min-width: 0;
 }
+/* Page titles are set lighter and tighter, the reference's way: hierarchy from size, not weight. */
 .s-title h1 {
   color: var(--ink);
   font-size: var(--fs-display);
   line-height: var(--lh-display);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-regular);
   letter-spacing: var(--tr-display);
   text-wrap: balance;
 }
@@ -1079,7 +1088,7 @@
   color: var(--ink);
   font-size: var(--fs-section);
   line-height: var(--lh-section);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
   margin-bottom: var(--sp-3);
 }
 @media (max-width: 640px) {

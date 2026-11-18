@@ -4,6 +4,10 @@ import { cookies, headers } from "next/headers";
 import { openPlatformsText } from "@/lib/platformStatus";
 import { INTRO_COOKIE, visitorIntroDue } from "@/lib/intro";
 import { marketingFonts } from "@/components/home/fonts";
+import { priceIdFor } from "@/lib/stripe";
+
+/** Yearly plans are on sale once all four yearly prices are set (lib/yearly.ts). */
+const yearlyOnSale = () => (["starter", "growth", "pro", "scale"] as const).every((p) => priceIdFor(p, "year"));
 
 
 const TAGLINE =
@@ -31,7 +35,7 @@ export default async function Landing() {
   const intro = visitorIntroDue({ signedIn: authed, seenCookie: jar.get(INTRO_COOKIE)?.value, userAgent: head.get("user-agent") });
   return (
     <div className={marketingFonts}>
-      <Home signedIn={authed} intro={intro} />
+      <Home signedIn={authed} intro={intro} yearly={yearlyOnSale()} />
     </div>
   );
 }

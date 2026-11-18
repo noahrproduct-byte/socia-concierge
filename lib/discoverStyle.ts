@@ -112,7 +112,7 @@ export const REEL_RULE_VERSION = 2;
 /** Reel verdicts kept per brand, newest first. */
 export const REEL_VERDICTS_MAX = 150;
 /** Reels judged in one background read (one or two fast-model calls). */
-export const REELS_JUDGED_PER_READ = 24;
+export const REELS_JUDGED_PER_READ = 36;
 
 export type StyleMemory = {
   /** Per Reel, by its link (reelKey): can the brand make its own version, and how. */
@@ -300,3 +300,12 @@ export function reelVerdictOf(m: StyleMemory, url: string | null | undefined): R
   const v = k ? m.reels[k] : null;
   return v && v.v === REEL_RULE_VERSION ? v : null;
 }
+
+/**
+ * Suggested accounts need at least this many followers (Noah, 2026-11-16: "hide accounts under 1000
+ * followers", after PostEverywhere was suggested with 5). An account whose follower count isn't known
+ * yet still shows until it is read. Tracked accounts and Reels to copy from are the person's own
+ * choice and never hidden.
+ */
+export const MIN_SUGGEST_FOLLOWERS = 1_000;
+export const tooSmallToSuggest = (followers: number | null | undefined): boolean => followers != null && followers < MIN_SUGGEST_FOLLOWERS;

@@ -70,7 +70,7 @@ export default function TikTokConnect({
         : status === "notconfigured"
           ? "TikTok is not configured on the server yet."
           : status === "error"
-            ? "Something went wrong connecting TikTok. Please try again."
+            ? "TikTok couldn't be connected just now. Try again."
             : status === "forbidden"
               ? "Only the workspace owner or an admin can connect or disconnect accounts."
               : null;

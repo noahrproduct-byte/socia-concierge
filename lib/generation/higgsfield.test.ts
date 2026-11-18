@@ -33,6 +33,20 @@ describe("higgsfield estimate", () => {
     expect(parseHiggsfieldEstimate({ usd: -1 })).toBeNull();
     expect(parseHiggsfieldEstimate(null)).toBeNull();
   });
+  it("reads video prices from the rate description Higgsfield returns (answers seen live 2026-11-17)", () => {
+    const wan = { type: "description", pricing_description: "Standard self-serve rates in USD per video second: 480p: $0.0375; 720p: $0.0750; 1080p: $0.1500. Total price = selected rate × output duration in seconds." };
+    const kling = { type: "description", pricing_description: "Standard self-serve rates in USD per video second: 720p: $0.0714. Total price = selected rate × output duration in seconds. For explicit multi-shot requests, output duration is the sum of the shot durations." };
+    const seed = { type: "description", pricing_description: "Standard self-serve rates in USD per video second: 480p: $0.1177; 720p: $0.2647; 1080p: $0.6518. Total price = selected rate × output duration in seconds." };
+    expect(parseHiggsfieldEstimate(wan, { duration: 5, resolution: "720p" })).toBe(0.375);
+    expect(parseHiggsfieldEstimate(wan, { duration: 10, resolution: "1080p" })).toBe(1.5);
+    expect(parseHiggsfieldEstimate(kling, { duration: 5, sound: "off" })).toBe(0.357);
+    expect(parseHiggsfieldEstimate(seed, { duration: 15, resolution: "720p" })).toBe(3.9705);
+    // Never a guessed price: no duration, a resolution not listed among several, or an unknown unit.
+    expect(parseHiggsfieldEstimate(wan, { resolution: "720p" })).toBeNull();
+    expect(parseHiggsfieldEstimate(wan, { duration: 5, resolution: "4k" })).toBeNull();
+    expect(parseHiggsfieldEstimate({ type: "description", pricing_description: "Rates per minute of compute: $0.40." }, { duration: 5 })).toBeNull();
+    expect(parseHiggsfieldEstimate({ type: "description", pricing_description: "Standard rate in USD per image: $0.0094." })).toBe(0.0094);
+  });
   it("asks /estimate/{endpoint} with the same body it would submit", async () => {
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ usd: "0.75" }), { status: 200 })) as unknown as typeof fetch;
     const p = new HiggsfieldProvider("id:secret", fetchImpl);

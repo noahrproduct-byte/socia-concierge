@@ -6,6 +6,7 @@
 // than clutter. Below 760px the wrapper scrolls sideways with the feature
 // column pinned, so four columns stay readable on a phone.
 
+import { YEARLY_PER_MONTH, money } from "@/lib/yearly";
 import { useState } from "react";
 import { Check, ChevronDown, Info } from "lucide-react";
 import { PLANS, SALE_ORDER, formatPrice } from "@/lib/plans";
@@ -45,7 +46,7 @@ export default function ComparisonTable() {
             {SALE_ORDER.map((id) => (
               <th key={id} scope="col" className={PLANS[id].popular ? "popular" : undefined}>
                 <span className="pr-th-name">{PLANS[id].name}</span>
-                <span className="pr-th-price">{formatPrice(PLANS[id])}/mo</span>
+                <span className="pr-th-price">{formatPrice(PLANS[id])}/mo{id !== "free" && <> or {money(YEARLY_PER_MONTH[id])}/mo yearly</>}</span>
               </th>
             ))}
           </tr>

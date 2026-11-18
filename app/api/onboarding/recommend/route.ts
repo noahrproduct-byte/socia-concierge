@@ -8,7 +8,9 @@ import { readStrategy } from "@/lib/strategyLoad";
 import { getProfile } from "@/lib/profile";
 import { brandWorkspace } from "@/lib/context";
 import { PLANS, SALE_ORDER, checkoutAvailable, formatPrice } from "@/lib/plans";
-import { creditsBuy, creditsOnSale, type CreditAction } from "@/lib/credits/config";
+import { creditsBuy, creditsOnSale, planCredits, type CreditAction } from "@/lib/credits/config";
+import { priceIdFor } from "@/lib/stripe";
+import { YEARLY_PER_MONTH, isPaidPlanId } from "@/lib/yearly";
 import { recommendPlan } from "@/lib/planRecommend";
 import type { GrowthProfile } from "@/lib/growth";
 
@@ -21,7 +23,8 @@ const ASSUMED_POSTS = 3;
 // brand's strategy (lib/planRecommend.ts), with the reasons. Everything is
 // read from the saved strategy, the tracked competitors, the connected
 // accounts and the plans' own numbers.
-//   GET -> { currentPlan, checkout, assumed, recommendation, plans: [...] }
+//   GET -> { currentPlan, checkout, yearly, assumed, recommendation, plans: [...] }
+// yearly: all four yearly prices are set (STRIPE_PRICE_<PLAN>_ANNUAL), as on the pricing page.
 export async function GET() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -47,14 +50,20 @@ export async function GET() {
   return NextResponse.json({
     currentPlan: ent.plan,
     checkout: checkoutAvailable(),
+    yearly: SALE_ORDER.filter(isPaidPlanId).every((id) => priceIdFor(id, "year")),
     assumed: strategy ? null : ASSUMED_POSTS,
     recommendation,
     plans: SALE_ORDER.map((id) => {
       const p = PLANS[id];
+      const has = (a: CreditAction) => (p.meters[a] ?? 0) > 0;
+      const yearlyCredits = isPaidPlanId(id) ? planCredits(id, Math.round(YEARLY_PER_MONTH[id] * 100)) : null;
       return {
         id, name: p.name, price: formatPrice(p), priceMonthly: p.priceMonthly, tagline: p.tagline,
         credits: creditsOnSale(id),
-        buys: creditsBuy(creditsOnSale(id), (a: CreditAction) => (p.meters[a] ?? 0) > 0),
+        // A yearly plan gets the credits of its monthly share (lib/credits/config.ts planCredits).
+        yearlyCredits,
+        yearlyBuys: yearlyCredits == null ? null : creditsBuy(yearlyCredits, has),
+        buys: creditsBuy(creditsOnSale(id), has),
         competitors: p.limits.competitors, workspaces: p.limits.workspaces,
       };
     }),

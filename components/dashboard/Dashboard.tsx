@@ -28,6 +28,7 @@ import RepurposeCard from "@/components/RepurposeCard";
 import VideoIdeasCard from "@/components/VideoIdeasCard";
 import NicheScanCard from "@/components/NicheScanCard";
 import Momentum from "@/components/dashboard/Momentum";
+import FilmingSessions from "@/components/filming/FilmingSessions";
 import ShareWins from "@/components/dashboard/ShareWins";
 import { ButtonLink, Card, CardHeader, Empty, PlatformMark, SegmentedControl, Skeleton, TableWrap, Unavailable, type Platform } from "@/components/system";
 import type { Candidate } from "@/lib/repurpose";
@@ -381,6 +382,8 @@ export default function Dashboard({ d }: { d: DashboardData }) {
 
       {/* ---- a new account's first steps, and the posting streak (lib/perks) -------- */}
       <Momentum />
+      {/* The session being filmed today, or the next one (lib/filmingPlan.ts). Nothing when there is none. */}
+      <FilmingSessions where="dashboard" />
       {/* ---- posts that beat the account's usual result, with an image to share (lib/share) ---- */}
       <ShareWins />
 

@@ -146,6 +146,11 @@ export const COMPARISON: ComparisonCategory[] = [
       { label: "Voiceover", cells: creditCell("voiceovers") },
       { label: "Account audit", cells: creditCell("account_audit") },
       feature("ai_clipper", "Upload a long video; SOCIA returns vertical clips with captions, a title, a score and a caption. Priced by the video's length, shown before anything is spent. Only clip videos you own or have rights to."),
+      // Live streams (lib/plans.ts STREAM_LIMITS): Twitch chat-spike clips, by channels at once and live hours a month.
+      feature("stream_clipper", "Paste live Twitch channels; SOCIA reads their chat and, when it spikes, makes a Twitch clip from about 20 seconds before, scored 0 to 100."),
+      { label: "Live streams at once", cells: perPlan((p) => (p.limits.stream_channels > 0 ? text(String(p.limits.stream_channels)) : NO)) },
+      { label: "Live stream watching", note: "A month. Only the time a channel is live counts.", cells: perPlan((p) => (p.limits.stream_hours_month > 0 ? text(`${p.limits.stream_hours_month} hours`) : NO)) },
+      feature("stream_clip_video", "On your own Twitch channel or one you edit, Twitch lets SOCIA keep the clip's video, so it plays in SOCIA. Other channels' clips stay on Twitch."),
       // AI Studio from Pro; Scale adds the premium model and 15-second clips (lib/credits/config.ts).
       feature("ai_studio", "Ideas from your brand and niche, turned into AI videos and images. Pro makes clips up to 10 seconds on Kling 3.0 and Wan 3.0; Scale adds Seedance 2.5 and 15-second clips. Paid from your monthly credits."),
     ],

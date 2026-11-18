@@ -4,6 +4,7 @@
 // expire after seven days, so the job runner copies them into SOCIA's bucket.
 // Prices come from POST /estimate/{endpoint} with the same body. Server only.
 import { GenerationError, type GenerationOutput, type GenerationProvider, type GenerationRequest, type GenerationStatus } from "./provider";
+import { raiseProviderAlarm } from "@/lib/providerAlarm";
 
 const BASE = "https://api.higgsfield.ai";
 
@@ -40,11 +41,43 @@ export function higgsfieldBody(req: GenerationRequest): Record<string, unknown> 
   return body;
 }
 
-/** The dollar amount in an estimate answer ({"usd": "0.094"}), or null. Pure. */
-export function parseHiggsfieldEstimate(json: unknown): number | null {
-  const v = (json as { usd?: unknown } | null)?.usd;
+/**
+ * The dollar price of a request from an estimate answer, or null when it
+ * can't be read exactly (then nothing runs). Two shapes come back:
+ * - {"usd": "0.094"} (images): the price itself.
+ * - {"type": "description", "pricing_description": "Standard self-serve rates
+ *   in USD per video second: 480p: $0.0375; 720p: $0.0750; ... Total price =
+ *   selected rate × output duration in seconds."} (video, seen live
+ *   2026-11-17): the rate for the request's resolution times its duration.
+ * `body` is the request body sent (higgsfieldBody). Pure.
+ */
+export function parseHiggsfieldEstimate(json: unknown, body: Record<string, unknown> = {}): number | null {
+  const j = (json ?? null) as { usd?: unknown; type?: unknown; pricing_description?: unknown } | null;
+  const v = j?.usd;
   const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
-  return Number.isFinite(n) && n >= 0 ? n : null;
+  if (Number.isFinite(n) && n >= 0) return n;
+  const text = typeof j?.pricing_description === "string" ? j.pricing_description : "";
+  if (!text) return null;
+  // Rates by resolution ("720p: $0.0750"); a single rate stands for the one resolution the model makes.
+  const rates = new Map<string, number>();
+  for (const m of text.matchAll(/(\d{3,4}p|[248]k)\s*:\s*\$\s*(\d+(?:\.\d+)?)/gi)) rates.set(m[1].toLowerCase(), Number(m[2]));
+  const wanted = typeof body.resolution === "string" ? body.resolution.toLowerCase() : null;
+  let rate: number | null = null;
+  if (wanted && rates.has(wanted)) rate = rates.get(wanted)!;
+  else if (rates.size === 1) rate = [...rates.values()][0];
+  else if (!wanted && rates.has("720p")) rate = rates.get("720p")!;
+  else if (!rates.size) {
+    const one = /\$\s*(\d+(?:\.\d+)?)/.exec(text);
+    rate = one ? Number(one[1]) : null;
+  }
+  if (rate == null || !Number.isFinite(rate) || rate < 0) return null;
+  if (/per (video )?second/i.test(text)) {
+    const seconds = typeof body.duration === "number" ? body.duration : NaN;
+    return Number.isFinite(seconds) && seconds > 0 ? Math.round(rate * seconds * 10000) / 10000 : null;
+  }
+  if (/per (image|generation|request|output)/i.test(text)) return rate;
+  // Any other unit is not guessed at.
+  return null;
 }
 
 /** HIGGSFIELD_API_KEY, or HF_CREDENTIALS as Higgsfield's own SDK names it: "<key id>:<key secret>". */
@@ -99,7 +132,12 @@ export class HiggsfieldProvider implements GenerationProvider {
       const j = (json ?? {}) as Record<string, unknown>;
       const detail = str(j.detail) ?? str(j.error) ?? str(j.message);
       const retry = res.status === 429 || res.status >= 500;
-      if (res.status === 402) throw new GenerationError("SOCIA's generation balance is empty. Contact us and we'll sort it out.", "provider_balance");
+      // 402, or any refusal that says the balance is short (the exact answer isn't documented).
+      if (res.status === 402 || /insufficient (balance|funds|credits?)|balance is (too low|empty)|not enough (balance|credits?|funds)/i.test(detail ?? "")) {
+        // SOCIA's own Higgsfield balance is empty: the admins hear about it at once (lib/providerAlarm.ts).
+        raiseProviderAlarm("higgsfield", detail ?? undefined);
+        throw new GenerationError("SOCIA's generation balance is empty. Contact us and we'll sort it out.", "provider_balance");
+      }
       throw new GenerationError(retry ? "The generation service is busy. Try again in a few minutes." : `The generation service refused the request${detail ? `: ${detail}` : "."}`, `http_${res.status}`, retry);
     }
     return { status: res.status, json };
@@ -123,9 +161,15 @@ export class HiggsfieldProvider implements GenerationProvider {
   async estimate(req: GenerationRequest): Promise<number> {
     const path = req.model.endpoints[req.kind];
     if (!path) throw new GenerationError("That model does not do this kind of generation.", "bad_model");
-    const { json } = await this.call(`${BASE}/estimate/${path}`, { method: "POST", body: JSON.stringify(higgsfieldBody(req)) });
-    const usd = parseHiggsfieldEstimate(json);
-    if (usd == null) throw new GenerationError("The generation service did not return a price. Try again in a moment.", "no_estimate", true);
+    const body = higgsfieldBody(req);
+    const { json } = await this.call(`${BASE}/estimate/${path}`, { method: "POST", body: JSON.stringify(body) });
+    const usd = parseHiggsfieldEstimate(json, body);
+    if (usd == null) {
+      // What came back instead of {"usd": …}, so the cause can be read in the server log. It holds no secret:
+      // it is the provider's own answer to a price question.
+      console.error("[higgsfield] estimate had no price", JSON.stringify({ path, answer: JSON.stringify(json ?? null).slice(0, 400) }));
+      throw new GenerationError("The generation service did not return a price. Try again in a moment.", "no_estimate", true);
+    }
     return usd;
   }
 

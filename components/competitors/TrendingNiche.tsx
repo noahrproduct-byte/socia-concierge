@@ -16,7 +16,7 @@ import { Check, Clapperboard, Copy, ExternalLink, Lock, Plus, TrendingUp, Users 
 import { useRouter } from "next/navigation";
 import { handFiles } from "@/lib/studioClips/handoff";
 import type { CompetitorRow, CompPost } from "@/lib/competitorIntel";
-import { TREND_WINDOW_DAYS, VIRAL_MIN_VIEWS, refResult } from "@/lib/trendSignals";
+import { BREAKOUT_MULTIPLE, TREND_WINDOW_DAYS, VIRAL_MIN_VIEWS, refResult } from "@/lib/trendSignals";
 import type { CompetitorsData, ProvenReel } from "./types";
 import { fmtN } from "./shared";
 
@@ -232,6 +232,9 @@ export type ReelsToCopyInput = Pick<CompetitorsData, "nicheAccess" | "nicheUpgra
   /** Viral Reels made the way the brand's own are, any topic (Discover), and that style in words ("Animated"). */
   styleReels?: ProvenReel[];
   ownStyle?: string | null;
+  /** "kind": the group holds businesses like theirs anywhere, not a video style. */
+  viralFrom?: "kind" | "style" | null;
+  viralWho?: "businesses" | "creators";
 };
 
 /** Shown before "Show more Reels": the competitors' stay the most. */
@@ -239,6 +242,8 @@ const FIRST_COMPETITOR = 6;
 const FIRST_NICHE = 3;
 
 export function ReelsToCopy({ d }: { d: ReelsToCopyInput }) {
+  // Creators also see Reels that broke out for their account (lib/trendSignals.ts isViralFor).
+  const floor = d.viralWho === "creators" ? `${fmtN(VIRAL_MIN_VIEWS)} views or ${BREAKOUT_MULTIPLE}× their usual` : `${fmtN(VIRAL_MIN_VIEWS)} views`;
   const router = useRouter();
   const [copied, setCopied] = useState<string | null>(null);
   const [more, setMore] = useState(false);
@@ -326,14 +331,14 @@ export function ReelsToCopy({ d }: { d: ReelsToCopyInput }) {
         <p className="cx3-empty">
           {d.ig.enabled || d.ytConfigured
             ? d.reelsRead.reels > 0
-              ? `None of your competitors' Reels from the last ${TREND_WINDOW_DAYS} days went past ${fmtN(VIRAL_MIN_VIEWS)} views. Only viral Reels show here.`
+              ? `None of your competitors' Reels from the last ${TREND_WINDOW_DAYS} days went past ${floor}. Only viral Reels show here.`
               : "No Reels from your competitors yet. Track a few accounts above, or wait for SOCIA to finish reading them."
             : "Link a Facebook Page to your Instagram to see your competitors' Reels."}
         </p>
       ) : (
         <>
           <p className="cx5-lead">
-            Your competitors&apos; Reels that went past {fmtN(VIRAL_MIN_VIEWS)} views in the last {TREND_WINDOW_DAYS} days and that you could make your own version of. Your Content Plans and video ideas build on them too.
+            Your competitors&apos; Reels that went past {floor} in the last {TREND_WINDOW_DAYS} days and that you could make your own version of. Your Content Plans and video ideas build on them too.
           </p>
           <div className="cx3-grid cx5-grid">{comp.map(card)}</div>
         </>
@@ -341,14 +346,32 @@ export function ReelsToCopy({ d }: { d: ReelsToCopyInput }) {
       {nich.length > 0 && (
         <>
           <h3 className="cx5-sub">From your niche</h3>
-          <p className="cx5-lead">Reels past {fmtN(VIRAL_MIN_VIEWS)} views from accounts like yours that you don&apos;t track yet.</p>
+          <p className="cx5-lead">Reels past {floor} from accounts like yours that you don&apos;t track yet.</p>
           <div className="cx3-grid cx5-grid">{nich.map(card)}</div>
         </>
       )}
       {sty.length > 0 && (
         <>
-          <h3 className="cx5-sub">{d.ownStyle ? `Viral ${d.ownStyle.toLowerCase()} Reels to copy` : "Viral Reels to copy"}</h3>
-          <p className="cx5-lead">Reels past {fmtN(VIRAL_MIN_VIEWS)} views from the accounts you copy, the ones SOCIA found like them, and others made the way your videos are. Any topic: the ones that reached furthest past their followers come first. Copy the style, not the subject.</p>
+          {d.viralFrom === "kind" ? (
+            <>
+              {d.viralWho === "creators" ? (
+                <>
+                  <h3 className="cx5-sub">Viral Reels from creators like you, anywhere</h3>
+                  <p className="cx5-lead">Reels past {floor} from creators in your niche, and from the accounts you copy. The ones that reached furthest past their followers come first. Make your own version with your own story and words.</p>
+                </>
+              ) : (
+                <>
+                  <h3 className="cx5-sub">Viral Reels from businesses like yours, anywhere</h3>
+                  <p className="cx5-lead">Reels past {fmtN(VIRAL_MIN_VIEWS)} views from businesses like yours in any city, and from the accounts you copy. The ones that reached furthest past their followers come first. Make your own version with your own place, product and words.</p>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              <h3 className="cx5-sub">{d.ownStyle ? `Viral ${d.ownStyle.toLowerCase()} Reels to copy` : "Viral Reels to copy"}</h3>
+              <p className="cx5-lead">Reels past {fmtN(VIRAL_MIN_VIEWS)} views from the accounts you copy, the ones SOCIA found like them, and others made the way your videos are. Any topic: the ones that reached furthest past their followers come first. Copy the style, not the subject.</p>
+            </>
+          )}
           <div className="cx3-grid cx5-grid">{sty.map(card)}</div>
         </>
       )}

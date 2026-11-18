@@ -14,11 +14,11 @@ function keyMode(): BillingFacts["keyMode"] {
   return /^(sk|rk)_live_/.test(k) ? "live" : "test";
 }
 
-async function priceFacts(stripe: Stripe, plan: PaidPlan): Promise<PriceFacts> {
-  const configured = priceIdFor(plan, "month");
+async function priceFacts(stripe: Stripe, plan: PaidPlan, interval: "month" | "year" = "month"): Promise<PriceFacts> {
+  const configured = priceIdFor(plan, interval);
   if (!configured) return { plan, configured: "missing", price: null, product: null, error: null };
   try {
-    const priceId = await resolvePriceId(stripe, plan, "month");
+    const priceId = await resolvePriceId(stripe, plan, interval);
     const price = priceId ? await stripe.prices.retrieve(priceId, { expand: ["product"] }) : null;
     const prod = price && typeof price.product === "object" && !("deleted" in price.product && price.product.deleted) ? (price.product as Stripe.Product)
       : isProductId(configured) ? await stripe.products.retrieve(configured) : null;
@@ -40,8 +40,10 @@ export async function loadBillingFacts(appUrl: string): Promise<BillingFacts> {
     appUrl, prices: [], webhooks: null, portal: null, errors: [],
   };
   if (!stripe) return base;
-  const [prices, hooks, portal, promos] = await Promise.all([
-    Promise.all(SALE_ORDER.filter((p): p is Exclude<PlanId, "free"> => p !== "free").map((p) => priceFacts(stripe, p))),
+  const paid = SALE_ORDER.filter((p): p is Exclude<PlanId, "free"> => p !== "free");
+  const [prices, yearly, hooks, portal, promos] = await Promise.all([
+    Promise.all(paid.map((p) => priceFacts(stripe, p))),
+    Promise.all(paid.map((p) => priceFacts(stripe, p, "year"))),
     stripe.webhookEndpoints.list({ limit: 50 }).then((r) => r.data.map((w) => ({ url: w.url, status: w.status, events: w.enabled_events })), (e) => { base.errors.push(`Webhook endpoints: ${msg(e)}`); return null; }),
     // The product list is left out of the response unless asked for.
     stripe.billingPortal.configurations.list({ active: true, limit: 20, expand: ["data.features.subscription_update.products"] }).then((r) => {
@@ -68,5 +70,5 @@ export async function loadBillingFacts(appUrl: string): Promise<BillingFacts> {
       };
     }), () => null),
   ]);
-  return { ...base, prices, webhooks: hooks, portal, promos };
+  return { ...base, prices, yearly, webhooks: hooks, portal, promos };
 }

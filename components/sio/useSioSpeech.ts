@@ -1,13 +1,14 @@
 "use client";
 
 // Plays a few lines as SIO speaking them: how many words of each line are out,
-// whether the mouth is open right now, and when it has finished. One clock
-// drives both the text and the face (lib/sioSpeech.ts), so they stay together.
+// the mouth's shape right now, the mood of the sentence being said, and when
+// it has finished. One clock drives both the text and the face
+// (lib/sioSpeech.ts), so they stay together.
 // With reduced motion, or `still`, the lines are simply there.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { speechAt, speechPlan } from "@/lib/sioSpeech";
+import { speechAt, speechPlan, type SpeechMoment } from "@/lib/sioSpeech";
 
-export type SioSpeech = { shown: number[]; mouthOpen: boolean; speaking: boolean; nods: number; skip: () => void };
+export type SioSpeech = SpeechMoment & { skip: () => void };
 
 export function useSioSpeech(lines: (string | null | undefined)[], still = false): SioSpeech {
   // The lines as one string: the speech restarts only when the words change.
@@ -29,7 +30,7 @@ export function useSioSpeech(lines: (string | null | undefined)[], still = false
       if (skipped.current) return;
       const s = speechAt(plan, performance.now() - t0);
       // Only a change in what is seen causes a render, not every frame.
-      const sig = `${s.shown.join(",")}|${s.mouthOpen}|${s.speaking}`;
+      const sig = `${s.shown.join(",")}|${s.mouth}|${s.speaking}|${s.mood}|${s.glance}`;
       if (sig !== last) { last = sig; setState(s); }
       if (s.speaking) raf.current = requestAnimationFrame(tick);
     };

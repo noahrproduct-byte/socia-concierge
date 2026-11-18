@@ -81,7 +81,10 @@ function summaryLines(kpis: Kpi[], days: number): string[] {
     if (k.id === "posts") continue;
     if (k.deltaText && k.deltaPct != null) {
       const dir = k.positive ? "up" : "down";
-      out.push(`${k.label} ${dir} ${Math.abs(Math.round(k.deltaPct))}% vs ${period} (${k.value}).`);
+      // The same figure the card under it shows ("0.3%", "2.15 pts"), so the sentence and the card never disagree
+      // and a small change is not rounded to "down 0%".
+      const change = k.deltaText.replace(/^[^\d]+/, "").trim() || `${Math.abs(Math.round(k.deltaPct))}%`;
+      out.push(`${k.label} ${dir} ${change} vs ${period} (${k.value}).`);
     }
   }
   const posts = kpis.find((k) => k.id === "posts");

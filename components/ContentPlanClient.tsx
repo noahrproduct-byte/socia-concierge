@@ -1,5 +1,6 @@
 "use client";
 
+import EvidenceSplitView from "@/components/plan/EvidenceSplitView";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -70,6 +71,7 @@ import { typicalSeconds, type PlanEvent } from "@/lib/planProgress";
 import type { PlanCompetitor } from "@/lib/planEvidence";
 import type { PlanMix } from "@/lib/planMix";
 import { AuditSection, CompetitorSection, OverviewSection, PLAN_SECTIONS, StrategySection, formatLabel, weekOrder, type PlanSectionId } from "@/components/plan/PlanSections";
+import FilmingSessions from "@/components/filming/FilmingSessions";
 
 // Server-assembled context: real prefill from the connected account/profile,
 // plus the live metrics shown in the preview strip. Nothing here is invented —
@@ -248,11 +250,11 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
       const json = await res.json();
       if (!res.ok) {
         if (isPlanError(json)) { setPlanError(json); return; }
-        throw new Error(json.error || "Something went wrong.");
+        throw new Error(json.error || "The plan couldn't be built just now. It didn't use up a plan. Try again.");
       }
       finish(json);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Something went wrong.");
+      setError(e instanceof Error ? e.message : "The plan couldn't be built just now. Try again.");
     } finally {
       setLoading(false);
     }
@@ -851,6 +853,8 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
           <StrategySection data={data} strategy={strategy} goal={goal} />
         </TabPanel>
         <TabPanel value="week" keepMounted className="cpl-panel">
+      {/* The latest plan's posts laid out over the person's filming days (lib/filmingPlan.ts). */}
+      {data.weeklyPlan?.length > 0 && <FilmingSessions where="plan" />}
       {data.weeklyPlan?.length > 0 && (
         <section className="cpl-rsec">
           <div className="cpl-rsec-head">
@@ -941,7 +945,9 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
                     <span className="pf-pill">{post.animated ? <Film size={14} aria-hidden /> : <Clapperboard size={14} aria-hidden />} {[post.platform, post.animated ? "Animated video" : formatLabel(post.format), length].filter(Boolean).join(", ")}</span>
                     <DecisionTag item={post} />
                     <OutcomeTags o={itemOutcome(i)} />
-                    {basis && <span className="pf-basis" title="From the numbers SOCIA read for that Reel; another account's result, not a prediction">{basis}</span>}
+                    {basis && (post.ref?.url
+                      ? <a className="pf-basis" href={post.ref.url} target="_blank" rel="noopener noreferrer" title="Open the Reel this is built on. Its numbers are another account's result, not a prediction">{basis}</a>
+                      : <span className="pf-basis" title="From the numbers SOCIA read for that Reel; another account's result, not a prediction">{basis}</span>)}
                   </div>
                   {post.title && <h2 className="pf-title">{post.title}</h2>}
                   <p className="pf-concept">{post.concept}</p>
@@ -965,6 +971,7 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
                         {post.purpose && (<><dt>Purpose</dt><dd>{post.purpose}</dd></>)}
                         {post.audience && (<><dt>For</dt><dd>{post.audience}</dd></>)}
                         {post.rationale.trim() && (<><dt>Why this</dt><dd>{post.rationale}</dd></>)}
+                        {post.cta && (<><dt>Call to action</dt><dd>{post.cta}</dd></>)}
                         {post.successMetric && (<><dt>Success measure</dt><dd>{post.successMetric}</dd></>)}
                       </dl>
                       {!post.purpose && !post.audience && !post.rationale.trim() && !post.successMetric && (
@@ -976,6 +983,7 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
                         <dl className="pf-facts">
                           {post.direction && (<><dt>Direction</dt><dd>{post.direction}</dd></>)}
                           {post.production ? (<><dt>To make it</dt><dd>{post.production}</dd></>) : formatLabel(post.format) !== post.format.trim() && (<><dt>Production</dt><dd>{post.format}</dd></>)}
+                          {post.editing && (<><dt>Editing</dt><dd>{post.editing}</dd></>)}
                         </dl>
                         {planId && post.decision?.status !== "rejected" && (
                           <Link href={`/studio?mode=guide&plan=${planId}&i=${i}`} className="ov-link" title="Hooks, script and shot list for this post">
@@ -985,10 +993,14 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
                       </TabPanel>
                     )}
                     <TabPanel value="evidence" className="pf-panel">
-                      <dl className="pf-facts">
-                        {post.evidence.trim() && (<><dt>Based on</dt><dd>{post.evidence}</dd></>)}
-                        {post.predictedPerformance.trim() && (<><dt>SOCIA&apos;s guess</dt><dd>{post.predictedPerformance} <small>(a guess before posting, not a result)</small></dd></>)}
-                      </dl>
+                      {post.evidenceSplit ? (
+                        <EvidenceSplitView split={post.evidenceSplit} own={post.ownPosts} />
+                      ) : (
+                        <dl className="pf-facts">
+                          {post.evidence.trim() && (<><dt>Based on</dt><dd>{post.evidence}</dd></>)}
+                          {post.predictedPerformance.trim() && (<><dt>SOCIA&apos;s guess</dt><dd>{post.predictedPerformance} <small>(a guess before posting, not a result)</small></dd></>)}
+                        </dl>
+                      )}
                       {post.ref && <ReelRefNote r={post.ref} />}
                       {!post.evidence.trim() && !post.ref && <p className="pf-note">{post.animated ? "An animated idea written for your account; it isn't built on a particular Reel." : "No research is attached to this post."}</p>}
                     </TabPanel>
@@ -1020,7 +1032,7 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
                       </>
                     )}
                     {post.decision?.status === "rejected" && <Button variant="ghost" onClick={() => undo(i)} busy={itemBusy === i}><Undo2 size={14} aria-hidden /> Undo</Button>}
-                    {post.decision?.status === "approved" && <span className="pi-hint">On the Calendar as a draft.</span>}
+                    {post.decision?.status === "approved" && <span className="pi-hint">On the <Link href="/plan/calendar" className="s-link">Calendar</Link> as a draft.</span>}
                     <span className="pf-actions-end">
                       <button type="button" className="ov-link" title={`Ask SOCIA to rework ${post.day}`} onClick={() => setAsk({ q: `Give me a stronger idea for ${post.day}, keeping it easy to make.`, day: post.day })}><Sparkles size={11} /> Improve</button>
                       <IconButton label="Previous post" size="sm" variant="ghost" disabled={pos <= 0} onClick={() => setFocus(weekIdx[pos - 1])}><ChevronLeft size={16} aria-hidden /></IconButton>

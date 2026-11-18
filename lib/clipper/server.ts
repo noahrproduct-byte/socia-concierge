@@ -236,9 +236,13 @@ async function reread(svc: Supa, job: ClipJobRow): Promise<ClipJobRow> {
 
 /** Ask the provider about a processing job and finish it when it is done. */
 export async function pollClipJob(svc: Supa, job: ClipJobRow): Promise<ClipJobRow> {
+  const tooOld = Date.now() - new Date(job.created_at).getTime() > CLIP_MAX_AGE_MS;
+  // A job that never got going (the provider kept refusing it) ends with its
+  // credits back instead of showing "queued" for good.
+  if (job.status === "queued" && tooOld) return fail(svc, job, "The clipping never started, so it was stopped. Your credits are back.", true);
   if (job.status === "queued") return (await submitClipJob(svc, job)) ?? job;
   if (job.status !== "processing" || !job.provider_job_id) return job;
-  if (Date.now() - new Date(job.created_at).getTime() > CLIP_MAX_AGE_MS) return fail(svc, job, "The clipping took too long and was stopped.", true);
+  if (tooOld) return fail(svc, job, "The clipping took too long and was stopped.", true);
   if (job.provider === SOCIA_PROVIDER) return pollSociaJob(svc, job);
   const provider = clipperProvider();
   if (!provider) return job;
@@ -352,8 +356,11 @@ export async function finishClipJob(svc: Supa, job: ClipJobRow, clips: ProviderC
     if (error) console.error("[clipper] clips not saved:", error.message);
   }
   const now = new Date().toISOString();
-  const { data } = await svc.from("clip_jobs").update({ status: "done", credits_charged: job.credits_reserved, finished_at: now, updated_at: now, error: rows.length ? null : "The provider returned no clips for this video." }).eq("id", job.id).select(JOB_COLS).single();
-  return (data as ClipJobRow) ?? { ...job, status: "done" };
+  // Only an open job finishes: one cancelled or failed meanwhile (its credits
+  // already returned) is left as it is and never charged again.
+  const { data } = await svc.from("clip_jobs").update({ status: "done", credits_charged: job.credits_reserved, finished_at: now, updated_at: now, error: rows.length ? null : "The provider returned no clips for this video." }).eq("id", job.id).in("status", ["queued", "processing"]).select(JOB_COLS).maybeSingle();
+  if (!data) return reread(svc, job);
+  return data as ClipJobRow;
 }
 
 export async function listClipJobs(client: Supa, ownerId: string, wsId: string | null, limit = 30): Promise<ClipJobRow[]> {

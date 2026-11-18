@@ -186,6 +186,10 @@ export function useComposer(props: ComposerPageProps & { postId?: string | null 
   const dirty = useRef(false);
   const restorePending = useRef(false);
   const saveChain = useRef<Promise<string | null>>(Promise.resolve(null));
+  // True from the moment Save, Schedule or Publish is pressed until the server
+  // answers: a second press, or an autosave timer that fires meanwhile, waits
+  // instead of sending a second request that would create a second post.
+  const submitBusy = useRef(false);
   const submissionRef = useRef(submission);
   submissionRef.current = submission;
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -208,6 +212,18 @@ export function useComposer(props: ComposerPageProps & { postId?: string | null 
   const dispatch = useCallback((a: ComposerAction) => {
     if (a.type !== "load" && a.type !== "set_post_id") dirty.current = true;
     rawDispatch(a);
+  }, []);
+
+  /**
+   * Record the id the server gave a new post. draftRef is updated at once,
+   * not on the next render, so a save or submit that runs straight after
+   * (an autosave chained behind another, or Publish pressed while the first
+   * autosave was out) updates this post instead of creating a second one.
+   */
+  const adoptPostId = useCallback((id: string | undefined) => {
+    if (!id || draftRef.current.postId) return;
+    draftRef.current = { ...draftRef.current, postId: id };
+    rawDispatch({ type: "set_post_id", id });
   }, []);
 
   // ---- object URLs: revoke whatever left the draft (replace, remove, restore, load), and everything on unmount
@@ -312,11 +328,11 @@ export function useComposer(props: ComposerPageProps & { postId?: string | null 
   const saveNow = useCallback((): Promise<string | null> => {
     const run = async (): Promise<string | null> => {
       const d = draftRef.current;
-      if (!ready) return d.postId;
+      if (!ready || submitBusy.current) return d.postId;
       setSaveState((s) => ({ ...s, status: "saving", message: null }));
       try {
         const { item } = await api<{ item: ContentItem }>("/api/posts", { method: "POST", body: JSON.stringify(toPayload(d, "draft")) });
-        if (item?.id && !draftRef.current.postId) rawDispatch({ type: "set_post_id", id: item.id });
+        adoptPostId(item?.id);
         serverItemUpdated.current = item?.updatedAt ?? serverItemUpdated.current;
         setSaveState({ status: "saved", at: new Date().toISOString(), message: null });
         return item?.id ?? draftRef.current.postId;
@@ -328,7 +344,7 @@ export function useComposer(props: ComposerPageProps & { postId?: string | null 
     const next = saveChain.current.then(run, run);
     saveChain.current = next;
     return next;
-  }, [ready]);
+  }, [adoptPostId, ready]);
 
   useEffect(() => {
     if (!ready || !dirty.current || restorePending.current) return;
@@ -475,7 +491,7 @@ export function useComposer(props: ComposerPageProps & { postId?: string | null 
   const handleServerAnswer = useCallback(async (res: { item: ContentItem; uploads?: ClientUpload[] }, action: "draft" | "schedule" | "publish" | "retry") => {
     const item = res.item;
     serverItemUpdated.current = item?.updatedAt ?? serverItemUpdated.current;
-    if (item?.id && !draftRef.current.postId) rawDispatch({ type: "set_post_id", id: item.id });
+    adoptPostId(item?.id);
     if (action === "draft") {
       setSubmission((s) => ({ ...s, phase: "idle", item, uploads: [], error: null }));
       setSaveState({ status: "saved", at: new Date().toISOString(), message: null });
@@ -496,7 +512,7 @@ export function useComposer(props: ComposerPageProps & { postId?: string | null 
     const inFlight = latest.destinations.some((d) => IN_FLIGHT.has(d.status));
     setSubmission((s) => ({ ...s, phase: inFlight ? "tracking" : "done", item: latest }));
     if (inFlight) track(latest.id);
-  }, [runUploads, track]);
+  }, [adoptPostId, runUploads, track]);
 
   const failSubmission = useCallback((e: unknown) => {
     if (!mounted.current) return;
@@ -519,19 +535,28 @@ export function useComposer(props: ComposerPageProps & { postId?: string | null 
       setSubmission((s) => ({ ...s, phase: "error", error: ACCOUNTS_UNKNOWN_SENTENCE, planError: null }));
       return;
     }
-    // Let a pending autosave finish so the two never race for the same row.
-    await saveChain.current.catch(() => null);
-    setSubmission((s) => ({ ...idleSubmission(), item: s.item, phase: action === "draft" ? "saving" : "submitting" }));
+    // A second press while the first is out does nothing: it would send the post twice.
+    if (submitBusy.current) return;
+    submitBusy.current = true;
     try {
-      const res = await api<{ item: ContentItem; uploads?: ClientUpload[] }>("/api/posts", { method: "POST", body: JSON.stringify(toPayload(draftRef.current, action)) });
-      dirty.current = false;
-      removeLocal(storageKey(userId, workspaceId, null));
-      if (res.item?.id) removeLocal(storageKey(userId, workspaceId, res.item.id));
-      await handleServerAnswer(res, action);
-    } catch (e) {
-      failSubmission(e);
+      // Let a pending autosave finish so the two never race for the same row;
+      // its post id is in draftRef by the time this resumes (adoptPostId).
+      await saveChain.current.catch(() => null);
+      setSubmission((s) => ({ ...idleSubmission(), item: s.item, phase: action === "draft" ? "saving" : "submitting" }));
+      try {
+        const res = await api<{ item: ContentItem; uploads?: ClientUpload[] }>("/api/posts", { method: "POST", body: JSON.stringify(toPayload(draftRef.current, action)) });
+        dirty.current = false;
+        removeLocal(storageKey(userId, workspaceId, null));
+        if (res.item?.id) removeLocal(storageKey(userId, workspaceId, res.item.id));
+        adoptPostId(res.item?.id);
+        await handleServerAnswer(res, action);
+      } catch (e) {
+        failSubmission(e);
+      }
+    } finally {
+      submitBusy.current = false;
     }
-  }, [accountsComplete, failSubmission, handleServerAnswer, stopPolling, userId, workspaceId]);
+  }, [accountsComplete, adoptPostId, failSubmission, handleServerAnswer, stopPolling, userId, workspaceId]);
 
   const retry = useCallback(async (destinationId: string) => {
     const postId = submissionRef.current.item?.id ?? draftRef.current.postId;

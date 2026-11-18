@@ -4,7 +4,8 @@
 // Noah, 2026-11-14: an account built on animated videos is asked how many
 // posts it wants and whether to add on-camera videos; every other account is
 // asked how many of each. The numbers start from the last plan's mix, so a
-// new plan follows the account's own way of posting until it is changed.
+// new plan follows the account's own way of posting until it is changed; an
+// account with a posting target (SIO's routine) starts from that many posts.
 import { useId } from "react";
 import Link from "next/link";
 import { Minus, Plus } from "lucide-react";
@@ -35,11 +36,18 @@ function Stepper({ label, hint, value, min, onChange, disabled }: { label: strin
   );
 }
 
-const FROM_NOTE: Record<PlanMix["from"], string | null> = {
+const FROM_NOTE: Record<Exclude<PlanMix["from"], "routine">, string | null> = {
   last_plan: "Same mix as your last plan. Change it for this week only.",
   settings: "From your animated video setting.",
   default: null,
 };
+
+/** Where the starting numbers came from, said plainly. */
+function fromNote(start: PlanMix): string | null {
+  if (start.from !== "routine") return FROM_NOTE[start.from];
+  const days = start.target ? `${start.target} ${start.target === 1 ? "day" : "days"} a week` : null;
+  return `Starts from your posting target${days ? `, ${days}` : ""}. Change it for this week only.`;
+}
 
 export default function PlanMixControls({ start, animatedAllowed, value, onChange, addOnCamera, onAddOnCamera }: {
   start: PlanMix;
@@ -51,7 +59,7 @@ export default function PlanMixControls({ start, animatedAllowed, value, onChang
   onAddOnCamera: (on: boolean) => void;
 }) {
   const total = value.onCamera + value.animated;
-  const note = FROM_NOTE[start.from];
+  const note = fromNote(start);
   const animatedPlan = minPlanWithMeter("animated_videos", 0);
 
   if (start.animatedLed && animatedAllowed) {

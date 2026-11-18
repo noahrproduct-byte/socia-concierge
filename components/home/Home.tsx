@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { YEARLY_PER_MONTH, isPaidPlanId, money, yearlySaving } from "@/lib/yearly";
 import Link from "next/link";
 import { ArrowRight, Check, Mail } from "lucide-react";
 import { PlatformMark } from "@/components/system/PlatformMark";
@@ -87,7 +88,7 @@ function PendingPlatform({ platform }: { platform: OfflinePlatform }) {
   );
 }
 
-export default function Home({ signedIn, intro = false }: { signedIn: boolean; intro?: boolean }) {
+export default function Home({ signedIn, intro = false, yearly = false }: { signedIn: boolean; intro?: boolean; /** Yearly plans are on sale (lib/yearly.ts). */ yearly?: boolean }) {
   const startHref = signedIn ? "/dashboard" : "/signup";
   const startLabel = signedIn ? "Open your dashboard" : "Get started free";
 
@@ -307,7 +308,7 @@ export default function Home({ signedIn, intro = false }: { signedIn: boolean; i
             <div className="hm-section-head is-center" data-reveal="children">
               <span className="hm-eyebrow">Pricing</span>
               <h2 id="hm-pricing" className="hm-h2 is-center">
-                Monthly plans. <em>No lock-in.</em>
+                {yearly ? <>Pay monthly, <em>or save yearly.</em></> : <>Monthly plans. <em>No lock-in.</em></>}
               </h2>
             </div>
             <LaunchCountdown className="hm-launch" />
@@ -324,6 +325,9 @@ export default function Home({ signedIn, intro = false }: { signedIn: boolean; i
                         <b>${p.priceMonthly}</b>
                         <span>per month</span>
                       </div>
+                      {yearly && isPaidPlanId(id) && (
+                        <p className="hm-price-yearly">Or <b>{money(YEARLY_PER_MONTH[id])}</b> a month, billed yearly. Save {money(yearlySaving(id))} a year.</p>
+                      )}
                     </div>
                     <p>{p.tagline}</p>
                     <ul>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import LegalShell from "@/components/LegalShell";
 
 export const metadata = { title: "Privacy Policy | SOCIA" };
 
@@ -7,9 +8,9 @@ export const metadata = { title: "Privacy Policy | SOCIA" };
 // checked against the code. Update the date whenever the substance changes.
 export default function PrivacyPage() {
   return (
-    <main className="legal-page">
+    <LegalShell>
       <h1>Privacy Policy</h1>
-      <p className="legal-date">Last updated: November 12, 2026</p>
+      <p className="legal-date">Last updated: November 16, 2026</p>
 
       <p>
         SOCIA (sociaos.com) is an AI social media strategist operated by SOCIA
@@ -84,6 +85,20 @@ export default function PrivacyPage() {
           schedule to your TikTok account. If TikTok approves direct posting,
           we also ask for <code>video.publish</code> to post a video you
           schedule.
+        </li>
+        <li>
+          <b>Twitch</b>: when you connect Twitch for Live streams in the AI
+          Clipper, Twitch gives us access tokens and, with the permissions you
+          approve (<code>clips:edit</code>, <code>user:read:chat</code>,{" "}
+          <code>editor:manage:clips</code>), SOCIA reads the chat of the live
+          channels you choose to watch, as it arrives, and makes Twitch clips
+          when chat spikes. SOCIA keeps only counts about the chat (how fast it
+          ran, how many people, how much of it was reaction), never the
+          messages or who sent them. It keeps each clip&apos;s Twitch link,
+          picture and score; on a channel you own or edit, Twitch also lets
+          SOCIA save the clip&apos;s video, which stays in your account until you
+          remove the clip. Disconnecting Twitch deletes the tokens and stops
+          every channel being watched.
         </li>
         <li>
           <b>Other accounts&apos; public information</b>: when you track
@@ -258,7 +273,7 @@ export default function PrivacyPage() {
         </li>
         <li>
           <b>The platforms you connect</b> (Meta for Instagram and Facebook,
-          Google for YouTube and Google sign-in, TikTok): we exchange data with
+          Google for YouTube and Google sign-in, TikTok, Twitch): we exchange data with
           them only as described above.
         </li>
         <li>
@@ -464,6 +479,6 @@ export default function PrivacyPage() {
         {" · "}
         <Link href="/terms">Terms of Service</Link>
       </p>
-    </main>
+    </LegalShell>
   );
 }

@@ -1,4 +1,5 @@
 import { NextResponse, after } from "next/server";
+import { perUserLimit } from "@/lib/rateLimit";
 import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
 import { scopeToWorkspace } from "@/lib/workspaces";
 import { signUrls } from "@/lib/studioClips/storage";
@@ -91,6 +92,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       const map = (((data ?? []) as { stabilized: StabilizedMap | null }[])[0]?.stabilized ?? {}) as StabilizedMap;
       await scopeToWorkspace(ctx.client.from("studio_clips").update({ stabilized: { ...map, [strength]: rec } }).eq("id", id).eq("user_id", ctx.ownerId), ctx.workspace?.id ?? null);
     };
+    // Each one is minutes of server video work: a ceiling per account and hour, counted only when a job really starts.
+    const limited = await perUserLimit(ctx.ownerId, "stabilize", 20, "stabilized clips");
+    if (limited) return limited;
     await write({ status: "working", progress: 0, at: new Date().toISOString() });
     const clip = { id: row.id, project_id: row.project_id, user_id: row.user_id, source_path: row.source_path, duration_s: row.duration_s };
     after(async () => {

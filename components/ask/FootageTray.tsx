@@ -43,13 +43,15 @@ const STEP_COPY: Record<Step, string> = {
 
 type CaptionReply = { captions?: { text: string; warnings?: string[] }[]; error?: string };
 
-export default function FootageTray({ files, onRemove, onClear, onDone, onBusy }: {
+export default function FootageTray({ files, onRemove, onClear, onDone, onBusy, toEditor }: {
   files: File[];
   onRemove: (i: number) => void;
   onClear: () => void;
   /** every file has been tried; the drawer adds the outcome to the chat */
   onDone: (r: FootageResult) => void;
   onBusy: (busy: boolean) => void;
+  /** A script to film is in the chat: the clips can go to the AI editor with it instead of becoming drafts. */
+  toEditor?: { title: string; send: () => void } | null;
 }) {
   const [captions, setCaptions] = useState(true);
   const [rows, setRows] = useState<Record<number, Row>>({});
@@ -120,10 +122,11 @@ export default function FootageTray({ files, onRemove, onClear, onDone, onBusy }
   };
 
   const n = files.length;
+  const editorReady = Boolean(toEditor) && files.some((f) => f.type.startsWith("video/"));
   return (
     <section className="ask-footage" aria-label="Footage to save as drafts">
       <div className="ask-footage-head">
-        <b>{n} {n === 1 ? "file" : "files"} to save as {n === 1 ? "a draft" : "drafts"}</b>
+        <b>{editorReady ? `${n} ${n === 1 ? "clip" : "clips"} for \u201c${toEditor!.title}\u201d` : `${n} ${n === 1 ? "file" : "files"} to save as ${n === 1 ? "a draft" : "drafts"}`}</b>
         {!running && <button type="button" className="ov-btn ghost small" onClick={onClear}>Clear</button>}
       </div>
       <ul className="ask-footage-list">
@@ -145,7 +148,16 @@ export default function FootageTray({ files, onRemove, onClear, onDone, onBusy }
           );
         })}
       </ul>
-      {!running && !Object.keys(rows).length && (
+      {!running && !Object.keys(rows).length && editorReady && (
+        <>
+          <p className="ask-footage-opt">SOCIA hands these clips to the Video editor with the script and its editing directions. You check the brief there before it makes the video.</p>
+          <div className="ask-proposal-actions">
+            <button type="button" className="ov-btn primary small" onClick={toEditor!.send}>Send to the AI editor</button>
+            <button type="button" className="ov-btn ghost small" onClick={() => void run()}>Save as {n === 1 ? "a draft" : "drafts"} instead</button>
+          </div>
+        </>
+      )}
+      {!running && !Object.keys(rows).length && !editorReady && (
         <>
           <label className="ask-footage-opt">
             <input type="checkbox" checked={captions} onChange={(e) => setCaptions(e.target.checked)} />

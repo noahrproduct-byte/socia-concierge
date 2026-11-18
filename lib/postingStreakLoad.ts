@@ -98,6 +98,8 @@ export type BrandStreak = {
   streak: PostingStreak;
   /** What SIO says about this week. */
   line: string;
+  /** This week on the calendar: its Monday, today, and the days with a post so far (the person's own time zone). */
+  week: { start: string; today: string; posted: string[] };
   /** A target chosen but not started yet. */
   next: { days: number; from: string } | null;
   /** The accounts whose posts count, by name. */
@@ -122,7 +124,7 @@ export async function brandStreak(ctx: Ctx, ent: Ent, now: Date = new Date()): P
   await syncPostingTarget(ctx, chosen, now).catch(() => undefined);
   const [h, led, seen] = await Promise.all([readHistory(svc, ctx.ownerId, wsId), readLedger(svc, ctx.ownerId, wsId, from), seenPosts(svc, ctx, ent, new Date(now.getTime() - 70 * 86_400_000))]);
   const empty: PostingStreak = { weeks: 0, longest: 0, strip: [], thisWeek: { days: 0, target: 1, qualified: false, is_break: false } };
-  if (!h.ready || !led.ready) return { ready: false, streak: empty, line: "", next: null, platforms: seen.platforms, breaks: { thisWeek: false, nextWeek: false, canPlanThis: false, canPlanNext: false } };
+  if (!h.ready || !led.ready) return { ready: false, streak: empty, line: "", week: { start: cur, today, posted: [] }, next: null, platforms: seen.platforms, breaks: { thisWeek: false, nextWeek: false, canPlanThis: false, canPlanNext: false } };
 
   const live = postingDaysByWeek(seen.times, tz);
   const weeks = weeksView({ today, ledger: led.rows.map(asLedger), history: h.history, live });
@@ -151,6 +153,7 @@ export async function brandStreak(ctx: Ctx, ent: Ent, now: Date = new Date()): P
     ready: true,
     streak,
     line: weekLine(streak.thisWeek),
+    week: { start: cur, today, posted: [...(live.get(cur) ?? [])].sort() },
     next: upcoming && upcoming.days !== targetForWeek(cur, h.history) ? { days: upcoming.days, from: upcoming.effective_from } : null,
     platforms: seen.platforms,
     breaks: {

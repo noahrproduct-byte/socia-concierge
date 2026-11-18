@@ -9,6 +9,7 @@ import { GOAL_PLATFORM_NAME, formatGoalValue, goalMetric, mainGoalsFor, type Cus
 import type { GrowthStrategy } from "./strategy";
 import { toolGroups, type ToolGroup } from "./onboardingTools";
 import type { PlanId } from "./plans";
+import { routineSummary, unanswered, type Routine } from "./routine";
 
 export const STAGES = [
   { id: "accounts", label: "Reading your accounts" },
@@ -37,6 +38,8 @@ export type Reveal = {
   start: { label: string; value: string; where: string }[];
   priorities: string[];
   week: { posts: number; why: string; pillars: { name: string; why: string }[] } | null;
+  /** The routine as the person told SIO (lib/routine.ts), one row per answer; `pending` when SIO still has questions about their week. */
+  routine: { rows: { label: string; value: string }[]; pending: boolean } | null;
   /** Every SOCIA tool, grouped by job, each marked with the plan it starts on (lib/onboardingTools.ts). */
   tools: ToolGroup[];
   basedOn: string[];
@@ -101,6 +104,8 @@ export function buildReveal(input: {
   competitors: number;
   /** How the customer goal is worded for this brand (lib/growth.ts CUSTOMER_GOALS). */
   customerGoal?: CustomerGoalId | null;
+  /** The routine the person told SIO about, as saved. */
+  routine?: Routine | null;
   today: string;
 }): Reveal {
   const main = mainGoalsFor(input.customerGoal).find((m) => m.id === input.mainGoal) ?? null;
@@ -122,6 +127,7 @@ export function buildReveal(input: {
     start,
     priorities: (s?.priorities ?? []).slice(0, 3),
     week: s ? { posts: s.frequency.posts_per_week, why: s.frequency.why, pillars: s.pillars.slice(0, 4) } : null,
+    routine: routineSummary(input.routine).length ? { rows: routineSummary(input.routine), pending: unanswered(input.routine).length > 0 } : null,
     tools: toolGroups({ plan: input.plan, posts: s?.frequency.posts_per_week ?? null, target: g ? `${formatGoalValue(g.metric, g.target)}${unit}`.trim() : null, competitors: input.competitors }),
     basedOn: (s?.based_on ?? []).slice(0, 6),
   };

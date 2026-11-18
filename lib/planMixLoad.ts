@@ -1,6 +1,7 @@
 // Reads what a new plan's mix starts from (lib/planMix.ts): the brand's last
-// plan in this workspace, its animated setting, its strategy's pace, and
-// whether the plan includes animated videos at all. Server only.
+// plan in this workspace, its animated setting, its strategy's pace, the
+// posting target it gave SIO, and whether the plan includes animated videos
+// at all. Server only.
 import { getEntitlements, getMeterLimit } from "./entitlements";
 import { scopeToWorkspace } from "./workspaces";
 import { defaultMix, type PlanMix } from "./planMix";
@@ -35,7 +36,7 @@ export async function animatedAllowed(client: Supa, ownerId: string): Promise<bo
 export async function startingMix(client: Supa, ownerId: string, workspaceId: string | null, brand: BrandDetail | null): Promise<{ mix: PlanMix; animatedAllowed: boolean }> {
   const [last, allowed] = await Promise.all([lastPlanItems(client, ownerId, workspaceId), animatedAllowed(client, ownerId)]);
   return {
-    mix: defaultMix({ lastPlan: last, animatedPref: brand?.animated ?? null, pace: brand?.strategy?.frequency?.posts_per_week ?? null, animatedAllowed: allowed }),
+    mix: defaultMix({ lastPlan: last, animatedPref: brand?.animated ?? null, pace: brand?.strategy?.frequency?.posts_per_week ?? null, animatedAllowed: allowed, target: brand?.growth?.routine?.post_days ?? null }),
     animatedAllowed: allowed,
   };
 }

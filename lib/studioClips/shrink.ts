@@ -1,17 +1,24 @@
 // Phone videos over the storage limit, made small enough to upload (Noah,
 // 2026-11-10: his 158 MB 4K iPhone clip registered but never uploaded, and
-// every clip over 50 MB in his account was stuck the same way). Supabase
-// Storage refuses a file over 50 MB, so a bigger clip is re-encoded in this
+// every clip over 50 MB in his account was stuck the same way). Storage
+// refuses a file over STORAGE_FILE_LIMIT, so a bigger clip is re-encoded in this
 // browser first: H.264 at 1080p on the device's own video encoder (WebCodecs,
 // through Mediabunny), at a bitrate that keeps the file under the limit. The
 // original on the person's device is untouched. Fail-safe: null when this
 // browser can't, and the caller says so instead of pretending.
 
-/** What storage accepts per file. */
-export const STORAGE_FILE_LIMIT = 50 * 1024 * 1024;
+/**
+ * The most a clip may be when it uploads. Supabase Pro (2026-11-15) took the
+ * project's per-file limit from 50 MB to 5 GB; clips stop at 500 MB so a
+ * project's footage stays inside the plan's storage, and a 1080p clip of
+ * several minutes (or 1 to 2 minutes of 4K) uploads untouched.
+ */
+export const STORAGE_FILE_LIMIT = 500 * 1024 * 1024;
 /** Above this a clip is made smaller before it uploads (room for the container). */
-export const SHRINK_ABOVE = 45 * 1024 * 1024;
-const TARGET_BYTES = 42 * 1024 * 1024;
+export const SHRINK_ABOVE = 480 * 1024 * 1024;
+const TARGET_BYTES = 450 * 1024 * 1024;
+/** "500 MB", for messages. */
+export const UPLOAD_LIMIT_TEXT = `${Math.round(STORAGE_FILE_LIMIT / 1048576)} MB`;
 const AUDIO_BPS = 128_000;
 const MAX_VIDEO_BPS = 8_000_000;
 /** Below this the picture would fall apart; such a clip is too long to send. */

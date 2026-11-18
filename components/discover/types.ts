@@ -27,6 +27,10 @@ export type DiscoverData = {
   ytConfigured: boolean;
   main: Platform | null;
   ownStyle: string | null;
+  /** Where the viral Reels group comes from (lib/discoverRules.ts viralSource): the same kind of business anywhere, or the video style. */
+  viralFrom: "kind" | "style" | null;
+  /** Who "like yours" means in that group's heading. */
+  viralWho: "businesses" | "creators";
   limit: number;
   tracked: Tracked[];
   competitors: DiscoverAccount[];

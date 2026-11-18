@@ -1,19 +1,20 @@
 import { redirect } from "next/navigation";
 import { getViewer } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
+import { brandKind, viralSource } from "@/lib/discoverRules";
 import DiscoverPage from "@/components/discover/DiscoverPage";
 import type { Tracked } from "@/components/competitors/types";
 import type { DiscoverAccount, DiscoverData } from "@/components/discover/types";
 import { getIgSnapshot } from "@/lib/instagramSync";
 import { channelStats, ytConfigured, type YtStats } from "@/lib/youtube";
 import { youtubeRecentUploads } from "@/lib/youtubeData";
-import { isStyleSource, nicheVetted } from "@/lib/discovery";
+import { isStyleSource, isYoutubeTwin, nicheVetted, sameCreatorName } from "@/lib/discovery";
 import { cell, absent } from "@/lib/competitorRollup";
 import { competitorScopeId } from "@/lib/workspaces";
 import { type CompetitorRow } from "@/lib/competitorIntel";
 import { igCompetitorRows, igRowStale, type IgCompetitor } from "@/lib/igCompetitorData";
 import { median } from "@/lib/metrics";
-import { isViral, provenReels, rankTrendingReels } from "@/lib/trendSignals";
+import { isViralFor, provenReels, rankTrendingReels } from "@/lib/trendSignals";
 import type { NichePost } from "@/lib/nicheTrends";
 import { igPosts, ytPosts } from "@/lib/trendSignalsLoad";
 import { getEntitlements, getLimit, canUseFeature, upgradeFor } from "@/lib/entitlements";
@@ -22,7 +23,7 @@ import { listTracked } from "@/lib/trackedCompetitors";
 import { resolveContext, brandWorkspace } from "@/lib/context";
 import { createServiceClient } from "@/lib/supabase/service";
 import { dismissedHandles } from "@/lib/competitorAutoPick";
-import { fitOf, reelKey, reelVerdictOf, mainPlatform, sameStyle, styleKey, styleStale, styleWord, triedRecently, type AccountStyle, type StyleMemory } from "@/lib/discoverStyle";
+import { fitOf, reelKey, reelVerdictOf, tooSmallToSuggest, mainPlatform, sameStyle, styleKey, styleStale, styleWord, triedRecently, type AccountStyle, type StyleMemory } from "@/lib/discoverStyle";
 import { readStyleMemory } from "@/lib/discoverStyleLoad";
 import { STYLE_SOURCES_READ, SUGGESTIONS_READ } from "@/lib/discoverRead";
 import { signRefUrl } from "@/lib/studioClips/refToken";
@@ -38,11 +39,11 @@ export const metadata = { title: "Discover | SOCIA" };
 // in the background (app/api/discover/read), so this page shows what is saved
 // and never waits on Instagram.
 
-const SUGGESTIONS_SHOWN = 12;
+const SUGGESTIONS_SHOWN = 16;
 /** Niche Reels under the competitors': a few, so the competitors' stay the most. */
-const NICHE_REELS = 6;
+const NICHE_REELS = 12;
 /** Viral Reels in the brand's own style, any topic. */
-const STYLE_REELS = 9;
+const STYLE_REELS = 12;
 
 export default async function Page() {
   const { supabase, user } = await getViewer();
@@ -120,6 +121,9 @@ export default async function Page() {
   // person's choice to post animated videos stands in, so animated accounts and viral animated Reels still lead.
   const animatedChosen = (profile?.brand_detail as { animated?: { on?: boolean } } | null | undefined)?.animated?.on === true;
   const ownForMatch: AccountStyle | null = memory.own ?? (animatedChosen ? { style: "animated", share: 1, n: 0, at: now.toISOString() } : null);
+  const g = profile?.brand_detail?.growth;
+  const brandIs = brandKind({ accountType: g?.account_type ?? null, name: profile?.brand_name ?? null, niche: profile?.niche ?? null, about: [profile?.brand_detail?.description, g?.business?.offer] });
+  const viralFrom = viralSource(brandIs, ownForMatch && ownForMatch.style !== "mixed" ? ownForMatch.style : null);
   const tracked = trackedAll.filter((t) => !isOwnAccount(mine, { handle: t.handle })).slice(0, Math.max(limit, 1));
   const trackedKeys = new Set(tracked.map((t) => `${t.platform}:${t.handle.toLowerCase()}`));
   const candidates = suggestedRows
@@ -127,7 +131,8 @@ export default async function Page() {
     .filter((r) => !isOwnAccount(mine, { handle: r.handle as string, name: (r.display_name as string) ?? null }));
   // Accounts already judged off (lib/discoverStyle.ts fitOf) don't take a place: the next ones get read and shown.
   const judgedOff = (r: Record<string, unknown>) => fitOf(memory, styleKey(String(r.platform), String(r.handle)), now) === "off";
-  const suggested = candidates.filter((r) => !isStyleSource(r) && !judgedOff(r)).slice(0, SUGGESTIONS_READ);
+  // For a brand that copies its own kind anywhere, those accounts are suggestions too (Noah, 2026-11-17: "suggest more accounts").
+  const suggested = candidates.filter((r) => (!isStyleSource(r) || viralFrom === "kind") && !judgedOff(r)).slice(0, SUGGESTIONS_READ);
   // Accounts research found for their Reels' style, any topic (Noah, 2026-11-16): Reels to copy, never suggested.
   const styleRows = candidates.filter((r) => isStyleSource(r) && r.platform === "instagram").slice(0, STYLE_SOURCES_READ);
 
@@ -218,9 +223,18 @@ export default async function Page() {
   // shows as a suggestion; the background read judges it.
   const fitFor = (a: { platform: string; handle: string }) => fitOf(memory, styleKey(a.platform, a.handle), now);
   const judged = suggested.map((r) => build(String(r.platform), String(r.handle), r, null));
+  // An Instagram handle guessed from a YouTube creator counts only once Instagram returned it under a matching name.
+  const twinNames = new Map(suggested.filter(isYoutubeTwin).map((r) => [String(r.handle).toLowerCase(), String(r.display_name ?? "")]));
+  const twinOk = (a: { platform: string; handle: string; posts: unknown[] }) => {
+    const h = a.handle.toLowerCase();
+    if (a.platform !== "instagram" || !twinNames.has(h)) return true;
+    return a.posts.length > 0 && sameCreatorName(ig.get(h)?.displayName ?? null, twinNames.get(h) ?? null);
+  };
   const suggestions = judged
-    .filter((a) => { const v = fitFor(a); return v === "competitor" || v == null; })
-    .sort((a, b) => Number(fitFor(b) === "competitor") - Number(fitFor(a) === "competitor") || Number(b.posts.length > 0) - Number(a.posts.length > 0) || Number(b.sameStyle) - Number(a.sameStyle) || (b.match ?? 0) - (a.match ?? 0))
+    // Accounts judged a neighbouring niche are suggested too, after the rest, except for an app: there they are
+    // creators showing tools, worth copying but not competing (Discover training, 2026-11-16).
+    .filter((a) => { const v = fitFor(a); return (v === "competitor" || v == null || (v === "niche" && !brandIs.app)) && !tooSmallToSuggest(a.audience.value) && twinOk(a); })
+    .sort((a, b) => Number(fitFor(b) === "competitor") - Number(fitFor(a) === "competitor") || Number(fitFor(a) === "niche") - Number(fitFor(b) === "niche") || Number(b.posts.length > 0) - Number(a.posts.length > 0) || Number(b.sameStyle) - Number(a.sameStyle) || (b.match ?? 0) - (a.match ?? 0))
     .slice(0, SUGGESTIONS_SHOWN);
 
   // ---- the Reels worth copying: only from the competitors tracked --------
@@ -233,8 +247,10 @@ export default async function Page() {
   const copyable = <T extends { url: string }>(list: T[]) => list.filter((r) => verdictFor(r.url)?.ok !== false);
   const withMake = <T extends { url: string }>(list: T[]) => list.map((r) => { const v = verdictFor(r.url); return v?.make ? { ...r, make: v.make } : r; });
   const ordered = copyable(dedupeReels([...allReels.filter((r) => same.has((r.accountHandle ?? "").toLowerCase())), ...allReels.filter((r) => !same.has((r.accountHandle ?? "").toLowerCase()))]));
+  // Creators also count a Reel that broke out for its account (lib/trendSignals.ts isViralFor); businesses keep 15K.
+  const viral = (r: { views: number | null; multiplier?: number | null }) => isViralFor(!brandIs.business, r);
   // Only Reels past VIRAL_MIN_VIEWS show; the best of those first, never filled with weaker ones.
-  const reelsToCopy = withMake(provenReels(ordered.filter(isViral), { max: 12, perAccount: 3, fill: true }));
+  const reelsToCopy = withMake(provenReels(ordered.filter(viral), { max: 12, perAccount: 3, fill: true }));
 
   // A few from the niche under them (Noah: "most of the reels should be from the competitors, but there should also be some from just like niches"):
   // the suggested accounts SOCIA read, and Reels its niche research found, never a competitor's or the brand's own.
@@ -254,14 +270,17 @@ export default async function Page() {
       why: null, dataSource: String(r.data_source ?? "web_research"),
     }));
   // Only from accounts judged to fit the niche: a Reel from research is kept only when its account is one of them.
-  const fitting = judged.filter((a) => { const v = fitFor(a); return a.posts.length > 0 && (v === "competitor" || v === "niche") && notOurs(a.handle, a.name); });
+  const fitting = judged.filter((a) => { const v = fitFor(a); return a.posts.length > 0 && (v === "competitor" || v === "niche") && notOurs(a.handle, a.name) && twinOk(a); });
   const fittingHandles = new Set(fitting.map((a) => a.handle.toLowerCase()));
   const nicheAll = rankTrendingReels(
     fitting.map((r) => ({ platform: r.platform, name: r.name, handle: r.handle, avatar: r.avatar, posts: r.posts })),
     content.filter((c) => c.accountHandle && fittingHandles.has(c.accountHandle.replace(/^@/, "").toLowerCase())), now,
   ).filter((r) => notOurs(r.accountHandle, r.accountName));
   const nicheList = copyable(dedupeReels(nicheAll));
-  const nicheReels = withMake(provenReels(nicheList.filter(isViral), { max: NICHE_REELS, perAccount: 2, fill: true })
+  // Reels from accounts whose videos are made the way the brand's are come first (Noah: "what I look like, match it").
+  const likeMine = (handle: string | null) => Boolean(handle && [...judged, ...competitors].some((a) => a.sameStyle && a.handle.toLowerCase() === handle.replace(/^@/, "").toLowerCase()));
+  const nicheReels = withMake(provenReels(nicheList.filter(viral), { max: NICHE_REELS, perAccount: 3, fill: true })
+    .sort((a, b) => Number(likeMine(b.accountHandle)) - Number(likeMine(a.accountHandle)))
     .map((r, i) => ({ ...r, id: `N${i + 1}` })));
 
   // Reels to copy for their style, any topic (Noah, 2026-11-16): the accounts on the copy list, the ones
@@ -270,10 +289,12 @@ export default async function Page() {
   // took off for its account or reached past the account's followers, and the furthest-reaching come first
   // (moe.dev: 2.6K followers, a Reel at 75K).
   const styleAccounts = styleRows.map((r) => build(String(r.platform), String(r.handle), r, null));
+  // A business that isn't an app copies the same kind of business anywhere, whatever their videos look like
+  // (lib/discoverRules.ts viralSource); otherwise research's accounts count only in the brand's own style.
   const copyAccounts = copyList.map((h) => ({ ...build("instagram", h, null, null), copy: "you" as const }));
   const foundAccounts = copyFoundList.map((h) => ({ ...build("instagram", h, null, null), copy: "found" as const, copyVia: memory.copyFound[h]?.from ?? null }));
   const usedHandles = new Set([...competitors, ...fitting].map((a) => a.handle.toLowerCase()));
-  const copyPool = [...copyAccounts, ...foundAccounts.filter((a) => a.sameStyle), ...styleAccounts.filter((a) => a.sameStyle)]
+  const copyPool = [...copyAccounts, ...foundAccounts.filter((a) => a.sameStyle), ...styleAccounts.filter((a) => viralFrom === "kind" || a.sameStyle)]
     .filter((a) => a.posts.length && !usedHandles.has(a.handle.toLowerCase()) && notOurs(a.handle, a.name));
   const followersOf = new Map(copyPool.map((a) => [a.handle.toLowerCase(), a.audience.value ?? null]));
   const reach = (r: { views: number | null; accountHandle: string | null }) => {
@@ -281,8 +302,9 @@ export default async function Page() {
     return r.views != null && f ? r.views / f : null;
   };
   const styleAll = dedupeReels(rankTrendingReels(copyPool.map((r) => ({ platform: r.platform, name: r.name, handle: r.handle, avatar: r.avatar, posts: r.posts })), [], now));
-  const styleReels = provenReels(copyable(styleAll).filter(isViral), { max: 40, perAccount: 2, fill: true })
-    .sort((a, b) => (reach(b) ?? -1) - (reach(a) ?? -1))
+  const sameLook = new Set(copyPool.filter((a) => a.sameStyle).map((a) => a.handle.toLowerCase()));
+  const styleReels = provenReels(copyable(styleAll).filter(viral), { max: 40, perAccount: 3, fill: true })
+    .sort((a, b) => Number(sameLook.has((b.accountHandle ?? "").toLowerCase())) - Number(sameLook.has((a.accountHandle ?? "").toLowerCase())) || (reach(b) ?? -1) - (reach(a) ?? -1))
     .slice(0, STYLE_REELS)
     .map((r, i) => ({ ...r, id: `S${i + 1}` }));
 
@@ -292,14 +314,14 @@ export default async function Page() {
   const data: DiscoverData = {
     now: now.toISOString(),
     igEnabled: igRes.enabled, igReason: igRes.enabled ? null : (igRes.reason ?? null), ytConfigured: ytConfigured(),
-    main, ownStyle: styleWord(ownForMatch), limit,
+    main, ownStyle: styleWord(ownForMatch), viralFrom, viralWho: brandIs.business ? "businesses" : "creators", limit,
     tracked, competitors, suggestions,
     reelsToCopy: withRef(reelsToCopy),
     nicheReels: withRef(nicheReels),
     styleReels: withRef(withMake(styleReels)),
     copyFrom: [...copyAccounts, ...foundAccounts],
     reelsRead: { reels: allReels.length, accounts: new Set(allReels.map((r) => (r.accountHandle ?? r.accountName).toLowerCase())).size },
-    needsRead: igRes.enabled && (ownStale || [...competitors, ...suggestions, ...styleAccounts, ...copyAccounts, ...foundAccounts].some((a) => a.reading) || judged.some((a) => a.posts.length > 0 && fitFor(a) == null)
+    needsRead: igRes.enabled && (ownStale || [...competitors, ...suggestions, ...styleAccounts, ...copyAccounts, ...foundAccounts].some((a) => a.reading) || judged.some((a) => a.posts.length > 0 && fitFor(a) == null && !tooSmallToSuggest(a.audience.value))
       || [...reelsToCopy, ...nicheReels, ...styleReels].some((r) => reelKey(r.url) != null && !verdictFor(r.url))),
     lastRun: runAt,
     niche: profile?.niche ?? null,

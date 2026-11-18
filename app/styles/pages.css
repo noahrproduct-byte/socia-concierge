@@ -18,6 +18,21 @@
    selectors here.
    ========================================================================= */
 
+/* ---- headings: every page title in the app, one voice ---------------------------
+   The heading face, set light and tight: hierarchy comes from size, not weight
+   (the 2026-11-17 redesign). A secondary part of a title (the @handle on the
+   Dashboard) stays the quieter ink. */
+.s-shell .s-content h1 {
+  font-family: var(--font-heading);
+  font-weight: var(--fw-regular);
+  letter-spacing: var(--tr-display);
+}
+.s-shell .s-content :is(.dash-hero-body h2, .s-section-title) {
+  font-family: var(--font-heading);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--tr-title);
+}
+
 /* ---- page header ----------------------------------------------------------------- */
 .s-shell .s-content .dv-head {
   display: flex;
@@ -32,7 +47,7 @@
   color: var(--ink);
   font-size: var(--fs-display);
   line-height: var(--lh-display);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-regular);
   letter-spacing: var(--tr-display);
   text-wrap: balance;
 }
@@ -102,7 +117,7 @@
   color: var(--ink);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
   letter-spacing: 0;
 }
 .s-shell .s-content :is(.ov-card-head, .cx2-card-head) {
@@ -465,6 +480,19 @@
 .pf-beat-time { font-size: var(--fs-meta); color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .pf-beat b { font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink); }
 .pf-beat p { margin: 0; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+/* The words of the beat, the script the person reads out. */
+.pf-beat .pf-beat-say { color: var(--ink); font-size: var(--fs-body); line-height: var(--lh-body); }
+a.pf-basis { text-decoration: none; }
+a.pf-basis:hover { text-decoration: underline; }
+/* A post's evidence in three kinds (components/plan/EvidenceSplitView.tsx). */
+.pf-split { display: flex; flex-direction: column; gap: var(--sp-4); }
+.pf-split section { display: flex; flex-direction: column; gap: var(--sp-1); }
+.pf-split h4 { margin: 0; color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); font-weight: var(--fw-medium); }
+.pf-split h4 small { font-weight: var(--fw-regular); }
+.pf-split ul { margin: 0; padding-left: var(--sp-4); list-style: disc; display: flex; flex-direction: column; gap: var(--sp-1); }
+.pf-split li, .pf-split p { margin: 0; color: var(--ink); font-size: var(--fs-body); line-height: var(--lh-body); }
+.pf-split li small { color: var(--ink-3); }
+.pf-split-basis { padding: var(--sp-2) var(--sp-3); border-radius: var(--r-control); background: var(--warning-bg); color: var(--warning-ink) !important; }
 .pf-note { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink-2); }
 .pf-tabs { margin-bottom: var(--sp-3); }
 .pf-panel { display: flex; flex-direction: column; gap: var(--sp-3); }
@@ -546,6 +574,8 @@
 .obs-start div { display: flex; flex-direction: column; padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-control); background: var(--surface); }
 .obs-start dt { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
 .obs-start dd { margin: 0; font-size: var(--fs-title); line-height: var(--lh-title); font-weight: var(--fw-semibold); color: var(--ink); font-variant-numeric: tabular-nums; }
+/* A routine answer is words, not a figure: body size, and free to wrap. */
+.obs-start dd.obs-routine { font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-medium); font-variant-numeric: normal; }
 .obs-start small { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-3); }
 .obs-priorities { list-style: decimal; margin: 0; padding-left: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-2); font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink); }
 .obs-pillars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
@@ -573,6 +603,14 @@
 .obp-line { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink-2); }
 .obp-why { list-style: disc; margin: var(--sp-1) 0 0; padding-left: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-1); font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink); }
 .obp-plans .ob-btn { align-self: flex-start; margin-top: var(--sp-2); }
+/* Monthly or yearly, when yearly plans are on sale (lib/yearly.ts). */
+.obp-switch { display: inline-flex; gap: var(--sp-1); margin: 0 0 var(--sp-4); padding: var(--sp-1); border-radius: var(--r-pill); background: var(--surface-raised); }
+.obp-switch button { display: inline-flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-4); border: 0; border-radius: var(--r-pill); background: transparent; font: inherit; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink-2); cursor: pointer; }
+.obp-switch button.on { background: var(--surface); color: var(--ink); font-weight: var(--fw-semibold); box-shadow: 0 0 0 1px var(--border); }
+.obp-switch button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.obp-switch button:disabled { cursor: default; }
+.obp-switch-save { font-size: var(--fs-meta); line-height: var(--lh-meta); font-weight: var(--fw-semibold); color: var(--positive-ink); white-space: nowrap; }
+.obp-price > small { text-align: right; }
 /* Strategy reveal: every SOCIA tool, grouped by job, each marked with the plan it starts on */
 .obt-group { display: flex; flex-direction: column; gap: var(--sp-2); padding-top: var(--sp-3); }
 .obt-group h3 { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); color: var(--ink); }
@@ -608,6 +646,21 @@
 .obg-sum b { font-weight: var(--fw-semibold); }
 .obg-sum ul { list-style: none; margin: 0; padding: 0; font-variant-numeric: tabular-nums; }
 .obg-sum small { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+/* Filming sessions (components/filming/FilmingSessions.tsx), on the Content Plan and the Dashboard */
+.film { display: flex; flex-direction: column; gap: var(--sp-3); margin-bottom: var(--sp-5); }
+.film.s-card { padding: var(--sp-4); margin-bottom: 0; }
+.film-title { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); color: var(--ink); }
+.film-head { display: flex; align-items: center; gap: var(--sp-3); }
+.film-head p { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); color: var(--ink); }
+.film-session { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-card); background: var(--surface); }
+.film-when { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--sp-1) var(--sp-3); }
+.film-when b { font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); color: var(--ink); }
+.film-when small, .film-session li small { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+.film-session ol, .film-session ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.film-session li { display: flex; flex-direction: column; gap: 0; padding: var(--sp-2) 0; border-top: 1px solid var(--border); }
+.film-session li b { font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-medium); color: var(--ink); }
+.film-session li span { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+.film-note, .film-after { margin: 0; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
 /* Dashboard, first week and posting streak */
 .mom { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--sp-4); }
 .mom-steps { list-style: none; margin: 0 0 var(--sp-3); padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
@@ -624,9 +677,30 @@
 .mom-sio { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-3); }
 .mom-sio p { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); color: var(--ink); }
 /* This week's posting days: one mark per day of the target, filled as they are posted. */
-.mom-days { list-style: none; margin: 0 0 var(--sp-3); padding: 0; display: flex; gap: var(--sp-2); }
-.mom-days li { width: 18px; height: 18px; border-radius: var(--r-pill); border: 1px solid var(--border-strong); background: var(--surface); }
-.mom-days li.is-on { background: var(--ink); border-color: var(--ink); }
+/* The posting streak card: the count, this week day by day, and the weeks behind it. Each mark has a shape of its
+   own (a tick, a dash, a pause), so no state is told by colour alone. The blocks wrap, so the card works at any width. */
+.pst { display: flex; flex-wrap: wrap; gap: var(--sp-4) var(--sp-8); margin: 0 0 var(--sp-3); padding: var(--sp-4) 0; border-block: 1px solid var(--border); }
+.pst-count { display: flex; flex-direction: column; min-width: 112px; }
+.pst-n { font-size: var(--fs-display); line-height: var(--lh-display); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; color: var(--ink); }
+.pst-of { font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink); }
+.pst-best { margin-top: var(--sp-1); font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+.pst-block { min-width: 0; flex: 0 1 auto; }
+.pst-head { display: flex; justify-content: space-between; gap: var(--sp-4); margin: 0 0 var(--sp-2); font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+.pst-head span:first-child { font-weight: var(--fw-medium); color: var(--ink); }
+.pst-cells { list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 28px); gap: var(--sp-1); }
+.pst-cells li { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); min-width: 0; }
+.pst-box { display: inline-flex; align-items: center; justify-content: center; width: 100%; max-width: 28px; aspect-ratio: 1; border-radius: var(--r-control); border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink-3); }
+.pst-tag { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-3); }
+.pst-cells li.is-posted .pst-box, .pst-cells li.is-hit .pst-box, .pst-box.is-hit { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.pst-cells li.is-today .pst-box, .pst-cells li.is-open .pst-box { border-color: var(--ink); border-width: 2px; }
+.pst-cells li.is-today .pst-tag { color: var(--ink); font-weight: var(--fw-semibold); }
+.pst-cells li.is-later .pst-box { border-style: dashed; border-color: var(--border); }
+.pst-cells li.is-miss .pst-box, .pst-box.is-miss { background: var(--surface-raised); }
+.pst-cells li.is-break .pst-box, .pst-box.is-break { border-style: dashed; }
+.pst-ends { display: flex; justify-content: space-between; margin: var(--sp-1) 0 0; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-3); }
+.pst-key { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-3); margin: var(--sp-2) 0 0; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+.pst-key > span { display: inline-flex; align-items: center; gap: var(--sp-1); }
+.pst-key .pst-box { width: 16px; border-radius: var(--r-chip); }
 .mom-rules { margin-top: var(--sp-3); font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
 .mom-rules summary { cursor: pointer; color: var(--ink); }
 .mom-rules ul { margin: var(--sp-2) 0 0; padding-left: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-1); }

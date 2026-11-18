@@ -86,3 +86,19 @@ export function fitRules(k: BrandKind): string {
     "off: coaches, educators, consultants, agencies and influencers who only talk about the topic, and anything on an unrelated subject.",
   ].join("\n");
 }
+
+/**
+ * Where Discover's viral Reels come from besides competitors. A business that isn't an app copies Reels
+ * from the same kind of business ANYWHERE (Noah, 2026-11-16, on Salvo's Pizza: "it doesn't have to be
+ * competitors in Nashville, it can just be any restaurant that got good views"): "kind". So does a
+ * creator or personal brand, from creators in the same niche anywhere (2026-11-17, tested on @rogalfx:
+ * one suggestion and no viral group), unless their videos are animated. An app, or an animated creator,
+ * copies its video style on any topic (moe.dev for SOCIA): "style".
+ * `style` is the brand's own video style key ("animated", "filmed", ...), or null when unknown.
+ */
+export type ViralSource = "kind" | "style";
+export function viralSource(k: BrandKind, style: string | null): ViralSource | null {
+  if (k.business && !k.app) return "kind";
+  if (!k.business) return style === "animated" ? "style" : "kind";
+  return style ? "style" : null;
+}

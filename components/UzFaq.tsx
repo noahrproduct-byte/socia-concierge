@@ -22,7 +22,7 @@ const FAQS = [
   },
   {
     q: "How do I start a paid plan?",
-    a: "Self-serve checkout is on the way. For now, contact us and we'll set you up on the right plan — no lock-in, and you can change or cancel anytime.",
+    a: "Self-serve checkout is on the way. For now, contact us and we'll set you up on the right plan. No lock-in, and you can change or cancel anytime.",
   },
 ];
 

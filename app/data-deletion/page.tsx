@@ -1,4 +1,5 @@
 import Link from "next/link";
+import LegalShell from "@/components/LegalShell";
 import { createServiceClient } from "@/lib/supabase/service";
 import { readDeletionStatus } from "@/lib/metaDeletion";
 
@@ -22,7 +23,7 @@ export default async function DataDeletionPage({ searchParams }: { searchParams:
   const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }) + " UTC" : "unknown");
 
   return (
-    <main className="legal-page">
+    <LegalShell>
       <h1>Data deletion</h1>
       <p className="legal-date">How to remove the data SOCIA holds about you and your connected accounts.</p>
 
@@ -66,6 +67,6 @@ export default async function DataDeletionPage({ searchParams }: { searchParams:
       <p className="legal-links">
         <Link href="/privacy">Privacy Policy</Link> · <Link href="/terms">Terms of Service</Link>
       </p>
-    </main>
+    </LegalShell>
   );
 }

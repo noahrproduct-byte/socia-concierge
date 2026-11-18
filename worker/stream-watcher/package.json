@@ -1,0 +1,11 @@
+{
+  "name": "socia-stream-watcher",
+  "private": true,
+  "type": "module",
+  "description": "SOCIA's always-on stream watcher (AI Clipper > Live streams). See README.md.",
+  "scripts": { "start": "tsx worker/stream-watcher/index.ts" },
+  "dependencies": {
+    "@supabase/supabase-js": "2.118.0",
+    "tsx": "4.19.2"
+  }
+}

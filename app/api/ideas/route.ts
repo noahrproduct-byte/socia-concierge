@@ -4,6 +4,7 @@ import { resolveContext } from "@/lib/context";
 import { requireUsage } from "@/lib/planGuard";
 import { canUseFeature, getEntitlements } from "@/lib/entitlements";
 import { AI_UNAVAILABLE_COPY, aiFailureKind } from "@/lib/anthropic";
+import { DeadlineError, TOOK_TOO_LONG, deadlineFor, withDeadline } from "@/lib/deadline";
 import { writeIdeas } from "@/lib/ideas/server";
 import { readIdeas, saveIdeas } from "@/lib/ideas/store";
 import { isIdeaStyle } from "@/lib/ideas/videoIdeas";
@@ -40,11 +41,15 @@ export async function POST(req: Request) {
   const u = await requireUsage(ctx.client, ctx.ownerId, "content_ideas");
   if (u.denied) return u.denied;
   try {
-    const set = await writeIdeas(ctx, { styles, about });
+    const set = await withDeadline(writeIdeas(ctx, { styles, about }), deadlineFor(maxDuration));
     await saveIdeas(ctx, set);
     return NextResponse.json({ set, usage: u.usage });
   } catch (err) {
     await u.release();
+    if (err instanceof DeadlineError) {
+      console.error("[ideas] stopped at our own time limit");
+      return NextResponse.json({ error: TOOK_TOO_LONG, kind: "timeout" }, { status: 504 });
+    }
     const status = (err as { status?: number })?.status;
     if (status) return NextResponse.json({ error: (err as Error).message }, { status });
     const k = aiFailureKind(err);

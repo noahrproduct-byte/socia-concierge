@@ -11,20 +11,22 @@ import { competitorScopeId } from "@/lib/workspaces";
 import { isStyleSource, nicheVetted } from "@/lib/discovery";
 import { getIgSnapshot } from "@/lib/instagramSync";
 import { igCompetitorRows } from "@/lib/igCompetitorData";
-import { VIRAL_MIN_VIEWS } from "@/lib/trendSignals";
+import { isViralFor } from "@/lib/trendSignals";
+import { brandKind } from "@/lib/discoverRules";
+import { median } from "@/lib/metrics";
 import { createServiceClient } from "@/lib/supabase/service";
 import { dismissedHandles } from "@/lib/competitorAutoPick";
-import { COPY_FIND_PER_READ, COVERS_PER_ACCOUNT, FIT_VERSION, REELS_JUDGED_PER_READ, REEL_RULE_VERSION, STYLE_MEANS, fitOf, reelKey, reelVerdictOf, mentionedHandles, reachesPastFollowers, sameStyle, missKind, styleKey, styleStale, triedRecently, type AccountStyle, type CopyFound, type Fit, type ReelVerdict, type StyleMemory, type Tried } from "./discoverStyle";
+import { COPY_FIND_PER_READ, COVERS_PER_ACCOUNT, FIT_VERSION, REELS_JUDGED_PER_READ, REEL_RULE_VERSION, STYLE_MEANS, fitOf, reelKey, reelVerdictOf, tooSmallToSuggest, mentionedHandles, reachesPastFollowers, sameStyle, missKind, styleKey, styleStale, triedRecently, type AccountStyle, type CopyFound, type Fit, type ReelVerdict, type StyleMemory, type Tried } from "./discoverStyle";
 import { judgeFit, judgeReels, readStyleMemory, saveStyleMemory, styleAccounts, type FitCandidate, type ReelCandidate } from "./discoverStyleLoad";
 import { getProfile } from "@/lib/profile";
 import { brandWorkspace } from "@/lib/context";
 
 /** Suggestions read with the roster, so they show their picture and numbers. */
-export const SUGGESTIONS_READ = 12;
+export const SUGGESTIONS_READ = 16;
 /** Accounts read for viral Reels in the brand's own style, any topic (lib/discovery.ts STYLE_SOURCE). */
-export const STYLE_SOURCES_READ = 6;
+export const STYLE_SOURCES_READ = 10;
 /** Reels per account checked for whether the brand could copy them: the ones with the most views. */
-const REELS_PER_ACCOUNT = 4;
+const REELS_PER_ACCOUNT = 6;
 /** Only Reels this recent are checked (the page shows the last 60 days). */
 const REEL_WINDOW_DAYS = 60;
 /** Suggested accounts judged for niche fit in one read (one fast-model call). */
@@ -142,7 +144,8 @@ export async function readDiscoverAccounts(ctx: Ctx, now: Date): Promise<{ read:
         igCompetitorRows(ctx.client, ctx.ownerId, unjudged, false, { max: unjudged.length, cacheOnly: true }).catch(() => null),
         getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null),
       ]);
-      const candidates: FitCandidate[] = (rows?.competitors ?? []).filter((c) => c.found).map((c) => ({
+      // Accounts too small to suggest are never shown, so they aren't judged either.
+      const candidates: FitCandidate[] = (rows?.competitors ?? []).filter((c) => c.found && !tooSmallToSuggest(c.followers)).map((c) => ({
         key: styleKey("instagram", c.handle), handle: c.handle, name: c.displayName ?? null, bio: c.biography ?? null,
         captions: (c.media ?? []).map((m) => m.caption ?? "").filter(Boolean),
       }));
@@ -166,12 +169,18 @@ export async function readDiscoverAccounts(ctx: Ctx, now: Date): Promise<{ read:
     if (sourceHandles.length) {
       const rows = await igCompetitorRows(ctx.client, ctx.ownerId, sourceHandles, false, { max: sourceHandles.length, cacheOnly: true }).catch(() => null);
       const since = now.getTime() - REEL_WINDOW_DAYS * 86_400_000;
+      const profile = await getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null);
+      const g = profile?.brand_detail?.growth;
+      // Creators also count a Reel that broke out for its own account (lib/trendSignals.ts isViralFor).
+      const creator = !brandKind({ accountType: g?.account_type ?? null, name: profile?.brand_name ?? null, niche: profile?.niche ?? null, about: [profile?.brand_detail?.description, g?.business?.offer] }).business;
       const candidates: ReelCandidate[] = [];
       for (const c of rows?.competitors ?? []) {
         if (!c.found) continue;
+        const usual = median((c.media ?? []).map((m) => m.views).filter((v): v is number => v != null));
         const top = (c.media ?? [])
-          // Only Reels Discover would show: recent and past the viral floor (lib/trendSignals.ts VIRAL_MIN_VIEWS).
-          .filter((m) => m.mediaType === "VIDEO" && (!m.timestamp || Date.parse(m.timestamp) >= since) && (m.views ?? 0) >= VIRAL_MIN_VIEWS)
+          // Only Reels Discover would show: recent and past the viral floor (or a creator's breakout).
+          .filter((m) => m.mediaType === "VIDEO" && (!m.timestamp || Date.parse(m.timestamp) >= since)
+            && isViralFor(creator, { views: m.views ?? null, multiplier: usual && m.views != null ? m.views / usual : null }))
           .sort((a, b) => (b.views ?? b.likes ?? 0) - (a.views ?? a.likes ?? 0))
           .slice(0, REELS_PER_ACCOUNT);
         for (const m of top) {
@@ -181,9 +190,7 @@ export async function readDiscoverAccounts(ctx: Ctx, now: Date): Promise<{ read:
       }
       const pick = candidates.slice(0, REELS_JUDGED_PER_READ);
       if (pick.length) {
-        const profile = await getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null);
         if (profile) {
-          const g = profile.brand_detail?.growth;
           const own = found.own ?? memory.own;
           const verdicts = await judgeReels(ctx.ownerId, {
             name: profile.brand_name, niche: profile.niche, description: profile.brand_detail?.description ?? null,

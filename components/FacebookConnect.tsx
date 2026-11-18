@@ -87,11 +87,11 @@ export default function FacebookConnect({
           setPlanError(j);
           return;
         }
-        throw new Error(j?.error || "Something went wrong — try again.");
+        throw new Error(j?.error || "Facebook couldn't be connected just now. Try again.");
       }
       router.refresh();
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : "Something went wrong — try again.");
+      setErr(e instanceof Error ? e.message : "Facebook couldn't be connected just now. Try again.");
     } finally {
       setBusy(null);
     }
@@ -99,15 +99,15 @@ export default function FacebookConnect({
 
   const note =
     status === "denied"
-      ? "No Facebook account was connected — you cancelled the authorization."
+      ? "No Facebook account was connected. You cancelled the authorization."
       : status === "nopages"
         ? "Facebook granted Page access but returned no Pages for this account. Check you're logged in as the account that manages the Page, and that the Page is listed under Page access."
         : status === "noperm"
-          ? "Facebook didn't grant Page permissions. This app uses Facebook Login for Business, so permissions come from the login configuration in the Meta dashboard, not from SOCIA — add pages_show_list, pages_read_engagement and instagram_basic to that configuration, then reconnect."
+          ? "Facebook didn't grant Page permissions. This app uses Facebook Login for Business, so permissions come from the login configuration in the Meta dashboard, not from SOCIA. Add pages_show_list, pages_read_engagement and instagram_basic to that configuration, then reconnect."
         : status === "notconfigured"
           ? "Facebook isn't configured on the server yet (missing app credentials)."
           : status === "error"
-            ? "Something went wrong connecting Facebook. Please try again."
+            ? "Facebook couldn't be connected just now. Try again."
             : status === "forbidden"
               ? "Only the workspace owner or an admin can connect or disconnect accounts."
               : null;
@@ -136,7 +136,7 @@ export default function FacebookConnect({
           {connected ? (
             <>
               <small className="st2-ig-live">
-                <i className="st2-live-dot" /> Connected — {pageName}
+                <i className="st2-live-dot" /> Connected: {pageName}
                 {username && <> · @{username}</>}
                 {followers != null && <> · {followers.toLocaleString("en-US")} followers</>}
               </small>
@@ -148,7 +148,7 @@ export default function FacebookConnect({
             </small>
           ) : expired ? (
             <small className="st2-ig-off">
-              Facebook connection needs attention — the authorization expired.
+              Facebook connection needs attention. The authorization expired.
             </small>
           ) : choosing ? (
             <small className="st2-ig-off">Choose which Page to connect below.</small>
@@ -156,7 +156,7 @@ export default function FacebookConnect({
             offline ? (
               <small className="st2-ig-off">{OFFLINE_LABEL}. {offline}</small>
             ) : (
-              <small className="st2-ig-off">Not connected — connect a Facebook Page you manage.</small>
+              <small className="st2-ig-off">Not connected. Connect a Facebook Page you manage.</small>
             )
           )}
         </div>

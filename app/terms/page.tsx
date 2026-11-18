@@ -1,10 +1,11 @@
 import Link from "next/link";
+import LegalShell from "@/components/LegalShell";
 
 export const metadata = { title: "Terms of Service | SOCIA" };
 
 export default function TermsPage() {
   return (
-    <main className="legal-page">
+    <LegalShell>
       <h1>Terms of Service</h1>
       <p className="legal-date">Last updated: November 14, 2026</p>
 
@@ -80,6 +81,6 @@ export default function TermsPage() {
         {" · "}
         <Link href="/privacy">Privacy Policy</Link>
       </p>
-    </main>
+    </LegalShell>
   );
 }

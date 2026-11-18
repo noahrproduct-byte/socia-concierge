@@ -209,6 +209,16 @@ async function connect(req: Request, dest: ConnectDest): Promise<NextResponse> {
     // Deactivate the others FIRST: a partial unique index enforces one active
     // row per user, so activating before deactivating would violate it.
     // (Errors ignored pre-migration, where is_active doesn't exist.)
+    // The account active before this connect, so a save that fails below can
+    // hand the pointer back instead of leaving the person with none.
+    const { data: wasActive } = await connDb
+      .from("instagram_connections")
+      .select("ig_user_id")
+      .eq("user_id", ctx.ownerId)
+      .eq("is_active", true)
+      .limit(1)
+      .then((r: { data: { ig_user_id: string }[] | null }) => r, () => ({ data: null }));
+    const previousIg = wasActive?.[0]?.ig_user_id ?? null;
     await connDb
       .from("instagram_connections")
       .update({ is_active: false })
@@ -224,7 +234,21 @@ async function connect(req: Request, dest: ConnectDest): Promise<NextResponse> {
       // pre-migration shape without the new column.
       const { scopes: _scopes, ...legacy } = connRow;
       void _scopes;
-      await connDb.from("instagram_connections").upsert(legacy, { onConflict: "user_id" });
+      const { error: legacyErr } = await connDb.from("instagram_connections").upsert(legacy, { onConflict: "user_id" });
+      if (legacyErr) {
+        // Nothing was saved: never report "connected". The account that was
+        // active before stays the active one.
+        console.error("IG callback: connection not saved:", legacyErr.message ?? "unknown");
+        if (previousIg) {
+          await connDb
+            .from("instagram_connections")
+            .update({ is_active: true })
+            .eq("user_id", ctx.ownerId)
+            .eq("ig_user_id", previousIg)
+            .then(() => undefined, () => undefined);
+        }
+        return settings("error");
+      }
     }
 
     // The OWNER's profile reflects the connection.

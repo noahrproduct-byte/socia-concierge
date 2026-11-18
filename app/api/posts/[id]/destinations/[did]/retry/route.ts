@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireFeature } from "@/lib/planGuard";
 import { loadItem, updateDestination, MissingTableError, MIGRATION_MESSAGE } from "@/lib/publishing/db";
-import { publishDestination, publishNow } from "@/lib/publishing/runner";
+import { claimPlan, publishDestination, publishNow } from "@/lib/publishing/runner";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 import { publicMessage } from "@/lib/dbError";
 
@@ -46,8 +46,16 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ error: "Only a failed destination can be retried." }, { status: 409 });
     }
 
+    // An upload another run is still working on is not interrupted yet.
+    if (interrupted && claimPlan(dest, new Date()) === "busy") {
+      return NextResponse.json({ error: "SOCIA is still sending this one. Check again in a minute." }, { status: 409 });
+    }
     const nowIso = new Date().toISOString();
-    await updateDestination(ctx.client, dest.id, { status: "scheduled", scheduledAt: nowIso, errorCode: null, errorMessage: null, nextRetryAt: null, retryCount: 0 });
+    const reset = await updateDestination(ctx.client, dest.id, { status: "scheduled", scheduledAt: nowIso, errorCode: null, errorMessage: null, nextRetryAt: null, retryCount: 0 }, { ifStatus: dest.status });
+    if (!reset) {
+      const after = (await loadItem(ctx.client, id, ctx.ownerId, ctx.workspace?.id ?? null)) ?? item;
+      return NextResponse.json({ error: "This destination changed while you were retrying it. Check its status first.", item: after }, { status: 409 });
+    }
     const fresh = { ...dest, status: "scheduled" as const, scheduledAt: nowIso, errorCode: null, errorMessage: null, nextRetryAt: null, retryCount: 0 };
     const { uploads } = await publishNow(ctx.client, ctx.ownerId, item, [fresh], 40_000);
     const after = (await loadItem(ctx.client, id, ctx.ownerId, ctx.workspace?.id ?? null)) ?? item;

@@ -3,6 +3,7 @@ import { firstTooLong, tooLongResponse } from "@/lib/inputLimits";
 import { getProfile } from "@/lib/profile";
 import type { GenerateInput } from "@/lib/schema";
 import { generatePlan, PlanGenerationError } from "@/lib/planGenerate";
+import { DeadlineError, TOOK_TOO_LONG, deadlineFor, withDeadline } from "@/lib/deadline";
 import { createClient } from "@/lib/supabase/server";
 import { getIgSnapshot } from "@/lib/instagramSync";
 import { loadEvidence, type Evidence } from "@/lib/planEvidence";
@@ -115,7 +116,7 @@ async function build(ctx: Awaited<ReturnType<typeof resolveContext>>, input: Gen
     // The last two plans and what became of them, so the strategist learns
     // from what was posted, skipped, and how each post did.
     const outcomes = await recentPlanOutcomes(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null).catch(() => []);
-    evidence = await loadEvidence(ctx.client, ctx.ownerId, snap, await competitorScopeId(ctx.client, ctx.workspace?.id), { outcomes, strategy: brand?.strategy ?? null, location: brand?.location ?? null, skip });
+    evidence = await loadEvidence(ctx.client, ctx.ownerId, snap, await competitorScopeId(ctx.client, ctx.workspace?.id), { outcomes, strategy: brand?.strategy ?? null, location: brand?.location ?? null, skip, brandWorkspaceId: ctx.workspace?.id ?? null, timeZone: brand?.timezone ?? null });
     evidence.used.windows = Boolean(input.audienceWindows?.trim());
   } catch {
     // generation still works without settings or evidence
@@ -141,10 +142,14 @@ async function build(ctx: Awaited<ReturnType<typeof resolveContext>>, input: Gen
   if (u.denied) return { status: u.denied.status, body: await u.denied.json().catch(() => ({ error: "This plan can't build a Content Plan right now." })) };
 
   try {
-    const { data, saved } = await generatePlan({ client: ctx.client, ownerId: ctx.ownerId, workspaceId: ctx.workspace?.id ?? null, input, brand, evidence, onProgress: send });
+    const { data, saved } = await withDeadline(generatePlan({ client: ctx.client, ownerId: ctx.ownerId, workspaceId: ctx.workspace?.id ?? null, input, brand, evidence, onProgress: send }), deadlineFor(maxDuration));
     return { status: 200, body: { data, saved, usage: u.usage } };
   } catch (err: unknown) {
     await u.release();
+    if (err instanceof DeadlineError) {
+      console.error("[generate] stopped at our own time limit");
+      return { status: 504, body: { error: TOOK_TOO_LONG, kind: "timeout" } };
+    }
     if (err instanceof PlanGenerationError) {
       return { status: err.kind === "refusal" ? 422 : 502, body: { error: err.message } };
     }

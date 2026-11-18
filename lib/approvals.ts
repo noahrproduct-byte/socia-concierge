@@ -68,7 +68,7 @@ let enabledSince: number | null = null;
 export async function approvalsEnabled(client: Supa): Promise<boolean> {
   if (enabledSince != null) return true;
   try {
-    const { error } = await client.from("post_approvals").select("id", { head: true, count: "exact" }).limit(0);
+    const { error } = await client.from("post_approvals").select("id", { head: true }).limit(0);
     if (error) return false;
     enabledSince = Date.now();
     return true;

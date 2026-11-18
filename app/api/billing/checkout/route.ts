@@ -83,9 +83,11 @@ export async function POST(req: Request) {
       // discount and their end date are set in the Stripe Dashboard.
       payment_method_collection: "always",
       subscription_data: {
-        metadata: { user_id: user.id, plan },
+        metadata: { user_id: user.id, plan, interval },
       },
-      allow_promotion_codes: true,
+      // Promotion codes are for monthly plans only (Noah, 2026-11-17): a yearly plan already
+      // carries its own saving, and a "first payment" code would otherwise come off a whole year.
+      allow_promotion_codes: interval === "month",
       managed_payments: { enabled: true },
       success_url: fromOnboarding
         ? `${origin}/onboarding?billing=success&session_id={CHECKOUT_SESSION_ID}`

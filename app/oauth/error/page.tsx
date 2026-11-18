@@ -9,7 +9,7 @@ export const metadata = { title: "Connect an app | SOCIA", robots: { index: fals
 // can't put words on a sociaos.com page.
 const OTHER: Record<string, string> = {
   unavailable: "Connecting AI apps isn't set up on this server yet.",
-  server: "Something went wrong on SOCIA's side. Start again from the app.",
+  server: "SOCIA couldn't finish connecting the app. Nothing was shared. Start again from the app.",
 };
 
 export default async function OAuthErrorPage({ searchParams }: { searchParams: Promise<{ reason?: string }> }) {

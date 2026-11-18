@@ -149,6 +149,54 @@ export function nextAction(status: ContainerStatus | null): "wait" | "publish" |
 
 export const MAX_ATTEMPTS = 3;
 
+/**
+ * How long a publisher run may hold a post. Every caller stops within 60 s,
+ * so a `publishing` row untouched for longer has no live run behind it and
+ * the next run may pick it up.
+ */
+export const PUBLISH_LEASE_MS = 90_000;
+
+/** True while another run may still be working on this post: leave it alone. */
+export function publishHeld(p: Pick<ScheduledPost, "status" | "updated_at">, now: Date): boolean {
+  if (p.status !== "publishing" || !p.updated_at) return false;
+  const t = new Date(p.updated_at).getTime();
+  return Number.isFinite(t) && now.getTime() - t < PUBLISH_LEASE_MS;
+}
+
+/**
+ * Whether a failed publish call ends the post. Container tries and publish
+ * tries share `attempts`; a post that made its container gets MAX_ATTEMPTS
+ * publish tries on top of it.
+ */
+export function publishFailureIsFinal(attempts: number): boolean {
+  return attempts >= MAX_ATTEMPTS + 1;
+}
+
+/**
+ * Bump `attempts` from `from.attempts` to one more (plus `patch`) only while
+ * the row still has that count and status (and, with noContainer, still has
+ * no container). Two runs that read the same row race on this write; only the
+ * one whose write lands goes on to Instagram. Server only (takes the client).
+ */
+export async function claimPost(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  id: string,
+  from: { attempts: number; status: string },
+  patch: Record<string, unknown>,
+  opts: { noContainer?: boolean } = {},
+): Promise<boolean> {
+  let q = supabase
+    .from("scheduled_posts")
+    .update({ ...patch, attempts: from.attempts + 1, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("attempts", from.attempts)
+    .eq("status", from.status);
+  if (opts.noContainer) q = q.is("container_id", null);
+  const { data, error } = await q.select("id");
+  return !error && Array.isArray(data) && data.length > 0;
+}
+
 /** Instagram's 24-hour publishing cap is 100 API-published posts. SOCIA stays
  *  well inside it and reports the count rather than silently dropping posts. */
 export const DAILY_PUBLISH_CAP = 25;
