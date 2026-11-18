@@ -1781,3 +1781,4 @@
 .sd-scene-head > span { font-weight: var(--fw-semibold); color: var(--ink); }
 .sd-scene-head > small { color: var(--ink-3); }
 .sd-scene-head > button:last-child { margin-left: auto; }
+.sd-logo-thumb { width: var(--sp-10, var(--sp-8)); height: var(--sp-10, var(--sp-8)); object-fit: contain; border-radius: var(--r-control); background: var(--ink-3); }

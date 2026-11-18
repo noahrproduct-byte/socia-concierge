@@ -36,8 +36,8 @@ import type { CaptionAnimation } from "@/lib/studioClips/style";
 import { rankingBox, type RankingOverlay } from "@/lib/clipper/ranking";
 import { emphasisIndex } from "@/lib/clipper/emphasis";
 import { RankingLayer } from "./RankingLayer";
-import { SceneLayer } from "./SceneLayer";
-import { cutoutSpans, sceneSpans } from "@/lib/studioClips/scenes";
+import { SceneLayer, SPLIT_SHIFT, splitShare } from "./SceneLayer";
+import { cutoutSpans, sceneSpans, type SceneSpan } from "@/lib/studioClips/scenes";
 import { PersonCutout } from "./PersonCutout";
 import type { BuildSource, Edl, EdlText, EndCard } from "@/lib/studioClips/types";
 import { END_CARD_SEC, endLineSize } from "@/lib/studioClips/teach";
@@ -96,6 +96,9 @@ const MUSIC_FADE_IN = 6, MUSIC_FADE_OUT = 24;
 /** The ending: the frame softens behind big type in the middle (lib/studioClips/teach.ts). */
 const END_FRAMES = Math.round(END_CARD_SEC * FPS);
 const END_SOFTEN_FRAMES = 9;
+/** How long the logo holds the ending when the cut has no ending card. */
+const LOGO_END_FRAMES = Math.round(1.5 * FPS);
+const NO_SPANS: SceneSpan[] = [];
 
 /** The cut sound (public/editor-sfx, made with ffmpeg: filtered noise, no recording): half a second, led in by six frames. */
 const SFX_WHOOSH = "/editor-sfx/whoosh.m4a";
@@ -657,6 +660,53 @@ function Watermark({ url }: { url: string }) {
   return <Img src={url} style={{ position: "absolute", right: width - (zone.x + zone.width), top: zone.y, width: size, height: size, objectFit: "contain", opacity: 0.85 }} pauseWhenLoading />;
 }
 
+/** The cut's logo in the top-right corner, inside the safe zone; it steps aside for the ending. */
+export function LogoCorner({ src, until }: { src: string; until: number }) {
+  const f = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  const zone = safeZoneFor(width, height);
+  const size = Math.round(120 * (width / 1080));
+  const opacity = interpolate(f, [0, 8, until - 6, until], [0, 0.92, 0.92, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  return <Img src={src} style={{ position: "absolute", right: width - (zone.x + zone.width), top: zone.y, width: size, height: size, objectFit: "contain", objectPosition: "right top", opacity }} />;
+}
+
+/**
+ * The logo on the ending. With an ending card it lands above the card's lines; on its own the picture
+ * dims and the logo lands in the middle with the brand's name under it and a rule drawn in the accent.
+ */
+export function LogoEnding({ src, name, accent, withCard, fontFamily }: { src: string; name?: string; accent: string; withCard: boolean; fontFamily: string }) {
+  const f = useCurrentFrame();
+  const { fps, width, height } = useVideoConfig();
+  const s = width / 1080;
+  const land = spring({ frame: f - 2, fps, config: { damping: 13, stiffness: 150 }, durationInFrames: 18 });
+  const seen = Math.min(1, Math.max(0, (f - 2) / 4));
+  if (withCard) {
+    const size = 230 * s;
+    return <Img src={src} style={{ position: "absolute", left: (width - size) / 2, top: height * 0.16, width: size, height: size, objectFit: "contain", opacity: seen, transform: `translateY(${(1 - land) * -30 * s}px) scale(${0.7 + 0.3 * land})` }} />;
+  }
+  const size = 380 * s;
+  const rule = interpolate(f, [12, 26], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  return (
+    <AbsoluteFill>
+      <AbsoluteFill style={{ backgroundColor: "#000", opacity: interpolate(f, [0, 10], [0, 0.62], { extrapolateRight: "clamp" }) }} />
+      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", flexDirection: "column", paddingBottom: "6%" }}>
+        <Img src={src} style={{ width: size, height: size, objectFit: "contain", opacity: seen, transform: `scale(${0.6 + 0.4 * land})` }} />
+        <div style={{ marginTop: 34 * s, width: 220 * s * rule, height: Math.max(3, Math.round(7 * s)), borderRadius: 999, backgroundColor: accent }} />
+        {name && <div style={{ marginTop: 30 * s, fontFamily, fontWeight: 800, fontSize: 62 * s, letterSpacing: `${0.06 * 62 * s}px`, textTransform: "uppercase", color: "#fff", textAlign: "center", maxWidth: "84%", opacity: interpolate(f, [16, 26], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }), transform: `translateY(${interpolate(f, [16, 26], [16, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }) * s}px)` }}>{name}</div>}
+      </AbsoluteFill>
+    </AbsoluteFill>
+  );
+}
+
+/** Split screen: while a graphic scene holds the top of the frame, the picture sits lower so the person stays in view under the panel. */
+function PictureShift({ spans, children }: { spans: SceneSpan[]; children: React.ReactNode }) {
+  const f = useCurrentFrame();
+  const { fps, height } = useVideoConfig();
+  if (!spans.length) return <>{children}</>;
+  const share = spans.reduce((m, sp) => (f >= sp.from && f < sp.from + sp.durationInFrames ? Math.max(m, splitShare(f - sp.from, sp.durationInFrames, fps)) : m), 0);
+  return <AbsoluteFill style={{ transform: `translateY(${Math.round(share * SPLIT_SHIFT * height)}px)` }}>{children}</AbsoluteFill>;
+}
+
 export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, captionsOn, ranking, captionWords, emphasis, finishOn, musicUrl, voiceUrls, cleanAudio, safeZoneGuide, watermarkUrl, preview, beat }) => {
   const { fps, width, height } = useVideoConfig();
   const style = edl.style ?? DEFAULT_STYLE;
@@ -724,7 +774,9 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
   // Graphic scenes (lib/studioClips/scenes.ts): each sits where the word it is anchored to is now.
   const scenes = useMemo(() => sceneSpans(edl, words, fps), [edl, words, fps]);
   // With the scenes behind the person: the stretch of each cut a scene runs over, where the person is drawn again on top.
-  const cutouts = useMemo(() => (edl.scenesBehind ? cutoutSpans(scenes, tl.segments) : []), [edl.scenesBehind, scenes, tl]);
+  const split = Boolean(edl.scenesSplit);
+  const cutouts = useMemo(() => (edl.scenesBehind && !split ? cutoutSpans(scenes, tl.segments) : []), [edl.scenesBehind, split, scenes, tl]);
+  const logo = edl.logo;
   // With ducking on, the music sits low under speech and comes up between (lib/studioClips/musicDuck.ts).
   const spoken = useMemo(() => (music?.duck ? speechSpans(edl, words) : []), [music?.duck, edl, words]);
   // A voiceover (lib/studioClips/voiceover.ts): its voiced lines play where they sit, and the
@@ -737,6 +789,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
   return (
     <PreviewCtx.Provider value={Boolean(preview)}>
     <AbsoluteFill style={{ backgroundColor: "#000", fontFamily }}>
+      <PictureShift spans={split ? scenes : NO_SPANS}>
       {tl.segments.map((s, i) => {
         const src = sources[s.clipId];
         if (!src) return null;
@@ -812,6 +865,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
           </Sequence>
         );
       })}
+      </PictureShift>
       {bars > 0 && <Letterbox px={bars} />}
       {theme?.layout.progressBar && <ProgressBar total={tl.durationFrames} color={theme.color.accent} />}
       {hasLowerThird && theme && edl.lowerThird && (
@@ -820,7 +874,9 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
         </Sequence>
       )}
       {theme?.layout.dateStamp && <Sequence from={0} durationInFrames={tl.durationFrames} name="rec"><DateStamp fontFamily={fontFamily} color={theme.color.text} hideFrames={edl.text.filter((t) => t.text.trim()).map((t) => [secToFrames(t.at), secToFrames(t.end)] as [number, number])} /></Sequence>}
-      {theme?.layout.watermark && watermarkUrl && <Watermark url={watermarkUrl} />}
+      {logo?.corner
+        ? <Sequence from={0} durationInFrames={tl.durationFrames} name="logo"><LogoCorner src={logo.src} until={logo.ending ? Math.max(8, tl.durationFrames - LOGO_END_FRAMES) : tl.durationFrames + 99} /></Sequence>
+        : theme?.layout.watermark && watermarkUrl && <Watermark url={watermarkUrl} />}
       {music && (
         <Sequence from={0} durationInFrames={tl.durationFrames} name="soundtrack">
           <Audio
@@ -848,7 +904,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
       {ranking && <RankingLayer ranking={ranking} fontFamily={fontFamily} />}
       {scenes.map((sp) => (
         <Sequence key={sp.scene.id} from={sp.from} durationInFrames={sp.durationInFrames} name={`scene · ${sp.scene.kind}`}>
-          <SceneLayer span={sp} fontFamily={fontFamily} accent={theme?.color.accent ?? style.accent} low={style.captions.position === "top"} />
+          <SceneLayer span={sp} fontFamily={fontFamily} accent={theme?.color.accent ?? style.accent} low={style.captions.position === "top"} split={split} />
         </Sequence>
       ))}
       {cutouts.map((c) => {
@@ -874,6 +930,11 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
       {card && (
         <Sequence from={Math.max(0, tl.durationFrames - END_FRAMES + END_SOFTEN_FRAMES)} premountFor={PREMOUNT_FRAMES} name="ending">
           <EndCardLayer card={card} width={width} accent={theme?.color.accent} variant={theme?.layout.outro === "lockup" ? "lockup" : "cta"} scriptFamily={scriptFamily} />
+        </Sequence>
+      )}
+      {logo?.ending && tl.durationFrames > LOGO_END_FRAMES + 20 && (
+        <Sequence from={card ? Math.max(0, tl.durationFrames - END_FRAMES + END_SOFTEN_FRAMES) : tl.durationFrames - LOGO_END_FRAMES} premountFor={PREMOUNT_FRAMES} name="logo ending">
+          <LogoEnding src={logo.src} name={logo.name} accent={theme?.color.accent ?? style.accent} withCard={Boolean(card)} fontFamily={fontFamily} />
         </Sequence>
       )}
       {safeZoneGuide && <SafeZoneLayer width={width} height={height} />}

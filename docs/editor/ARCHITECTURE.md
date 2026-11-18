@@ -145,9 +145,21 @@ A scene is anchored to the word it starts on (`captionKey`: the clip and the wor
 
 The card stays in front, with nothing drawn, where: no one is found in the frame; the browser can't run the segmenter or its files are missing; the picture's size is unknown or the frame moves on a path (the AI Clipper); the cut's speed was changed; the clip carries a measured colour correction (`edl.finish`), which the cut-out could not match.
 
-**The model file is not in the repository yet.** `public/mediapipe/selfie_segmenter.tflite` (about 250 KB, from MediaPipe's model page) has to be added, or `NEXT_PUBLIC_SEGMENTER_MODEL` set to where it is served. In development, while it is missing, the model is read from Google's own bucket; in production without it the graphics simply stay in front (and the site's `connect-src` does not allow the bucket).
+**The model file is in the repository** at `public/mediapipe/selfie_segmenter.tflite` (about 250 KB, MediaPipe's selfie segmenter, added 2026-11-18), so production loads it from the site itself. `NEXT_PUBLIC_SEGMENTER_MODEL` can point somewhere else. Not seen: the model loading on the deployed site.
 
 Seen running (2026-11-18) at `/dev/cutout-lab` on a real talking clip (`public/dev-talk.mp4`, kept out of the repository): the same picture in the Player and in a browser render, an 8 s clip rendered in under 4 s. Not seen: a cut with a moving frame, a graded theme in the export, a long clip, a phone.
+
+## Icons, split screen and the logo (2026-11-18)
+
+Three additions to the graphics, all drawn by the same composition so the Player and the export match.
+
+**Icons.** A figure, a before-and-after or a key line can carry a small line drawing on an accent disc (`lib/studioClips/sceneIcons.ts`: fifteen icons, each a few shapes on a 24 grid, drawn as SVG by `SceneLayer`). `findScenes` picks one by rule from the card's own words (`iconFor`: a currency sign or "price" is money, "seconds" is time, and so on) and picks none when no rule matches. `EdlScene.icon` is kept by `sanitizeScenes` only when it names a known icon. The person changes it or takes it off per card in the Words tool. Lists carry no icon; their rows have numbers.
+
+**Split screen.** `edl.scenesSplit` turns every scene into a panel across the top 40% of the frame (`SPLIT_PANEL`), and the whole picture (shots and b-roll, wrapped in `PictureShift` in `ClipComposition`) moves down 20% of the frame (`SPLIT_SHIFT`) while a panel is up, so the middle of the shot stays in view under it. Panel and picture move on the same curve (`splitShare`). The bottom fifth of the picture is off the frame for those seconds; captions and other overlays do not move. Split screen and behind-the-person are one choice of three (`revalidateEdl` keeps split when both are set). A corner logo is covered by the panel while one is up.
+
+**Logo.** `edl.logo` is `{ src, name?, corner?, ending? }` (`EdlLogo` in `types.ts`). `src` is a PNG data URL made in the browser from the picked image (`lib/studioClips/logoImage.ts`: fitted to 360 px, stepped smaller until under `LOGO_MAX_CHARS`, 150,000 characters), so the logo travels with the cut and needs no storage or upload route. `sanitizeLogo` drops anything that is not a PNG, JPEG or WebP data URL, is over the limit, or shows nowhere. Cost: up to about 150 KB more in that build's `edl` JSON, sent with each save. `corner` shows it top-right for the whole video (it takes the theme watermark's place) and fades before the ending; `ending` lands it above the ending card's lines, or, without an ending card, dims the last 1.5 s and lands it in the middle with the name under it. The controls are the Logo card in the Words tool (`components/studio/LogoPanel.tsx`). The one-drop screen offers the layout (behind, card, split) but not the logo.
+
+Seen running (2026-11-18): icons, split screen and both logo scenes in `/dev/scene-lab`; split screen with an icon, the corner logo and the logo ending in a browser-rendered file at `/dev/cutout-lab`. Not seen: the Logo card or the layout and icon controls used in the real editor (needs a signed-in session), a logo picked from a real file, split screen on a multi-clip cut or with b-roll, a phone.
 
 The one-talking-clip path was also run in the lab (`/dev/studio-lab?screen=edit&fresh=1`: the project starts empty and the clip's words are stand-ins): drop, 8.0 s to 6.8 s, captions on, render, Compare with raw. The lab now answers storage uploads itself whatever the Supabase keys are, so a dropped file completes without an account.
 

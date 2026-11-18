@@ -18,6 +18,7 @@ import { isEditStyle } from "./profiles";
 import { readEmphasis } from "@/lib/clipper/emphasis";
 import { sanitizeCaptionOverrides } from "./captionMotion";
 import { sanitizeScenes } from "./scenes";
+import { sanitizeLogo } from "./types";
 
 /** The most highlighted words a cut keeps. */
 const MAX_EMPHASIS = 40;
@@ -385,7 +386,10 @@ export function revalidateEdl(edited: Edl, clips: ClipForEdl[]): { edl: Edl; war
   // Graphic scenes (lib/studioClips/scenes.ts), bounded, for the clips still in the cut.
   const scenes = sanitizeScenes(edited.scenes, new Set(r.edl.segments.map((s) => s.clipId)));
   if (scenes) r.edl.scenes = scenes;
-  if (scenes && edited.scenesBehind === true) r.edl.scenesBehind = true;
+  if (scenes && edited.scenesSplit === true) r.edl.scenesSplit = true;
+  else if (scenes && edited.scenesBehind === true) r.edl.scenesBehind = true;
+  const logo = sanitizeLogo(edited.logo);
+  if (logo) r.edl.logo = logo;
   if (typeof edited.lookAuto === "string" && !Number.isNaN(Date.parse(edited.lookAuto))) r.edl.lookAuto = new Date(edited.lookAuto).toISOString();
   return r;
 }

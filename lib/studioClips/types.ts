@@ -390,7 +390,26 @@ export type Edl = {
   scenes?: EdlScene[];
   /** The graphic scenes sit behind the person talking, who is cut out of the shot in the browser (lib/studioClips/matte.ts). Absent = in front. */
   scenesBehind?: true;
+  /** The graphic scenes take the top of the frame as a panel of their own and the picture moves down under them while one is up. Absent = a card over the picture. */
+  scenesSplit?: true;
+  /** The brand's logo on this cut (a small image kept with the cut): in the corner throughout, and/or on the ending. */
+  logo?: EdlLogo;
 };
+
+/** A logo kept with the cut: a PNG, JPEG or WebP made small in the browser (components/studio/LogoPanel.tsx), as a data URL. */
+export type EdlLogo = { src: string; name?: string; corner?: true; ending?: true };
+/** The longest a logo's data URL may be (about 110 KB of image). */
+export const LOGO_MAX_CHARS = 150_000;
+const LOGO_SRC = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/;
+/** A logo from anywhere (the browser, stored JSON), bounded; undefined when it is not one or shows nowhere. */
+export function sanitizeLogo(v: unknown): EdlLogo | undefined {
+  if (!v || typeof v !== "object") return undefined;
+  const o = v as Record<string, unknown>;
+  if (typeof o.src !== "string" || o.src.length > LOGO_MAX_CHARS || !LOGO_SRC.test(o.src)) return undefined;
+  if (o.corner !== true && o.ending !== true) return undefined;
+  const name = typeof o.name === "string" ? o.name.replace(/\u2014/g, ",").replace(/\s+/g, " ").trim().slice(0, 40) : "";
+  return { src: o.src, ...(name ? { name } : {}), ...(o.corner === true ? { corner: true as const } : {}), ...(o.ending === true ? { ending: true as const } : {}) };
+}
 
 /** A theme by id, and the person's overrides as a diff on top of it (a partial Theme, lib/studioClips/themes/schema.ts). */
 export type EdlTheme = { id: string; overrides?: Record<string, unknown> };

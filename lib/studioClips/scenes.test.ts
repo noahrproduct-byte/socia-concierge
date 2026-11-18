@@ -131,3 +131,35 @@ describe("behind the person", () => {
     expect(alphaOf(0.525)).toBeLessThan(160);
   });
 });
+
+import { iconFor, isSceneIcon } from "./sceneIcons";
+import { sanitizeLogo, LOGO_MAX_CHARS } from "./types";
+
+describe("scene icons", () => {
+  it("picks the icon the card's own words call for, or none", () => {
+    expect(iconFor("$1,500 saved")).toBe("money");
+    expect(iconFor("40% more orders")).toBe("percent");
+    expect(iconFor("200 burgers a day")).toBe("food");
+    expect(iconFor("38 seconds")).toBe("time");
+    expect(iconFor("12 widgets")).toBeUndefined();
+  });
+  it("keeps a known icon on a card and drops anything else", () => {
+    const base = { id: "g1", kind: "stat", key: "a@0", dur: 2, text: "200", label: "burgers" };
+    expect(sanitizeScenes([{ ...base, icon: "food" }], new Set(["a"]))?.[0].icon).toBe("food");
+    expect(sanitizeScenes([{ ...base, icon: "rocket" }], new Set(["a"]))?.[0].icon).toBeUndefined();
+    expect(isSceneIcon("constructor")).toBe(false);
+  });
+});
+
+describe("the cut's logo", () => {
+  const src = "data:image/png;base64,iVBORw0KGgo=";
+  it("keeps a small image with where it shows", () => {
+    expect(sanitizeLogo({ src, corner: true, ending: true, name: "  Osh   Grill " })).toEqual({ src, name: "Osh Grill", corner: true, ending: true });
+  });
+  it("drops what is not an image, is too large, or shows nowhere", () => {
+    expect(sanitizeLogo({ src: "https://example.com/logo.png", corner: true })).toBeUndefined();
+    expect(sanitizeLogo({ src: "data:text/html;base64,AAAA", corner: true })).toBeUndefined();
+    expect(sanitizeLogo({ src: `data:image/png;base64,${"A".repeat(LOGO_MAX_CHARS)}`, corner: true })).toBeUndefined();
+    expect(sanitizeLogo({ src })).toBeUndefined();
+  });
+});

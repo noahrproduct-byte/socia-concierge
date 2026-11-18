@@ -12,6 +12,7 @@
 // through trims and moves, and goes when its words are cut out. Pure,
 // unit-tested (scenes.test.ts). Drawn by components/studio/remotion/SceneLayer.tsx.
 import { captionKey } from "./captionMotion";
+import { iconFor, isSceneIcon, type SceneIconId } from "./sceneIcons";
 import { captionsForEdl, FPS, timeline, type CaptionLike } from "./timeline";
 import type { Edl, TranscriptWord } from "./types";
 
@@ -32,6 +33,8 @@ export type EdlScene = {
   label?: string;
   /** steps: the rows, in the order said */
   items?: SceneItem[];
+  /** a small line drawing that says what the card is about (lib/studioClips/sceneIcons.ts); not on a list */
+  icon?: SceneIconId;
 };
 
 export const MAX_SCENES = 6;
@@ -212,7 +215,12 @@ export function findScenes(edl: Edl, words: Record<string, TranscriptWord[] | nu
     if (taken.some((t) => (f.at >= t.at ? f.at < t.at + t.dur + GAP_SEC : t.at < f.at + f.dur + GAP_SEC))) continue;
     taken.push(f);
   }
-  return taken.sort((x, y) => x.at - y.at).map(({ at: _at, rank: _rank, ...s }, i) => { void _at; void _rank; return { ...s, id: `g${i + 1}` }; });
+  return taken.sort((x, y) => x.at - y.at).map(({ at: _at, rank: _rank, ...s }, i) => {
+    void _at; void _rank;
+    // The icon the card's own words call for (none on a list, whose rows carry their numbers).
+    const icon = s.kind === "steps" ? undefined : iconFor(`${s.text} ${s.label ?? ""}`);
+    return { ...s, id: `g${i + 1}`, ...(icon ? { icon } : {}) };
+  });
 }
 
 export type SceneSpan = { scene: EdlScene; from: number; durationInFrames: number; /** steps: the frame each row lands on, counted from `from`; a row whose words were cut is left out */ rows: { text: string; at: number }[] };
@@ -272,6 +280,7 @@ export function sanitizeScenes(v: unknown, clipIds: Set<string>): EdlScene[] | u
     const scene: EdlScene = { id: `g${out.length + 1}`, kind, key: o.key, dur: r2(Math.min(STEPS_MAX_SEC, Math.max(0.8, o.dur))), text: str(o.text, SCENE_TEXT_MAX) };
     if (kind === "stat" || kind === "change") { const label = str(o.label, SCENE_LABEL_MAX); if (label) scene.label = label; }
     if (kind === "change") { const was = str(o.was, SCENE_TEXT_MAX); if (!was) continue; scene.was = was; }
+    if (kind !== "steps" && isSceneIcon(o.icon)) scene.icon = o.icon;
     if (kind === "steps") {
       const items = (Array.isArray(o.items) ? o.items : []).flatMap((it) => { const r = it as Record<string, unknown> | null; const text = str(r?.text, SCENE_TEXT_MAX); return r && okKey(r.key) && text ? [{ key: r.key, text }] : []; }).slice(0, SCENE_ITEMS_MAX);
       if (items.length < 2) continue;

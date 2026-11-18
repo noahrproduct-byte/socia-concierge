@@ -76,6 +76,8 @@ export type QuickOptions = {
   scenes?: boolean;
   /** the graphics sit behind the person talking (the person is cut out of the shot in the browser) */
   behind?: boolean;
+  /** split screen: the graphics take the top of the frame and the picture moves down under them */
+  split?: boolean;
   /** the beat of the music in the cut, when it has music with a steady beat: cuts land on it */
   beat?: Beat | null;
 };
@@ -88,11 +90,12 @@ function finish(cut: Edl, notes: string[], sources: BuildSource[], words: WordsB
     if (r.moved) { out = r.edl; notes.push(`${r.moved} of ${r.total} cut${r.total === 1 ? "" : "s"} moved onto the beat of the music (${Math.round(r.bpm)} BPM).`); }
   }
   // The scenes keep clear of the lines the look just placed, so they are found on the finished cut.
-  const { scenes: _old, scenesBehind: _was, ...rest } = out; void _old; void _was;
+  const { scenes: _old, scenesBehind: _was, scenesSplit: _split, ...rest } = out; void _old; void _was; void _split;
   const scenes = opts.scenes ? findScenes(rest, words) : [];
   if (scenes.length) notes.push(sceneNote(scenes));
-  if (scenes.length && opts.behind) notes.push("The graphics sit behind the person talking, wherever the two cross.");
-  return { edl: scenes.length ? { ...rest, scenes, ...(opts.behind ? { scenesBehind: true as const } : {}) } : rest, notes };
+  if (scenes.length && opts.split) notes.push("Split screen: each graphic takes the top of the frame and the picture moves down under it.");
+  else if (scenes.length && opts.behind) notes.push("The graphics sit behind the person talking, wherever the two cross.");
+  return { edl: scenes.length ? { ...rest, scenes, ...(opts.split ? { scenesSplit: true as const } : opts.behind ? { scenesBehind: true as const } : {}) } : rest, notes };
 }
 
 /** The cut SOCIA makes of one raw talking clip in one go, in the given look, with a line for each thing it did. */

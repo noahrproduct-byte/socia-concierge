@@ -25,6 +25,7 @@ import VoiceoverCard from "./VoiceoverCard";
 import FinishPanel from "./FinishPanel";
 import TextLayersPanel from "./TextLayersPanel";
 import ScenesPanel from "./ScenesPanel";
+import LogoPanel from "./LogoPanel";
 import { findScenes, sceneSpans } from "@/lib/studioClips/scenes";
 import { useSafeZoneGuide } from "./TextOverlay";
 import Timeline, { editorKey, type TimelineSelection } from "./Timeline";
@@ -1247,11 +1248,17 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                 spans={sceneSpans(edl, applyCtx.words)}
                 disabled={!data.canEdit || busy}
                 hasWords={anySpeech}
-                behind={Boolean(edl.scenesBehind)}
-                onBehind={(on) => { const { scenesBehind: _old, ...rest } = edl; commit(on ? { ...rest, scenesBehind: true } : rest); }}
-                onChange={(scenes) => { const { scenes: _old, scenesBehind: _b, ...rest } = edl; commit(scenes.length ? { ...rest, scenes, ...(edl.scenesBehind ? { scenesBehind: true as const } : {}) } : rest); }}
+                place={edl.scenesSplit ? "split" : edl.scenesBehind ? "behind" : "over"}
+                onPlace={(p) => { const { scenesBehind: _old, scenesSplit: _s, ...rest } = edl; commit(p === "split" ? { ...rest, scenesSplit: true } : p === "behind" ? { ...rest, scenesBehind: true } : rest); }}
+                onChange={(scenes) => { const { scenes: _old, scenesBehind: _b, scenesSplit: _s, ...rest } = edl; commit(scenes.length ? { ...rest, scenes, ...(edl.scenesSplit ? { scenesSplit: true as const } : edl.scenesBehind ? { scenesBehind: true as const } : {}) } : rest); }}
                 onFind={() => { const { scenes: _old, ...rest } = edl; const found = findScenes(rest, applyCtx.words); commit(found.length ? { ...rest, scenes: found } : rest); return found.length; }}
                 onShow={(span) => { const p = player.current; if (p) { p.pause(); p.seekTo(Math.min(tl.durationFrames - 1, span.from + 12)); } }}
+              />
+              <LogoPanel
+                logo={edl.logo}
+                disabled={!data.canEdit || busy}
+                hasEndCard={Boolean(edl.endCard)}
+                onChange={(logo) => { const { logo: _old, ...rest } = edl; commit(logo ? { ...rest, logo } : rest); }}
               />
               <div className="ov-card cbb-caption-copy">
                 <b><Type size={14} /> Lower third</b>
