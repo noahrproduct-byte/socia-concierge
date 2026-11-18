@@ -167,6 +167,9 @@ export default function DiscoverPage({ d }: { d: DiscoverData }) {
       if (j.nextRefreshAt) {
         const at = new Date(j.nextRefreshAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
         setFound(`SOCIA looked less than an hour ago, so these are the newest. You can look again after ${at}.`);
+        // That look may have finished after this page loaded (it also runs after setup): show it and read its accounts.
+        router.refresh();
+        startRead();
         return;
       }
       if (!j.ranAt) { setFound("Add what your business does in Settings so SOCIA knows what to look for."); return; }
@@ -247,7 +250,7 @@ export default function DiscoverPage({ d }: { d: DiscoverData }) {
 
       <CopyFrom accounts={d.copyFrom} limit={d.limit} onChanged={startRead} />
 
-      <ReelsToCopy d={{ nicheAccess: d.nicheAccess, nicheUpgrade: d.nicheUpgrade, now: d.now, reelsToCopy: d.reelsToCopy, nicheReels: d.nicheReels, styleReels: d.styleReels, ownStyle: d.ownStyle, viralFrom: d.viralFrom, reelsRead: d.reelsRead, ytConfigured: d.ytConfigured, ig: { enabled: d.igEnabled } }} />
+      <ReelsToCopy d={{ nicheAccess: d.nicheAccess, nicheUpgrade: d.nicheUpgrade, now: d.now, reelsToCopy: d.reelsToCopy, nicheReels: d.nicheReels, styleReels: d.styleReels, ownStyle: d.ownStyle, viralFrom: d.viralFrom, viralWho: d.viralWho, reelsRead: d.reelsRead, ytConfigured: d.ytConfigured, ig: { enabled: d.igEnabled } }} />
 
       <section ref={sugRef} className="ov-card cx2-card" aria-labelledby="dsc-sug">
         <div className="cx2-card-head">
