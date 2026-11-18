@@ -220,7 +220,7 @@ export function CompetitorSection({ data }: { data: Deliverable }) {
         <h3>Patterns that work for them</h3>
         {comps.map((c, i) => (
           <div className="cpl-item" key={i}>
-            <h4>{c.competitor}</h4>
+            <h4>{c.competitor}{c.basis === "general" && <span className="cpl-src"> General pattern, not measured</span>}</h4>
             <div className="cpl-item-meta">
               <b>What&apos;s working:</b> {c.whatsWorking}
               <br />

@@ -2,7 +2,7 @@
 // by the Content Plan page (a person clicks "Generate") and the Monday job
 // (SOCIA generates the coming week by itself). Usage metering and permission
 // checks happen in the callers; this only produces and stores the plan.
-import { normalizePlanItem, withItemIds } from "./planItems";
+import { cleanEvidenceSplit, normalizePlanItem, withItemIds } from "./planItems";
 import { planHeadline } from "./planHeadline";
 import { pickRef } from "./trendSignals";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -100,7 +100,18 @@ export async function generatePlanData(input: GenerateInput, brand: BrandDetail 
   // A post's "reference" is an id from the Reels the strategist was shown: SOCIA swaps it for that Reel's own link and numbers.
   const proven = evidence?.proven ?? [];
   data.headline = planHeadline(data.headline);
-  data.weeklyPlan = withItemIds((data.weeklyPlan ?? []).map((p) => normalizePlanItem({ ...p, ref: pickRef(p.reference, proven) ?? undefined })));
+  // The account's own posts the model cited (P#) become their links and numbers; the ids it may cite are the ones it was shown.
+  const own = evidence?.ownPosts ?? [];
+  const known = new Set([...own.map((o) => o.id), ...proven.map((r) => r.id)]);
+  data.weeklyPlan = withItemIds((data.weeklyPlan ?? []).map((p) => {
+    const cited = (p as { ownRefs?: unknown }).ownRefs;
+    const ownPosts = Array.isArray(cited) ? own.filter((o) => cited.some((c) => typeof c === "string" && c.trim().toUpperCase() === o.id)).slice(0, 4) : [];
+    const { ownRefs: _drop, ...rest } = p as typeof p & { ownRefs?: unknown };
+    void _drop;
+    return normalizePlanItem({ ...rest, ref: pickRef(p.reference, proven) ?? undefined, ownPosts: ownPosts.length ? ownPosts : undefined, evidenceSplit: cleanEvidenceSplit(p.evidenceSplit, known) });
+  }));
+  // A competitor insight that names an account SOCIA never read is general knowledge: it says so, and names no one.
+  data.competitorInsights = (data.competitorInsights ?? []).map((c) => (c.basis === "general" || !evidence?.competitorsBlock ? { ...c, basis: "general" as const } : { ...c, basis: "measured" as const }));
   // Animated posts on top of the filmed ones (lib/animated/planPosts.ts): the number chosen for this week
   // (lib/planMix.ts), or, when none was given, the brand's setting of one or two a day.
   if (input.animated != null ? input.animated > 0 : brand?.animated?.on) {

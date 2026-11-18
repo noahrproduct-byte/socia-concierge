@@ -3,7 +3,8 @@
 // names none). Older saved plans lack the newer fields; readers treat them
 // as optional. Pure.
 
-import type { Deliverable, PlanBeat, PlanDecision } from "./schema";
+import type { Deliverable, EvidenceSplit, PlanBeat, PlanDecision } from "./schema";
+import type { OwnPostRef } from "./planEvidenceFormat";
 import { sanitizeGuide } from "./studioGuide";
 import { isExperimentId } from "./strategy";
 import { sanitizeRef } from "./trendSignals";
@@ -75,13 +76,60 @@ export function cleanBeats(v: unknown): PlanBeat[] | undefined {
     const b = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
     const label = clip(b.label as string, 40);
     const show = clip(b.show as string, 220);
+    const say = clip(b.say as string, 240);
     const from = Math.max(0, Math.min(180, Math.round(Number(b.from))));
     const to = Math.max(0, Math.min(180, Math.round(Number(b.to))));
     if (!label || !show || !Number.isFinite(from) || !Number.isFinite(to) || to <= from) continue;
     if (out.length && from < out[out.length - 1].from) continue;
-    out.push({ label, from, to, show });
+    out.push({ label, from, to, show, ...(say ? { say } : {}) });
   }
   return out.length >= 2 ? out : undefined;
+}
+
+/** The ids an observed line may cite: P# for the account's own posts, R# for niche Reels. */
+const CITED = /\b[PR]\d{1,2}\b/g;
+
+/**
+ * A post's evidence in its three kinds, made safe. With `known` (the ids the
+ * model was shown), an observed line is kept only when every id it cites is
+ * one of them and it cites at least one: a "fact" with no source isn't kept as
+ * a fact. With no observed line left, the basis can't be "data". Pure.
+ */
+export function cleanEvidenceSplit(v: unknown, known?: Set<string>): EvidenceSplit | undefined {
+  if (!v || typeof v !== "object") return undefined;
+  const o = v as Record<string, unknown>;
+  const lines = Array.isArray(o.observed) ? o.observed : [];
+  const observed = lines.slice(0, 6).flatMap((l) => {
+    const t = clip(l as string, 240);
+    if (!t) return [];
+    if (!known) return [t];
+    const ids = t.toUpperCase().match(CITED) ?? [];
+    return ids.length && ids.every((id) => known.has(id)) ? [t] : [];
+  }).slice(0, 4);
+  const reading = clip(o.reading as string, 400) ?? "";
+  const expect = clip(o.expect as string, 300) ?? "";
+  let basis: EvidenceSplit["basis"] = o.basis === "thin" || o.basis === "experiment" ? o.basis : "data";
+  if (basis === "data" && !observed.length) basis = "thin";
+  if (!observed.length && !reading && !expect) return undefined;
+  return { observed, reading, expect, basis };
+}
+
+const nn = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.round(v) : null);
+
+/** One of the account's own posts as a plan post cites it, read back bounded; null when it isn't one. */
+export function sanitizeOwnPost(v: unknown): OwnPostRef | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  if (typeof o.id !== "string" || !/^P\d{1,2}$/.test(o.id)) return null;
+  const url = typeof o.url === "string" && /^https:\/\/[^\s"'<>]+$/.test(o.url) && o.url.length <= 400 ? o.url : null;
+  return {
+    id: o.id, url,
+    date: typeof o.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(o.date) ? o.date : null,
+    title: clip(o.title as string, 80) ?? "(no caption)",
+    format: clip(o.format as string, 20) ?? "Post",
+    likes: nn(o.likes) ?? 0, comments: nn(o.comments) ?? 0,
+    views: nn(o.views), reach: nn(o.reach), saved: nn(o.saved), shares: nn(o.shares),
+  };
 }
 
 export function normalizePlanItem(p: PlanItem): PlanItem {
@@ -96,6 +144,10 @@ export function normalizePlanItem(p: PlanItem): PlanItem {
     production: clip(p.production, 300),
     beats: cleanBeats(p.beats),
     successMetric: clip(p.successMetric, 160),
+    cta: clip(p.cta, 200),
+    editing: clip(p.editing, 300),
+    evidenceSplit: cleanEvidenceSplit(p.evidenceSplit),
+    ownPosts: Array.isArray(p.ownPosts) ? p.ownPosts.map(sanitizeOwnPost).filter((x): x is OwnPostRef => x != null).slice(0, 4) : undefined,
     experiment: isExperimentId(p.experiment) ? p.experiment : undefined,
     // The model's cited id never reaches a saved plan; the Reel it named does, bounded.
     reference: undefined,
@@ -114,7 +166,7 @@ export function sanitizePlanItems(items: unknown[]): PlanItem[] {
     const r = raw as Record<string, unknown>;
     const core = Object.fromEntries(Object.entries(CORE).map(([k, n]) => [k, typeof r[k] === "string" ? (r[k] as string).slice(0, n) : ""])) as Pick<PlanItem, "day" | "concept" | "hook" | "format" | "rationale" | "evidence" | "predictedPerformance">;
     if (!core.day || !core.concept) return [];
-    const item = normalizePlanItem({ ...core, title: r.title as string, purpose: r.purpose as string, audience: r.audience as string, platform: r.platform as string, direction: r.direction as string, production: r.production as string, successMetric: r.successMetric as string, beats: r.beats as PlanItem["beats"], experiment: r.experiment as string, maker: r.maker as PlanItem["maker"], ref: r.ref as PlanItem["ref"], animated: r.animated as boolean, slot: r.slot as PlanItem["slot"] });
+    const item = normalizePlanItem({ ...core, title: r.title as string, purpose: r.purpose as string, audience: r.audience as string, platform: r.platform as string, direction: r.direction as string, production: r.production as string, successMetric: r.successMetric as string, cta: r.cta as string, editing: r.editing as string, evidenceSplit: r.evidenceSplit as PlanItem["evidenceSplit"], ownPosts: r.ownPosts as PlanItem["ownPosts"], beats: r.beats as PlanItem["beats"], experiment: r.experiment as string, maker: r.maker as PlanItem["maker"], ref: r.ref as PlanItem["ref"], animated: r.animated as boolean, slot: r.slot as PlanItem["slot"] });
     const decision = cleanDecision(r.decision);
     const guide = sanitizeGuide(r.guide, new Date());
     return [{ ...item, ...(isItemId(r.id) ? { id: r.id } : {}), ...(r.source === "own" ? { source: "own" as const } : {}), ...(decision ? { decision } : {}), ...(guide ? { guide } : {}) }];
