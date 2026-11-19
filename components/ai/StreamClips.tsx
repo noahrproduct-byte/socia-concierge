@@ -5,7 +5,10 @@
 // shown is what the watcher really saw: live or not from Twitch, messages read,
 // when it last checked in. Nothing here animates to look busy.
 import { useCallback, useEffect, useState } from "react";
-import { ExternalLink, Loader2, Radio, Square, Trash2 } from "lucide-react";
+import { ExternalLink, Loader2, Radio, Scissors, Square, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { handFiles } from "@/lib/studioClips/handoff";
+import { clipEditorBrief, clipFileName } from "@/lib/streams/editorBrief";
 import { api, errorText } from "./shared";
 import { MAX_WATCHED, channelFromInput } from "@/lib/streams/channels";
 import type { StreamClip, StreamWatch, TwitchConnection } from "@/lib/streams/types";
@@ -37,6 +40,9 @@ export default function StreamClips({ canMutate, canConnect, outcome }: { canMut
   const [inputs, setInputs] = useState<string[]>([""]);
   const [busy, setBusy] = useState(false);
   const [playing, setPlaying] = useState<Record<string, string>>({});
+  const router = useRouter();
+  // The clip being fetched for the Video editor.
+  const [opening, setOpening] = useState<string | null>(null);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
 
   const load = useCallback(async () => {
@@ -75,6 +81,22 @@ export default function StreamClips({ canMutate, canConnect, outcome }: { canMut
   };
   const play = async (id: string) => {
     try { const { url } = await api<{ url: string }>(`/api/streams/clips/${id}`); setPlaying((p) => ({ ...p, [id]: url })); } catch (e) { setErr(errorText(e)); }
+  };
+  // Phase 2: a clip SOCIA saved (own or edited channel) goes to the Video editor with a brief for a vertical, captioned Reel.
+  const toEditor = async (c: StreamClip) => {
+    setOpening(c.id); setErr(null);
+    try {
+      const { url } = await api<{ url: string }>(`/api/streams/clips/${c.id}`);
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Couldn't load the clip's video. Try again.");
+      const blob = await res.blob();
+      const file = new File([blob], clipFileName(c), { type: blob.type || "video/mp4" });
+      handFiles("edit", [file], { prompt: clipEditorBrief(c) });
+      router.push("/studio?mode=edit");
+    } catch (e) {
+      setErr(errorText(e));
+      setOpening(null);
+    }
   };
   const disconnect = async () => {
     setConfirmDisconnect(false);
@@ -185,7 +207,19 @@ export default function StreamClips({ canMutate, canConnect, outcome }: { canMut
                     <b>{c.score != null ? `${c.score} / 100` : "Scoring"} · {c.login}</b>
                     {c.why && <small>{c.why}</small>}
                     <small>{when(c.spikeAt)}{c.duration ? ` · ${Math.round(c.duration)} s` : ""}</small>
+                    {!c.hasVideo && c.status === "ready" && (() => {
+                      const w = state.watches.find((x) => x.id === c.watchId);
+                      const why = w && !w.keepVideo ? "Making Reels from clips in SOCIA starts on Growth, so this one stays on Twitch."
+                        : w?.canDownload === false ? "Only the streamer and their editors can download Twitch clips, so this one stays on Twitch."
+                        : null;
+                      return why ? <small className="stc-stays">{why}</small> : null;
+                    })()}
                     <div className="ai-row">
+                      {c.hasVideo && c.status === "ready" && (
+                        <button type="button" className="ai-act is-primary" onClick={() => void toEditor(c)} disabled={opening !== null} aria-busy={opening === c.id || undefined}>
+                          {opening === c.id ? <><Loader2 size={12} className="spin" aria-hidden /> Opening</> : <><Scissors size={12} aria-hidden /> Make a Reel</>}
+                        </button>
+                      )}
                       {c.hasVideo && !playing[c.id] && <button type="button" className="ai-act" onClick={() => void play(c.id)}>Play</button>}
                       {c.url && <a className="ai-act" href={c.url} target="_blank" rel="noreferrer">Watch on Twitch <ExternalLink size={12} aria-hidden /></a>}
                       {c.editUrl && c.status === "ready" && <a className="ai-act" href={c.editUrl} target="_blank" rel="noreferrer">Edit on Twitch <ExternalLink size={12} aria-hidden /></a>}
