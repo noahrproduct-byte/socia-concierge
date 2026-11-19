@@ -17,7 +17,8 @@ import { allRows } from "./supabase/allRows";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getActiveWorkspace, competitorScopeId, type Workspace } from "./workspaces";
 import { brandWorkspace } from "./context";
-import { getEntitlements, canUseFeature, consumeUsage, releaseUsage } from "./entitlements";
+import { getEntitlements, canUseFeature } from "./entitlements";
+import { requireUsage } from "./planGuard";
 import { aiBudgetDenied } from "./aiSpend";
 import { getIgSnapshot, type IgSnapshot } from "./instagramSync";
 import { getProfile, type BrandDetail } from "./profile";
@@ -182,9 +183,11 @@ export async function generateWeeklyPlanFor(svc: Supa, ownerId: string, now: Dat
   const inputs = await planInputsFor(svc, ownerId, ws, snap);
   if (!inputs) return "no_account";
 
-  // One plan credit, counted against the owner exactly as a manual plan is.
-  const usage = await consumeUsage(svc, ent, "content_plan");
-  if (!usage.allowed) return "no_credit";
+  // Paid exactly as a plan made by hand is (requireUsage): the plan's credit
+  // price from the owner's balance, or the plan allowance before the credit
+  // tables exist. Not enough credits: no plan this week, nothing charged.
+  const usage = await requireUsage(svc, ownerId, "content_plan", { ent });
+  if (usage.denied) return "no_credit";
   try {
     const { data, saved } = await generatePlan({ client: svc, ownerId, workspaceId: wsId, input: inputs.input, brand: inputs.brand, evidence: inputs.evidence });
     // An empty week gets the plan's posts as drafts (lib/planAutoPlace.ts); a week with anything on it is left alone.
@@ -198,7 +201,7 @@ export async function generateWeeklyPlanFor(svc: Supa, ownerId: string, now: Dat
     }
     return "generated";
   } catch (e) {
-    if (usage.usage.used != null) await releaseUsage(svc, ent, "content_plan").catch(() => null);
+    await usage.release().catch(() => null);
     throw e;
   }
 }

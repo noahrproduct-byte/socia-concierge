@@ -4,6 +4,7 @@ import { PLANS, SALE_ORDER, FEATURE_LABEL, FEATURE_STATUS, formatPrice, formatHi
 import { creditsBuy, creditsOnSale, planCredits } from "@/lib/credits/config";
 import { YEARLY_PER_MONTH, isPaidPlanId, money, yearlyPercent, yearlySaving, yearlyTotal } from "@/lib/yearly";
 import { comingSoonFor } from "@/lib/pricingTable";
+import { proofLine, type PlanCounts } from "@/lib/planCounts";
 import PlanCta from "./PlanCta";
 import { LaunchWas } from "./Launch";
 
@@ -42,7 +43,7 @@ function highlightsFor(p: PlanConfig, interval: BillingInterval): (string | null
         `${formatHistory(L.analytics_history_days)} of analytics`,
         credits,
         buys,
-        `Build from clips: ${L.studio_clips_per_project} clips, ${L.studio_footage_minutes} minutes per project`,
+        `Video editor: ${L.studio_clips_per_project} clips, ${L.studio_footage_minutes} minutes per project`,
         competitors,
         "Scheduling and publishing included",
       ];
@@ -107,6 +108,7 @@ export default function PricingCards({
   highlight,
   interval = "month",
   yearly = false,
+  counts = {},
 }: {
   currentPlan: PlanId | null;
   signedIn: boolean;
@@ -117,6 +119,8 @@ export default function PricingCards({
   interval?: BillingInterval;
   /** Yearly plans are on sale (all four yearly prices exist), so a monthly card can mention them. */
   yearly?: boolean;
+  /** Paying accounts per plan (lib/planCounts.ts); a card says its count only once it is proof. */
+  counts?: PlanCounts;
 }) {
   // The two sets of cards are both in the page (the switch shows one), so the yearly ids are kept apart.
   const sfx = interval === "year" ? "-yearly" : "";
@@ -136,6 +140,7 @@ export default function PricingCards({
             </div>
             {interval === "year" && isPaidPlanId(id) ? (
               <>
+                {/* The monthly price comes first and crossed out, so the yearly one is read against it. Both are real prices. */}
                 <div className="pr-was">
                   <s><span className="ln-sr">Monthly price </span>{formatPrice(p)}</s>
                   <span className="pr-save-tag">Save {yearlyPercent(id)}%</span>
@@ -144,7 +149,7 @@ export default function PricingCards({
                   <span className="pr-price-amount">{money(YEARLY_PER_MONTH[id])}</span>
                   <span className="pr-price-per">/month</span>
                 </div>
-                <p className="pr-yearly-line">Billed yearly at {money(yearlyTotal(id))}. You save <b>{money(yearlySaving(id))}</b> on paying monthly.</p>
+                <p className="pr-yearly-line">Billed yearly at {money(yearlyTotal(id))}. Paying monthly costs <b>{money(yearlySaving(id))} more</b> a year.</p>
               </>
             ) : (
               <>
@@ -155,9 +160,12 @@ export default function PricingCards({
                   <span className="pr-price-amount">{formatPrice(p)}</span>
                   <span className="pr-price-per">/month</span>
                 </div>
-                {yearly && isPaidPlanId(id) && <p className="pr-yearly-line">Or {money(YEARLY_PER_MONTH[id])} a month, billed yearly.</p>}
+                {yearly && isPaidPlanId(id) && yearlySaving(id) > 0 && (
+                  <p className="pr-yearly-line">Paying monthly costs <b>{money(yearlySaving(id))} more</b> a year. Yearly works out at {money(YEARLY_PER_MONTH[id])} a month.</p>
+                )}
               </>
             )}
+            {proofLine(id, counts[id]) && <p className="pr-proof">{proofLine(id, counts[id])}</p>}
             <p className="pr-tagline">{p.tagline}</p>
             <p className="pr-audience">{p.audience}</p>
             <PlanCta plan={id} currentPlan={currentPlan} signedIn={signedIn} checkout={checkout} highlighted={highlight === id} interval={interval} />

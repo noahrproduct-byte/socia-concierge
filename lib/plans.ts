@@ -234,7 +234,7 @@ export const FEATURE_LABEL: Record<FeatureKey, string> = {
   scheduling: "Scheduling and publishing",
   breakout_alerts: "Breakout alerts",
   monthly_summary: "Monthly performance summary",
-  build_from_clips: "Content Studio: Build from clips",
+  build_from_clips: "Content Studio: Video editor",
   posting_time_analysis: "Posting-time analysis",
   growth_analysis: "Growth analysis",
   period_comparison: "Previous-period comparisons",

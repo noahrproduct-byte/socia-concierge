@@ -8,7 +8,7 @@ import { brandWorkspace } from "./context";
 import { updateWorkspace } from "./workspaces";
 import { getEntitlements } from "./entitlements";
 import { loadSources } from "./api/sources";
-import { buildAccountSample } from "./intel/accountSample";
+import { buildAccountSample, type SampleInput } from "./intel/accountSample";
 import { whatWorks } from "./intel/overview";
 import { listInsights } from "./intel/insightStore";
 import { currentDetail } from "./intel/understandLoad";
@@ -19,6 +19,8 @@ import { anthropic, FAST_MODEL, effortFor } from "./anthropic";
 import { recordAiUsage } from "./aiUsage";
 import type { TtVideo } from "./tiktokAuth";
 import { STRATEGY_SYSTEM, factLines, normalizeStrategy, strategySchema, type GrowthStrategy, type StrategyFacts } from "./strategy";
+import { readinessOf, readinessThresholds } from "./starter/readiness";
+import { admiredHandles, nicheObservations } from "./starter/load";
 
 export async function readStrategy(ctx: Ctx): Promise<GrowthStrategy | null> {
   const s = (await currentDetail(ctx).catch(() => ({}) as BrandDetail)).strategy;
@@ -44,15 +46,22 @@ export async function strategyFacts(ctx: Ctx): Promise<{ facts: StrategyFacts; g
     listGoals(ctx).catch(() => ({ tableReady: false, goals: [] })),
   ]);
   const growth = profile?.brand_detail?.growth ?? null;
-  const sample = src
-    ? buildAccountSample({
+  const sampleInput: SampleInput | null = src
+    ? {
         now: src.now,
         ig: src.ig ? { username: src.ig.snap.username, name: src.ig.snap.name, biography: src.ig.snap.biography, followers: src.ig.snap.followers_count, media: src.ig.media } : null,
         fb: src.fb ? { name: src.fb.snap.page_name, followers: src.fb.snap.followers_count, posts: src.fb.snap.posts ?? [] } : null,
         yt: src.yt ? { title: src.yt.channel.title, handle: src.yt.channel.handle, subscribers: src.yt.channel.subscribers, videos: src.yt.topVideos ?? [] } : null,
         tt: src.tt ? { username: (src.tt.username as string | null) ?? null, followers: (src.tt.follower_count as number | null) ?? null, videos: Array.isArray(src.tt.videos) ? (src.tt.videos as TtVideo[]) : [] } : null,
-      })
-    : { facts: [], posts: [] };
+      }
+    : null;
+  const sample = sampleInput ? buildAccountSample(sampleInput) : { facts: [], posts: [] };
+  // How much history there is to learn from (more posts than the sample above, so the count can reach "established").
+  const readiness = readinessOf(sampleInput ? buildAccountSample(sampleInput, 60).posts : [], src?.now ?? new Date(), readinessThresholds());
+  const starter = readiness.stage !== "established";
+  const [niche, admired] = starter
+    ? await Promise.all([nicheObservations(ctx, { location: profile?.brand_detail?.location ?? null }).catch(() => []), admiredHandles(ctx).catch(() => [])])
+    : [[], []];
   const paces = sample.facts.map((f) => f.postsPerWeek).filter((n): n is number => n != null);
   const goalLines = goals.goals.map((g) => {
     const m = goalMetric(g.metric);
@@ -69,6 +78,9 @@ export async function strategyFacts(ctx: Ctx): Promise<{ facts: StrategyFacts; g
       findings: insights.insights.map((i) => `${i.title}. ${i.observation}`),
       goals: goalLines.map((l, i) => `${goals.goals[i].kind === "primary" ? "Primary" : "Secondary"}: ${l}`),
       themes: growth?.understanding?.themes ?? [],
+      readiness,
+      nicheSeen: niche,
+      admired,
     },
     goalLine: primaryIdx >= 0 ? goalLines[primaryIdx] : null,
   };
@@ -87,5 +99,5 @@ export async function generateStrategy(ctx: Ctx, now = new Date()): Promise<Grow
   recordAiUsage(ctx.ownerId, "growth_strategy", res);
   const text = res.content.find((b) => b.type === "text")?.text ?? "{}";
   const raw = JSON.parse(text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()) as Record<string, unknown>;
-  return normalizeStrategy(raw, { growth: facts.growth, goalLine, basedOn, now });
+  return normalizeStrategy(raw, { growth: facts.growth, goalLine, basedOn, now, readiness: facts.readiness, nicheSeen: facts.nicheSeen });
 }

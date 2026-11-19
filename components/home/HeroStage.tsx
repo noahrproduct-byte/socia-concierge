@@ -196,7 +196,7 @@ function Competitors() {
 function Studio() {
   const clips = ["/landing/creators/lighting.jpg", "/landing/creators/talking-camera.jpg", "/landing/creators/desk-edit.jpg", "/landing/creators/vlog-street.jpg"];
   return (
-    <Screen title="Content Studio" chip="Build from clips">
+    <Screen title="Content Studio" chip="Video editor">
       <div className="hx-strip">
         {clips.map((src, i) => (
           <span key={src}>
@@ -205,7 +205,7 @@ function Studio() {
           </span>
         ))}
       </div>
-      <span className="hx-label">4 clips in, a first cut of 9 moments</span>
+      <span className="hx-label">4 clips in, the best 3 in the cut</span>
     </Screen>
   );
 }

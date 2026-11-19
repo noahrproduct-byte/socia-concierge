@@ -7,11 +7,16 @@
 // own main goal. Pure.
 
 import { HOURS, mainGoalLabel, type GrowthProfile } from "./growth";
+import { readinessLines, type Readiness, type Stage } from "./starter/readiness";
 
 export type StrategyPillar = { name: string; why: string };
 export type ExperimentStatus = "running" | "done" | "stopped";
 /** A hypothesis under test. The id tags the plan's test posts (lib/experiments.ts); unique across rewrites so old tests never count toward a new one. */
-export type StrategyExperiment = { id?: string; status?: ExperimentStatus; started_at?: string | null; hypothesis: string; test: string; measure: string };
+/** What one experiment varies (a starter strategy tests one thing at a time). */
+export const EXPERIMENT_DIMENSIONS = ["hook", "topic", "format", "length", "story"] as const;
+export type ExperimentDimension = (typeof EXPERIMENT_DIMENSIONS)[number];
+export const DIMENSION_LABEL: Record<ExperimentDimension, string> = { hook: "Hooks", topic: "Topics", format: "Video formats", length: "Video length", story: "Storytelling" };
+export type StrategyExperiment = { id?: string; status?: ExperimentStatus; started_at?: string | null; hypothesis: string; test: string; measure: string; dimension?: ExperimentDimension };
 
 const STATUSES: ExperimentStatus[] = ["running", "done", "stopped"];
 export const isExperimentId = (v: unknown): v is string => typeof v === "string" && /^e[0-9a-z]{3,14}$/.test(v);
@@ -33,6 +38,12 @@ export type GrowthStrategy = {
   generated_at: string;
   /** Set when the person edits it; a regeneration replaces their edits only when they ask. */
   edited_at: string | null;
+  /** How much history the account had when this was written (lib/starter/readiness.ts); older strategies lack it. */
+  stage?: Stage;
+  /** The share of it that rests on the account's own results, 0 to 1. */
+  own_weight?: number;
+  /** What SOCIA observed on other accounts in the niche when writing it: their published numbers, not this account's. */
+  observed?: string[];
 };
 
 /** Posts a week the person's stated time allows. Unknown time: no cap beyond a sane week. */
@@ -56,6 +67,12 @@ export type StrategyFacts = {
   /** Measurable goals as written lines. */
   goals: string[];
   themes: { name: string; posts: number }[];
+  /** How much of the account's own history there is to learn from. */
+  readiness?: Readiness | null;
+  /** Reels and Shorts SOCIA read on other accounts in the niche, as lines (lib/starter/load.ts). */
+  nicheSeen?: string[];
+  /** Creators and competitors the person follows on Discover. */
+  admired?: string[];
 };
 
 /** The facts as the prompt's evidence, and as the "based on" list shown under the strategy. */
@@ -67,6 +84,10 @@ export function factLines(f: StrategyFacts): { prompt: string; basedOn: string[]
   if (f.findings.length) basedOn.push(`${f.findings.length} SOCIA ${f.findings.length === 1 ? "finding" : "findings"}`);
   if (f.goals.length) basedOn.push(`${f.goals.length} measurable ${f.goals.length === 1 ? "goal" : "goals"}`);
   if (f.themes.length) basedOn.push("The recurring themes in your captions");
+  const starter = f.readiness && f.readiness.stage !== "established";
+  if (starter && f.nicheSeen?.length) basedOn.push(`${f.nicheSeen.length} recent Reels from accounts in your niche, with their published numbers`);
+  if (starter && f.admired?.length) basedOn.push(`The creators you follow on Discover`);
+  if (f.readiness) basedOn.push(f.readiness.stage === "starting" ? "Starter mode: your account is still building its history" : `Your own results count for ${Math.round(f.readiness.ownWeight * 100)}%`);
   const cap = postsCap(f.growth);
   const prompt = [
     `Niche: ${f.niche ?? "not set"}${f.brandName ? `; account: ${f.brandName}` : ""}.`,
@@ -76,6 +97,9 @@ export function factLines(f: StrategyFacts): { prompt: string; basedOn: string[]
     f.findings.length ? `SOCIA's findings:\n${f.findings.map((x) => `- ${x}`).join("\n")}` : "SOCIA's findings: none yet.",
     f.goals.length ? `Their measurable goals:\n${f.goals.map((x) => `- ${x}`).join("\n")}` : "Measurable goals: none set.",
     f.themes.length ? `Recurring themes in their captions: ${f.themes.map((t) => `${t.name} (${t.posts} posts)`).join(", ")}.` : "",
+    f.readiness ? `How much of their own history there is:\n${readinessLines(f.readiness)}` : "",
+    starter && f.nicheSeen?.length ? `Observed on other accounts in their niche (those accounts' published numbers, not this account's):\n${f.nicheSeen.map((x) => `- ${x}`).join("\n")}` : "",
+    starter && f.admired?.length ? `Creators and competitors they admire: ${f.admired.map((h) => `@${h.replace(/^@/, "")}`).join(", ")}.` : "",
   ].filter(Boolean).join("\n\n");
   return { prompt, basedOn };
 }
@@ -88,7 +112,7 @@ export const strategySchema = {
     pillars: { type: "array", items: { type: "object", additionalProperties: false, properties: { name: { type: "string" }, why: { type: "string" } }, required: ["name", "why"] } },
     posts_per_week: { type: "integer" },
     frequency_why: { type: "string" },
-    experiments: { type: "array", items: { type: "object", additionalProperties: false, properties: { hypothesis: { type: "string" }, test: { type: "string" }, measure: { type: "string" } }, required: ["hypothesis", "test", "measure"] } },
+    experiments: { type: "array", items: { type: "object", additionalProperties: false, properties: { dimension: { type: "string", enum: [...EXPERIMENT_DIMENSIONS] }, hypothesis: { type: "string" }, test: { type: "string" }, measure: { type: "string" } }, required: ["dimension", "hypothesis", "test", "measure"] } },
     priorities: { type: "array", items: { type: "string" } },
     milestones: { type: "array", items: { type: "object", additionalProperties: false, properties: { label: { type: "string" }, by: { type: "string" }, measure: { type: "string" } }, required: ["label", "by", "measure"] } },
   },
@@ -101,7 +125,12 @@ Rules:
 - audience: one sentence on who the content is for, from their profile; if it isn't known, say what to confirm.
 - pillars: 3 to 5 content pillars (recurring topics or series). Each "why" names the fact it comes from (a theme, a format that works, a finding, the profile). Never invent a number.
 - posts_per_week: when the profile states a posting target, use exactly that number, and frequency_why says it is their own target and how it compares with their current pace. Otherwise a realistic number at or below the stated maximum; frequency_why says which facts set it (their current pace and their time).
-- experiments: 1 or 2. Each is a hypothesis, the test (what to post, how many, over how long) and the measure against their own median. Phrase hypotheses as possibilities, never as known effects.
+- experiments: 1 or 2. Each varies one thing (dimension: hook, topic, format, length or story) and is a hypothesis, the test (what to post, how many, over how long) and the measure against their own median. Phrase hypotheses as possibilities, never as known effects.
+- When the facts say the account is still building its history (starter or learning): SOCIA does not yet know what works for this account, so the strategy is a plan to find out.
+  - experiments: 3 for a starting account (2 when learning), each on a different dimension, each comparing two clear options (for example a question hook against a bold-claim hook), 3 posts of each option over two to three weeks, measured against the account's own median once there is one (until then, against each other).
+  - Pillars rest on their profile (what the account is about, who it is for, the videos they want to make) and may use a pattern observed in the niche; then "why" names it as seen on other accounts, never as proof it will work here. Never copy another account's content.
+  - The frequency is their own posting target, or fewer; never daily unless they chose seven days.
+  - Priorities start with making the first test posts, then reading what they show.
 - priorities: the 3 things to focus on next, in order.
 - milestones: 2 or 3 checkpoints over the next 12 weeks; "by" is a date (YYYY-MM-DD) or "", and "measure" names a number SOCIA can read or the person can report.
 - No guaranteed growth, no claims about algorithms, plain text, sentence case, no em dashes.`;
@@ -119,7 +148,9 @@ export function primaryObjective(g: GrowthProfile | null | undefined, goalLine: 
 }
 
 /** The model's draft, made safe: lengths bounded, frequency held to the person's time, dates checked. */
-export function normalizeStrategy(raw: Record<string, unknown>, ctx: { growth: GrowthProfile | null; goalLine: string | null; basedOn: string[]; now: Date }): GrowthStrategy {
+export function normalizeStrategy(raw: Record<string, unknown>, ctx: { growth: GrowthProfile | null; goalLine: string | null; basedOn: string[]; now: Date; readiness?: Readiness | null; nicheSeen?: string[] }): GrowthStrategy {
+  // A starter strategy runs more experiments at once: it is how SOCIA learns what works.
+  const maxExperiments = ctx.readiness?.stage === "starting" ? 3 : 2;
   const cap = postsCap(ctx.growth);
   const asked = Math.round(Number(raw.posts_per_week));
   // The person's own posting target (lib/routine.ts) is the pace: it is their decision, not a suggestion to revise.
@@ -139,7 +170,7 @@ export function normalizeStrategy(raw: Record<string, unknown>, ctx: { growth: G
         ? asked === own && clip(raw.frequency_why, 300) ? clip(raw.frequency_why, 300) : `You chose ${own} posting ${own === 1 ? "day" : "days"} a week, so the plan is built around that.`
         : posts < asked ? `Held to ${cap} a week, what the time you said you have allows. Change it in your Growth Profile to plan more.` : clip(raw.frequency_why, 300),
     },
-    experiments: objs(raw.experiments).map((e) => ({ hypothesis: clip(e.hypothesis, 240), test: clip(e.test, 240), measure: clip(e.measure, 200) })).filter((e) => e.hypothesis).slice(0, 2)
+    experiments: objs(raw.experiments).map((e) => ({ hypothesis: clip(e.hypothesis, 240), test: clip(e.test, 240), measure: clip(e.measure, 200), ...(isDimension(e.dimension) ? { dimension: e.dimension } : {}) })).filter((e) => e.hypothesis).slice(0, maxExperiments)
       .map((e, i) => ({ id: newId(ctx.now, i), status: "running" as const, started_at: ctx.now.toISOString(), ...e })),
     priorities: clipList(raw.priorities, 3, 200),
     milestones: objs(raw.milestones).map((m) => {
@@ -149,8 +180,12 @@ export function normalizeStrategy(raw: Record<string, unknown>, ctx: { growth: G
     based_on: ctx.basedOn,
     generated_at: ctx.now.toISOString(),
     edited_at: null,
+    ...(ctx.readiness ? { stage: ctx.readiness.stage, own_weight: ctx.readiness.ownWeight } : {}),
+    ...(ctx.readiness && ctx.readiness.stage !== "established" && ctx.nicheSeen?.length ? { observed: ctx.nicheSeen.slice(0, 6) } : {}),
   };
 }
+
+const isDimension = (v: unknown): v is ExperimentDimension => typeof v === "string" && (EXPERIMENT_DIMENSIONS as readonly string[]).includes(v);
 
 /** The person's edits, bounded the same way; SOCIA's provenance fields are kept. */
 export function applyEdits(cur: GrowthStrategy, patch: Partial<GrowthStrategy>, now: Date): GrowthStrategy {
@@ -170,6 +205,7 @@ export function applyEdits(cur: GrowthStrategy, patch: Partial<GrowthStrategy>, 
       status: STATUSES.includes(e.status as ExperimentStatus) ? (e.status as ExperimentStatus) : "running",
       started_at: typeof e.started_at === "string" && !Number.isNaN(Date.parse(e.started_at)) ? e.started_at : now.toISOString(),
       hypothesis: clip(e.hypothesis, 240), test: clip(e.test, 240), measure: clip(e.measure, 200),
+      ...(isDimension(e.dimension) ? { dimension: e.dimension } : {}),
     })).filter((e) => e.hypothesis).slice(0, 4) ?? cur.experiments,
     priorities: patch.priorities ? clipList(patch.priorities, 5, 200) : cur.priorities,
     milestones: objs(patch.milestones)?.map((m) => { const by = clip(m.by, 10); return { label: clip(m.label, 160), by: isDate(by) ? by : null, measure: clip(m.measure, 200) }; }).filter((m) => m.label).slice(0, 5).sort(byDate) ?? cur.milestones,
@@ -189,7 +225,7 @@ export function strategyLines(s: GrowthStrategy | null | undefined): string {
     s.audience ? `Audience: ${s.audience}` : "",
     s.pillars.length ? `Content pillars:\n${s.pillars.map((p) => `- ${p.name}: ${p.why}`).join("\n")}` : "",
     `Posts a week: ${s.frequency.posts_per_week}${s.frequency.why ? ` (${s.frequency.why})` : ""}`,
-    running(s).length ? `Running experiments (id in brackets):\n${running(s).map((e) => `- [${e.id}] ${e.hypothesis} Test: ${e.test} Measure: ${e.measure}`).join("\n")}` : "",
+    running(s).length ? `Running experiments (id in brackets):\n${running(s).map((e) => `- [${e.id}]${e.dimension ? ` (${DIMENSION_LABEL[e.dimension].toLowerCase()})` : ""} ${e.hypothesis} Test: ${e.test} Measure: ${e.measure}`).join("\n")}` : "",
     s.priorities.length ? `Priorities, in order: ${s.priorities.join("; ")}` : "",
   ].filter(Boolean).join("\n");
 }

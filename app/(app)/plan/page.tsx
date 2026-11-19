@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import StarterNote from "@/components/StarterNote";
+import { loadReadiness } from "@/lib/starter/load";
 import { getViewer } from "@/lib/supabase/server";
 import ContentPlanClient, { type PlanContext } from "@/components/ContentPlanClient";
 import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
@@ -167,8 +169,11 @@ export default async function ContentPlanPage() {
     aboutConfirmed: Boolean(brandDetail?.description?.trim() || brandDetail?.formats?.length),
   };
 
+  // A new or low-data account: say so, and point to the starter strategy.
+  const readiness = await loadReadiness(ctx).catch(() => null);
   return (
     <>
+      <StarterNote readiness={readiness} />
       <ContentPlanClient context={context} canSchedule={canSchedule} />
     </>
   );

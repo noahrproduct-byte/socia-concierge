@@ -39,7 +39,7 @@ export const metadata = { title: "Discover | SOCIA" };
 // in the background (app/api/discover/read), so this page shows what is saved
 // and never waits on Instagram.
 
-const SUGGESTIONS_SHOWN = 16;
+const SUGGESTIONS_SHOWN = 24;
 /** Niche Reels under the competitors': a few, so the competitors' stay the most. */
 const NICHE_REELS = 12;
 /** Viral Reels in the brand's own style, any topic. */
@@ -60,7 +60,7 @@ export default async function Page() {
     competitorScopeId(ctx.client, ctx.workspace?.id),
     getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null),
     ownAccounts(ctx.client, ctx.ownerId).catch(() => null),
-    readStyleMemory(ctx).catch((): StyleMemory => ({ own: null, accounts: {}, tried: {}, fit: {}, copyFrom: [], copyFound: {}, reels: {} })),
+    readStyleMemory(ctx).catch((): StyleMemory => ({ own: null, accounts: {}, tried: {}, fit: {}, copyFrom: [], copyFound: {}, nicheFound: {}, reels: {} })),
     youtubeRecentUploads(ctx.client, ctx.ownerId, 25, ctx.workspace?.id ?? undefined).catch(() => []),
   ]);
   // Every account the owner has connected: never shown, suggested or counted as a competitor.
@@ -141,7 +141,12 @@ export default async function Page() {
   const trackedIg = new Set(tracked.filter((t) => t.platform === "instagram").map((t) => t.handle.toLowerCase()));
   const copyList = memory.copyFrom.filter((h) => !trackedIg.has(h));
   const copyFoundList = Object.keys(memory.copyFound).filter((h) => !trackedIg.has(h) && !copyList.includes(h));
-  const igHandles = [...tracked.filter((t) => t.platform === "instagram").map((t) => t.handle), ...suggested.filter((r) => r.platform === "instagram").map((r) => String(r.handle)), ...styleRows.map((r) => String(r.handle)), ...copyList, ...copyFoundList];
+  // Accounts found from the ones SOCIA read in the niche (lib/discoverRead.ts nicheFound): suggestions once judged.
+  const suggestedIg = new Set(suggested.filter((r) => r.platform === "instagram").map((r) => String(r.handle).toLowerCase()));
+  const nicheFoundList = suggestOn === "instagram"
+    ? Object.keys(memory.nicheFound).filter((h) => !trackedIg.has(h) && !dismissed.has(h) && !suggestedIg.has(h) && !copyList.includes(h) && !isOwnAccount(mine, { handle: h }))
+    : [];
+  const igHandles = [...tracked.filter((t) => t.platform === "instagram").map((t) => t.handle), ...suggested.filter((r) => r.platform === "instagram").map((r) => String(r.handle)), ...styleRows.map((r) => String(r.handle)), ...copyList, ...copyFoundList, ...nicheFoundList];
   const ytHandles = [...tracked.filter((t) => t.platform === "youtube").map((t) => t.handle), ...suggested.filter((r) => r.platform === "youtube").map((r) => String(r.handle))].slice(0, 20);
   const [igRes, ytRes] = await Promise.all([
     igHandles.length
@@ -222,7 +227,11 @@ export default async function Page() {
   // like the brand's) or off (neither: an NFL commentator for a social media app). Not yet judged still
   // shows as a suggestion; the background read judges it.
   const fitFor = (a: { platform: string; handle: string }) => fitOf(memory, styleKey(a.platform, a.handle), now);
-  const judged = suggested.map((r) => build(String(r.platform), String(r.handle), r, null));
+  const foundNiche = new Set(nicheFoundList);
+  const judged = [
+    ...suggested.map((r) => build(String(r.platform), String(r.handle), r, null)),
+    ...nicheFoundList.map((h) => build("instagram", h, { relevance_reasons: [`Mentioned by @${memory.nicheFound[h]?.from ?? "an account you might track"}`] }, null)),
+  ];
   // An Instagram handle guessed from a YouTube creator counts only once Instagram returned it under a matching name.
   const twinNames = new Map(suggested.filter(isYoutubeTwin).map((r) => [String(r.handle).toLowerCase(), String(r.display_name ?? "")]));
   const twinOk = (a: { platform: string; handle: string; posts: unknown[] }) => {
@@ -233,7 +242,8 @@ export default async function Page() {
   const suggestions = judged
     // Accounts judged a neighbouring niche are suggested too, after the rest, except for an app: there they are
     // creators showing tools, worth copying but not competing (Discover training, 2026-11-16).
-    .filter((a) => { const v = fitFor(a); return (v === "competitor" || v == null || (v === "niche" && !brandIs.app)) && !tooSmallToSuggest(a.audience.value) && twinOk(a); })
+    // An account found through a mention shows only once judged: it was never searched for.
+    .filter((a) => { const v = fitFor(a); return (v === "competitor" || (v == null && !foundNiche.has(a.handle.toLowerCase())) || (v === "niche" && !brandIs.app)) && !tooSmallToSuggest(a.audience.value) && twinOk(a); })
     .sort((a, b) => Number(fitFor(b) === "competitor") - Number(fitFor(a) === "competitor") || Number(fitFor(a) === "niche") - Number(fitFor(b) === "niche") || Number(b.posts.length > 0) - Number(a.posts.length > 0) || Number(b.sameStyle) - Number(a.sameStyle) || (b.match ?? 0) - (a.match ?? 0))
     .slice(0, SUGGESTIONS_SHOWN);
 

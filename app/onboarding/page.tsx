@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { launchDates } from "@/lib/platformLaunch";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveConnection } from "@/lib/instagramSync";
 import { igConfigured } from "@/lib/instagram";
@@ -81,9 +82,9 @@ export default async function OnboardingPage({
   const connections: ConnectState[] = [
     { id: "Instagram", href: igConfigured() ? start("instagram") : null, connectedAs: igConn?.username ? `@${igConn.username}` : null },
     // Facebook and TikTok aren't open to new connections yet (lib/platformStatus.ts); admins still connect from Settings.
-    { id: "Facebook", href: fbConfigured() ? start("facebook") : null, connectedAs: fbName, offline: offlineFor("facebook", user.email) },
+    { id: "Facebook", href: fbConfigured() ? start("facebook") : null, connectedAs: fbName, offline: offlineFor("facebook", user.email), launchAt: launchDates().facebook },
     { id: "YouTube", href: ytAuthConfigured() ? start("youtube") : null, connectedAs: name(ytRow, "handle", "title") },
-    { id: "TikTok", href: ttAuthConfigured() ? start("tiktok") : null, connectedAs: name(ttRow, "username", "display_name"), offline: offlineFor("tiktok", user.email) },
+    { id: "TikTok", href: ttAuthConfigured() ? start("tiktok") : null, connectedAs: name(ttRow, "username", "display_name"), offline: offlineFor("tiktok", user.email), launchAt: launchDates().tiktok },
   ];
 
   const returned = [

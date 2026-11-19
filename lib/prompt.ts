@@ -102,6 +102,21 @@ export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null
     parts.push(FILMING_ALLOWANCE_LINE);
   }
 
+  // How much of the account's own history there is: a new account's plan is a
+  // set of tests built on its goals and niche, not a read of its own results.
+  if (evidence?.readinessBlock) {
+    parts.push(`\n# How much to lean on the account's own results`);
+    parts.push(evidence.readinessBlock);
+    if (evidence.stage && evidence.stage !== "established") {
+      parts.push(`This is a starter plan. SOCIA doesn't know yet what works for this account, so the week is built to find out:
+- Each post tests one running experiment (put its id in "experiment"), and the week covers each running experiment with posts for both of its options, so they can be compared.
+- Concepts, hooks and beats are original for this account. A pattern from the niche may shape a post; name it in the evidence as seen on other accounts, never as proof it will work here, and never copy their content.
+- Every post is complete enough to make without asking: the hook, the beats (the storyboard), the filming direction, the editing and the CTA, inside the person's stated time, gear and editing skill.
+- Post on the person's posting days and only as often as their target; plan filming on their filming days. Never suggest posting daily unless they chose seven days.
+- Each post's evidence split: observed is only what SOCIA read (the niche numbers, their profile); expected is a hypothesis to test, never a prediction of views or growth.`);
+    }
+  }
+
   // Real data first, the user's own notes after it. When SOCIA holds nothing,
   // the notes are all there is and the model is told so.
   parts.push(`\n# The account's recent posts and how they performed`);

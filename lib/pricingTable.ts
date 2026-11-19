@@ -135,7 +135,7 @@ export const COMPARISON: ComparisonCategory[] = [
     rows: [
       { label: "Content Studio rating", note: "Rate a video or photo before you post it.", cells: creditCell("content_studio") },
       { label: "Hooks, captions and CTAs", cells: creditCell("content_generation") },
-      feature("build_from_clips", "Upload your clips; SOCIA finds the posts they support and you edit them in the Video editor."),
+      feature("build_from_clips", "Upload your clips and edit them in the Video editor."),
       { label: "Footage analysis", note: "One for each batch of clips SOCIA watches and understands.", cells: creditCell("content_build") },
       { label: "Clips per project", cells: limitCell("studio_clips_per_project") },
       { label: "Footage per project", cells: limitCell("studio_footage_minutes", (m) => `${m} minutes`) },

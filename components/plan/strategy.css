@@ -53,3 +53,32 @@
 .gs-tests li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--sp-2); }
 .gs-tests small { color: var(--ink-3); font-size: var(--fs-meta); }
 .gs-card .gs-note { margin-top: var(--sp-2); }
+
+/* An experiment as the loop: what we're testing, what we've observed, what we'll try next. */
+.gs-loop { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-3); margin-top: var(--sp-1); }
+.gs-loop > div { display: grid; gap: var(--sp-1); align-content: start; min-width: 0; padding-left: var(--sp-3); border-left: 1px solid var(--border); }
+.gs-loop small { color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); font-weight: var(--fw-medium); }
+@media (max-width: 760px) { .gs-loop { grid-template-columns: minmax(0, 1fr); } }
+
+/* Starter strategy (components/plan/StarterPanel.tsx) */
+.gss { display: grid; gap: var(--sp-4); padding: var(--card-pad); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-card); }
+.gss h3 { margin: 0; color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); font-weight: var(--fw-medium); }
+.gss-progress { display: grid; gap: var(--sp-2); }
+.gss-bar { height: 6px; border-radius: var(--r-pill); background: var(--surface-raised); overflow: hidden; }
+.gss-bar span { display: block; height: 100%; background: var(--ink); border-radius: inherit; }
+.gss-count { margin: 0; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.gss-count b { color: var(--ink); }
+.gss-reasons { margin: 0; padding-left: var(--sp-5); list-style: disc; display: grid; gap: var(--sp-1); color: var(--ink-2); }
+.gss-weight { margin: 0; color: var(--ink); }
+.gss-known dl { margin: var(--sp-2) 0 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--sp-3); }
+.gss-known dt { color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.gss-known dd { margin: var(--sp-1) 0 0; color: var(--ink); }
+.gss-open > ul { list-style: none; margin: var(--sp-2) 0 0; padding: 0; display: grid; gap: var(--sp-4); }
+.gss-q { display: grid; gap: var(--sp-2); }
+.gss-q > b { font-weight: var(--fw-semibold); }
+.gss-chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.gss-chip { padding: var(--sp-1) var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-pill); background: var(--surface); color: var(--ink-2); font: inherit; font-size: var(--fs-meta); cursor: pointer; }
+.gss-chip.on { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.gss-chip:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.gss-q-actions { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
+.gss-saved { margin: 0; color: var(--ink); }

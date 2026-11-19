@@ -16,6 +16,7 @@
 // watched (components/studio/renderBuild.ts). ClipsStudio owns the uploads.
 // Every step shows what was really measured; a step with nothing to report
 // says nothing. No timer, no estimate, no invented score.
+import { PROMPT_MAX } from "@/lib/studioClips/reference";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, Check, Columns2, Download, Loader2, RefreshCw, Scissors, Upload } from "lucide-react";
@@ -46,7 +47,6 @@ type Stage = "upload" | "words" | "picture" | "cut" | "render" | "check" | "done
 type Result = { buildId: string; title: string; blob: Blob; url: string; rawUrl: string | null; stats: QuickStats; clips: number; clipsUsed: number; picture: boolean; prompt: string; fx: SceneFxId[]; notes: string[]; lines: string[]; report: RenderReport | null; edl: Edl; look: string; music: string | null; width: number; height: number };
 type Draft = { phase: "idle" } | { phase: "saving"; progress: number } | { phase: "saved"; postId: string } | { phase: "error"; message: string };
 type Choice = { look: string; trackId: string; scenes: boolean; behind: boolean; split: boolean; /** how the person wants it, typed or spoken */ prompt: string; /** the effects the person picked; none = SOCIA picks */ fx: SceneFxId[] };
-const PROMPT_MAX = 1200;
 const PROMPT_KEY = "socia.quickEdit.prompt";
 const FX_KEY = "socia.quickEdit.fx";
 const keptFx = (): SceneFxId[] => { try { return (window.localStorage.getItem(FX_KEY) ?? "").split(",").filter(isSceneFx).slice(0, 4); } catch { return []; } };
@@ -86,7 +86,7 @@ function Count({ value }: { value: number }) {
 }
 const usable = (l: LocalClip) => l.phase === "done" && !!l.clip && (l.clip.status === "uploaded" || l.clip.status === "ready");
 
-export default function QuickEdit({ locals, uploading, projectId, canTranscribe, canPicture, drag, onPick, understand, onOpenEditor, onReset, onFull }: {
+export default function QuickEdit({ locals, uploading, projectId, canTranscribe, canPicture, drag, onPick, understand, onOpenEditor, onReset, onFull, onPromptChange, onUsePrompt }: {
   /** the dropped clips as ClipsStudio tracks them (their measuring and upload); empty before anything is dropped */
   locals: LocalClip[];
   /** clips are still being measured or uploaded */
@@ -106,6 +106,11 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
   onReset: () => void;
   /** the full editor: a prompt, a video to copy, an edit by hand */
   onFull: () => void;
+  /** The words handed up to the screen above for the full editor (set only when the person asks to go there; the one-drop edit keeps its own). */
+  prompt?: string;
+  onPromptChange?: (text: string) => void;
+  /** Go on to the full editor with the prompt, before any clips are dropped. */
+  onUsePrompt?: () => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const supabase = useMemo(() => createClient(), []);
@@ -139,6 +144,10 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
   useEffect(() => { if (promptRef.current) setPromptState(promptRef.current); }, []);
   const spokenFrom = useRef("");
   const speech = useSpeech((words) => setPrompt((spokenFrom.current ? `${spokenFrom.current} ${words}` : words).slice(0, PROMPT_MAX)));
+  // The full editor takes the words from the screen above this one, which has them a render after they are handed up.
+  const usePromptRef = useRef(onUsePrompt);
+  usePromptRef.current = onUsePrompt;
+  const toFull = () => { onPromptChange?.(prompt.trim()); window.setTimeout(() => usePromptRef.current?.(), 0); };
   const toggleMic = () => { if (!speech.listening) spokenFrom.current = prompt.trim(); speech.toggle(); };
   const [tracks, setTracks] = useState<Track[]>([]);
   useEffect(() => {
@@ -450,6 +459,9 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
         </div>
         <small>{speech.listening ? "Listening. Press the button again when you're done talking." : "Type it or press the microphone and talk. SOCIA cuts to it and draws the pictures you ask for."}</small>
         {speech.error && <small className="qe-prompt-err" role="alert">{speech.error}</small>}
+        {idPrefix === "qe-start" && prompt.trim() && onPromptChange && onUsePrompt && (
+          <small>Want to add a video to copy, or start before you have clips? <button type="button" className="qe-link" onClick={toFull}>Open the full editor with this prompt</button>.</small>
+        )}
       </div>
   );
   const fxBox = (disabled: boolean) => (
@@ -529,7 +541,7 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
           {canPicture === false
             ? "One talking clip counts nothing on your plan. A cut from several clips, or from a clip where no one speaks, is included from Starter; on your plan such a clip plays whole."
             : "One talking clip counts nothing on your plan. Several clips, or a clip where no one speaks, count one footage analysis and one AI-made video, as in the full editor."}
-          {" "}For a prompt, a video to copy or an edit by hand, <button type="button" className="qe-link" onClick={onFull}>use the full editor</button>.
+          {" "}For a video to copy or an edit by hand, <button type="button" className="qe-link" onClick={onFull}>use the full editor</button>.
         </p>
       </section>
     );

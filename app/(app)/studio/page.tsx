@@ -14,18 +14,20 @@ import { scopeToWorkspace } from "@/lib/workspaces";
 
 export const metadata = { title: "Content Studio | SOCIA" };
 
-// Content Studio has four parts. Rate: bring a finished video and make it
-// better before it goes live. Build: bring raw footage; SOCIA finds the posts
-// in it, makes the videos and schedules them after you check. Video editor (?mode=edit):
+// Content Studio has three parts. Rate: bring a finished video and make it
+// better before it goes live. Video editor (?mode=edit):
 // put in clips, then a prompt and/or a reference video to copy, or edit
 // them yourself; every video made and every clip kept are below. Audio: drop a video
 // and SOCIA adds music made for it. The mode is in the URL (?mode=clips,
 // ?mode=edit, ?mode=audio) so a refresh keeps it; Plan a post
-// (?mode=guide) is opened from a planned post.
+// (?mode=guide) is opened from a planned post. Build (?mode=clips) is no
+// longer a tab: a link to one of its projects still opens it, so nothing made
+// there is stranded; without a project the link lands in the Video editor.
 export default async function StudioPage({ searchParams }: { searchParams: Promise<{ mode?: string; project?: string; plan?: string; i?: string; format?: string }> }) {
   const { supabase, user } = await getViewer();
   if (!user) redirect("/login");
-  const { mode, plan, i, format } = await searchParams;
+  const { mode, plan, i, format, project } = await searchParams;
+  if ((mode === "clips" || mode === "autopost") && !project) redirect("/studio?mode=edit");
 
   // Plan a post: the concept from a planned post or a Discover format (read
   // here, never from the address alone), then its production guide.
