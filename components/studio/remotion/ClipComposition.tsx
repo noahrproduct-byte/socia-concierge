@@ -36,7 +36,8 @@ import type { CaptionAnimation } from "@/lib/studioClips/style";
 import { rankingBox, type RankingOverlay } from "@/lib/clipper/ranking";
 import { emphasisIndex } from "@/lib/clipper/emphasis";
 import { RankingLayer } from "./RankingLayer";
-import { SceneLayer, SPLIT_SHIFT, splitShare } from "./SceneLayer";
+import { SceneLayer, splitShare } from "./SceneLayer";
+import { pictureWindow, skinOf, type SplitSkinId } from "@/lib/studioClips/splitSkins";
 import { cutoutSpans, sceneSpans, type SceneSpan } from "@/lib/studioClips/scenes";
 import { PersonCutout } from "./PersonCutout";
 import { EffectFront, EffectLayer, fxShare, pictureFx } from "./EffectLayer";
@@ -517,7 +518,7 @@ function SegmentLayer({ s, index, into, out, effects, theme, softenFrom, childre
  * (its slow move, punch-ins and shake), shown only in the band at the top of the frame where the scenes sit, so
  * nothing of the second copy is seen anywhere a graphic is not.
  */
-function CutoutFrame({ s, index, offset, low, full, grow, children }: { s: TimelineSegment; index: number; /** frames into the cut where this run starts */ offset: number; low: boolean; /** the whole frame, not just the band a card sits in (an effect scene) */ full?: boolean; /** how much larger the person is drawn, from their feet (a dolly zoom) */ grow?: number; children: React.ReactNode }) {
+function CutoutFrame({ s, index, offset, low, full, grow, lift = 0, children }: { s: TimelineSegment; index: number; /** frames into the cut where this run starts */ offset: number; low: boolean; /** the whole frame, not just the band a card sits in (an effect scene) */ full?: boolean; /** how much larger the person is drawn, from their feet (a dolly zoom) */ grow?: number; /** how far down they are moved, in pixels (the open canvas, where they stand in the smaller picture) */ lift?: number; children: React.ReactNode }) {
   const f = useCurrentFrame() + offset;
   const { width, height } = useVideoConfig();
   const zone = safeZoneFor(width, height);
@@ -529,7 +530,7 @@ function CutoutFrame({ s, index, offset, low, full, grow, children }: { s: Timel
   const band = full ? height : Math.round(height * 0.42);
   if (full && grow && grow !== 1) {
     return (
-      <div style={{ position: "absolute", left: 0, top: 0, width, height, overflow: "hidden", pointerEvents: "none", transform: `scale(${grow})`, transformOrigin: "50% 100%" }}>
+      <div style={{ position: "absolute", left: 0, top: 0, width, height, pointerEvents: "none", transform: `translateY(${lift}px) scale(${grow})`, transformOrigin: "50% 100%" }}>
         <div style={{ position: "absolute", left: 0, top: 0, width, height, transform: css.transform, transformOrigin: css.transformOrigin }}>{children}</div>
       </div>
     );
@@ -708,23 +709,28 @@ export function LogoEnding({ src, name, accent, withCard, fontFamily }: { src: s
 }
 
 /** The person over an effect: for a dolly zoom they grow toward the camera while the effect is in. */
-function FxPerson({ span, at, children }: { span: SceneSpan; /** frames into the scene where this run starts */ at: number; children: (grow: number) => React.ReactNode }) {
+function FxPerson({ span, at, children }: { span: SceneSpan; /** frames into the scene where this run starts */ at: number; children: (share: number) => React.ReactNode }) {
   const f = useCurrentFrame() + at;
   const { fps } = useVideoConfig();
-  return <>{children(1 + 0.16 * fxShare(f, span.durationInFrames, fps))}</>;
+  return <>{children(fxShare(f, span.durationInFrames, fps))}</>;
 }
 
 /** Split screen: while a graphic scene holds the top of the frame, the picture sits lower so the person stays in view under the panel. */
-function PictureShift({ spans, effects, children }: { spans: SceneSpan[]; /** effect scenes that move the picture itself (frame pop, pull-out reveal) */ effects: SceneSpan[]; children: React.ReactNode }) {
+function PictureShift({ spans, effects, skin, focus, children }: { spans: SceneSpan[]; /** effect scenes that move the picture itself (frame pop, pull-out reveal) */ effects: SceneSpan[]; /** the split screen's look: where the picture sits under the field */ skin: SplitSkinId | undefined; /** where the person's face is in the picture, top to bottom, when the cut was looked at */ focus: number | undefined; children: React.ReactNode }) {
   const f = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const fxNow = effects.find((sp) => f >= sp.from && f < sp.from + sp.durationInFrames);
   const p = fxNow ? pictureFx(fxNow.scene.fx, fxShare(f - fxNow.from, fxNow.durationInFrames, fps), width, height) : null;
   const share = p ? 0 : spans.reduce((m, sp) => (f >= sp.from && f < sp.from + sp.durationInFrames ? Math.max(m, splitShare(f - sp.from, sp.durationInFrames, fps)) : m), 0);
-  // The same two boxes whatever is happening, so the shots inside are never mounted again when an effect starts.
+  const look = skinOf(skin);
+  const win = pictureWindow(look, share, width, height, focus);
+  // The same three boxes whatever is happening, so the shots inside are never mounted again when a scene starts:
+  // the ground, the box the picture is clipped to, and the full-size picture moved inside that box.
   return (
-    <AbsoluteFill style={p ? { backgroundColor: "#0b0c10" } : undefined}>
-      <AbsoluteFill style={p ? { transform: p.transform, borderRadius: p.radius, overflow: "hidden" } : share ? { transform: `translateY(${Math.round(share * SPLIT_SHIFT * height)}px)` } : undefined}>{children}</AbsoluteFill>
+    <AbsoluteFill style={p ? { backgroundColor: p.ground ?? "#0b0c10" } : share ? { backgroundColor: look.bg } : undefined}>
+      <div style={p ? { position: "absolute", left: 0, top: 0, width, height, transform: p.transform, borderRadius: p.radius, overflow: "hidden" } : { position: "absolute", ...win.box, overflow: "hidden" }}>
+        <div style={{ position: "absolute", left: p ? 0 : win.inner.left, top: p ? 0 : win.inner.top, width, height }}>{children}</div>
+      </div>
     </AbsoluteFill>
   );
 }
@@ -821,7 +827,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
   return (
     <PreviewCtx.Provider value={Boolean(preview)}>
     <AbsoluteFill style={{ backgroundColor: "#000", fontFamily }}>
-      <PictureShift spans={split ? cards : NO_SPANS} effects={fxSpans}>
+      <PictureShift spans={split ? cards : NO_SPANS} effects={fxSpans} skin={edl.scenesSkin} focus={edl.scenesFocus}>
       {tl.segments.map((s, i) => {
         const src = sources[s.clipId];
         if (!src) return null;
@@ -949,8 +955,9 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
         return (
           <Sequence key={`fx-${c.id}`} from={c.from} durationInFrames={c.frames} premountFor={PREMOUNT_FRAMES} name="person in front of the effect">
             <FxPerson span={sp} at={c.from - sp.from}>
-              {(grow) => (
-                <CutoutFrame s={s} index={c.seg} offset={c.offset} low={false} full grow={fx === "dolly" ? grow : 1}>
+              {(share) => (
+                // Dolly zoom: the person grows from their feet.
+                <CutoutFrame s={s} index={c.seg} offset={c.offset} low={false} full grow={fx === "dolly" ? 1 + 0.16 * share : 1}>
                   <PersonCutout src={(s.stabilize && src.stable?.[s.stabilize.strength]) || src.url} trimBefore={s.inFrame + c.offset} frames={c.frames} style={b} filter={lookCssFilter(theme?.color.grade)} edge={fx === "paper" ? { width: 0.012, color: "#ffffff" } : fx === "sketch" ? { width: 0.006, color: "#ffffff", wobble: true } : undefined} />
                 </CutoutFrame>
               )}
@@ -965,7 +972,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
       ))}
       {cards.map((sp) => (
         <Sequence key={sp.scene.id} from={sp.from} durationInFrames={sp.durationInFrames} name={`scene · ${sp.scene.kind}`}>
-          <SceneLayer span={sp} fontFamily={fontFamily} accent={theme?.color.accent ?? style.accent} low={style.captions.position === "top"} split={split} />
+          <SceneLayer span={sp} fontFamily={fontFamily} accent={theme?.color.accent ?? style.accent} low={style.captions.position === "top"} split={split} skin={edl.scenesSkin} />
         </Sequence>
       ))}
       {cutouts.map((c) => {

@@ -12,6 +12,8 @@
 //   chat, notify, search, button, compare   the glass pieces of that style:
 //           message bubbles after typing dots, a notification stack, a search
 //           bar that types, a button a cursor clicks, two options side by side;
+//   canvas  after Motus's Open Canvas: a drafting grid around the picture, a
+//           selection frame with handles, a size readout and a cursor;
 //   cover   a masthead word across the top, in a serif, with a cover line;
 //   glass   one huge see-through word;
 //   graph   a line chart that climbs, months along the top, a tag on its peak;
@@ -47,7 +49,8 @@ export function fxShare(f: number, frames: number, fps: number): number {
 }
 
 /** What an effect does to the picture itself, at a share of the way in. */
-export function pictureFx(fx: SceneFxId | undefined, share: number, width: number, height: number): { transform: string; radius: number } | null {
+export function pictureFx(fx: SceneFxId | undefined, share: number, width: number, height: number): { transform: string; radius: number; ground?: string } | null {
+  if (fx === "canvas") return { transform: `translateY(${0.03 * height * share}px) scale(${1 - 0.28 * share})`, radius: 0, ground: "#050505" };
   if (fx === "frame") return { transform: `translateY(${-0.03 * height * share}px) scale(${1 - 0.2 * share})`, radius: 0.06 * width * share };
   if (fx === "reveal") return { transform: `translateY(${0.03 * height * share}px) scale(${1 - 0.3 * share})`, radius: 0.03 * width * share };
   return null;
@@ -396,6 +399,29 @@ export function EffectLayer({ span, fontFamily, accent }: { span: SceneSpan; fon
           <path d={`M${width * 0.1 + j(1)} ${height * 0.22 + j(2)} q ${40 * s} ${-50 * s} ${90 * s} ${-10 * s} t ${90 * s} ${-10 * s}`} pathLength={1} strokeDasharray="1 1" strokeDashoffset={1 - interpolate(f, [8, 22], [0, 1], EASE)} />
           <path d={`M${width * 0.12 + j(3)} ${height * 0.62 + j(4)} l ${70 * s} ${-70 * s} m ${-44 * s} ${-4 * s} l ${44 * s} ${4 * s} l ${-4 * s} ${44 * s}`} pathLength={1} strokeDasharray="1 1" strokeDashoffset={1 - interpolate(f, [14, 28], [0, 1], EASE)} />
         </svg>
+      </div>
+    );
+  }
+
+  if (fx === "canvas") {
+    // After Motus's Open Canvas: the picture is a layer on a drafting grid, in a selection frame with handles, and a cursor drags its corner.
+    const k = 1 - 0.28 * share, w = width * k, h = height * k, left = (width - w) / 2, top = (height - h) / 2 + 0.03 * height * share;
+    const SEL = "#7ccbff", cell = 27 * s, hs = 16 * s;
+    const handles = [[0, 0], [0.5, 0], [1, 0], [0, 0.5], [1, 0.5], [0, 1], [0.5, 1], [1, 1]];
+    return (
+      <div style={{ ...fill, opacity: Math.min(1, share * 3) }}>
+        <svg width={width} height={height} style={{ position: "absolute", left: 0, top: 0 }}>
+          <defs>
+            <pattern id={`cv-${scene.id}`} width={cell} height={cell} patternUnits="userSpaceOnUse"><path d={`M0 0H${cell}M0 0V${cell}`} stroke="rgba(255,255,255,0.07)" strokeWidth={Math.max(1, s)} fill="none" /></pattern>
+            <pattern id={`cvm-${scene.id}`} width={cell * 5} height={cell * 5} patternUnits="userSpaceOnUse"><path d={`M0 0H${cell * 5}M0 0V${cell * 5}`} stroke="rgba(255,255,255,0.13)" strokeWidth={Math.max(1, 1.5 * s)} fill="none" /></pattern>
+          </defs>
+          {[`cv-${scene.id}`, `cvm-${scene.id}`].map((id) => <path key={id} fillRule="evenodd" d={`M0 0H${width}V${height}H0Z M${left} ${top}H${left + w}V${top + h}H${left}Z`} fill={`url(#${id})`} />)}
+          <rect x={left} y={top} width={w} height={h} fill="none" stroke={SEL} strokeWidth={Math.max(2, 3 * s)} />
+          {handles.map(([hx, hy], i) => <rect key={i} x={left + hx * w - hs / 2} y={top + hy * h - hs / 2} width={hs} height={hs} fill="#fff" stroke={SEL} strokeWidth={Math.max(2, 3 * s)} />)}
+          <path d="M0 0 L0 30 L8 23 L14 36 L19 34 L13 21 L23 21 Z" fill="#fff" stroke="#06131f" strokeWidth={1.6} strokeLinejoin="round" transform={`translate(${left + w + 4 * s} ${top + h + 4 * s}) scale(${1.9 * s})`} />
+        </svg>
+        <div style={{ position: "absolute", left, top: top - 54 * s, height: 42 * s, padding: `0 ${14 * s}px`, display: "flex", alignItems: "center", borderRadius: 8 * s, backgroundColor: SEL, color: "#06131f", fontSize: 26 * s, fontWeight: 700, opacity: seen(8) }}>{text || "Video"}</div>
+        <div style={{ position: "absolute", left: left + w - 190 * s, top: top + h + 16 * s, width: 190 * s, textAlign: "right", fontSize: 24 * s, fontWeight: 600, color: SEL, opacity: seen(8) }}>{Math.round(1080 * k)} × {Math.round(1920 * k)}</div>
       </div>
     );
   }

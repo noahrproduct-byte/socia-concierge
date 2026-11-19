@@ -68,6 +68,11 @@ export function placeClear(edl: Edl, looks: Look[], words: Record<string, Transc
   const moved = { scenes: 0, lines: 0, captions: false };
   if (!looks.some((l) => l.head)) return { edl, moved };
   let out = edl;
+  // A split screen keeps the face in the window under the field: the middle of the heads seen, a little below centre so the shoulders show.
+  if (edl.scenesSplit && edl.scenes?.length) {
+    const mids = looks.flatMap((l) => (l.head ? [(l.head.top + l.head.bottom) / 2] : [])).sort((a, b) => a - b);
+    out = { ...out, scenesFocus: Math.round(Math.min(0.85, Math.max(0.15, mids[Math.floor(mids.length / 2)] + 0.04)) * 100) / 100 };
+  }
   // Cards: not as a split screen (the picture moves out of the way) and not behind the person (they stay in front).
   if (edl.scenes?.length && !edl.scenesSplit && !edl.scenesBehind) {
     const spans = sceneSpans(edl, words);

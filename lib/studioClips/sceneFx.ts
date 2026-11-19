@@ -11,6 +11,7 @@ export const SCENE_FX = {
   search: { label: "Typed search", what: "A search bar types out what is being looked for.", person: true, text: "What is typed", lines: 0 },
   button: { label: "Button click", what: "A button in a field of rings; a cursor glides in and clicks it.", person: true, text: "Words on the button", lines: 0 },
   compare: { label: "Side by side", what: "Two glass cards: one option, then the other, which lights up.", person: true, text: "First option", lines: 0 },
+  canvas: { label: "Open canvas", what: "The video becomes a layer in a design file: a selection frame on a drafting grid, and a cursor dragging its corner.", person: false, text: "Layer name", lines: 0 },
   cover: { label: "Magazine cover", what: "A masthead word across the top, behind the person.", person: true, text: "Masthead word", lines: 0 },
   glass: { label: "Glass text", what: "One big see-through word behind the person.", person: true, text: "Word", lines: 0 },
   graph: { label: "Graph rise", what: "A line chart climbing behind the person, with a tag on its peak.", person: true, text: "Tag on the peak", lines: 0 },

@@ -19,6 +19,7 @@ import { readEmphasis } from "@/lib/clipper/emphasis";
 import { sanitizeCaptionOverrides } from "./captionMotion";
 import { sanitizeScenes } from "./scenes";
 import { sanitizeLogo } from "./types";
+import { isSplitSkin } from "./splitSkins";
 
 /** The most highlighted words a cut keeps. */
 const MAX_EMPHASIS = 40;
@@ -386,7 +387,7 @@ export function revalidateEdl(edited: Edl, clips: ClipForEdl[]): { edl: Edl; war
   // Graphic scenes (lib/studioClips/scenes.ts), bounded, for the clips still in the cut.
   const scenes = sanitizeScenes(edited.scenes, new Set(r.edl.segments.map((s) => s.clipId)));
   if (scenes) r.edl.scenes = scenes;
-  if (scenes && edited.scenesSplit === true) r.edl.scenesSplit = true;
+  if (scenes && edited.scenesSplit === true) { r.edl.scenesSplit = true; if (isSplitSkin(edited.scenesSkin) && edited.scenesSkin !== "socia") r.edl.scenesSkin = edited.scenesSkin; if (typeof edited.scenesFocus === "number" && Number.isFinite(edited.scenesFocus)) r.edl.scenesFocus = Math.round(Math.min(0.85, Math.max(0.15, edited.scenesFocus)) * 100) / 100; }
   else if (scenes && edited.scenesBehind === true) r.edl.scenesBehind = true;
   const logo = sanitizeLogo(edited.logo);
   if (logo) r.edl.logo = logo;

@@ -32,6 +32,7 @@ import { AUTO_IMPROVE_TIMEOUT_MS } from "@/lib/studioClips/enhancePrompt";
 import { useSpeech } from "./useSpeech";
 import { SCENE_FX, isSceneFx, type SceneFxId } from "@/lib/studioClips/sceneFx";
 import { EffectTiles } from "./MotionEffectsPanel";
+import { SPLIT_SKINS, SPLIT_SKIN_IDS, isSplitSkin, type SplitSkinId } from "@/lib/studioClips/splitSkins";
 import type { EdlScene } from "@/lib/studioClips/scenes";
 import MicButton from "./MicButton";
 import { lookAtCut } from "@/lib/studioClips/lookAtCut";
@@ -46,9 +47,10 @@ import { renderBlocker, renderBuild } from "./renderBuild";
 type Stage = "upload" | "words" | "picture" | "cut" | "render" | "check" | "done" | "error";
 type Result = { buildId: string; title: string; blob: Blob; url: string; rawUrl: string | null; stats: QuickStats; clips: number; clipsUsed: number; picture: boolean; prompt: string; fx: SceneFxId[]; notes: string[]; lines: string[]; report: RenderReport | null; edl: Edl; look: string; music: string | null; width: number; height: number };
 type Draft = { phase: "idle" } | { phase: "saving"; progress: number } | { phase: "saved"; postId: string } | { phase: "error"; message: string };
-type Choice = { look: string; trackId: string; scenes: boolean; behind: boolean; split: boolean; /** how the person wants it, typed or spoken */ prompt: string; /** the effects the person picked; none = SOCIA picks */ fx: SceneFxId[] };
+type Choice = { look: string; trackId: string; scenes: boolean; behind: boolean; split: boolean; /** how the person wants it, typed or spoken */ prompt: string; /** the effects the person picked; none = SOCIA picks */ fx: SceneFxId[]; /** the look a split screen wears */ skin: SplitSkinId };
 const PROMPT_KEY = "socia.quickEdit.prompt";
 const FX_KEY = "socia.quickEdit.fx";
+const SKIN_KEY = "socia.quickEdit.skin";
 const keptFx = (): SceneFxId[] => { try { return (window.localStorage.getItem(FX_KEY) ?? "").split(",").filter(isSceneFx).slice(0, 4); } catch { return []; } };
 /** Sent with the person's words to the step that changes the cut, so asks for pictures (made in their own step) are not answered as "can't". */
 const NOT_PICTURES = " (Requests for pictures, graphics or visuals are handled in another step: leave them out, and do not mention them in the reply.)";
@@ -122,6 +124,8 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
   const [look, setLook] = useState<string>(DEFAULT_THEME_ID);
   const [scenesOn, setScenesOn] = useState(true);
   const [place, setPlace] = useState<Place>("behind");
+  const [skin, setSkin] = useState<SplitSkinId>("socia");
+  const pickSkin = (id: SplitSkinId) => { setSkin(id); try { window.localStorage.setItem(SKIN_KEY, id); } catch { /* not kept */ } };
   const [trackId, setTrackId] = useState("");
   // The effects picked before the drop (kept on this computer); none picked = SOCIA picks.
   const [fxPick, setFxPick] = useState<SceneFxId[]>([]);
@@ -155,6 +159,8 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
       const kept = window.localStorage.getItem(LOOK_KEY);
       if (kept && themeById(kept)) setLook(kept);
       if (window.localStorage.getItem(SCENES_KEY) === "off") setScenesOn(false);
+      const keptSkin = window.localStorage.getItem(SKIN_KEY);
+      if (isSplitSkin(keptSkin)) setSkin(keptSkin);
       const effects = keptFx();
       if (effects.length) setFxPick(effects);
       const where = window.localStorage.getItem(BEHIND_KEY);
@@ -334,7 +340,7 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
         musicIn.current = null;
       }
       setStep(null);
-      const opts = { scenes: choice.scenes, behind: choice.behind, split: choice.split, beat };
+      const opts = { scenes: choice.scenes, behind: choice.behind, split: choice.split, skin: choice.skin, beat };
       const cut = viaPicture.current ? quickLook(start, chosen, data.sources, opts) : quickCut(start, chosen, data.sources, opts);
       let made = cut.edl;
       const aiNotes: string[] = [];
@@ -412,7 +418,7 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
   useEffect(() => {
     if (!settled || !ready.length || !projectId || started.current) return;
     started.current = true;
-    void run({ look, trackId, scenes: scenesOn, behind: place === "behind", split: place === "split", prompt: prompt || promptRef.current, fx: fxPick.length ? fxPick : keptFx() });
+    void run({ look, trackId, scenes: scenesOn, behind: place === "behind", split: place === "split", prompt: prompt || promptRef.current, fx: fxPick.length ? fxPick : keptFx(), skin });
     // The choices are read when the clips land; changing them afterwards is "Make it again".
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settled, ready.length, projectId, run]);
@@ -496,7 +502,12 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
           <option value="over">Card over the picture</option>
           <option value="split">Split screen</option>
         </select>
-        <small>{place === "split" ? "Each graphic takes the top of the frame; the picture moves down under it." : place === "behind" ? "The person talking stays in front of each graphic." : "Each graphic is a card over the top of the picture."}</small>
+        {place === "split" && (
+          <select value={skin} disabled={disabled || !scenesOn} aria-label="Split screen style" onChange={(e) => { if (isSplitSkin(e.target.value)) pickSkin(e.target.value); }}>
+            {SPLIT_SKIN_IDS.map((id) => <option key={id} value={id}>{SPLIT_SKINS[id].label}</option>)}
+          </select>
+        )}
+        <small>{place === "split" ? SPLIT_SKINS[skin].what : place === "behind" ? "The person talking stays in front of each graphic." : "Each graphic is a card over the top of the picture."}</small>
       </label>
     </div>
   );
@@ -552,7 +563,7 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
     const faults = renderFaults(result.report);
     const s = result.stats;
     const lookName = themeById(result.look)?.name ?? result.look;
-    const changed = fxPick.join() !== result.fx.join() || prompt.trim() !== result.prompt || look !== result.look || (trackId ? tracks.find((t) => t.id === trackId)?.name ?? "" : null) !== result.music || scenesOn !== (s.scenes > 0) || (s.scenes > 0 && place !== placeOf(result.edl));
+    const changed = fxPick.join() !== result.fx.join() || prompt.trim() !== result.prompt || look !== result.look || (trackId ? tracks.find((t) => t.id === trackId)?.name ?? "" : null) !== result.music || scenesOn !== (s.scenes > 0) || (s.scenes > 0 && (place !== placeOf(result.edl) || (place === "split" && skin !== (result.edl.scenesSkin ?? "socia"))));
     return (
       <section className="qe" aria-labelledby="qe-done">
         <div className={`qe-stage${compare && result.rawUrl ? " is-compare" : ""}`}>
@@ -615,7 +626,7 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
               {fxBox(false)}
               {choices(false, "qe-done")}
               <div className="qe-actions">
-                <button type="button" className="qe-btn" disabled={!changed} onClick={() => void run({ look, trackId, scenes: scenesOn, behind: place === "behind", split: place === "split", prompt, fx: fxPick })}><RefreshCw size={14} aria-hidden /> Make it again</button>
+                <button type="button" className="qe-btn" disabled={!changed} onClick={() => void run({ look, trackId, scenes: scenesOn, behind: place === "behind", split: place === "split", prompt, fx: fxPick, skin })}><RefreshCw size={14} aria-hidden /> Make it again</button>
               </div>
               <p className="qe-fine">Same clips and the same starting cut: your instructions, the look, the music and the graphics are applied again. No new cut is counted.</p>
             </details>
@@ -681,7 +692,7 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
           {failed.map((l) => <p key={l.key} className="qe-err" role="alert"><AlertTriangle size={14} aria-hidden /> {many ? `${l.name}: ` : ""}{l.phase === "duplicate" ? "This clip is already in this video." : l.error ?? "This clip couldn't be added."}{many && ready.length ? " The video is made without it." : ""}</p>)}
           {stage === "error" && error && <p className="qe-err" role="alert"><AlertTriangle size={14} aria-hidden /> {error}</p>}
           <div className="qe-actions">
-            {stage === "error" && ready.length > 0 && <button type="button" className="qe-btn is-primary" onClick={() => void run({ look, trackId, scenes: scenesOn, behind: place === "behind", split: place === "split", prompt, fx: fxPick })}><RefreshCw size={14} aria-hidden /> Try again</button>}
+            {stage === "error" && ready.length > 0 && <button type="button" className="qe-btn is-primary" onClick={() => void run({ look, trackId, scenes: scenesOn, behind: place === "behind", split: place === "split", prompt, fx: fxPick, skin })}><RefreshCw size={14} aria-hidden /> Try again</button>}
             {stage === "error" && buildId.current && <button type="button" className="qe-btn" onClick={() => onOpenEditor(buildId.current!, title)}>Open it in the editor instead</button>}
             <button type="button" className="qe-btn is-quiet" onClick={again}>{allFailed || stage === "error" ? "Use other footage" : "Stop"}</button>
           </div>

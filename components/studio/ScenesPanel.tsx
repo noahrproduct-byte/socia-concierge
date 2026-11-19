@@ -8,12 +8,13 @@ import { useState } from "react";
 import { LayoutPanelTop, RefreshCw, Trash2 } from "lucide-react";
 import { SCENE_ICONS, SCENE_ICON_IDS, isSceneIcon } from "@/lib/studioClips/sceneIcons";
 import { SCENE_PLACES } from "@/lib/studioClips/scenes";
+import { SPLIT_SKINS, SPLIT_SKIN_IDS, isSplitSkin, type SplitSkinId } from "@/lib/studioClips/splitSkins";
 import { FX_LINE_MAX, FX_TEXT_MAX, SCENE_FX, SCENE_FX_IDS, isSceneFx } from "@/lib/studioClips/sceneFx";
 import { SCENE_ITEMS_MAX, SCENE_KIND_LABEL, SCENE_LABEL_MAX, SCENE_TEXT_MAX, type EdlScene, type SceneSpan } from "@/lib/studioClips/scenes";
 
 export type ScenePlace = "over" | "behind" | "split";
 
-export default function ScenesPanel({ scenes, spans, disabled, hasWords, place, onPlace, onChange, onFind, onShow }: {
+export default function ScenesPanel({ scenes, spans, disabled, hasWords, place, onPlace, skin, onSkin, onChange, onFind, onShow }: {
   scenes: EdlScene[];
   /** where each scene sits in the cut now; a scene whose words were cut has none */
   spans: SceneSpan[];
@@ -23,6 +24,9 @@ export default function ScenesPanel({ scenes, spans, disabled, hasWords, place, 
   /** where the graphics sit: a card over the picture, behind the person talking, or a split screen */
   place: ScenePlace;
   onPlace: (place: ScenePlace) => void;
+  /** the look a split screen wears */
+  skin: SplitSkinId;
+  onSkin: (skin: SplitSkinId) => void;
   onChange: (scenes: EdlScene[]) => void;
   /** look through what is said again; returns how many it found */
   onFind: () => number;
@@ -125,8 +129,15 @@ export default function ScenesPanel({ scenes, spans, disabled, hasWords, place, 
                 <option value="split">Split screen</option>
               </select>
             </label>
+            {place === "split" && (
+              <label>Split screen style
+                <select value={skin} disabled={disabled} onChange={(e) => { if (isSplitSkin(e.target.value)) onSkin(e.target.value); }}>
+                  {SPLIT_SKIN_IDS.map((id) => <option key={id} value={id}>{SPLIT_SKINS[id].label}</option>)}
+                </select>
+              </label>
+            )}
           </div>
-          <small className="sd-fx-note">{place === "split" ? "Each graphic takes the top of the frame as a panel of its own, and the picture moves down under it while it is up." : place === "behind" ? "The person is found in the picture on this computer and drawn in front of the card wherever the two cross. Where no one is found, or the clip carries a colour correction, the card stays in front." : "Each graphic is a card over the top of the picture."}</small>
+          <small className="sd-fx-note">{place === "split" ? `${SPLIT_SKINS[skin].what} The picture moves into place under it while a graphic is up.` : place === "behind" ? "The person is found in the picture on this computer and drawn in front of the card wherever the two cross. Where no one is found, or the clip carries a colour correction, the card stays in front." : "Each graphic is a card over the top of the picture."}</small>
         </>
       )}
       <div className="sd-done-actions">

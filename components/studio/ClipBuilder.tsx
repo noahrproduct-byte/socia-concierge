@@ -1280,6 +1280,8 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                 disabled={!data.canEdit || busy}
                 hasWords={anySpeech}
                 place={edl.scenesSplit ? "split" : edl.scenesBehind ? "behind" : "over"}
+                skin={edl.scenesSkin ?? "socia"}
+                onSkin={(id) => { const { scenesSkin: _k, ...rest } = edl; commit(id === "socia" ? rest : { ...rest, scenesSkin: id }); }}
                 onPlace={(p) => { const { scenesBehind: _old, scenesSplit: _s, ...rest } = edl; commit(p === "split" ? { ...rest, scenesSplit: true } : p === "behind" ? { ...rest, scenesBehind: true } : rest); }}
                 onChange={(scenes) => { const { scenes: _old, scenesBehind: _b, scenesSplit: _s, ...rest } = edl; commit(scenes.length ? { ...rest, scenes, ...(edl.scenesSplit ? { scenesSplit: true as const } : edl.scenesBehind ? { scenesBehind: true as const } : {}) } : rest); }}
                 onFind={() => { const { scenes: _old, ...rest } = edl; const found = findScenes(rest, applyCtx.words); commit(found.length ? { ...rest, scenes: found } : rest); return found.length; }}

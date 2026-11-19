@@ -6,6 +6,7 @@
 // person or behind them, in the Player and as a real browser render.
 // The words here are stand-ins that only place the graphic. Development only.
 import { SCENE_FX, type SceneFxId } from "@/lib/studioClips/sceneFx";
+import { SPLIT_SKINS, SPLIT_SKIN_IDS, type SplitSkinId } from "@/lib/studioClips/splitSkins";
 import React, { useEffect, useMemo, useState } from "react";
 import { Player } from "@remotion/player";
 import { ClipComposition } from "./remotion/ClipComposition";
@@ -28,6 +29,7 @@ const SCENES: Record<string, EdlScene> = {
   search: { id: "g1", kind: "effect", fx: "search", key: "talk@2800", dur: 3.4, text: "rug store near me" },
   button: { id: "g1", kind: "effect", fx: "button", key: "talk@2800", dur: 3.4, text: "Visit today" },
   compare: { id: "g1", kind: "effect", fx: "compare", key: "talk@2800", dur: 3.8, text: "Online guess", label: "See it in person" },
+  canvas: { id: "g1", kind: "effect", fx: "canvas", key: "talk@2800", dur: 3.6, text: "Showroom" },
   cover: { id: "g1", kind: "effect", fx: "cover", key: "talk@2800", dur: 3.2, text: "Showroom", label: "500 rugs in stock" },
   glass: { id: "g1", kind: "effect", fx: "glass", key: "talk@2800", dur: 3.2, text: "Rugs" },
   graph: { id: "g1", kind: "effect", fx: "graph", key: "talk@2800", dur: 3.4, text: "10X" },
@@ -48,6 +50,7 @@ export default function CutoutLab() {
   const behind = place === "behind";
   // A stand-in logo, drawn here: a plain disc with a letter, not any real brand.
   const [logoOn, setLogoOn] = useState(false);
+  const [skin, setSkin] = useState<SplitSkinId>("socia");
   const [logo, setLogo] = useState<string | null>(null);
   useEffect(() => {
     const c = document.createElement("canvas"); c.width = c.height = 240;
@@ -76,12 +79,12 @@ export default function CutoutLab() {
       version: 1, fps: 30, width: OUTPUT.width, height: OUTPUT.height, targetSec: { min: 1, max: Math.ceil(dur) + 1 },
       segments: [{ id: "s1", clipId: "talk", in: 0, out: dur, role: "opener", note: "" }],
       text: [], captions: null, enhance: [], audio: [], cta: null, music: null, caption: "", notes: [],
-      scenes: [SCENES[kind]], ...(place === "split" ? { scenesSplit: true as const } : behind ? { scenesBehind: true as const } : {}),
+      scenes: [SCENES[kind]], ...(place === "split" ? { scenesSplit: true as const, scenesFocus: 0.56, ...(skin !== "socia" ? { scenesSkin: skin } : {}) } : behind ? { scenesBehind: true as const } : {}),
       ...(logoOn && logo ? { logo: { src: logo, name: "Your business", corner: true as const, ending: true as const } } : {}),
       ...(low ? { style: { ...DEFAULT_STYLE, captions: { ...DEFAULT_STYLE.captions, position: "top" as const } } } : {}),
     };
     return { edl, sources: { talk: source } };
-  }, [dur, behind, place, kind, low, logoOn, logo]);
+  }, [dur, behind, place, kind, low, logoOn, logo, skin]);
   if (!mounted) return <main style={{ minHeight: "100vh", background: "#08090c" }} />;
   const frames = data ? timeline(data.edl).durationFrames : 1;
   const inputs = data ? { edl: data.edl, sources: data.sources, musicUrl: null, voiceUrls: {}, cleanAudio: {}, watermarkUrl: null } : null;
@@ -116,6 +119,7 @@ export default function CutoutLab() {
         <button type="button" aria-pressed={behind} style={btn(behind)} onClick={() => setPlace("behind")}>Behind the person</button>
         <button type="button" aria-pressed={place === "over"} style={btn(place === "over")} onClick={() => setPlace("over")}>In front</button>
         <button type="button" aria-pressed={place === "split"} style={btn(place === "split")} onClick={() => setPlace("split")}>Split screen</button>
+        {place === "split" && SPLIT_SKIN_IDS.map((id) => <button key={id} type="button" aria-pressed={skin === id} style={btn(skin === id)} onClick={() => setSkin(id)}>{`Skin: ${SPLIT_SKINS[id].label}`}</button>)}
         <button type="button" aria-pressed={logoOn} style={btn(logoOn)} onClick={() => setLogoOn((v) => !v)}>Logo</button>
         {(Object.keys(SCENES) as (keyof typeof SCENES)[]).map((k) => <button key={k} type="button" aria-pressed={kind === k} style={btn(kind === k)} onClick={() => setKind(k)}>{k === "stat" ? "Figure" : k === "line" ? "Key line" : k === "steps" ? "List" : SCENE_FX[k as SceneFxId].label}</button>)}
         <button type="button" aria-pressed={low} style={btn(low)} onClick={() => setLow((v) => !v)}>Card lower</button>

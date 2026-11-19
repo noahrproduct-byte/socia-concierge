@@ -35,6 +35,7 @@ Effects. Separately from pictures you may give up to ${MAX_EFFECTS} effect scene
 - "search": a search bar typing, when something is searched for or typed. text = the query, up to 28 characters.
 - "button": a button a cursor clicks, when an action is asked for (comment, follow, save, book, order). text = the words on the button, 1 to 3 words.
 - "compare": two options side by side, the second lighting up, for old against new, wrong against right, them against us. text = the first option, label = the second, each 1 to 4 words.
+- "canvas": the video becomes a layer in an open design file (a drafting grid, a selection frame, a cursor dragging it), for talk about design, building, editing, making something. text = a 1 to 2 word layer name from what is said.
 - "cover": magazine cover. text = one masthead word of 4 to 9 letters taken from what is said; label = a 2 to 4 word cover line.
 - "glass": one huge see-through word behind the person. text = the one word being stressed (up to 8 letters).
 - "graph": a line chart rising behind the person, for growth, money, results. text = the figure said (like "10X", "$5K", "200%"), at most 5 characters.

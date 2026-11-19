@@ -1,6 +1,7 @@
 // Build from Clips: the shapes shared by the browser (ingest, UI) and the
 // server (analysis, routes). No SDK imports here — this file is bundled into
 // client components.
+import type { SplitSkinId } from "./splitSkins";
 import type { Transcript, TranscriptWord } from "@/lib/transcribe/types";
 
 import type { EdlStyle, VideoPresets } from "./style";
@@ -392,6 +393,10 @@ export type Edl = {
   scenesBehind?: true;
   /** The graphic scenes take the top of the frame as a panel of their own and the picture moves down under them while one is up. Absent = a card over the picture. */
   scenesSplit?: true;
+  /** The look a split screen wears (lib/studioClips/splitSkins.ts). Absent = SOCIA's own. */
+  scenesSkin?: SplitSkinId;
+  /** Split screen: where the person's face is in the picture, top (0) to bottom (1), so it stays in view under the field. Set when the cut is looked at (lib/studioClips/placement.ts). */
+  scenesFocus?: number;
   /** The brand's logo on this cut (a small image kept with the cut): in the corner throughout, and/or on the ending. */
   logo?: EdlLogo;
 };

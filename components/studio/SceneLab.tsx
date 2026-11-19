@@ -6,7 +6,8 @@
 import React, { useEffect, useState } from "react";
 import { Player, Thumbnail } from "@remotion/player";
 import { AbsoluteFill, Sequence, useCurrentFrame, useVideoConfig } from "remotion";
-import { SceneLayer, SPLIT_SHIFT, splitShare } from "./remotion/SceneLayer";
+import { SceneLayer, splitShare } from "./remotion/SceneLayer";
+import { SPLIT_SKINS, SPLIT_SKIN_IDS, pictureWindow, skinOf, type SplitSkinId } from "@/lib/studioClips/splitSkins";
 import { LogoCorner, LogoEnding } from "./remotion/ClipComposition";
 import type { SceneSpan } from "@/lib/studioClips/scenes";
 import { DEMO_EGYPT, DEMO_WAREHOUSE } from "@/lib/studioClips/sceneArtDemo";
@@ -24,23 +25,23 @@ const ACCENTS = [["SOCIA blue", "#3d7bff"], ["Gold", "#e8b84a"], ["Yellow", "#ff
 // A stand-in mark for the logo demos: a plain disc with a letter, not any real brand.
 const LOGO = `data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><circle cx="100" cy="100" r="92" fill="#fff"/><circle cx="100" cy="100" r="78" fill="none" stroke="#111" stroke-width="6"/><text x="100" y="128" text-anchor="middle" font-family="Arial, sans-serif" font-size="84" font-weight="700" fill="#111">B</text></svg>')}`;
 
-function Backdrop({ span, split }: { span: SceneSpan; split: boolean }) {
+function Backdrop({ span, split, skin }: { span: SceneSpan; split: boolean; skin: SplitSkinId }) {
   const f = useCurrentFrame();
-  const { fps, height } = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
   const share = split && f >= 9 && f < 9 + span.durationInFrames ? splitShare(f - 9, span.durationInFrames, fps) : 0;
   return (
-    <AbsoluteFill style={{ backgroundColor: "#3b3f47", transform: `translateY(${Math.round(share * SPLIT_SHIFT * height)}px)` }}>
-      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.35)", fontSize: 44, fontWeight: 600 }}>your video plays here</AbsoluteFill>
+    <AbsoluteFill style={{ backgroundColor: share ? skinOf(skin).bg : "#3b3f47" }}>
+      <div style={{ position: "absolute", ...pictureWindow(skinOf(skin), share, width, height).box, overflow: "hidden", backgroundColor: "#3b3f47", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.35)", fontSize: 44, fontWeight: 600 }}>your video plays here</div>
     </AbsoluteFill>
   );
 }
 
-function Demo({ span, accent, split }: { span: SceneSpan; accent: string; split: boolean }) {
+function Demo({ span, accent, split, skin }: { span: SceneSpan; accent: string; split: boolean; skin: SplitSkinId }) {
   return (
     <AbsoluteFill style={{ backgroundColor: "#000", fontFamily: "Inter, system-ui, sans-serif" }}>
-      <Backdrop span={span} split={split} />
+      <Backdrop span={span} split={split} skin={skin} />
       <Sequence from={9} durationInFrames={span.durationInFrames}>
-        <SceneLayer span={span} fontFamily="Inter, system-ui, sans-serif" accent={accent} split={split} />
+        <SceneLayer span={span} fontFamily="Inter, system-ui, sans-serif" accent={accent} split={split} skin={skin} />
       </Sequence>
     </AbsoluteFill>
   );
@@ -59,6 +60,7 @@ function LogoDemo({ accent, card }: { accent: string; card: boolean }) {
 export default function SceneLab() {
   const [accent, setAccent] = useState<string>(ACCENTS[0][1]);
   const [split, setSplit] = useState(false);
+  const [skin, setSkin] = useState<SplitSkinId>("socia");
   // The players draw in the browser only: nothing of them is rendered on the server, so there is nothing to mismatch.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -79,6 +81,11 @@ export default function SceneLab() {
           <button key={name} type="button" aria-pressed={split === on} onClick={() => setSplit(on)} style={{ height: 36, padding: "0 12px", borderRadius: 10, border: `1px solid ${split === on ? "#f4f5f7" : "rgba(255,255,255,0.14)"}`, background: "#111318", color: "#f4f5f7", font: "inherit", fontSize: 13, cursor: "pointer" }}>{name}</button>
         ))}
       </div>
+      {split && (
+        <div role="group" aria-label="Split screen look" style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 24 }}>
+          {SPLIT_SKIN_IDS.map((id) => <button key={id} type="button" aria-pressed={skin === id} onClick={() => setSkin(id)} style={{ height: 36, padding: "0 12px", borderRadius: 10, border: `1px solid ${skin === id ? "#f4f5f7" : "rgba(255,255,255,0.14)"}`, background: "#111318", color: "#f4f5f7", font: "inherit", fontSize: 13, cursor: "pointer" }}>{SPLIT_SKINS[id].label}</button>)}
+        </div>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 300px))", gap: 24 }}>
         <figure style={{ margin: 0 }}>
           <div style={{ borderRadius: 20, overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)" }}>
@@ -89,7 +96,7 @@ export default function SceneLab() {
         {SPANS.map((x) => (
           <figure key={x.name} style={{ margin: 0 }}>
             <div style={{ borderRadius: 20, overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)" }}>
-              <Player component={Demo} inputProps={{ span: x.span, accent, split }} durationInFrames={x.frames} fps={FPS} compositionWidth={1080} compositionHeight={1920} style={{ width: "100%", aspectRatio: "9 / 16" }} autoPlay loop controls={false} acknowledgeRemotionLicense />
+              <Player component={Demo} inputProps={{ span: x.span, accent, split, skin }} durationInFrames={x.frames} fps={FPS} compositionWidth={1080} compositionHeight={1920} style={{ width: "100%", aspectRatio: "9 / 16" }} autoPlay loop controls={false} acknowledgeRemotionLicense />
             </div>
             <figcaption style={{ marginTop: 10, fontSize: 13, lineHeight: "18px", color: "rgba(244,245,247,0.62)" }}><b style={{ display: "block", color: "#f4f5f7", fontSize: 15 }}>{x.name}</b>{x.what}</figcaption>
           </figure>
@@ -101,7 +108,7 @@ export default function SceneLab() {
         {SPANS.flatMap((x) => x.stills.map((frame) => (
           <figure key={`${x.name}-${frame}`} style={{ margin: 0 }}>
             <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)" }}>
-              <Thumbnail component={Demo} inputProps={{ span: x.span, accent, split }} frameToDisplay={frame} durationInFrames={x.frames} fps={FPS} compositionWidth={1080} compositionHeight={1920} style={{ width: "100%", aspectRatio: "9 / 16" }} />
+              <Thumbnail component={Demo} inputProps={{ span: x.span, accent, split, skin }} frameToDisplay={frame} durationInFrames={x.frames} fps={FPS} compositionWidth={1080} compositionHeight={1920} style={{ width: "100%", aspectRatio: "9 / 16" }} />
             </div>
             <figcaption style={{ marginTop: 6, fontSize: 12, lineHeight: "16px", color: "rgba(244,245,247,0.62)" }}>{x.name}</figcaption>
           </figure>

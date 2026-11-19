@@ -279,3 +279,22 @@ describe("an effect pressed at the playhead", () => {
     expect(later.map((s) => s.kind)).toEqual(["stat", "effect"]);
   });
 });
+
+import { SPLIT_SKINS, isSplitSkin, pictureWindow } from "./splitSkins";
+
+describe("split screen looks", () => {
+  it("leaves the picture whole before a scene and puts it in the look's window when one is up", () => {
+    expect(pictureWindow(SPLIT_SKINS.night, 0, 1080, 1920)).toEqual({ box: { left: 0, top: 0, width: 1080, height: 1920, borderRadius: 0 }, inner: { left: -0, top: -0 } });
+    const w = pictureWindow(SPLIT_SKINS.night, 1, 1080, 1920, 0.5);
+    expect(w.box).toEqual({ left: 69, top: 1405, width: 942, height: 455, borderRadius: 46 });
+    // The band of the picture around its middle is what shows.
+    expect(w.inner.top).toBeCloseTo(-(960 - 227.5));
+    // SOCIA's own split shows the same band it always did: the picture a fifth of the frame lower.
+    const own = pictureWindow(SPLIT_SKINS.socia, 1, 1080, 1920);
+    expect(own.box.top + own.inner.top).toBeCloseTo(0.2 * 1920);
+  });
+  it("is kept on a split cut and dropped otherwise", () => {
+    expect(isSplitSkin("ember")).toBe(true);
+    expect(isSplitSkin("toString")).toBe(false);
+  });
+});

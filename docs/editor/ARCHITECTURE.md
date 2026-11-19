@@ -210,3 +210,18 @@ First: the signature scene of its Ribbon Depth style, as the effect `ribbon` (`s
 Ported next (same day), as five more effects in the same glass look, each with the room dimmed and the person in front: `chat` (message bubbles after typing dots, older ones pushed up), `notify` (a notification stack, newest on top), `search` (a search bar that types), `button` (a button in a field of rings that a cursor clicks, with a ripple), `compare` (two tilted cards, the second lighting up). They follow Motus's elements in layout and motion but are written for SOCIA's frame-driven layer, in flat colours, and are timed evenly across the scene instead of on a word each. Not ported from Ribbon Depth: glass stack, orbit, media fan and filmstrip (SOCIA's list, figure and before-and-after cards cover stack, stat and swap in their own look), its camera shake on landings, its sounds, its split and abstract layouts, and its planning rules as a whole. The other six styles (Editorial Proof, Ember Brief, Night Class, Open Canvas, Prop Room, Seamline) are not started.
 
 Seen running (2026-11-19) at `/dev/cutout-lab`: the scene in a browser-rendered file of a real talking clip, made in under 6 s for an 8 s clip. Not seen: chosen by the model, in the signed-in editor, on a phone.
+
+## Motus's split styles as looks for the split screen, and Open Canvas (2026-11-19)
+
+Five of Motus's seven styles are a graphic field over the speaker. SOCIA already had a split screen, so each of those styles is ported as a look the split screen wears (`edl.scenesSkin`, `lib/studioClips/splitSkins.ts`): its ground, ink, accent, pattern and where the speaker sits, taken from that style's tokens. The graphics in the field are still SOCIA's own scenes (figure, before and after, list, key line, picture), drawn in the look's colours.
+- `prop` (Prop Room): a pale paper panel, half and half.
+- `editorial` (Editorial Proof): a white page above, the speaker in a rounded frame below, red accent.
+- `ember` (Ember Brief): a dark dotted field, magenta accent, half and half.
+- `night` (Night Class): a black lattice board with a cobalt accent, the speaker in a small rounded panel at the bottom.
+`pictureWindow` gives where the picture is at any share of the way in: the box it is clipped to (whole frame to the look's window) and how the full-size picture is moved inside it. `PictureShift` renders three boxes at all times (ground, clip box, picture) so shots are not remounted. `edl.scenesFocus` (set by `placeClear` when the cut is looked at) is where the person's face is, so it stays in the window; without it each look has a guess. The look is chosen beside the layout on the one-drop screen and in the Words tool.
+
+Open Canvas is the effect `canvas`: the picture shrinks onto a drafting grid inside a selection frame with handles, a layer name, a size readout and a cursor.
+
+What this is not: a port of those styles' own elements (about 80 of them: page captures, code windows, props that act a sentence out, logo tiles, price lists and so on), their caption styles on the seam, their hard-cut pacing, or their planning guides. A split look appears while a graphic is up; in Motus the field is there for the whole video. Seamline is not ported at all: it is built on real product footage SOCIA has no way to fetch.
+
+Seen running (2026-11-19) at `/dev/cutout-lab`: the four looks and Open Canvas in browser-rendered files of a real clip. Not seen: chosen on the one-drop screen signed in, the face kept in view from a real look at the footage, a phone.
