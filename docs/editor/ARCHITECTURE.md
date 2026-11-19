@@ -234,3 +234,11 @@ Two more kinds of drawing (`lib/studioClips/sceneArt.ts`), both of the real thin
 A mark or page that cannot be fetched is left out, and a scene left with nothing to show is dropped. Cost to the cut: these images travel inside the cut's JSON, so a video with two pages and four marks can add about half a megabyte to each save.
 
 Seen running (2026-11-19) in `/dev/scene-lab`, with the images loaded straight from the two services in the browser: a real mark and a real page drawn in a scene. Not seen: the server fetching either one (needs the live site), sharp present on the host, the daily limit being hit.
+
+## Eight more pieces from Motus's styles (2026-11-19)
+
+As effects, in the dimmed room with the person in front, after elements of Night Class, Prop Room, Editorial Proof and Ember Brief: `title` (a stacked title with an accent bar and an optional line above), `bars` (value bars; each line is a name and its number, the largest in the accent), `table` (a heading and rows, cells split on "|"), `flow` (steps down a line that draws through them, a tick on the last), `code` (a dark window whose lines type in), `keys` (key caps pressing in turn; the keys are split on "+"), `stamp` (one word slammed on at an angle), `comment` ("Comment" and the keyword, typed into a comment box). That makes 25 effects. The pictures step is told when each fits; pressed by hand they take what they can from the speech and the rest is typed in the Motion effects tool.
+
+Seen running (2026-11-19) at `/dev/cutout-lab`: all eight in browser-rendered files. Not seen: chosen by the model, signed in.
+
+Still not ported from those styles: props that act a sentence out (a printer, a tank draining), the picker, item stacks, file drop, the before-and-after wipe, name reveal, rank and price lists as their own designs, logo grids and chips, the hub, the race and link animations, the demo player, document pages, and every style's own captions, sounds and cut pacing.

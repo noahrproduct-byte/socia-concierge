@@ -14,6 +14,9 @@
 //           bar that types, a button a cursor clicks, two options side by side;
 //   canvas  after Motus's Open Canvas: a drafting grid around the picture, a
 //           selection frame with handles, a size readout and a cursor;
+//   title, bars, table, flow, code, keys, stamp, comment   more pieces from
+//           those styles: a stacked title, value bars, a table, a flow of
+//           steps, a code window that types, key caps, a stamp, "Comment X";
 //   cover   a masthead word across the top, in a serif, with a cover line;
 //   glass   one huge see-through word;
 //   graph   a line chart that climbs, months along the top, a tag on its peak;
@@ -180,6 +183,159 @@ export function EffectLayer({ span, fontFamily, accent }: { span: SceneSpan; fon
   // The glass pieces of the Ribbon Depth style (after Motus's elements): the room dims behind them and the person stays in front.
   const dim = <div style={{ position: "absolute", left: 0, top: 0, width, height, backgroundColor: "#0a0503", opacity: 0.5 * share }} />;
   const top0 = (height / 1920) * 190;
+
+  // More of the styles' own pieces (after Motus's Night Class, Prop Room, Editorial Proof and Ember Brief elements), in the same dimmed room.
+  const lines = (scene.lines ?? []).filter(Boolean);
+  const glassCard: React.CSSProperties = { position: "absolute", left: 70 * s, top: top0, width: width - 140 * s, boxSizing: "border-box", padding: 36 * s, borderRadius: 36 * s, backgroundColor: "rgba(244,236,229,0.92)", color: "#21170f" };
+  const rise = (at: number) => { const p = spring({ frame: f - at, fps, config: { damping: 200, stiffness: 150 }, durationInFrames: 12 }); return { opacity: seen(at), transform: `translateY(${(1 - p) * 26 * s}px)` }; };
+
+  if (fx === "title") {
+    const word = text || "Title";
+    const size = Math.min(170, 900 / Math.max(3, Math.max(...word.split(/\s+/).map((w) => w.length)) * 0.6));
+    return (
+      <div style={fill}>
+        {dim}
+        <div style={{ position: "absolute", left: 70 * s, top: top0, width: width - 140 * s, textAlign: "center", color: "#fff" }}>
+          {scene.label && <div style={{ fontSize: 36 * s, fontWeight: 700, letterSpacing: `${0.14 * 36 * s}px`, textTransform: "uppercase", color: accent, ...rise(2) }}>{scene.label}</div>}
+          <div style={{ marginTop: 14 * s, fontSize: size * s, lineHeight: 1.02, fontWeight: 900, letterSpacing: `${-0.02 * size * s}px`, textTransform: "uppercase", ...rise(5) }}>{word}</div>
+          <div style={{ margin: `${26 * s}px auto 0`, height: 14 * s, width: `${interpolate(f, [12, 26], [0, 38], EASE)}%`, borderRadius: 4 * s, backgroundColor: accent, opacity: 1 - leave }} />
+        </div>
+      </div>
+    );
+  }
+
+  if (fx === "bars") {
+    const rows = lines.slice(0, 4).map((l) => { const m = l.match(/^(.*?)[\s:]*([$£€]?[\d][\d.,]*)\s*(%|x|k|m)?$/i); return m ? { label: m[1].trim() || l, shown: `${m[2]}${m[3] ?? ""}`, n: Number(m[2].replace(/[^\d.]/g, "")) || 0 } : { label: l, shown: "", n: 0 }; });
+    const max = Math.max(1, ...rows.map((r) => r.n));
+    return (
+      <div style={fill}>
+        {dim}
+        <div style={{ ...glassCard, ...rise(2) }}>
+          {text && <div style={{ fontSize: 40 * s, fontWeight: 700, marginBottom: 20 * s }}>{text}</div>}
+          {rows.map((r, i) => {
+            const grow = interpolate(f, [10 + i * 6, 30 + i * 6], [0, 1], EASE);
+            const share = r.n ? r.n / max : 1 - i * 0.18;
+            return (
+              <div key={i} style={{ marginTop: i ? 16 * s : 0 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 30 * s, fontWeight: 600 }}><span>{r.label}</span><span>{r.shown}</span></div>
+                <div style={{ marginTop: 8 * s, height: 22 * s, borderRadius: 99, backgroundColor: "rgba(33,23,15,0.12)" }}><div style={{ width: `${Math.max(4, share * 100) * grow}%`, height: "100%", borderRadius: 99, backgroundColor: i === rows.findIndex((x) => x.n === max) || !r.n ? accent : "rgba(33,23,15,0.45)" }} /></div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  if (fx === "table") {
+    const rows = lines.slice(0, 4).map((l) => l.split(/\s*[|:]\s*/).slice(0, 3));
+    return (
+      <div style={fill}>
+        {dim}
+        <div style={{ ...glassCard, padding: 0, overflow: "hidden", ...rise(2) }}>
+          {text && <div style={{ padding: `${24 * s}px ${32 * s}px`, backgroundColor: accent, color: on, fontSize: 36 * s, fontWeight: 700 }}>{text}</div>}
+          {rows.map((cells, i) => (
+            <div key={i} style={{ display: "flex", gap: 16 * s, padding: `${20 * s}px ${32 * s}px`, borderTop: i || text ? `${Math.max(1, 2 * s)}px solid rgba(33,23,15,0.12)` : undefined, fontSize: 32 * s, ...rise(8 + i * 6) }}>
+              {cells.map((c, k) => <span key={k} style={{ flex: k ? "0 0 auto" : 1, minWidth: 0, fontWeight: k ? 700 : 500, textAlign: k ? "right" : "left" }}>{c}</span>)}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (fx === "flow") {
+    const nodes = [text, ...lines].filter(Boolean).slice(0, 4);
+    const pitch = 132 * s;
+    const drawn = interpolate(f, [8, 8 + nodes.length * 12], [0, 1], EASE);
+    return (
+      <div style={fill}>
+        {dim}
+        <div style={{ position: "absolute", left: 118 * s, top: top0 + 40 * s, width: 8 * s, height: Math.max(0, (nodes.length - 1) * pitch) * drawn, borderRadius: 99, backgroundColor: accent, opacity: 1 - leave }} />
+        {nodes.map((n, i) => {
+          const at = 6 + i * 12, p = pop(at), last = i === nodes.length - 1;
+          return (
+            <div key={i} style={{ position: "absolute", left: 80 * s, top: top0 + i * pitch, display: "flex", alignItems: "center", gap: 24 * s, opacity: seen(at) }}>
+              <span style={{ flex: "none", width: 84 * s, height: 84 * s, borderRadius: 99, backgroundColor: last ? accent : "#fbf6ef", color: last ? on : "#21170f", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 38 * s, fontWeight: 800, transform: `scale(${0.5 + 0.5 * p})` }}>
+                {last ? <svg viewBox="0 0 24 24" width={44 * s} height={44 * s} fill="none" stroke={on} strokeWidth={3.4} strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg> : i + 1}
+              </span>
+              <span style={{ padding: `${16 * s}px ${28 * s}px`, borderRadius: 24 * s, backgroundColor: "rgba(244,236,229,0.92)", color: "#21170f", fontSize: 38 * s, fontWeight: 600 }}>{n}</span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (fx === "code") {
+    const rows = lines.slice(0, 4);
+    const per = Math.max(10, Math.floor((span.durationInFrames - 30) / Math.max(1, rows.length)));
+    return (
+      <div style={fill}>
+        {dim}
+        <div style={{ ...glassCard, padding: 0, overflow: "hidden", backgroundColor: "#16171a", color: "#e8e9ee", ...rise(2) }}>
+          <div style={{ height: 66 * s, padding: `0 ${24 * s}px`, display: "flex", alignItems: "center", gap: 10 * s, backgroundColor: "#22242a" }}>
+            {["#ee6a5f", "#f5bd4f", "#61c454"].map((c) => <span key={c} style={{ width: 18 * s, height: 18 * s, borderRadius: 99, backgroundColor: c }} />)}
+            <span style={{ marginLeft: 14 * s, fontSize: 26 * s, color: "rgba(232,233,238,0.7)" }}>{text || "terminal"}</span>
+          </div>
+          <div style={{ padding: `${24 * s}px ${28 * s}px ${30 * s}px`, fontFamily: "ui-monospace, 'SF Mono', Menlo, Consolas, monospace", fontSize: 30 * s, lineHeight: 1.5 }}>
+            {rows.map((r, i) => {
+              const shown = Math.floor(interpolate(f, [8 + i * per, 8 + i * per + Math.min(per - 2, r.length)], [0, r.length], CLAMP));
+              return <div key={i} style={{ whiteSpace: "nowrap", overflow: "hidden" }}><span style={{ color: accent }}>{i ? "  " : "$ "}</span>{r.slice(0, shown)}{shown < r.length && f >= 8 + i * per ? <span style={{ color: accent }}>▌</span> : null}</div>;
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (fx === "keys") {
+    const caps = (text || "cmd+k").split(/\s*\+\s*|\s+/).filter(Boolean).slice(0, 4);
+    const kw = Math.min(230, 820 / caps.length - 30) * s;
+    return (
+      <div style={fill}>
+        {dim}
+        <div style={{ position: "absolute", left: 0, top: top0 + 60 * s, width, display: "flex", justifyContent: "center", gap: 30 * s }}>
+          {caps.map((c, i) => {
+            const at = 6 + i * 9, down = Math.max(0, Math.sin(Math.min(1, Math.max(0, (f - at - 6) / 8)) * Math.PI));
+            return <div key={i} style={{ width: kw, height: kw, boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 30 * s, backgroundColor: "#fbf6ef", borderBottom: `${(16 - 12 * down) * s}px solid #c9bfb2`, color: "#21170f", fontSize: Math.min(72, (kw / s) / Math.max(1.6, c.length * 0.62)) * s, fontWeight: 700, textTransform: c.length > 1 ? "lowercase" : "uppercase", opacity: seen(at), transform: `translateY(${down * 12 * s + (1 - pop(at)) * 30 * s}px)` }}>{c}</div>;
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  if (fx === "stamp") {
+    const word = (text || "DONE").toUpperCase();
+    const hit = spring({ frame: f - 6, fps, config: { damping: 9, stiffness: 220 }, durationInFrames: 14 });
+    const size = Math.min(210, 860 / Math.max(3, word.length * 0.68));
+    return (
+      <div style={fill}>
+        {dim}
+        <div style={{ position: "absolute", left: 0, top: top0 + 90 * s, width, display: "flex", justifyContent: "center", opacity: seen(6) }}>
+          <div style={{ padding: `${10 * s}px ${44 * s}px`, border: `${14 * s}px solid ${accent}`, borderRadius: 26 * s, color: accent, fontSize: size * s, lineHeight: 1.1, fontWeight: 900, letterSpacing: `${0.04 * size * s}px`, transform: `rotate(-9deg) scale(${2.2 - 1.2 * Math.min(1.08, hit)})` }}>{word}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (fx === "comment") {
+    const word = (text || "GUIDE").toUpperCase();
+    const typed = Math.floor(interpolate(f, [16, 16 + word.length * 3], [0, word.length], CLAMP));
+    return (
+      <div style={fill}>
+        {dim}
+        <div style={{ position: "absolute", left: 70 * s, top: top0 + 30 * s, width: width - 140 * s, textAlign: "center", color: "#fff", ...rise(2) }}>
+          <div style={{ fontSize: 64 * s, fontWeight: 800 }}>Comment</div>
+          <div style={{ marginTop: 6 * s, fontFamily: SERIF, fontStyle: "italic", fontWeight: 700, fontSize: Math.min(150, 880 / Math.max(3, word.length * 0.62)) * s, lineHeight: 1.05, color: accent }}>&ldquo;{word}&rdquo;</div>
+        </div>
+        <div style={{ position: "absolute", left: 110 * s, top: top0 + 330 * s, width: width - 220 * s, height: 104 * s, boxSizing: "border-box", padding: `0 ${34 * s}px`, display: "flex", alignItems: "center", borderRadius: 52 * s, backgroundColor: "#fbf8f4", color: "#21170f", fontSize: 44 * s, fontWeight: 600, ...rise(10) }}>
+          <span>{word.slice(0, typed)}</span><span style={{ width: 3 * s, height: 50 * s, marginLeft: 4 * s, backgroundColor: "#21170f", opacity: Math.floor(f / 6) % 2 ? 1 : 0.15 }} />
+          <span style={{ marginLeft: "auto", padding: `${10 * s}px ${24 * s}px`, borderRadius: 99, backgroundColor: typed >= word.length ? accent : "rgba(33,23,15,0.14)", color: typed >= word.length ? on : "rgba(33,23,15,0.5)", fontSize: 30 * s }}>Post</span>
+        </div>
+      </div>
+    );
+  }
 
   if (fx === "chat") {
     const msgs = [text, ...(scene.lines ?? [])].filter(Boolean).slice(0, 4);

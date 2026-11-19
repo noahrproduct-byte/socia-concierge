@@ -40,6 +40,14 @@ Effects. Separately from pictures you may give up to ${MAX_EFFECTS} effect scene
 - "button": a button a cursor clicks, when an action is asked for (comment, follow, save, book, order). text = the words on the button, 1 to 3 words.
 - "compare": two options side by side, the second lighting up, for old against new, wrong against right, them against us. text = the first option, label = the second, each 1 to 4 words.
 - "canvas": the video becomes a layer in an open design file (a drafting grid, a selection frame, a cursor dragging it), for talk about design, building, editing, making something. text = a 1 to 2 word layer name from what is said.
+- "title": a big stacked title, for the hook or the start of a new section. text = 2 to 4 words; label = an optional 1 to 3 word line above it.
+- "bars": value bars, when two to four things are compared by a number that is said for each. text = what is compared (2 to 4 words); lines = each thing and its number, like "Us 4.9" or "Old way 12%".
+- "table": a small table, for prices, plans, specs. text = a heading; lines = up to 4 rows, cells separated by " | ", like "Starter | $9".
+- "flow": steps joined by a line with a tick on the last, for a process said in order. text = the first step; lines = up to 3 more, 1 to 3 words each.
+- "code": a code or terminal window typing, only when a command, a prompt or code is said or described. text = the window's title; lines = up to 4 short lines to type.
+- "keys": key caps pressing, when a keyboard shortcut is said. text = the keys with + between, like "cmd+shift+4".
+- "stamp": one word stamped on, for a verdict: done, banned, free, approved, sold. text = that one word.
+- "comment": "Comment" and a keyword typed into a comment box, when viewers are told to comment a word. text = that word.
 - "cover": magazine cover. text = one masthead word of 4 to 9 letters taken from what is said; label = a 2 to 4 word cover line.
 - "glass": one huge see-through word behind the person. text = the one word being stressed (up to 8 letters).
 - "graph": a line chart rising behind the person, for growth, money, results. text = the figure said (like "10X", "$5K", "200%"), at most 5 characters.
