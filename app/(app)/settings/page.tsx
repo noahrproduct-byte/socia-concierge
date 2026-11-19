@@ -34,6 +34,8 @@ import InstagramConnect from "@/components/InstagramConnect";
 import FacebookConnect, { type FbPageOption } from "@/components/FacebookConnect";
 import YouTubeConnect from "@/components/YouTubeConnect";
 import TikTokConnect from "@/components/TikTokConnect";
+import PlatformLaunch from "@/components/PlatformLaunch";
+import { launchDates } from "@/lib/platformLaunch";
 import { ttAuthConfigured } from "@/lib/tiktokAuth";
 import { ytAuthConfigured } from "@/lib/youtubeAuth";
 import { YT_WRITE_SCOPES } from "@/lib/publishing/capabilities";
@@ -494,6 +496,7 @@ export default async function SettingsPage({
                 paused={pausedOn("facebook")}
                 offline={offlineFor("facebook", user.email)}
               />
+              {!fbConn && offlineFor("facebook", user.email) && <PlatformLaunch platform="facebook" at={launchDates().facebook} />}
               <div className="st2-divider"><span>YouTube</span></div>
               <YouTubeConnect
                 status={yt}
@@ -517,6 +520,7 @@ export default async function SettingsPage({
                 canPublishDirect={ttDirect}
                 offline={offlineFor("tiktok", user.email)}
               />
+              {!ttConn && offlineFor("tiktok", user.email) && <PlatformLaunch platform="tiktok" at={launchDates().tiktok} />}
             </section>
 
             {/* 3 — SOCIA Intelligence */}
