@@ -25,7 +25,7 @@
 // ranking use (no filters, no gradients), so the Player, a scrub and the
 // browser export draw the same frame.
 import React from "react";
-import { Easing, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { Easing, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { readableOn, safeZoneFor } from "@/lib/textPresets";
 import type { SceneSpan } from "@/lib/studioClips/scenes";
 import { SCENE_ICONS, type IconShape, type SceneIconId } from "@/lib/studioClips/sceneIcons";
@@ -76,6 +76,23 @@ function ArtPiece({ art, size, accent, at, s, ink = "#fff", ground = PANEL }: { 
   const ring = interpolate(f, [at + 24, at + 44], [0, 1], CLAMP);
   return (
     <div style={{ flex: "none", width: size, display: "flex", flexDirection: "column", alignItems: "center", gap: 14 * s, opacity: Math.min(1, Math.max(0, (f - at) / 3)), transform: `scale(${0.82 + 0.18 * pop})` }}>
+      {art.kind === "page" ? (
+        // A real page in a browser window: its bar with the site's name, the page under it drifting up slowly, as if read.
+        <div style={{ width: size, borderRadius: size * 0.045, overflow: "hidden", backgroundColor: "#fff", border: `${Math.max(1, 2 * s)}px solid rgba(0,0,0,0.12)` }}>
+          <div style={{ height: size * 0.085, padding: `0 ${size * 0.035}px`, display: "flex", alignItems: "center", gap: size * 0.016, backgroundColor: "#f1efe9" }}>
+            {["#ee6a5f", "#f5bd4f", "#61c454"].map((c) => <span key={c} style={{ width: size * 0.024, height: size * 0.024, borderRadius: 99, backgroundColor: c }} />)}
+            <span style={{ marginLeft: size * 0.03, flex: 1, height: size * 0.05, padding: `0 ${size * 0.03}px`, display: "flex", alignItems: "center", borderRadius: 99, backgroundColor: "#fff", color: "#333", fontSize: size * 0.032, fontWeight: 600 }}>{art.name}</span>
+          </div>
+          <div style={{ height: size * 0.62, overflow: "hidden" }}>
+            <Img src={art.src} style={{ display: "block", width: "100%", transform: `translateY(${-interpolate(f, [at + 10, at + 110], [0, 14], CLAMP)}%)` }} />
+          </div>
+        </div>
+      ) : art.kind === "logo" ? (
+        // A company's own mark, on a white tile so any mark reads on any ground.
+        <div style={{ width: size * 0.86, height: size * 0.86, margin: size * 0.07, boxSizing: "border-box", padding: size * 0.14, borderRadius: size * 0.2, backgroundColor: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Img src={art.src} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+        </div>
+      ) : (
       <svg viewBox="0 0 100 100" width={size} height={size} style={{ overflow: "visible" }}>
         {art.kind === "map" ? (
           <>
@@ -88,7 +105,8 @@ function ArtPiece({ art, size, accent, at, s, ink = "#fff", ground = PANEL }: { 
           return <path key={i} d={sh.d} fill={tone(sh.fill)} fillOpacity={sh.fill === "none" ? 0 : fade(sh.stroke === "none" ? from : from + 6, 8)} stroke={tone(sh.stroke)} strokeWidth={sh.w ?? 3} strokeLinecap="round" strokeLinejoin="round" pathLength={1} strokeDasharray="1 1" strokeDashoffset={sh.stroke === "none" ? 0 : draw(from, 12)} />;
         })}
       </svg>
-      {art.name && <div style={{ fontSize: 30 * s, lineHeight: 1.1, fontWeight: 800, letterSpacing: `${0.08 * 30 * s}px`, textTransform: "uppercase", color: ink, textAlign: "center", opacity: fade(at + 12, 8) }}>{art.name}</div>}
+      )}
+      {art.name && art.kind !== "page" && <div style={{ fontSize: 30 * s, lineHeight: 1.1, fontWeight: 800, letterSpacing: `${0.08 * 30 * s}px`, textTransform: "uppercase", color: ink, textAlign: "center", opacity: fade(at + 12, 8) }}>{art.name}</div>}
     </div>
   );
 }
@@ -205,7 +223,8 @@ export function SceneLayer({ span, fontFamily, accent: cutAccent, low, split, sk
   // (children of the panel are positioned, so they paint above its pattern)
   if (scene.kind === "picture") {
     const arts = scene.art ?? [];
-    const size = (arts.length <= 1 ? 330 : arts.length === 2 ? 270 : 210) * s;
+    const paged = arts.some((a) => a.kind === "page");
+    const size = (paged ? 860 / (split ? 1.25 : 1) : arts.length <= 1 ? 330 : arts.length === 2 ? 270 : 210) * s;
     const after = 10 + arts.length * 9;
     const parts = scene.text.split(" ").filter(Boolean);
     const big = scene.text.length <= 18 ? 84 : scene.text.length <= 32 ? 66 : 54;

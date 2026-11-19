@@ -225,3 +225,12 @@ Open Canvas is the effect `canvas`: the picture shrinks onto a drafting grid ins
 What this is not: a port of those styles' own elements (about 80 of them: page captures, code windows, props that act a sentence out, logo tiles, price lists and so on), their caption styles on the seam, their hard-cut pacing, or their planning guides. A split look appears while a graphic is up; in Motus the field is there for the whole video. Seamline is not ported at all: it is built on real product footage SOCIA has no way to fetch.
 
 Seen running (2026-11-19) at `/dev/cutout-lab`: the four looks and Open Canvas in browser-rendered files of a real clip. Not seen: chosen on the one-drop screen signed in, the face kept in view from a real look at the footage, a phone.
+
+## Real logos and real pages in a picture scene (2026-11-19)
+
+Two more kinds of drawing (`lib/studioClips/sceneArt.ts`), both of the real thing and both fetched on the server in the pictures step, after the model answers:
+- `logo`: the mark of a company or product that is named. The model gives the brand and its website domain; `lib/studioClips/brandLogo.ts` asks Google's favicon service for that domain's icon (the request always goes to Google, the domain is a checked parameter), refuses the 16-pixel placeholder an unknown site gets, and keeps a PNG data URL of at most about 60 KB. Drawn on a white tile.
+- `page`: a web page, photographed. A page needs a real browser to photograph it and this server has none, so `lib/studioClips/pageCapture.ts` asks Microlink (api.microlink.io) for a 720 by 860 JPEG of it. Without a key that is 25 to 50 a day for the whole site; `MICROLINK_API_KEY` in the environment lifts it. The page's address must be plain public https (no credentials, no port, a real domain name). The image is made smaller with sharp where the server has it, kept as a data URL of at most about 130 KB, shown alone in its scene in a browser window, drifting up slowly. At most two a video.
+A mark or page that cannot be fetched is left out, and a scene left with nothing to show is dropped. Cost to the cut: these images travel inside the cut's JSON, so a video with two pages and four marks can add about half a megabyte to each save.
+
+Seen running (2026-11-19) in `/dev/scene-lab`, with the images loaded straight from the two services in the browser: a real mark and a real page drawn in a scene. Not seen: the server fetching either one (needs the live site), sharp present on the host, the daily limit being hit.

@@ -2,6 +2,8 @@
 // "picture"): what is being talked about, drawn on screen. Two kinds:
 //   map   a country's outline (lib/studioClips/countryMap.ts looks it up on
 //         the server and the outline travels with the scene);
+//   page  a real web page, photographed, in a browser window;
+//   logo  a company's or product's own mark, when it is named;
 //   draw  a flat drawing of a thing (a warehouse, a truck, a phone) made of a
 //         few shapes on a 100 by 100 grid, written by the model that reads
 //         the words (lib/studioClips/visualsModel.ts).
@@ -14,12 +16,21 @@ export type ArtTone = (typeof ART_TONES)[number];
 export type ArtShape = { d: string; fill: ArtTone; stroke: ArtTone; w?: number };
 export type SceneArt =
   | { kind: "map"; name: string; d: string; /** a point inside the country, where the pin lands */ c: [number, number] }
-  | { kind: "draw"; name: string; shapes: ArtShape[] };
+  | { kind: "draw"; name: string; shapes: ArtShape[] }
+  /** a company's or product's own mark (lib/studioClips/brandLogo.ts fetches it on the server), kept as a small image */
+  | { kind: "logo"; name: string; src: string }
+  /** a real web page, photographed (lib/studioClips/pageCapture.ts), shown in a browser window; name is its host */
+  | { kind: "page"; name: string; src: string };
 
 export const ART_MAX = 3;
 export const ART_SHAPES_MAX = 16;
 export const ART_PATH_MAX = 900;
 export const MAP_PATH_MAX = 4200;
+/** The longest a logo's data URL may be (about 60 KB of image). */
+export const LOGO_ART_MAX_CHARS = 82_000;
+/** The longest a page capture's data URL may be (about 130 KB of image). At most one a scene. */
+export const PAGE_ART_MAX_CHARS = 180_000;
+const LOGO_ART = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/;
 const PATH = /^[MmLlHhVvCcSsQqTtAaZz0-9\s,.\-]+$/;
 const tone = (v: unknown, fallback: ArtTone): ArtTone => (ART_TONES as readonly unknown[]).includes(v) ? (v as ArtTone) : fallback;
 const name = (v: unknown) => (typeof v === "string" ? v.replace(/[^\p{L}\p{N} '.-]/gu, "").replace(/\s+/g, " ").trim().slice(0, 40) : "");
@@ -36,6 +47,10 @@ export function sanitizeArt(v: unknown): SceneArt[] {
     if (o.kind === "map") {
       const c = Array.isArray(o.c) ? o.c : [];
       if (okPath(o.d, MAP_PATH_MAX)) out.push({ kind: "map", name: name(o.name), d: o.d, c: [num(c[0], 0, 100, 50), num(c[1], 0, 100, 50)] });
+    } else if (o.kind === "logo") {
+      if (typeof o.src === "string" && o.src.length <= LOGO_ART_MAX_CHARS && LOGO_ART.test(o.src)) out.push({ kind: "logo", name: name(o.name), src: o.src });
+    } else if (o.kind === "page") {
+      if (typeof o.src === "string" && o.src.length <= PAGE_ART_MAX_CHARS && LOGO_ART.test(o.src) && !out.some((x) => x.kind === "page")) out.push({ kind: "page", name: typeof o.name === "string" ? o.name.replace(/[^a-z0-9.-]/gi, "").slice(0, 60) : "", src: o.src });
     } else if (o.kind === "draw") {
       const shapes: ArtShape[] = [];
       for (const s of Array.isArray(o.shapes) ? o.shapes.slice(0, 40) : []) {

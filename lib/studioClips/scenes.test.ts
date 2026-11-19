@@ -298,3 +298,31 @@ describe("split screen looks", () => {
     expect(isSplitSkin("toString")).toBe(false);
   });
 });
+
+import { bareDomain } from "./brandLogo";
+import { publicPage } from "./pageCapture";
+
+describe("real marks and real pages in a picture scene", () => {
+  const png = "data:image/png;base64,iVBORw0KGgo=";
+  const said = [{ text: "We", key: "a@0", sec: 0 }, { text: "use", key: "a@300", sec: 0.3 }, { text: "Notion", key: "a@600", sec: 0.6 }];
+  it("takes only a plain public domain, and only a plain public https page", () => {
+    expect(bareDomain("https://www.Notion.so/product")).toBe("notion.so");
+    expect(bareDomain("localhost")).toBeNull();
+    expect(bareDomain("10.0.0.1")).toBeNull();
+    expect(bareDomain("evil.com@internal")).toBeNull();
+    expect(publicPage("notion.so/pricing")).toEqual({ url: "https://notion.so/pricing", host: "notion.so" });
+    expect(publicPage("https://user:pw@notion.so")).toBeNull();
+    expect(publicPage("https://notion.so:8443/")).toBeNull();
+    expect(publicPage("https://169.254.169.254/latest")).toBeNull();
+  });
+  it("puts a fetched mark in its scene and leaves out one that was not fetched", () => {
+    const out = picturesFrom({ scenes: [{ word: 3, headline: "Everything in Notion", art: [{ kind: "logo", brand: "Notion", domain: "notion.so" }, { kind: "logo", brand: "Other", domain: "other.example" }] }] }, said, { "notion.so": png });
+    expect(out[0].art).toEqual([{ kind: "logo", name: "Notion", src: png }]);
+    expect(picturesFrom({ scenes: [{ word: 3, headline: "x", art: [{ kind: "logo", brand: "Notion", domain: "notion.so" }] }] }, said)).toEqual([]);
+  });
+  it("gives a photographed page the scene to itself, and keeps only image data", () => {
+    const out = picturesFrom({ scenes: [{ word: 3, headline: "Notion's home page", art: [{ kind: "logo", brand: "Notion", domain: "notion.so" }, { kind: "page", url: "https://notion.so" }] }] }, said, { "notion.so": png }, { "https://notion.so/": { src: png, host: "notion.so" } });
+    expect(out[0].art).toEqual([{ kind: "page", name: "notion.so", src: png }]);
+    expect(sanitizeArt([{ kind: "page", name: "x", src: "https://example.com/a.png" }, { kind: "logo", name: "x", src: "data:text/html;base64,AAAA" }])).toEqual([]);
+  });
+});

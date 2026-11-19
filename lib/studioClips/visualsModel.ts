@@ -2,6 +2,8 @@ import { anthropic, effortFor, modelFor } from "@/lib/anthropic";
 import { recordAiUsage } from "@/lib/aiUsage";
 import { AnalysisError } from "./analysis";
 import { countryArt } from "./countryMap";
+import { bareDomain, brandLogo } from "./brandLogo";
+import { pageCapture, publicPage } from "./pageCapture";
 import { sanitizeArt, ART_MAX, type SceneArt } from "./sceneArt";
 import { MAX_PICTURES, SCENE_LABEL_MAX, type EdlScene } from "./scenes";
 import { FX_LINE_MAX, FX_TEXT_MAX, MAX_EFFECTS, SCENE_FX, isSceneFx, type SceneFxId } from "./sceneFx";
@@ -19,6 +21,8 @@ A picture scene shows 1 to 3 drawings side by side with a short headline under t
 
 Drawings, two kinds:
 - A country: {"kind":"map","country":"Egypt"}. Only real countries. Never draw a country yourself.
+- A company or product that is named in the words: {"kind":"logo","brand":"Notion","domain":"notion.so"}. Its real mark is fetched from its website, so give the main website domain of that exact company or product, and only when you are sure of it. Never draw a logo yourself, and never use one for a company that was not named.
+- A real web page: {"kind":"page","url":"https://notion.so"}. The page is photographed and shown in a browser window, alone in its scene (give no other drawing with it). Only the home page or a well-known page of a company, product or site that is named in the words, and only when you are sure of the address. At most 2 in a video.
 - A thing: {"kind":"draw","name":"warehouse","shapes":[...]}. A bold, flat, simple drawing on a 100 by 100 grid (x right, y down), like a good app icon: 4 to 12 shapes, instantly readable at a glance, filling most of the grid (keep inside 6..94). Each shape is {"d":"<SVG path data>","fill":TONE,"stroke":TONE,"w":N}. TONE is one of "accent" (the brand colour, use it for the main body), "light" (white), "mid" (soft grey, for secondary parts), "dark" (the background colour, for windows, doors and cut-outs on top of filled parts), "none". "w" is the stroke width, 2 to 5. Path data may only use the letters M L H V C S Q T A Z (either case) and numbers. Draw the object itself, front or side view, no text, no people's faces, no logos or brand marks, no flags.
 
 Rules:
@@ -59,7 +63,7 @@ function jsonIn(text: string): unknown {
 }
 
 /** The model's answer made into picture scenes: countries looked up, drawings checked, anything unusable dropped. Pure. */
-export function picturesFrom(data: unknown, said: SaidWord[]): EdlScene[] {
+export function picturesFrom(data: unknown, said: SaidWord[], logos: Record<string, string> = {}, pages: Record<string, { src: string; host: string }> = {}): EdlScene[] {
   const list = (data as { scenes?: unknown } | null)?.scenes;
   if (!Array.isArray(list)) return [];
   const out: EdlScene[] = [];
@@ -73,13 +77,18 @@ export function picturesFrom(data: unknown, said: SaidWord[]): EdlScene[] {
       const r = a as Record<string, unknown> | null;
       if (!r || art.length >= ART_MAX) continue;
       if (r.kind === "map") { const m = typeof r.country === "string" ? countryArt(r.country) : null; if (m) art.push(m); }
+      else if (r.kind === "page") { const pg = publicPage(r.url); const got = pg ? pages[pg.url] : undefined; if (got) art.push(...sanitizeArt([{ kind: "page", name: got.host, src: got.src }])); }
+      else if (r.kind === "logo") { const d = bareDomain(r.domain); if (d && logos[d]) art.push(...sanitizeArt([{ kind: "logo", name: typeof r.brand === "string" ? r.brand : d, src: logos[d] }])); }
       else art.push(...sanitizeArt([r]));
     }
     if (!art.length) continue;
     const headline = typeof o.headline === "string" ? o.headline.replace(/—/g, ",").replace(/\s+/g, " ").replace(/[.]+$/, "").trim().slice(0, 44) : "";
     const label = typeof o.label === "string" ? o.label.replace(/—/g, ",").replace(/\s+/g, " ").trim().slice(0, SCENE_LABEL_MAX) : "";
     const dur = typeof o.dur === "number" && Number.isFinite(o.dur) ? Math.min(4, Math.max(2.5, o.dur)) : 3;
-    out.push({ id: `p${out.length + 1}`, kind: "picture", key: at.key, dur, text: headline || art.map((x) => x.name).filter(Boolean).join(" and "), art: art.slice(0, ART_MAX), ...(label ? { label } : {}) });
+    // A photographed page has the scene to itself.
+    const page = art.find((x) => x.kind === "page");
+    const shown = page ? [page] : art.slice(0, ART_MAX);
+    out.push({ id: `p${out.length + 1}`, kind: "picture", key: at.key, dur, text: headline || shown.map((x) => x.name).filter(Boolean).join(" and "), art: shown, ...(label ? { label } : {}) });
   }
   return out;
 }
@@ -119,5 +128,12 @@ export async function picturesFor(said: SaidWord[], prompt: string, ownerId: str
   const text = block && "text" in block ? block.text : "";
   if (!text) throw new AnalysisError("empty", "Empty response from the model.");
   const data = jsonIn(text);
-  return [...picturesFrom(data, said), ...effectsFrom(data, said)];
+  // The marks of the companies named, fetched together; one that cannot be fetched is simply left out of its scene.
+  const domains = [...new Set(((data as { scenes?: { art?: { kind?: string; domain?: unknown }[] }[] } | null)?.scenes ?? []).flatMap((s) => (Array.isArray(s?.art) ? s.art : [])).filter((a) => a?.kind === "logo").map((a) => bareDomain(a.domain)).filter((d): d is string => Boolean(d)))].slice(0, 4);
+  const found = await Promise.all(domains.map((d) => brandLogo(d)));
+  const logos = Object.fromEntries(domains.flatMap((d, i) => (found[i] ? [[d, found[i] as string]] : [])));
+  const urls = [...new Set(((data as { scenes?: { art?: { kind?: string; url?: unknown }[] }[] } | null)?.scenes ?? []).flatMap((s) => (Array.isArray(s?.art) ? s.art : [])).filter((a) => a?.kind === "page").map((a) => publicPage(a.url)?.url).filter((u): u is string => Boolean(u)))].slice(0, 2);
+  const shots = await Promise.all(urls.map((u) => pageCapture(u)));
+  const pages = Object.fromEntries(urls.flatMap((u, i) => (shots[i] ? [[u, shots[i] as { src: string; host: string }]] : [])));
+  return [...picturesFrom(data, said, logos, pages), ...effectsFrom(data, said)];
 }
