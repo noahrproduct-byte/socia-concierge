@@ -30,7 +30,7 @@ describe("the saved memory", () => {
     });
     expect(m.own?.style).toBe("animated");
     expect(Object.keys(m.accounts)).toEqual(["instagram:therefundapp"]);
-    expect(sanitizeMemory(null)).toEqual({ own: null, accounts: {}, tried: {}, fit: {}, copyFrom: [], copyFound: {}, reels: {} });
+    expect(sanitizeMemory(null)).toEqual({ own: null, accounts: {}, tried: {}, fit: {}, copyFrom: [], copyFound: {}, nicheFound: {}, reels: {} });
   });
   it("is looked at again after a week", () => {
     const s = accountStyle(["animated"], AT)!;
@@ -159,5 +159,18 @@ describe("suggestions need 1,000 followers", () => {
     expect(tooSmallToSuggest(999)).toBe(true);
     expect(tooSmallToSuggest(1000)).toBe(false);
     expect(tooSmallToSuggest(null)).toBe(false);
+  });
+});
+
+describe("accounts found through mentions", () => {
+  it("keeps valid entries, newest first, at most NICHE_FOUND_MAX", async () => {
+    const { sanitizeMemory, NICHE_FOUND_MAX } = await import("./discoverStyle");
+    const raw: Record<string, unknown> = { "Bad Handle!": { from: "a", at: "2026-11-17T00:00:00Z" }, nofrom: { at: "2026-11-17T00:00:00Z" } };
+    for (let i = 0; i < NICHE_FOUND_MAX + 5; i++) raw[`acct${i}`] = { from: "imanglife", at: new Date(Date.UTC(2026, 10, 1) + i * 60_000).toISOString() };
+    const m = sanitizeMemory({ nicheFound: raw });
+    expect(Object.keys(m.nicheFound)).toHaveLength(NICHE_FOUND_MAX);
+    expect(m.nicheFound[`acct${NICHE_FOUND_MAX + 4}`]).toEqual({ from: "imanglife", at: expect.any(String) });
+    expect(m.nicheFound.nofrom).toBeUndefined();
+    expect(m.nicheFound.acct0).toBeUndefined();
   });
 });
