@@ -41,8 +41,8 @@
 .ai-submit { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
 .ai-submit small { color: var(--text-muted); font-size: 12.5px; }
 
-.ai-jobs { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.ai-job { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
+.ai-jobs { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.ai-job { min-width: 0; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
 .ai-job.is-open { background: var(--surface-raised); }
 .ai-job-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: none; border: 0; padding: 0; font: inherit; color: var(--ink); cursor: pointer; }
 div.ai-job-row { cursor: default; }
@@ -107,6 +107,8 @@ div.ai-job-row { cursor: default; }
 @media (max-width: 640px) {
   .ai-panel { padding: 14px; }
   .ai-job-row { flex-wrap: wrap; }
+  /* On a phone the meta line wraps instead of pushing the row wider than the screen. */
+  .ai-job-meta { white-space: normal; }
   .ai-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
   .ai-media { height: 300px; }
 }

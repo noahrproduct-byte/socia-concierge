@@ -9552,6 +9552,8 @@ html.theme-switching, html.theme-switching body, html.theme-switching * {
 .av-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; }
 .av-main, .av-side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .av-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+/* A wide table inside a card scrolls in its own frame instead of widening the page. */
+.av-two > * { min-width: 0; }
 .av-perf-summary { display: flex; align-items: baseline; gap: 10px; margin: 2px 0 8px; font-size: 12.5px; color: var(--text-secondary); flex-wrap: wrap; }
 .av-perf-summary b { font-size: 22px; font-weight: 750; letter-spacing: -0.5px; color: var(--text-primary); font-variant-numeric: tabular-nums; }
 .av-perf-summary em { font-style: normal; font-weight: 650; }
@@ -9604,7 +9606,7 @@ html.theme-switching, html.theme-switching body, html.theme-switching * {
 }
 @media (max-width: 900px) {
   .ov-kpis.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .dv-bottom, .av-two { grid-template-columns: 1fr; }
+  .dv-bottom, .av-two { grid-template-columns: minmax(0, 1fr); }
   
   
   
@@ -11968,3 +11970,13 @@ p.cbm-muted { display: block; }
 /* Ask SOCIA: under a script to film, the way to the AI editor */
 .ask-to-editor { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
 .ask-to-editor p { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--text-secondary); }
+
+/* Phones: text fields at 16px, so iOS Safari doesn't zoom the page in when one is tapped.
+   Overrides component sizes on purpose (it is an accessibility floor, not a style). */
+@media (max-width: 640px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
