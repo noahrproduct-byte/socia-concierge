@@ -5,6 +5,10 @@
 // and under the person (ClipComposition draws the person again on top for
 // the effects that need it, and moves the picture for frame and reveal with
 // pictureFx below):
+//   ribbon  the Ribbon Depth scene (after Motus, see lib/studioClips/ribbon.ts):
+//           the room dims, a glass ribbon winds behind the person, a frosted
+//           card with a title and rows sits behind the head, and a line lands
+//           in front of them (EffectFront, drawn above the person);
 //   cover   a masthead word across the top, in a serif, with a cover line;
 //   glass   one huge see-through word;
 //   graph   a line chart that climbs, months along the top, a tag on its peak;
@@ -18,8 +22,10 @@
 //           lines on its screen.
 // Driven by the frame only, plain styles and SVG, so the Player and the
 // export draw the same.
-import React from "react";
-import { Easing, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Easing, continueRender, delayRender, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { familyOf, loadEditorFont } from "@/lib/editorFonts";
+import { drawRibbon, ribbonScratch, RIBBON_FORMS, type RibbonForm, type RibbonScratch } from "@/lib/studioClips/ribbon";
 import { readableOn, safeZoneFor } from "@/lib/textPresets";
 import type { SceneSpan } from "@/lib/studioClips/scenes";
 import type { SceneFxId } from "@/lib/studioClips/sceneFx";
@@ -44,6 +50,108 @@ export function pictureFx(fx: SceneFxId | undefined, share: number, width: numbe
   return null;
 }
 
+/** The italic serif the Ribbon Depth scene sets its accent word in; the frame waits for it. */
+function useAccentSerif(): string {
+  const [, setReady] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    const handle = delayRender("accent serif", { timeoutInMilliseconds: 30_000 });
+    loadEditorFont("serif").catch(() => null).finally(() => { if (alive) setReady(true); continueRender(handle); });
+    return () => { alive = false; };
+  }, []);
+  return `${familyOf("serif")}, ${SERIF}`;
+}
+
+/** The glass ribbon (lib/studioClips/ribbon.ts), drawn again for every frame at two thirds of the frame's size. */
+function RibbonCanvas({ form, accent, frames }: { form: RibbonForm; accent: string; frames: number }) {
+  const f = useCurrentFrame();
+  const { fps, width, height } = useVideoConfig();
+  const ref = useRef<HTMLCanvasElement>(null);
+  const scratch = useRef<RibbonScratch | null>(null);
+  const W = 720, H = Math.round((720 * height) / width);
+  useLayoutEffect(() => {
+    const c = ref.current;
+    const g = c?.getContext("2d");
+    if (!c || !g) return;
+    if (!scratch.current || scratch.current.w !== W || scratch.current.h !== H) scratch.current = ribbonScratch(W, H);
+    if (!scratch.current) return;
+    drawRibbon(g, scratch.current, f / fps, { form, accent, leave: interpolate(f, [frames - 12, frames], [0, 1], CLAMP) });
+  }, [f, fps, form, accent, frames, W, H]);
+  return <canvas ref={ref} width={W} height={H} style={{ position: "absolute", left: 0, top: 0, width, height, pointerEvents: "none" }} />;
+}
+
+const CREAM = "#f9f2e6", GLASS = "rgba(244,236,229,0.88)", BROWN = "#21170f";
+/** A title whose last word is the accent: set in the italic serif, a little larger. */
+function Accented({ text, serif, size, accentSize, color }: { text: string; serif: string; size: number; accentSize: number; color: string }) {
+  const parts = text.trim().split(/\s+/);
+  const last = parts.length > 1 ? parts.pop()! : "";
+  return <span style={{ fontSize: size, color }}>{parts.join(" ")}{last && <> <span style={{ fontFamily: serif, fontStyle: "italic", fontWeight: 700, fontSize: accentSize }}>{last}</span></>}</span>;
+}
+
+/** What an effect draws in front of the person: the Ribbon Depth scene's line (a cream capsule, then the line with one italic word, underlined). */
+export function EffectFront({ span, fontFamily, accent }: { span: SceneSpan; fontFamily: string; accent: string }) {
+  const f = useCurrentFrame();
+  const { fps, width, height } = useVideoConfig();
+  const serif = useAccentSerif();
+  const s = width / 1080;
+  const { scene } = span;
+  const words = (scene.label ?? "").trim().split(/\s+/).filter(Boolean);
+  if (scene.fx !== "ribbon" || !words.length) return null;
+  const leave = interpolate(f, [span.durationInFrames - OUT, span.durationInFrames], [0, 1], CLAMP);
+  // Four words or more: the first two sit in the capsule, the rest is the line.
+  const pill = words.length >= 4 ? words.slice(0, 2).join(" ") : "";
+  const line = words.length >= 4 ? words.slice(2).join(" ") : words.join(" ");
+  const inn = spring({ frame: f - 6, fps, config: { damping: 200, stiffness: 140 }, durationInFrames: 14 });
+  const pillIn = spring({ frame: f - 2, fps, config: { damping: 200, stiffness: 160 }, durationInFrames: 12 });
+  const big = Math.min(92, (width * 0.9) / Math.max(1, line.length * 0.5) / s);
+  return (
+    <div style={{ position: "absolute", left: 0, top: 0, width, height, fontFamily, opacity: 1 - leave }}>
+      {pill && <div style={{ position: "absolute", left: 70 * s, top: (height / 1920) * 1150, height: 74 * s, padding: `0 ${30 * s}px`, display: "flex", alignItems: "center", borderRadius: 37 * s, backgroundColor: CREAM, color: BROWN, fontSize: 36 * s, fontWeight: 600, opacity: Math.min(1, Math.max(0, (f - 2) / 3)), transform: `translateY(${(1 - pillIn) * 30 * s}px)` }}>{pill}</div>}
+      <div style={{ position: "absolute", left: 70 * s, top: (height / 1920) * 1250, width: width - 140 * s, lineHeight: 1.08, fontWeight: 500, textShadow: "0 3px 18px rgba(0,0,0,0.55)", opacity: Math.min(1, Math.max(0, (f - 6) / 3)), transform: `translateY(${(1 - inn) * 44 * s}px)` }}>
+        <Accented text={line} serif={serif} size={big * s} accentSize={big * 1.26 * s} color="#fff9f2" />
+        <div style={{ marginTop: 10 * s, height: Math.max(3, 6 * s), width: `${interpolate(f, [16, 30], [0, 46], EASE)}%`, borderRadius: 99, backgroundColor: accent }} />
+      </div>
+    </div>
+  );
+}
+
+/** The Ribbon Depth scene behind the person: the room dimmed, the ribbon, and a frosted card with a title and rows that land in turn. */
+function RibbonScene({ span, fontFamily, accent }: { span: SceneSpan; fontFamily: string; accent: string }) {
+  const f = useCurrentFrame();
+  const { fps, width, height } = useVideoConfig();
+  const serif = useAccentSerif();
+  const s = width / 1080;
+  const { scene } = span;
+  const share = fxShare(f, span.durationInFrames, fps);
+  const rows = (scene.lines ?? []).slice(0, 3);
+  const n = Number(scene.id.replace(/\D/g, "")) || 0;
+  const form = RIBBON_FORMS[n % RIBBON_FORMS.length === 0 ? 0 : (n - 1) % RIBBON_FORMS.length];
+  const card = spring({ frame: f - 4, fps, config: { damping: 200, stiffness: 130 }, durationInFrames: 16 });
+  return (
+    <div style={{ position: "absolute", left: 0, top: 0, width, height, overflow: "hidden", fontFamily }}>
+      <div style={{ position: "absolute", left: 0, top: 0, width, height, backgroundColor: "#0a0503", opacity: 0.52 * share }} />
+      <RibbonCanvas form={form} accent={accent} frames={span.durationInFrames} />
+      {scene.text.trim() && (
+        <div style={{ position: "absolute", left: 56 * s, top: (height / 1920) * 205, width: 600 * s, boxSizing: "border-box", padding: 40 * s, borderRadius: 40 * s, backgroundColor: GLASS, border: `${Math.max(1, 2 * s)}px solid rgba(255,255,255,0.7)`, color: BROWN, opacity: Math.min(1, Math.max(0, (f - 4) / 4)) * share, transform: `translateY(${(1 - card) * 44 * s}px) scale(${0.95 + 0.05 * card})` }}>
+          <div style={{ lineHeight: 1.12, fontWeight: 500 }}><Accented text={scene.text} serif={serif} size={44 * s} accentSize={54 * s} color={BROWN} /></div>
+          {rows.map((r, i) => {
+            const at = 14 + i * 9;
+            const p = spring({ frame: f - at, fps, config: { damping: 200, stiffness: 150 }, durationInFrames: 12 });
+            return (
+              <div key={i} style={{ marginTop: (i ? 14 : 26) * s, height: 64 * s, padding: `0 ${18 * s}px`, display: "flex", alignItems: "center", gap: 14 * s, borderRadius: 20 * s, backgroundColor: "rgba(255,255,255,0.62)", fontSize: 30 * s, fontWeight: 500, opacity: Math.min(1, Math.max(0, (f - at) / 3)), transform: `translateX(${(1 - p) * -30 * s}px)` }}>
+                <span style={{ flex: "none", width: 34 * s, height: 34 * s, borderRadius: 99, backgroundColor: accent, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <svg viewBox="0 0 24 24" width={20 * s} height={20 * s} fill="none" stroke={readableOn(accent)} strokeWidth={3.4} strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+                </span>
+                <span style={{ overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{r}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const fit = (text: string, width: number, max: number, perChar = 0.62) => Math.min(max, width / Math.max(1, text.length * perChar));
 
 export function EffectLayer({ span, fontFamily, accent }: { span: SceneSpan; fontFamily: string; accent: string }) {
@@ -60,6 +168,8 @@ export function EffectLayer({ span, fontFamily, accent }: { span: SceneSpan; fon
   const pop = (at: number) => spring({ frame: f - at, fps, config: { damping: 12, stiffness: 170 }, durationInFrames: 14 });
   const seen = (at: number) => Math.min(1, Math.max(0, (f - at) / 3)) * (1 - leave);
   const fill: React.CSSProperties = { position: "absolute", left: 0, top: 0, width, height, overflow: "hidden", fontFamily };
+
+  if (fx === "ribbon") return <RibbonScene span={span} fontFamily={fontFamily} accent={accent} />;
 
   if (fx === "cover") {
     const word = (text || "TODAY").toUpperCase();

@@ -5,6 +5,7 @@
 // are); a few move the picture itself. Pure: ids, what each needs, bounds.
 
 export const SCENE_FX = {
+  ribbon: { label: "Ribbon depth", what: "The room dims, a glass ribbon winds behind the person, a frosted card sits behind the head and a line lands in front.", person: true, text: "Card title", lines: 3 },
   cover: { label: "Magazine cover", what: "A masthead word across the top, behind the person.", person: true, text: "Masthead word", lines: 0 },
   glass: { label: "Glass text", what: "One big see-through word behind the person.", person: true, text: "Word", lines: 0 },
   graph: { label: "Graph rise", what: "A line chart climbing behind the person, with a tag on its peak.", person: true, text: "Tag on the peak", lines: 0 },

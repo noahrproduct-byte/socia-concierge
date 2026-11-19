@@ -22,6 +22,7 @@ const WORDS: TranscriptWord[] = [w("We", 2.4, 2.6), w("have", 2.6, 2.8), w("500"
 const SCENES: Record<string, EdlScene> = {
   stat: { id: "g1", kind: "stat", key: "talk@2800", dur: 3.4, text: "500", label: "rugs in stock", icon: "shop" },
   line: { id: "g1", kind: "line", key: "talk@2800", dur: 3.4, text: "Nobody else does it this way", icon: "star" },
+  ribbon: { id: "g1", kind: "effect", fx: "ribbon", key: "talk@2800", dur: 4.4, text: "The rug showroom", label: "We have 500 rugs in stock today", lines: ["Handmade", "Every size", "Ready today"] },
   cover: { id: "g1", kind: "effect", fx: "cover", key: "talk@2800", dur: 3.2, text: "Showroom", label: "500 rugs in stock" },
   glass: { id: "g1", kind: "effect", fx: "glass", key: "talk@2800", dur: 3.2, text: "Rugs" },
   graph: { id: "g1", kind: "effect", fx: "graph", key: "talk@2800", dur: 3.4, text: "10X" },

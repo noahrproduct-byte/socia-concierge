@@ -15,6 +15,7 @@ const P = "#e9eaee", A = "#3d7bff", D = "#2a2d35";
 /** A small drawing of what each effect does: the person is the pale shape, the effect is in blue. */
 const person = <path d="M70 100 V78 a16 16 0 0 1 12 -15 a11 11 0 1 1 16 0 a16 16 0 0 1 12 15 V100 Z" fill={P} />;
 const THUMB: Record<SceneFxId, React.ReactNode> = {
+  ribbon: <><rect width="160" height="100" fill="#0d0a09" /><path d="M-6 30 C40 4 120 6 168 40" fill="none" stroke={A} strokeWidth="9" strokeLinecap="round" opacity="0.85" /><path d="M-6 30 C40 4 120 6 168 40" fill="none" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" opacity="0.8" /><path d="M-6 74 C50 96 120 92 168 60" fill="none" stroke={A} strokeWidth="7" strokeLinecap="round" opacity="0.5" /><rect x="14" y="16" width="62" height="40" rx="7" fill="#f4ece5" /><rect x="22" y="24" width="34" height="5" fill="#21170f" /><rect x="22" y="36" width="44" height="6" rx="3" fill="rgba(33,23,15,0.25)" />{person}</>,
   cover: <><text x="80" y="34" textAnchor="middle" fontFamily="Georgia, serif" fontWeight="700" fontSize="30" fill="#fff">COVER</text><rect x="22" y="40" width="116" height="3" fill={A} />{person}</>,
   glass: <><text x="80" y="50" textAnchor="middle" fontWeight="900" fontSize="44" fill="rgba(255,255,255,0.15)" stroke="#fff" strokeWidth="1.5">BIG</text>{person}</>,
   graph: <><path d="M8 80 L40 70 L70 60 L104 36 L150 12" fill="none" stroke={A} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" /><circle cx="150" cy="12" r="5" fill="#fff" />{person}</>,
@@ -76,9 +77,10 @@ export default function MotionEffectsPanel({ scenes, spans, disabled, hasWords, 
                 {(SCENE_FX[fx].text || SCENE_FX[fx].lines > 0 || fx === "cover") && (
                   <div className="cbb-endcard-fields">
                     {SCENE_FX[fx].text && <label>{SCENE_FX[fx].text}<input type="text" maxLength={FX_TEXT_MAX} value={s.text} disabled={disabled} onChange={(e) => set(s.id, { text: e.target.value })} /></label>}
+                    {fx === "ribbon" && <label>Line in front<input type="text" maxLength={SCENE_LABEL_MAX} value={s.label ?? ""} disabled={disabled} onChange={(e) => set(s.id, { label: e.target.value })} /></label>}
                     {fx === "cover" && <label>Cover line<input type="text" maxLength={SCENE_LABEL_MAX} value={s.label ?? ""} disabled={disabled} onChange={(e) => set(s.id, { label: e.target.value })} /></label>}
                     {Array.from({ length: SCENE_FX[fx].lines - (fx === "news" ? 1 : 0) }, (_, i) => (
-                      <label key={i}>{fx === "news" ? `Headline ${i + 2}` : `Line ${i + 1}`}<input type="text" maxLength={FX_LINE_MAX} value={s.lines?.[i] ?? ""} disabled={disabled} onChange={(e) => { const lines = [...(s.lines ?? [])]; lines[i] = e.target.value; set(s.id, { lines }); }} /></label>
+                      <label key={i}>{fx === "news" ? `Headline ${i + 2}` : fx === "ribbon" ? `Card row ${i + 1}` : `Line ${i + 1}`}<input type="text" maxLength={FX_LINE_MAX} value={s.lines?.[i] ?? ""} disabled={disabled} onChange={(e) => { const lines = [...(s.lines ?? [])]; lines[i] = e.target.value; set(s.id, { lines }); }} /></label>
                     ))}
                   </div>
                 )}

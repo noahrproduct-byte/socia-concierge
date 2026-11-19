@@ -354,9 +354,9 @@ export function effectAt(edl: Edl, words: Record<string, TranscriptWord[] | null
   const word = salient(near).slice(0, FX_TEXT_MAX);
   const line = near.slice(0, 5).map((t) => plain(t.text)).join(" ").slice(0, FX_LINE_MAX);
   const figure = toks.slice(i, i + 14).map((t) => plain(t.text)).find((w) => FIGURE_LIKE.test(w));
-  const text = fx === "cover" || fx === "glass" || fx === "paper" ? word : fx === "graph" ? (figure ?? "").slice(0, 6) : fx === "news" ? line.slice(0, FX_TEXT_MAX) : fx === "reveal" || fx === "phone" ? word : "";
+  const text = fx === "ribbon" ? word.replace(/^\p{Ll}/u, (c) => c.toUpperCase()) : fx === "cover" || fx === "glass" || fx === "paper" ? word : fx === "graph" ? (figure ?? "").slice(0, 6) : fx === "news" ? line.slice(0, FX_TEXT_MAX) : fx === "reveal" || fx === "phone" ? word : "";
   const lines = fx === "phone" ? [line].filter(Boolean) : [];
-  return { id: "new", kind: "effect", fx, key: toks[i].key, dur: 3, text, ...(lines.length ? { lines } : {}) };
+  return { id: "new", kind: "effect", fx, key: toks[i].key, dur: fx === "ribbon" ? 3.6 : 3, text, ...(fx === "ribbon" && line ? { label: line.slice(0, SCENE_LABEL_MAX) } : {}), ...(lines.length ? { lines } : {}) };
 }
 
 /** A scene put onto a cut: whatever would be on screen with it, or within a second of it, comes out. Sorted by when they show. */

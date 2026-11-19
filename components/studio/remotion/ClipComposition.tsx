@@ -39,7 +39,7 @@ import { RankingLayer } from "./RankingLayer";
 import { SceneLayer, SPLIT_SHIFT, splitShare } from "./SceneLayer";
 import { cutoutSpans, sceneSpans, type SceneSpan } from "@/lib/studioClips/scenes";
 import { PersonCutout } from "./PersonCutout";
-import { EffectLayer, fxShare, pictureFx } from "./EffectLayer";
+import { EffectFront, EffectLayer, fxShare, pictureFx } from "./EffectLayer";
 import { fxNeedsPerson } from "@/lib/studioClips/sceneFx";
 import type { BuildSource, Edl, EdlText, EndCard } from "@/lib/studioClips/types";
 import { END_CARD_SEC, endLineSize } from "@/lib/studioClips/teach";
@@ -958,6 +958,11 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
           </Sequence>
         );
       })}
+      {fxSpans.filter((sp) => sp.scene.fx === "ribbon" && sp.scene.label).map((sp) => (
+        <Sequence key={`front-${sp.scene.id}`} from={sp.from} durationInFrames={sp.durationInFrames} name="effect · line in front">
+          <EffectFront span={sp} fontFamily={fontFamily} accent={theme?.color.accent ?? style.accent} />
+        </Sequence>
+      ))}
       {cards.map((sp) => (
         <Sequence key={sp.scene.id} from={sp.from} durationInFrames={sp.durationInFrames} name={`scene · ${sp.scene.kind}`}>
           <SceneLayer span={sp} fontFamily={fontFamily} accent={theme?.color.accent ?? style.accent} low={style.captions.position === "top"} split={split} />
@@ -978,7 +983,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
           </Sequence>
         );
       })}
-      {pages.map((p, i) => (
+      {pages.filter((p) => !fxSpans.some((sp) => sp.scene.fx === "ribbon" && sp.scene.label && p.from < sp.from + sp.durationInFrames && sp.from < p.from + p.durationInFrames)).map((p, i) => (
         <Sequence key={`c${i}`} from={p.from} durationInFrames={p.durationInFrames} name="captions">
           <CaptionPage page={p.page} style={style} fontFamily={fontFamily} scriptFamily={scriptFamily} emphasis={emphasis ?? edl.emphasis} theme={theme} lowerThird={hasLowerThird} override={edl.captionOverrides?.[p.key]} durationInFrames={p.durationInFrames} beat={beat} />
         </Sequence>

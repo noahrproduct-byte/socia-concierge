@@ -196,3 +196,17 @@ The owner found the editor too much to dig through for this ("press Words, press
 **Before the drop.** The one-drop screen has the same tiles under the prompt, closed by default ("SOCIA picks"). Up to four can be switched on (kept in `localStorage`, `socia.quickEdit.fx`). They go to the pictures step as `wanted`: the model is told to use each exactly once where it fits best and no others, and the route then places any it left out itself on the first free moment (`effectAt` at fixed shares of the video), so a picked effect is always used when the video has room for it.
 
 Seen running (2026-11-19) in `/dev/studio-lab?screen=edit&fresh=1`: two effects picked before the drop reached the pictures step; in the editor, pressing Glass text put the word on the preview with its word from the speech. Not seen: the model placing picked effects, the route's own placement of one the model left out, either screen signed in.
+
+## Ported from Motus: the Ribbon Depth scene (2026-11-19)
+
+The owner asked for the editor from the AI Employee Lab course to be brought into SOCIA. That editor is Motus (github.com/kyleherbel/motus), MIT licensed; its notice is in `THIRD_PARTY_NOTICES.md`. Motus is a local tool (a coding agent plans the edit, a Node and headless-Chrome engine renders it, Apple Vision cuts the person out), so nothing of its engine carries over; what is ported is the look of its styles, one at a time, onto SOCIA's scenes.
+
+First: the signature scene of its Ribbon Depth style, as the effect `ribbon` (`sceneFx.ts`).
+- `lib/studioClips/ribbon.ts` is a port of Motus's ribbon renderer: a band wound on a tilted cylinder, projected, depth-sorted, shaded, bloomed by scaling down and up, with sparkles on fixed numbers. Four forms (spiral, sweep, halo, arc), chosen by the scene's place in the video. Colours come from the cut's accent. It is a pure function of a time drawn on a canvas at two thirds of the frame's size (`RibbonCanvas` in `EffectLayer.tsx`, in a layout effect, so the export captures the frame it asked for).
+- Behind the person: the room dimmed (a dark layer under the cut-out, so the person stays bright), the ribbon, and a frosted card with a title whose last word is set in the italic serif, and up to three rows that land in turn.
+- In front of the person (`EffectFront`, drawn after the cut-out): the line, as Motus sets it: a cream capsule with the first two words, then the rest with its last word in the larger italic serif, and an underline in the accent. Captions step aside while that line is up.
+- Fields: `text` the card title, `lines` the rows, `label` the line in front. Pressed by hand it takes a word and the line from what is said there; the pictures step is told to use it on the hook and at most once more.
+
+Not ported yet from Ribbon Depth: its other elements (glass stack, compare, search query, action button, chat, notify, orbit, swap, media fan, filmstrip), its camera shake on landings, its sounds, its split and abstract layouts, and its planning rules as a whole. The other six styles (Editorial Proof, Ember Brief, Night Class, Open Canvas, Prop Room, Seamline) are not started.
+
+Seen running (2026-11-19) at `/dev/cutout-lab`: the scene in a browser-rendered file of a real talking clip, made in under 6 s for an 8 s clip. Not seen: chosen by the model, in the signed-in editor, on a phone.

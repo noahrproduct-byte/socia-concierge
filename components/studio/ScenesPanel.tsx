@@ -74,6 +74,7 @@ export default function ScenesPanel({ scenes, spans, disabled, hasWords, place, 
                     </select>
                   </label>
                   {SCENE_FX[s.fx].text && <label>{SCENE_FX[s.fx].text}<input type="text" maxLength={FX_TEXT_MAX} value={s.text} disabled={disabled} onChange={(e) => set(s.id, { text: e.target.value })} /></label>}
+                  {s.fx === "ribbon" && <label>Line in front<input type="text" maxLength={SCENE_LABEL_MAX} value={s.label ?? ""} disabled={disabled} onChange={(e) => set(s.id, { label: e.target.value })} /></label>}
                   {s.fx === "cover" && <label>Cover line<input type="text" maxLength={SCENE_LABEL_MAX} value={s.label ?? ""} disabled={disabled} onChange={(e) => set(s.id, { label: e.target.value })} /></label>}
                   {Array.from({ length: SCENE_FX[s.fx].lines - (s.fx === "news" ? 1 : 0) }, (_, i) => (
                     <label key={i}>{s.fx === "news" ? `Headline ${i + 2}` : `Line ${i + 1}`}<input type="text" maxLength={FX_LINE_MAX} value={s.lines?.[i] ?? ""} disabled={disabled} onChange={(e) => { const lines = [...(s.lines ?? [])]; lines[i] = e.target.value; set(s.id, { lines }); }} /></label>
