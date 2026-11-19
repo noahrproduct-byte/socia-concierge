@@ -124,53 +124,6 @@ const FEATURES: Feature[] = [
     ),
   },
   {
-    key: "build",
-    name: "Build from clips",
-    group: "Create",
-    line: "Raw clips in, finished videos out.",
-    does: "Drop the clips you already have. SOCIA finds the moments worth posting, cuts the videos and drafts the posts. Nothing is scheduled until you check it.",
-    screen: "Content Studio: Build",
-    href: "/studio?mode=clips",
-    cta: "Open Content Studio",
-    icon: (
-      <Icon>
-        <rect x="2.5" y="4" width="4.5" height="7" rx="1" />
-        <rect x="8" y="4" width="4.5" height="7" rx="1" />
-        <rect x="13.5" y="4" width="4" height="7" rx="1" />
-        <path d="M3 14.5h14M3 16.5h9" />
-      </Icon>
-    ),
-    preview: (
-      <div className="fx-gen">
-        <div className="fx-drop">
-          <span className="fx-label">6 clips dropped</span>
-          <span className="fx-drop-grid">
-            {["lighting", "talking-camera", "desk-edit", "vlog-street", "planning-wall", "studio-film"].map((p) => (
-              <Thumb key={p} src={`${C}/${p}.jpg`} />
-            ))}
-          </span>
-        </div>
-        <ol className="fx-gen-list">
-          {[
-            ["lighting", "Light a video with one lamp", "0:14"],
-            ["planning-wall", "How I plan a month of posts", "0:21"],
-            ["desk-edit", "Three edits people skip", "0:11"],
-          ].map(([src, title, len], n) => (
-            <li key={title} style={i(n)}>
-              <Thumb src={`${C}/${src}.jpg`} className="is-tall" />
-              <span>
-                <b>{title}</b>
-                <em>{len}, captions and music, cut from 2 clips</em>
-              </span>
-              <span className="fx-status">Draft</span>
-            </li>
-          ))}
-        </ol>
-        <p className="fx-note fx-gen-note">Each draft keeps its cuts, captions and music editable. Approve it and it goes to the plan&apos;s open slot.</p>
-      </div>
-    ),
-  },
-  {
     key: "voice",
     name: "Voiceover",
     group: "Create",

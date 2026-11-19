@@ -2,7 +2,6 @@
 
 // Content Studio · Edit: every video made in this brand, newest first. Each
 // opens in the editor; the line under it says what it is and where it went.
-import Link from "next/link";
 import { Film, Loader2 } from "lucide-react";
 import type { VideoKind, VideoSummary } from "@/lib/studioClips/videos";
 import StudioEmpty from "./StudioEmpty";
@@ -21,7 +20,7 @@ export default function VideoList({ videos, onOpen }: { videos: VideoSummary[] |
       {videos == null ? (
         <p className="ov-source"><Loader2 size={12} className="spin" /> Loading your videos</p>
       ) : !videos.length ? (
-        <StudioEmpty art="video" title="No videos yet" compact action={<Link className="ov-btn ghost small" href="/studio?mode=clips">Build from your clips</Link>}>Every video you make here or in Build appears in this list.</StudioEmpty>
+        <StudioEmpty art="video" title="No videos yet" compact>Every video you make in the Video editor appears in this list.</StudioEmpty>
       ) : (
         <ul>
           {videos.map((v) => (
