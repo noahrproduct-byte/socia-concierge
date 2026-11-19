@@ -26,6 +26,8 @@ import { dismissedHandles } from "./competitorAutoPick";
 import { ownPostNumbers, type OwnPostRef } from "./planEvidenceFormat";
 export { ownPostNumbers, type OwnPostRef };
 import { goalMetric, type Goal } from "./growth";
+import { interactionsTotal } from "./engagement";
+import { readinessLines, readinessOf, readinessThresholds } from "./starter/readiness";
 
 export type Evidence = {
   postsBlock: string;
@@ -51,6 +53,10 @@ export type Evidence = {
   calendarBlock?: string;
   /** The brand's measurable goals with where they stand (goalsBlock); "" when none. */
   goalsBlock?: string;
+  /** How much of the account's own history there is to build on (lib/starter/readiness.ts). */
+  readinessBlock?: string;
+  /** "starting" | "learning" | "established", from the same read. */
+  stage?: "starting" | "learning" | "established";
   used: EvidenceUsed;
 };
 
@@ -539,6 +545,7 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
     ownPosts: postsBlock ? ownPostRefs(media) : [],
     calendarBlock: calendar,
     goalsBlock: goals,
+    ...readinessOfMedia(media, opts.now ?? new Date()),
     used: {
       outcomes: outcomesBlock_ ? outcomeItems : 0,
       posts: postsBlock ? Math.min(media.length, 25) : 0,
@@ -550,4 +557,10 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
       trends: trendsBlock_ && trends ? trends.reelsRead : 0,
     },
   };
+}
+
+/** How much Instagram history the plan can build on, as a prompt block and its stage. */
+function readinessOfMedia(media: IgMediaItem[], now: Date): { readinessBlock: string; stage: "starting" | "learning" | "established" } {
+  const r = readinessOf(media.map((m) => ({ date: m.timestamp ?? null, format: fmtOf(m), metric: m.insights?.views != null ? { value: m.insights.views } : { value: interactionsTotal(m) } })), now, readinessThresholds());
+  return { readinessBlock: readinessLines(r), stage: r.stage };
 }

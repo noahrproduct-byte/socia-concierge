@@ -27,6 +27,7 @@ import { nicheVetted } from "./discovery";
 import type { SavedPlan } from "./schema";
 import { planHeadline } from "./planHeadline";
 import type { SourcePlan } from "./research/intent";
+import { readinessLines, readinessOf, readinessThresholds } from "./starter/readiness";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
@@ -134,6 +135,9 @@ export async function buildAskEvidence(supabase: Supa, userId: string, ctx: AskC
     : [`# Account evidence (assembled by SOCIA from the connected account)`, acct.text];
   let plan: SavedPlan | null = null;
   const now = new Date();
+  // How much of the account's own history there is: a new account's answers rest on its goals, niche and experiments.
+  const ready = readinessOf(acct.media.map((m) => ({ date: m.timestamp ?? null, format: m.media_type === "VIDEO" ? "Reel" : m.media_type === "CAROUSEL_ALBUM" ? "Carousel" : "Static", metric: m.insights?.views != null ? { value: m.insights.views } : { value: interactionsTotal(m) } })), now, readinessThresholds());
+  parts.push(`# How much of the account's own history there is (Instagram)`, readinessLines(ready));
 
   // Insights and gaps: the same deterministic detectors the pages show.
   if (wantFull && acct.media.length >= 5) {

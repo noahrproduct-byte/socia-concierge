@@ -20,6 +20,8 @@ import { followerPoints } from "@/lib/followers";
 import { buildGaps } from "@/lib/gaps";
 import { fetchDemographics } from "@/lib/igDemographics";
 import PageHeader from "@/components/PageHeader";
+import StarterNote from "@/components/StarterNote";
+import { readinessOf, readinessThresholds } from "@/lib/starter/readiness";
 import AnalyticsV3, { type AnalyticsData, type AnalyticsGate } from "@/components/AnalyticsV3";
 import YouTubeAnalytics from "@/components/YouTubeAnalytics";
 import FacebookAnalytics from "@/components/FacebookAnalytics";
@@ -397,6 +399,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   return (
     <>
       <PageHeader title="Analytics" sub="See what happened, understand why, and find what your strategy is missing." status={<UpdatedAgo at={updatedAt} />} />
+      <StarterNote readiness={readinessOf(sample.posts, new Date(), readinessThresholds())} />
       <AnalyticsShell tabs={tabs} initial={initial} panels={panels} allData={allData} overlay={overlay} today={today} views={views} initialView={viewParam} />
     </>
   );
