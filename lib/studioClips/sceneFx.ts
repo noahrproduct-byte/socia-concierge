@@ -6,6 +6,11 @@
 
 export const SCENE_FX = {
   ribbon: { label: "Ribbon depth", what: "The room dims, a glass ribbon winds behind the person, a frosted card sits behind the head and a line lands in front.", person: true, text: "Card title", lines: 3 },
+  chat: { label: "Message bubbles", what: "Chat bubbles pop up behind the person, each after typing dots.", person: true, text: "First message", lines: 3 },
+  notify: { label: "Notification stack", what: "Phone notifications drop in from the top, behind the person.", person: true, text: "First notification", lines: 3 },
+  search: { label: "Typed search", what: "A search bar types out what is being looked for.", person: true, text: "What is typed", lines: 0 },
+  button: { label: "Button click", what: "A button in a field of rings; a cursor glides in and clicks it.", person: true, text: "Words on the button", lines: 0 },
+  compare: { label: "Side by side", what: "Two glass cards: one option, then the other, which lights up.", person: true, text: "First option", lines: 0 },
   cover: { label: "Magazine cover", what: "A masthead word across the top, behind the person.", person: true, text: "Masthead word", lines: 0 },
   glass: { label: "Glass text", what: "One big see-through word behind the person.", person: true, text: "Word", lines: 0 },
   graph: { label: "Graph rise", what: "A line chart climbing behind the person, with a tag on its peak.", person: true, text: "Tag on the peak", lines: 0 },

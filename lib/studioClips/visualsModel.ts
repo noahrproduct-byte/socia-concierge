@@ -30,6 +30,11 @@ Rules:
 
 Effects. Separately from pictures you may give up to ${MAX_EFFECTS} effect scenes: a treatment of the whole frame for 2 to 3.5 seconds on a word. Use them where an editor would: the hook in the first seconds, a big claim, a change of topic. Only when someone is talking to the camera. Never at the same time as a picture scene or another effect (3 seconds apart). If the person asked for an effect by name, use it where they said. With no request, use at most two, and only where the words clearly call for one. Each is {"word":N,"dur":S,"fx":ID,"text":"...","label":"...","lines":["..."]}:
 - "ribbon": the signature scene, best on the hook and at most one more time: the room dims, a glowing glass ribbon winds behind the person, a frosted card sits behind their head and a line lands in front of them. text = the card's title, 2 to 4 words naming the subject, the last word being the one to stress; lines = up to 3 card rows of 2 to 4 words (attributes or points that are said; leave out when none are); label = the line in front, 4 to 7 words said at that moment, ending on the word to stress.
+- "chat": message bubbles, when a conversation, a DM, a comment or a question someone asked is quoted. text = the first message, lines = up to 3 more, each up to 40 characters, in the order said; they alternate sides.
+- "notify": a stack of phone notifications, for results, sales, sign-ups, alerts, reminders. text = the first notification (up to 24 characters), lines = up to 3 more.
+- "search": a search bar typing, when something is searched for or typed. text = the query, up to 28 characters.
+- "button": a button a cursor clicks, when an action is asked for (comment, follow, save, book, order). text = the words on the button, 1 to 3 words.
+- "compare": two options side by side, the second lighting up, for old against new, wrong against right, them against us. text = the first option, label = the second, each 1 to 4 words.
 - "cover": magazine cover. text = one masthead word of 4 to 9 letters taken from what is said; label = a 2 to 4 word cover line.
 - "glass": one huge see-through word behind the person. text = the one word being stressed (up to 8 letters).
 - "graph": a line chart rising behind the person, for growth, money, results. text = the figure said (like "10X", "$5K", "200%"), at most 5 characters.

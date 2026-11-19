@@ -354,6 +354,9 @@ export function effectAt(edl: Edl, words: Record<string, TranscriptWord[] | null
   const word = salient(near).slice(0, FX_TEXT_MAX);
   const line = near.slice(0, 5).map((t) => plain(t.text)).join(" ").slice(0, FX_LINE_MAX);
   const figure = toks.slice(i, i + 14).map((t) => plain(t.text)).find((w) => FIGURE_LIKE.test(w));
+  const half = (from: number) => near.slice(from, from + 3).map((t) => plain(t.text)).join(" ").slice(0, FX_TEXT_MAX);
+  if (fx === "compare") return { id: "new", kind: "effect", fx, key: toks[i].key, dur: 3.6, text: half(0), ...(half(3) ? { label: half(3) } : {}) };
+  if (fx === "chat" || fx === "notify" || fx === "search" || fx === "button") return { id: "new", kind: "effect", fx, key: toks[i].key, dur: fx === "chat" || fx === "notify" ? 4 : 3.2, text: (fx === "button" ? half(0) : line).slice(0, FX_TEXT_MAX) };
   const text = fx === "ribbon" ? word.replace(/^\p{Ll}/u, (c) => c.toUpperCase()) : fx === "cover" || fx === "glass" || fx === "paper" ? word : fx === "graph" ? (figure ?? "").slice(0, 6) : fx === "news" ? line.slice(0, FX_TEXT_MAX) : fx === "reveal" || fx === "phone" ? word : "";
   const lines = fx === "phone" ? [line].filter(Boolean) : [];
   return { id: "new", kind: "effect", fx, key: toks[i].key, dur: fx === "ribbon" ? 3.6 : 3, text, ...(fx === "ribbon" && line ? { label: line.slice(0, SCENE_LABEL_MAX) } : {}), ...(lines.length ? { lines } : {}) };

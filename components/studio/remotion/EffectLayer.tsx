@@ -9,6 +9,9 @@
 //           the room dims, a glass ribbon winds behind the person, a frosted
 //           card with a title and rows sits behind the head, and a line lands
 //           in front of them (EffectFront, drawn above the person);
+//   chat, notify, search, button, compare   the glass pieces of that style:
+//           message bubbles after typing dots, a notification stack, a search
+//           bar that types, a button a cursor clicks, two options side by side;
 //   cover   a masthead word across the top, in a serif, with a cover line;
 //   glass   one huge see-through word;
 //   graph   a line chart that climbs, months along the top, a tag on its peak;
@@ -170,6 +173,129 @@ export function EffectLayer({ span, fontFamily, accent }: { span: SceneSpan; fon
   const fill: React.CSSProperties = { position: "absolute", left: 0, top: 0, width, height, overflow: "hidden", fontFamily };
 
   if (fx === "ribbon") return <RibbonScene span={span} fontFamily={fontFamily} accent={accent} />;
+
+  // The glass pieces of the Ribbon Depth style (after Motus's elements): the room dims behind them and the person stays in front.
+  const dim = <div style={{ position: "absolute", left: 0, top: 0, width, height, backgroundColor: "#0a0503", opacity: 0.5 * share }} />;
+  const top0 = (height / 1920) * 190;
+
+  if (fx === "chat") {
+    const msgs = [text, ...(scene.lines ?? [])].filter(Boolean).slice(0, 4);
+    const every = Math.max(18, Math.floor((span.durationInFrames - 24) / Math.max(1, msgs.length)));
+    // Stacked from the bottom of their region: a bubble that arrives pushes the ones before it up.
+    const base = (height / 1920) * 760, bh = 118 * s, gap = 18 * s;
+    return (
+      <div style={fill}>
+        {dim}
+        {msgs.map((m, i) => {
+          const at = 6 + i * every, right = i % 2 === 0;
+          const p = spring({ frame: f - at, fps, config: { damping: 13, stiffness: 170 }, durationInFrames: 14 });
+          const typing = f >= at - 12 && f < at;
+          const rise = msgs.slice(i + 1).reduce((y, _m, k) => y + (bh + gap) * spring({ frame: f - (6 + (i + 1 + k) * every) + 12, fps, config: { damping: 200, stiffness: 150 }, durationInFrames: 12 }), 0);
+          const side: React.CSSProperties = right ? { right: 70 * s } : { left: 70 * s };
+          return (
+            <React.Fragment key={i}>
+              {typing && (
+                <div style={{ position: "absolute", ...side, top: base - bh * 0.6, width: 120 * s, height: 64 * s, borderRadius: 32 * s, backgroundColor: right ? accent : "#fff", display: "flex", alignItems: "center", justifyContent: "center", gap: 9 * s, opacity: 0.92 * (1 - leave) }}>
+                  {[0, 1, 2].map((d) => <span key={d} style={{ width: 12 * s, height: 12 * s, borderRadius: 99, backgroundColor: right ? on : "#21170f", opacity: 0.35 + 0.65 * Math.abs(Math.sin((f + d * 4) / 5)) }} />)}
+                </div>
+              )}
+              <div style={{ position: "absolute", ...side, top: base - bh - rise, maxWidth: width * 0.74, minHeight: bh, boxSizing: "border-box", padding: `${22 * s}px ${34 * s}px`, display: "flex", alignItems: "center", borderRadius: right ? `${36 * s}px ${36 * s}px ${10 * s}px ${36 * s}px` : `${36 * s}px ${36 * s}px ${36 * s}px ${10 * s}px`, backgroundColor: right ? accent : "#fffdf9", color: right ? on : "#21170f", fontSize: 44 * s, lineHeight: 1.22, fontWeight: 500, opacity: seen(at), transform: `scale(${0.6 + 0.4 * p})`, transformOrigin: right ? "100% 100%" : "0% 100%" }}>{m}</div>
+            </React.Fragment>
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (fx === "notify") {
+    const items = [text, ...(scene.lines ?? [])].filter(Boolean).slice(0, 4);
+    const every = Math.max(16, Math.floor((span.durationInFrames - 20) / Math.max(1, items.length)));
+    const th = 132 * s, gap = 18 * s;
+    return (
+      <div style={fill}>
+        {dim}
+        {items.map((it, i) => {
+          const at = 4 + i * every;
+          const p = spring({ frame: f - at, fps, config: { damping: 14, stiffness: 150 }, durationInFrames: 15 });
+          // Newest on top: each toast sits below every one that arrived after it.
+          const down = items.slice(i + 1).reduce((y, _x, k) => y + (th + gap) * spring({ frame: f - (4 + (i + 1 + k) * every), fps, config: { damping: 200, stiffness: 150 }, durationInFrames: 13 }), 0);
+          const depth = items.slice(i + 1).filter((_x, k) => f >= 4 + (i + 1 + k) * every).length;
+          return (
+            <div key={i} style={{ position: "absolute", left: 70 * s, top: top0, width: width - 140 * s, height: th, boxSizing: "border-box", padding: `0 ${28 * s}px`, display: "flex", alignItems: "center", gap: 22 * s, borderRadius: 36 * s, backgroundColor: "#f8f3ee", color: "#21170f", opacity: seen(at) * (1 - depth * 0.12), transform: `translateY(${down + (1 - p) * -90 * s}px) scale(${(0.9 + 0.1 * p) * (1 - depth * 0.03)})` }}>
+              <span style={{ flex: "none", width: th - 46 * s, height: th - 46 * s, borderRadius: 20 * s, backgroundColor: accent, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg viewBox="0 0 24 24" width={44 * s} height={44 * s} fill="none" stroke={on} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><path d="M13 3 5 13.5h6L10 21l8-10.5h-6z" /></svg>
+              </span>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 38 * s, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it}</span>
+              <span style={{ flex: "none", fontSize: 24 * s, color: "rgba(33,23,15,0.5)" }}>now</span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (fx === "search") {
+    const query = text || "search";
+    const typed = Math.floor(interpolate(f, [10, 10 + Math.min(40, query.length * 2)], [0, query.length], CLAMP));
+    const inn = spring({ frame: f - 2, fps, config: { damping: 200, stiffness: 150 }, durationInFrames: 12 });
+    const size = Math.min(46, (740 - 150) / Math.max(1, query.length * 0.5));
+    return (
+      <div style={fill}>
+        {dim}
+        <div style={{ position: "absolute", left: 170 * s, top: top0 + 60 * s, width: 740 * s, height: 100 * s, boxSizing: "border-box", padding: `0 ${30 * s}px`, display: "flex", alignItems: "center", gap: 18 * s, borderRadius: 60 * s, backgroundColor: "#fbf8f4", color: "#21170f", opacity: seen(2), transform: `translateY(${(1 - inn) * 22 * s}px) scale(${0.94 + 0.06 * inn})` }}>
+          <svg viewBox="0 0 24 24" width={36 * s} height={36 * s} fill="none" stroke="rgba(33,23,15,0.6)" strokeWidth={2.4} strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M16.5 16.5 21 21" /></svg>
+          <span style={{ fontSize: size * s, whiteSpace: "nowrap" }}>{query.slice(0, typed)}</span>
+          <span style={{ width: 3 * s, height: size * 1.1 * s, marginLeft: -10 * s, borderRadius: 2, backgroundColor: "#21170f", opacity: Math.floor(f / 6) % 2 ? 1 : 0.15 }} />
+        </div>
+      </div>
+    );
+  }
+
+  if (fx === "button") {
+    const cx = width / 2, cy = (height / 1920) * 560, bw = 580 * s, bh = 150 * s;
+    const click = Math.min(span.durationInFrames - 24, 36);
+    const press = Math.max(0, Math.sin(Math.min(1, Math.max(0, (f - click) / 7)) * Math.PI));
+    const cin = interpolate(f, [click - 16, click - 2], [0, 1], EASE);
+    const rp = Math.min(1, Math.max(0, (f - click) / 27));
+    const inn = spring({ frame: f - 2, fps, config: { damping: 200, stiffness: 140 }, durationInFrames: 14 });
+    return (
+      <div style={fill}>
+        {dim}
+        {Array.from({ length: 6 }, (_, i) => {
+          const size = (380 + i * 120) * s, wave = Math.exp(-Math.pow(((f - click) / fps) * 3.2 - i * 0.45, 2));
+          return <div key={i} style={{ position: "absolute", left: cx - size / 2, top: cy - size / 2, width: size, height: size, boxSizing: "border-box", border: `${Math.max(1, 1.5 * s)}px solid #fff`, borderRadius: "50%", opacity: (interpolate(f, [3 + i * 2, 20 + i * 2], [0, 0.22 - i * 0.025], CLAMP) + (f >= click ? wave * 0.35 : 0)) * (1 - leave), transform: `scale(${1 + (f >= click ? wave * 0.04 : 0)})` }} />;
+        })}
+        <div style={{ position: "absolute", left: cx - 200 * s, top: cy - 200 * s, width: 400 * s, height: 400 * s, boxSizing: "border-box", border: `${3 * s}px solid #fff`, borderRadius: "50%", opacity: f >= click ? (1 - rp) * 0.9 * (1 - leave) : 0, transform: `scale(${0.9 + rp * 2.6})` }} />
+        <div style={{ position: "absolute", left: cx - bw / 2, top: cy - bh / 2, width: bw, height: bh, display: "flex", alignItems: "center", justifyContent: "center", gap: 22 * s, borderRadius: 100 * s, backgroundColor: "#fbf6ef", color: "#21170f", fontSize: Math.min(50, (bw / s - 150) / Math.max(1, (text || "Tap here").length * 0.5)) * s, fontWeight: 500, opacity: seen(2), transform: `translateY(${(1 - inn) * 30 * s}px) scale(${(0.9 + 0.1 * inn) * (1 - press * 0.06)})` }}>
+          {text || "Tap here"}
+          <svg viewBox="0 0 24 24" width={34 * s} height={34 * s} fill="none" stroke="#21170f" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+        </div>
+        <svg viewBox="0 0 24 24" width={70 * s} height={70 * s} style={{ position: "absolute", left: cx + bw / 2 - 120 * s, top: cy + bh / 2 - 40 * s, opacity: Math.min(1, cin * 1.5) * (1 - leave), transform: `translate(${(1 - cin) * 140 * s}px, ${(1 - cin) * 170 * s}px) scale(${1 - press * 0.12})` }}><path d="M5 3l14 8-6 1.5L10 19z" fill="#111" stroke="#fff" strokeWidth={1.6} strokeLinejoin="round" /></svg>
+      </div>
+    );
+  }
+
+  if (fx === "compare") {
+    const sides = [text || "Before", scene.label || "After"];
+    const second = Math.min(span.durationInFrames - 20, 30);
+    const cw = 410 * s, ch = 360 * s, gapX = 76 * s, x0 = (width - cw * 2 - gapX) / 2;
+    const lit = interpolate(f, [second + 6, second + 18], [0, 1], CLAMP);
+    return (
+      <div style={fill}>
+        {dim}
+        {sides.map((t, i) => {
+          const at = i ? second : 3;
+          const p = spring({ frame: f - at, fps, config: { damping: 200, stiffness: 130 }, durationInFrames: 15 });
+          return (
+            <div key={i} style={{ position: "absolute", left: x0 + i * (cw + gapX), top: top0 + 40 * s + i * 60 * s, width: cw, height: ch, boxSizing: "border-box", padding: 40 * s, borderRadius: 40 * s, backgroundColor: i ? "#fbf6ef" : `rgba(244,236,229,${0.86 - 0.3 * lit})`, border: `${Math.max(2, 4 * s)}px solid ${i ? accent : "rgba(255,255,255,0.7)"}`, color: "#21170f", opacity: seen(at), transform: `translate(${(1 - p) * (i ? 160 : -160) * s}px, ${(1 - p) * 50 * s}px) rotate(${i ? 3 : -3}deg) scale(${0.9 + 0.1 * p + (i ? 0.04 * lit : -0.03 * lit)})` }}>
+              <div style={{ fontSize: Math.min(54, (cw / s - 80) / Math.max(1, Math.min(t.length, 12) * 0.56)) * s, lineHeight: 1.12, fontWeight: 500, overflowWrap: "anywhere" }}>{t}</div>
+              <div style={{ position: "absolute", left: 40 * s, bottom: 40 * s, width: "60%", height: 10 * s, borderRadius: 6 * s, backgroundColor: i ? accent : "rgba(33,23,15,0.14)" }} />
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
 
   if (fx === "cover") {
     const word = (text || "TODAY").toUpperCase();
