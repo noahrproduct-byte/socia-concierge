@@ -65,8 +65,9 @@ import { listGoals } from "@/lib/growthStore";
 import { recordStartingPoints } from "@/lib/briefingLoad";
 import type { GoalPlatform } from "@/lib/growth";
 import GrowthProfileCard from "@/components/growth/GrowthProfileCard";
-import { Briefcase, Eye, MapPin, Palette } from "lucide-react";
+import { Briefcase, Eye, Globe, MapPin, Palette } from "lucide-react";
 import PlaceScan from "@/components/PlaceScan";
+import BrandKnowledge from "@/components/BrandKnowledge";
 import { offlineFor } from "@/lib/platformAccess";
 import { isAdminEmail } from "@/lib/admin";
 import { teamActivity, teamWorkFor, workspacePeople } from "@/lib/teamWorkServer";
@@ -405,6 +406,16 @@ export default async function SettingsPage({
                 <span className="st2-card-note">Powers every recommendation the AI makes</span>
               </div>
               <BrandSettings email={user.email ?? ""} goalsManaged={growthGoals.tableReady} />
+            </section>
+
+            {/* What the business offers, from its website or typed (lib/brandKnowledge.ts): every writer names only these. */}
+            <section className="st2-card" id="offer">
+              <div className="st2-card-head">
+                <span className="st2-card-ico"><Globe size={15} /></span>
+                <h3>What you offer</h3>
+                <span className="st2-card-note">Scripts, posts and replies name only these</span>
+              </div>
+              <BrandKnowledge />
             </section>
 
             {/* 1a: Your place: photos SOCIA turns into filming directions */}

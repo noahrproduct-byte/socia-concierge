@@ -7,6 +7,7 @@ import { FILMING_ALLOWANCE_LINE } from "./filmingPlan";
 import { shortVideoName } from "./planPlatform";
 import { FILMING_DIRECTION_RULE, placeLines } from "./place";
 import { MADE_LABEL } from "./intel/reelReadCore";
+import { knowledgeLines, sanitizeKnowledge } from "./brandKnowledge";
 
 /** Renders the user's saved brand & strategist settings as prompt context.
  *  Returns "" when nothing is set, so callers can append unconditionally. */
@@ -18,6 +19,8 @@ export function brandContext(brand?: BrandDetail | null): string {
     brand.location ? `Location / market: ${brand.location}` : null,
     brand.website ? `Website: ${brand.website}` : null,
     brand.description ? `About the brand: ${brand.description}` : null,
+    // What it offers and the facts it states, from its website and the person (lib/brandKnowledge.ts).
+    ...knowledgeLines(sanitizeKnowledge(brand.knowledge)),
     // How the account posts, confirmed by the owner from SOCIA's read of its Reels (lib/brandBrief.ts).
     brand.formats?.length
       ? `How the account posts (confirmed by the owner; keep to these kinds of video unless told otherwise):\n${brand.formats.map((f) => `- ${f.name} (${MADE_LABEL[f.made]?.toLowerCase() ?? f.made}): ${f.look}`).join("\n")}`

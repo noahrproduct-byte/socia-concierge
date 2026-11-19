@@ -130,7 +130,7 @@ export async function POST(req: Request) {
     // Brand details go into almost every AI prompt, so their size is the cost of every call.
     // What SOCIA stores there itself (the last idea set, music picks, the place scan) is not
     // something the person typed and is not counted.
-    const { ideas: _ideas, music: _music, place: _place, videoStyle: _videoStyle, discover: _discover, ...typed } = brand.brand_detail as Record<string, unknown>;
+    const { ideas: _ideas, music: _music, place: _place, videoStyle: _videoStyle, discover: _discover, knowledge: _knowledge, ...typed } = brand.brand_detail as Record<string, unknown>;
     if (JSON.stringify(typed).length > LIMITS.brandDetailChars) return tooLongResponse("Your brand details", LIMITS.brandDetailChars);
     brandSaved = true;
   }
