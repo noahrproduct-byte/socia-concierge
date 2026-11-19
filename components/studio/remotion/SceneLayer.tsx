@@ -10,6 +10,10 @@
 //   steps  a checklist: each row slides in as its line is said, its number
 //          fills with the accent, and a track down the side fills to the row
 //          being said;
+//   picture what is being talked about, drawn: a country's outline that draws
+//          itself, fills and gets a pin, or a flat drawing of a thing whose
+//          shapes draw on one after another (lib/studioClips/sceneArt.ts),
+//          with a headline under it;
 //   line   the sentence arrives word by word, then the word that carries it is
 //          boxed in the accent.
 // A card can carry a small icon for what it is about (lib/studioClips/sceneIcons.ts),
@@ -25,6 +29,7 @@ import { Easing, interpolate, spring, useCurrentFrame, useVideoConfig } from "re
 import { readableOn, safeZoneFor } from "@/lib/textPresets";
 import type { SceneSpan } from "@/lib/studioClips/scenes";
 import { SCENE_ICONS, type IconShape, type SceneIconId } from "@/lib/studioClips/sceneIcons";
+import type { ArtTone, SceneArt } from "@/lib/studioClips/sceneArt";
 
 const OUT_FRAMES = 7;
 const CLAMP = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
@@ -56,6 +61,35 @@ function SceneIcon({ id, size, accent, on, at = 4, style }: { id: SceneIconId; s
       <svg viewBox="0 0 24 24" width={size * 0.56} height={size * 0.56} fill="none" stroke={on} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
         {shapes.map((sh, i) => ("d" in sh ? <path key={i} d={sh.d} /> : "c" in sh ? <circle key={i} cx={sh.c[0]} cy={sh.c[1]} r={sh.c[2]} /> : "r" in sh ? <rect key={i} x={sh.r[0]} y={sh.r[1]} width={sh.r[2]} height={sh.r[3]} rx={sh.r[4]} /> : <polygon key={i} points={sh.p} />))}
       </svg>
+    </div>
+  );
+}
+
+/** One drawing of a picture scene, on its 100 by 100 grid: the outline draws on, the fill comes in behind it, a map gets its pin. */
+function ArtPiece({ art, size, accent, at, s }: { art: SceneArt; size: number; accent: string; at: number; s: number }) {
+  const f = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const tone = (t: ArtTone) => (t === "accent" ? accent : t === "light" ? "#fff" : t === "mid" ? "rgba(255,255,255,0.4)" : t === "dark" ? PANEL : "none");
+  const pop = spring({ frame: f - at, fps, config: { damping: 14, stiffness: 150 }, durationInFrames: 16 });
+  const draw = (from: number, len: number) => 1 - interpolate(f, [from, from + len], [0, 1], EASE);
+  const fade = (from: number, len: number) => interpolate(f, [from, from + len], [0, 1], CLAMP);
+  const pin = spring({ frame: f - at - 20, fps, config: { damping: 9, stiffness: 180 }, durationInFrames: 16 });
+  const ring = interpolate(f, [at + 24, at + 44], [0, 1], CLAMP);
+  return (
+    <div style={{ flex: "none", width: size, display: "flex", flexDirection: "column", alignItems: "center", gap: 14 * s, opacity: Math.min(1, Math.max(0, (f - at) / 3)), transform: `scale(${0.82 + 0.18 * pop})` }}>
+      <svg viewBox="0 0 100 100" width={size} height={size} style={{ overflow: "visible" }}>
+        {art.kind === "map" ? (
+          <>
+            <path d={art.d} fill={accent} fillOpacity={0.9 * fade(at + 10, 10)} stroke="#fff" strokeWidth={1.6} strokeLinejoin="round" pathLength={1} strokeDasharray="1 1" strokeDashoffset={draw(at, 18)} />
+            <circle cx={art.c[0]} cy={art.c[1]} r={3 + 9 * ring} fill="none" stroke="#fff" strokeWidth={1.4} opacity={(1 - ring) * (f >= at + 24 ? 1 : 0)} />
+            <circle cx={art.c[0]} cy={art.c[1] - (1 - Math.min(1, pin)) * 26} r={3.6} fill="#fff" stroke={PANEL} strokeWidth={1.4} opacity={Math.min(1, Math.max(0, (f - at - 20) / 2))} />
+          </>
+        ) : art.shapes.map((sh, i) => {
+          const from = at + 2 + i * 2;
+          return <path key={i} d={sh.d} fill={tone(sh.fill)} fillOpacity={sh.fill === "none" ? 0 : fade(sh.stroke === "none" ? from : from + 6, 8)} stroke={tone(sh.stroke)} strokeWidth={sh.w ?? 3} strokeLinecap="round" strokeLinejoin="round" pathLength={1} strokeDasharray="1 1" strokeDashoffset={sh.stroke === "none" ? 0 : draw(from, 12)} />;
+        })}
+      </svg>
+      {art.name && <div style={{ fontSize: 30 * s, lineHeight: 1.1, fontWeight: 800, letterSpacing: `${0.08 * 30 * s}px`, textTransform: "uppercase", color: "rgba(255,255,255,0.72)", textAlign: "center", opacity: fade(at + 12, 8) }}>{art.name}</div>}
     </div>
   );
 }
@@ -102,7 +136,7 @@ export function SceneLayer({ span, fontFamily, accent, low, split }: {
     transform: `translateY(${-(1 - share) * 100}%)`,
   } : {
     // Centred in the frame: the top of the picture is clear of the apps' buttons, which sit lower on the right.
-    position: "absolute", left: zone.x, top: zone.y + (low ? zone.height * 0.3 : 0), width: width - zone.x * 2, boxSizing: "border-box",
+    position: "absolute", left: zone.x, top: scene.place === "lower" ? Math.round(height * 0.5) : zone.y + ((scene.place ? scene.place === "upper" : low) ? zone.height * 0.3 : 0), width: width - zone.x * 2, boxSizing: "border-box",
     padding: `${40 * s}px ${44 * s}px ${40 * s}px ${58 * s}px`, borderRadius: 34 * s, backgroundColor: CARD, border: `${Math.max(1, Math.round(2 * s))}px solid ${EDGE}`,
     color: "#fff", fontFamily, overflow: "hidden",
     opacity: Math.min(1, f / 3) * (1 - leave), transform: `translateY(${((1 - land) * -36 - leave * 24) * s}px) scale(${0.96 + 0.04 * land})`,
@@ -147,6 +181,28 @@ export function SceneLayer({ span, fontFamily, accent, low, split }: {
           <span style={{ fontSize: size * s, lineHeight: 1, fontWeight: 800, letterSpacing: `${-0.03 * size * s}px`, color: accent, opacity: Math.min(1, Math.max(0, (f - 24) / 3)), transform: `scale(${0.5 + 0.5 * pop})` }}>{scene.text}</span>
         </div>
         {scene.label && <div style={{ marginTop: 26 * s, fontSize: 48 * s, lineHeight: 1.15, fontWeight: 800, textTransform: "uppercase", letterSpacing: `${0.05 * 48 * s}px`, opacity: interpolate(f, [26, 34], [0, 1], CLAMP) }}>{scene.label}</div>}
+      </div>
+    );
+  }
+
+  if (scene.kind === "picture") {
+    const arts = scene.art ?? [];
+    const size = (arts.length <= 1 ? 330 : arts.length === 2 ? 270 : 210) * s;
+    const after = 10 + arts.length * 9;
+    const parts = scene.text.split(" ").filter(Boolean);
+    const big = scene.text.length <= 18 ? 84 : scene.text.length <= 32 ? 66 : 54;
+    return (
+      <div style={{ ...card, textAlign: "center" }}>
+        {bar}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "center", gap: 40 * s }}>
+          {arts.map((a, i) => <ArtPiece key={i} art={a} size={size} accent={accent} at={3 + i * 9} s={s} />)}
+        </div>
+        {parts.length > 0 && (
+          <div style={{ marginTop: 26 * s, display: "flex", flexWrap: "wrap", justifyContent: "center", columnGap: 16 * s, rowGap: 6 * s, fontSize: big * s, lineHeight: 1.12, fontWeight: 800, letterSpacing: `${-0.01 * big * s}px` }}>
+            {parts.map((w, i) => { const p = interpolate(f, [after + i * 3, after + i * 3 + 6], [0, 1], EASE); return <span key={i} style={{ opacity: p, transform: `translateY(${(1 - p) * 18 * s}px)` }}>{w}</span>; })}
+          </div>
+        )}
+        {scene.label && <div style={{ marginTop: 14 * s, fontSize: 40 * s, lineHeight: 1.15, fontWeight: 800, textTransform: "uppercase", letterSpacing: `${0.05 * 40 * s}px`, color: accent, opacity: interpolate(f, [after + 8, after + 16], [0, 1], CLAMP) }}>{scene.label}</div>}
       </div>
     );
   }

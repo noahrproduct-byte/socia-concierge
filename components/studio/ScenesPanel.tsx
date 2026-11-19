@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { LayoutPanelTop, RefreshCw, Trash2 } from "lucide-react";
 import { SCENE_ICONS, SCENE_ICON_IDS, isSceneIcon } from "@/lib/studioClips/sceneIcons";
+import { SCENE_PLACES } from "@/lib/studioClips/scenes";
 import { SCENE_ITEMS_MAX, SCENE_KIND_LABEL, SCENE_LABEL_MAX, SCENE_TEXT_MAX, type EdlScene, type SceneSpan } from "@/lib/studioClips/scenes";
 
 export type ScenePlace = "over" | "behind" | "split";
@@ -64,8 +65,24 @@ export default function ScenesPanel({ scenes, spans, disabled, hasWords, place, 
                   <label>What it counts<input type="text" maxLength={SCENE_LABEL_MAX} value={s.label ?? ""} disabled={disabled} onChange={(e) => set(s.id, { label: e.target.value })} /></label>
                 </>
               )}
+              {s.kind === "picture" && (
+                <>
+                  <label>Headline<input type="text" maxLength={44} value={s.text} disabled={disabled} onChange={(e) => set(s.id, { text: e.target.value })} /></label>
+                  <label>Line under it<input type="text" maxLength={SCENE_LABEL_MAX} value={s.label ?? ""} disabled={disabled} onChange={(e) => set(s.id, { label: e.target.value })} /></label>
+                </>
+              )}
               {s.kind === "line" && <label>Line<input type="text" maxLength={SCENE_TEXT_MAX} value={s.text} disabled={disabled} onChange={(e) => set(s.id, { text: e.target.value })} /></label>}
-              {s.kind !== "steps" && (
+              {place === "over" && (
+                <label>Where it sits
+                  <select value={s.place ?? ""} disabled={disabled} onChange={(e) => onChange(scenes.map((x) => { if (x.id !== s.id) return x; const { place: _p, ...rest } = x; void _p; const v = SCENE_PLACES.find((q) => q === e.target.value); return v ? { ...rest, place: v } : rest; }))}>
+                    <option value="">Automatic</option>
+                    <option value="top">Top</option>
+                    <option value="upper">A little lower</option>
+                    <option value="lower">Under the middle</option>
+                  </select>
+                </label>
+              )}
+              {s.kind !== "steps" && s.kind !== "picture" && (
                 <label>Icon
                   <select value={s.icon ?? ""} disabled={disabled} onChange={(e) => setIcon(s.id, e.target.value)}>
                     <option value="">None</option>

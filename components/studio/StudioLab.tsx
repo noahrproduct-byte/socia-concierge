@@ -7,6 +7,9 @@
 // in public/ supplies the clips and their frames. Pick a screen with ?screen=:
 //   rate, rate-analysis, rate-improve, build, build-collect, build-yield,
 //   opportunity, editor, editor-text, editor-finish, edit, audio, guide.
+import type { Edl } from "@/lib/studioClips/types";
+import { tokens, withPictures } from "@/lib/studioClips/scenes";
+import { DEMO_EGYPT, DEMO_WAREHOUSE } from "@/lib/studioClips/sceneArtDemo";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AppRouterContext, type AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
@@ -86,6 +89,18 @@ function installMock(thumbs: fx.Thumb[], durationSec: number, screen: Screen): (
     // A new video in the fresh lab starts with no clips, as a new project does (an earlier try's clip doesn't stay).
     if (p === "/api/studio/projects" && method === "POST") { if (fresh) { labClips.length = 0; freshEdl = null; } return json({ id: fx.PROJECT_ID }); }
     if (fresh && p === `/api/studio/projects/${fx.PROJECT_ID}` && method === "GET") return json({ ...fx.project(thumbs, durationSec, state), clips: labClips });
+    // The steps that ask a model on SOCIA: here the pictures are one stand-in (a warehouse and a map) on the fourth
+    // word of the cut, and the instructions change nothing.
+    if (p.startsWith("/api/studio/builds/") && p.endsWith("/visuals")) {
+      const edl = (init?.body ? (JSON.parse(String(init.body)) as { edl?: Edl }).edl : null) ?? null;
+      const d = fresh ? freshData() : fx.playerData(thumbs, durationSec, p.includes(fx.MANUAL_BUILD_ID) ? -1 : 0);
+      const words = Object.fromEntries(d.sources.map((s) => [s.clipId, s.words]));
+      const toks = edl ? tokens(edl, words) : [];
+      if (!edl || !toks.length) return json({ scenes: edl?.scenes ?? [], pictures: 0 });
+      const scenes = withPictures(edl, [{ id: "p1", kind: "picture", key: toks[Math.min(3, toks.length - 1)].key, dur: 3.2, text: "Warehouse in Egypt", art: [DEMO_WAREHOUSE, DEMO_EGYPT] }], words);
+      return json({ scenes, pictures: scenes.filter((s) => s.kind === "picture").length });
+    }
+    if (p.startsWith("/api/studio/builds/") && p.endsWith("/instruct")) return json({ edl: null, reply: "", done: [], skipped: [], changed: false });
     if (fresh && p === `/api/studio/projects/${fx.PROJECT_ID}/clip-build`) return json(freshBuild());
     if (fresh && p.startsWith("/api/studio/builds/") && method === "GET") return json(freshData());
     if (fresh && p.startsWith("/api/studio/builds/") && method === "PATCH") { freshEdl = (init?.body ? (JSON.parse(String(init.body)) as { edl?: unknown }).edl : null) ?? freshEdl; return json(freshBuild()); }

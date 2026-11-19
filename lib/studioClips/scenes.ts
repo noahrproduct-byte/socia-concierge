@@ -13,10 +13,15 @@
 // unit-tested (scenes.test.ts). Drawn by components/studio/remotion/SceneLayer.tsx.
 import { captionKey } from "./captionMotion";
 import { iconFor, isSceneIcon, type SceneIconId } from "./sceneIcons";
+import { sanitizeArt, type SceneArt } from "./sceneArt";
 import { captionsForEdl, FPS, timeline, type CaptionLike } from "./timeline";
 import type { Edl, TranscriptWord } from "./types";
 
-export type SceneKind = "stat" | "change" | "steps" | "line";
+export type SceneKind = "stat" | "change" | "steps" | "line" | "picture";
+/** Where a card sits so it clears the person's head: at the top, a little lower, or under the middle of the frame. */
+export type ScenePlace = "top" | "upper" | "lower";
+export const SCENE_PLACES: ScenePlace[] = ["top", "upper", "lower"];
+export const MAX_PICTURES = 4;
 export type SceneItem = { /** the word the row lands on */ key: string; text: string };
 export type EdlScene = {
   id: string;
@@ -35,6 +40,10 @@ export type EdlScene = {
   items?: SceneItem[];
   /** a small line drawing that says what the card is about (lib/studioClips/sceneIcons.ts); not on a list */
   icon?: SceneIconId;
+  /** picture: what is drawn (lib/studioClips/sceneArt.ts) */
+  art?: SceneArt[];
+  /** where the card sits, when the picture was looked at (lib/studioClips/placement.ts); absent = the cut's default */
+  place?: ScenePlace;
 };
 
 export const MAX_SCENES = 6;
@@ -42,7 +51,7 @@ export const SCENE_TEXT_MAX = 60;
 export const SCENE_LABEL_MAX = 40;
 export const SCENE_ITEMS_MAX = 5;
 const KEY = /^[\w-]{1,64}@\d{1,9}$/;
-const KINDS: SceneKind[] = ["stat", "change", "steps", "line"];
+const KINDS: SceneKind[] = ["stat", "change", "steps", "line", "picture"];
 
 /** The opening seconds belong to the hook line, the last to the ending. */
 const HEAD_SEC = 3, TAIL_SEC = 2.5;
@@ -81,7 +90,7 @@ type Tok = { text: string; startMs: number; endMs: number; key: string };
 type Found = EdlScene & { at: number; rank: number };
 
 /** The words of the cut in output order, each with its key, as the captions show them. */
-function tokens(edl: Edl, words: Record<string, TranscriptWord[] | null | undefined>): Tok[] {
+export function tokens(edl: Edl, words: Record<string, TranscriptWord[] | null | undefined>): Tok[] {
   const { voiceover: _vo, ...own } = edl; void _vo;
   return captionsForEdl({ ...own, captions: { source: "transcript" } } as Edl, words)
     .filter((c): c is CaptionLike & { key: string } => typeof c.key === "string")
@@ -280,7 +289,10 @@ export function sanitizeScenes(v: unknown, clipIds: Set<string>): EdlScene[] | u
     const scene: EdlScene = { id: `g${out.length + 1}`, kind, key: o.key, dur: r2(Math.min(STEPS_MAX_SEC, Math.max(0.8, o.dur))), text: str(o.text, SCENE_TEXT_MAX) };
     if (kind === "stat" || kind === "change") { const label = str(o.label, SCENE_LABEL_MAX); if (label) scene.label = label; }
     if (kind === "change") { const was = str(o.was, SCENE_TEXT_MAX); if (!was) continue; scene.was = was; }
-    if (kind !== "steps" && isSceneIcon(o.icon)) scene.icon = o.icon;
+    if (kind !== "steps" && kind !== "picture" && isSceneIcon(o.icon)) scene.icon = o.icon;
+    if (kind === "picture") { const art = sanitizeArt(o.art); if (!art.length) continue; scene.art = art; const label = str(o.label, SCENE_LABEL_MAX); if (label) scene.label = label; }
+    const place = SCENE_PLACES.find((p) => p === o.place);
+    if (place) scene.place = place;
     if (kind === "steps") {
       const items = (Array.isArray(o.items) ? o.items : []).flatMap((it) => { const r = it as Record<string, unknown> | null; const text = str(r?.text, SCENE_TEXT_MAX); return r && okKey(r.key) && text ? [{ key: r.key, text }] : []; }).slice(0, SCENE_ITEMS_MAX);
       if (items.length < 2) continue;
@@ -293,5 +305,18 @@ export function sanitizeScenes(v: unknown, clipIds: Set<string>): EdlScene[] | u
 
 /** What a scene shows, in a few words, for a list. */
 export const sceneSummary = (s: EdlScene): string => (s.kind === "change" ? `${s.was ?? ""} to ${s.text}${s.label ? ` ${s.label}` : ""}` : s.kind === "stat" ? `${s.text}${s.label ? ` ${s.label}` : ""}` : s.kind === "steps" ? (s.items ?? []).map((i) => i.text).join(" · ") : s.text);
-export const SCENE_KIND_LABEL: Record<SceneKind, string> = { stat: "Figure", change: "Before and after", steps: "List", line: "Key line" };
+export const SCENE_KIND_LABEL: Record<SceneKind, string> = { stat: "Figure", change: "Before and after", steps: "List", line: "Key line", picture: "Picture" };
 export { captionKey };
+
+/**
+ * Picture scenes put onto a cut that may already have scenes: the pictures go in, and any scene that
+ * would be on screen with one, or within a second of it, comes out (a picture was asked for or chosen
+ * for that moment; a card found by rule was not). Six scenes at most, pictures first.
+ */
+export function withPictures(edl: Edl, pictures: EdlScene[], words: Record<string, TranscriptWord[] | null | undefined>): EdlScene[] {
+  const pics = sceneSpans({ ...edl, scenes: pictures.slice(0, MAX_PICTURES) }, words);
+  const gap = Math.round(GAP_SEC * FPS);
+  const others = sceneSpans({ ...edl, scenes: (edl.scenes ?? []).filter((s) => s.kind !== "picture") }, words)
+    .filter((o) => !pics.some((p) => o.from < p.from + p.durationInFrames + gap && p.from < o.from + o.durationInFrames + gap));
+  return [...pics, ...others.slice(0, Math.max(0, MAX_SCENES - pics.length))].sort((a, b) => a.from - b.from).map((x, i) => ({ ...x.scene, id: `g${i + 1}` }));
+}

@@ -28,6 +28,10 @@ import { cutSpeaks, startLevels } from "@/lib/music/taste";
 import type { Track } from "@/lib/music/tracks";
 import { beatOfTrack } from "@/lib/studioClips/beatClient";
 import { AUTO_IMPROVE_TIMEOUT_MS } from "@/lib/studioClips/enhancePrompt";
+import { useSpeech } from "./useSpeech";
+import MicButton from "./MicButton";
+import { lookAtCut } from "@/lib/studioClips/lookAtCut";
+import { placeClear, placeNote, samplesFor } from "@/lib/studioClips/placement";
 import { PICTURE_BRIEF, quickCut, quickLook, quickStats, rawOf, type QuickStats } from "@/lib/studioClips/quickEdit";
 import { renderFaults, type RenderReport } from "@/lib/studioClips/renderCheck";
 import { DEFAULT_THEME_ID, THEMES, themeById } from "@/lib/studioClips/themes";
@@ -36,9 +40,13 @@ import type { LocalClip } from "./ClipsViews";
 import { renderBlocker, renderBuild } from "./renderBuild";
 
 type Stage = "upload" | "words" | "picture" | "cut" | "render" | "check" | "done" | "error";
-type Result = { buildId: string; title: string; blob: Blob; url: string; rawUrl: string | null; stats: QuickStats; clips: number; clipsUsed: number; picture: boolean; notes: string[]; lines: string[]; report: RenderReport | null; edl: Edl; look: string; music: string | null; width: number; height: number };
+type Result = { buildId: string; title: string; blob: Blob; url: string; rawUrl: string | null; stats: QuickStats; clips: number; clipsUsed: number; picture: boolean; prompt: string; notes: string[]; lines: string[]; report: RenderReport | null; edl: Edl; look: string; music: string | null; width: number; height: number };
 type Draft = { phase: "idle" } | { phase: "saving"; progress: number } | { phase: "saved"; postId: string } | { phase: "error"; message: string };
-type Choice = { look: string; trackId: string; scenes: boolean; behind: boolean; split: boolean };
+type Choice = { look: string; trackId: string; scenes: boolean; behind: boolean; split: boolean; /** how the person wants it, typed or spoken */ prompt: string };
+const PROMPT_MAX = 1200;
+const PROMPT_KEY = "socia.quickEdit.prompt";
+/** Sent with the person's words to the step that changes the cut, so asks for pictures (made in their own step) are not answered as "can't". */
+const NOT_PICTURES = " (Requests for pictures, graphics or visuals are handled in another step: leave them out, and do not mention them in the reply.)";
 /** Where the graphics sit: a card over the picture, behind the person talking, or a split screen. */
 type Place = "over" | "behind" | "split";
 const placeOf = (edl: { scenesBehind?: true; scenesSplit?: true }): Place => (edl.scenesSplit ? "split" : edl.scenesBehind ? "behind" : "over");
@@ -105,6 +113,21 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
   const [scenesOn, setScenesOn] = useState(true);
   const [place, setPlace] = useState<Place>("behind");
   const [trackId, setTrackId] = useState("");
+  // How the person wants it, typed or spoken; it goes with the cut and decides the pictures.
+  const [prompt, setPromptState] = useState("");
+  // Kept for this tab, so what was typed before the drop is still there when the clips land and after the video is made.
+  const setPrompt = useCallback((next: string | ((was: string) => string)) => setPromptState((was) => {
+    const v = typeof next === "function" ? next(was) : next;
+    try { if (v) window.sessionStorage.setItem(PROMPT_KEY, v); else window.sessionStorage.removeItem(PROMPT_KEY); } catch { /* not kept */ }
+    return v;
+  }), []);
+  // Read before the first paint of this screen, so the run that starts when the clips land has it.
+  const promptRef = useRef("");
+  if (typeof window !== "undefined" && !promptRef.current && !prompt) { try { promptRef.current = window.sessionStorage.getItem(PROMPT_KEY)?.slice(0, PROMPT_MAX) ?? ""; } catch { /* none */ } }
+  useEffect(() => { if (promptRef.current) setPromptState(promptRef.current); }, []);
+  const spokenFrom = useRef("");
+  const speech = useSpeech((words) => setPrompt((spokenFrom.current ? `${spokenFrom.current} ${words}` : words).slice(0, PROMPT_MAX)));
+  const toggleMic = () => { if (!speech.listening) spokenFrom.current = prompt.trim(); speech.toggle(); };
   const [tracks, setTracks] = useState<Track[]>([]);
   useEffect(() => {
     try {
@@ -191,12 +214,13 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
       go("cut");
       setStep("Fitting the brief to these clips");
       // The brief is fitted to what is in these clips first, as every prompt in the Video editor is; without it the cut is made from the brief as written.
-      let brief = PICTURE_BRIEF;
+      const asked = choice.prompt.trim() ? `${choice.prompt.trim()}\n\n${PICTURE_BRIEF}` : PICTURE_BRIEF;
+      let brief = asked;
       const tctl = new AbortController();
       const timer = setTimeout(() => tctl.abort(), AUTO_IMPROVE_TIMEOUT_MS);
       signal.addEventListener("abort", () => tctl.abort(), { once: true });
       try {
-        const res = await fetch(`/api/studio/projects/${projectId}/brief/enhance`, { ...post({ prompt: PICTURE_BRIEF, hasReference: false }), signal: tctl.signal });
+        const res = await fetch(`/api/studio/projects/${projectId}/brief/enhance`, { ...post({ prompt: asked, hasReference: false }), signal: tctl.signal });
         const j = (await res.json().catch(() => null)) as { prompt?: string } | null;
         if (res.ok && j?.prompt) brief = j.prompt;
       } catch { /* slow or unreachable: the brief as written */ } finally { clearTimeout(timer); }
@@ -289,7 +313,49 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
       setStep(null);
       const opts = { scenes: choice.scenes, behind: choice.behind, split: choice.split, beat };
       const cut = viaPicture.current ? quickLook(start, chosen, data.sources, opts) : quickCut(start, chosen, data.sources, opts);
-      const saved = await call(`/api/studio/builds/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ edl: cut.edl }) });
+      let made = cut.edl;
+      const aiNotes: string[] = [];
+      const ask = choice.prompt.trim();
+      const anyWords = Object.values(wordsById).some((w) => w?.length);
+      // Pictures of what is being talked about, and of what the person asked for.
+      if (choice.scenes && anyWords) {
+        setStep("Drawing the pictures");
+        const res = await call(`/api/studio/builds/${id}/visuals`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ edl: made, prompt: ask }) });
+        const j = await json(res);
+        const n = typeof j?.pictures === "number" ? j.pictures : 0;
+        if (res?.ok && Array.isArray(j?.scenes) && n > 0) {
+          made = { ...made, scenes: j.scenes as Edl["scenes"] };
+          aiNotes.push(`${n} picture graphic${n === 1 ? "" : "s"} drawn from what is said${ask ? " and what you asked for" : ""}. Change or remove them in the editor, under Words.`);
+        } else if (!res?.ok && ask) {
+          aiNotes.push(`The pictures couldn't be drawn this time (${typeof j?.error === "string" ? j.error.replace(/\.$/, "") : "SOCIA couldn't be reached"}). Make it again to retry.`);
+        }
+      }
+      // The rest of what the person asked for: the changes the editor can make to a cut.
+      if (ask) {
+        setStep("Following your instructions");
+        const res = await call(`/api/studio/builds/${id}/instruct`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ instruction: ask.slice(0, 600 - NOT_PICTURES.length) + NOT_PICTURES, edl: made }) });
+        const j = await json(res);
+        const done = Array.isArray(j?.done) ? (j.done as unknown[]).filter((d): d is string => typeof d === "string") : [];
+        if (res?.ok && j?.changed && j.edl) {
+          // The pictures and their layout stay as made; a change of cuts moves them with their words.
+          const next = j.edl as Edl;
+          made = { ...next, ...(made.scenes ? { scenes: made.scenes } : {}), ...(made.scenesSplit ? { scenesSplit: true as const } : {}), ...(made.scenesBehind ? { scenesBehind: true as const } : {}) };
+          aiNotes.push(`From your instructions: ${done.slice(0, 6).join("; ")}.`);
+        } else if (!res?.ok) {
+          aiNotes.push(`Your instructions couldn't be applied to the cut this time (${typeof j?.error === "string" ? j.error.replace(/\.$/, "") : "SOCIA couldn't be reached"}).`);
+        }
+      }
+      // A look at the footage itself, so nothing sits on a face.
+      setStep("Looking at the video");
+      try {
+        const looks = await lookAtCut(samplesFor(made, wordsById), data.sources, { width: made.width, height: made.height }, signal);
+        const placed = placeClear(made, looks, wordsById);
+        made = placed.edl;
+        const pn = placeNote(placed.moved);
+        if (pn) aiNotes.push(pn);
+      } catch { /* not looked at: everything stays where the look puts it */ }
+      setStep(null);
+      const saved = await call(`/api/studio/builds/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ edl: made }) });
       const sj = await json(saved);
       if (!saved?.ok || !sj?.edl) throw fail(sj, "The cut couldn't be saved, so the video wasn't made. Check your connection and try again.");
       // What renders is the cut as the server kept it (cuts snapped to words), so the file and the editor agree.
@@ -304,8 +370,8 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
       urls.current.push(url);
       const used = new Set([...kept.segments.map((s) => s.clipId), ...(kept.broll ?? []).map((b) => b.clipId)]).size;
       setResult({
-        buildId: id, title, blob: out.blob, url, rawUrl: data.sources.length === 1 ? data.sources[0].url : null, stats: st, clips: data.sources.length, clipsUsed: used, picture: viaPicture.current,
-        notes: [...cut.notes, ...musicNotes], lines: kept.text.map((t) => t.text.trim()).filter(Boolean), report: out.report, edl: kept, look: chosen.id, music: musicName, width: out.width, height: out.height,
+        buildId: id, title, blob: out.blob, url, rawUrl: data.sources.length === 1 ? data.sources[0].url : null, stats: st, clips: data.sources.length, clipsUsed: used, picture: viaPicture.current, prompt: choice.prompt.trim(),
+        notes: [...cut.notes, ...aiNotes, ...musicNotes], lines: kept.text.map((t) => t.text.trim()).filter(Boolean), report: out.report, edl: kept, look: chosen.id, music: musicName, width: out.width, height: out.height,
       });
       setStage("done");
     } catch (e) {
@@ -321,7 +387,7 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
   useEffect(() => {
     if (!settled || !ready.length || !projectId || started.current) return;
     started.current = true;
-    void run({ look, trackId, scenes: scenesOn, behind: place === "behind", split: place === "split" });
+    void run({ look, trackId, scenes: scenesOn, behind: place === "behind", split: place === "split", prompt: prompt || promptRef.current });
     // The choices are read when the clips land; changing them afterwards is "Make it again".
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settled, ready.length, projectId, run]);
@@ -357,8 +423,19 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
     setPickNote(null);
     onPick(files);
   };
-  const again = () => { abort.current?.abort(); onReset(); };
+  const again = () => { abort.current?.abort(); setPrompt(""); onReset(); };
 
+  const promptBox = (disabled: boolean, idPrefix: string) => (
+      <div className="qe-prompt">
+        <label htmlFor={`${idPrefix}-prompt`}>How do you want it? <span>Optional</span></label>
+        <div className="qe-prompt-box">
+          <textarea id={`${idPrefix}-prompt`} rows={3} maxLength={PROMPT_MAX} value={prompt} disabled={disabled} placeholder="Say it like you would to an editor: make it fast, when he says the warehouse in Egypt show a warehouse and a map of Egypt, put the captions low, end with our address." onChange={(e) => setPrompt(e.target.value)} />
+          <MicButton supported={speech.supported} listening={speech.listening} disabled={disabled} onToggle={toggleMic} size="large" labelIdle="Say how you want it" />
+        </div>
+        <small>{speech.listening ? "Listening. Press the button again when you're done talking." : "Type it or press the microphone and talk. SOCIA cuts to it and draws the pictures you ask for."}</small>
+        {speech.error && <small className="qe-prompt-err" role="alert">{speech.error}</small>}
+      </div>
+  );
   const choices = (disabled: boolean, idPrefix: string) => (
     <div className="qe-choices">
       <label className="qe-field" htmlFor={`${idPrefix}-look`}>
@@ -414,11 +491,14 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
         )}
         <input ref={input} type="file" hidden multiple accept="video/mp4,video/quicktime,video/webm,video/*" onChange={(e) => { if (e.target.files) take(e.target.files); e.target.value = ""; }} />
         {pickNote && <p className="qe-err" role="alert"><AlertTriangle size={14} aria-hidden /> {pickNote}</p>}
+        {!blocker && <motion.div className="qe-wide" {...rise(4)}>{promptBox(false, "qe-start")}</motion.div>}
         <motion.ul className="qe-does" aria-label="What it does" {...rise(4)}>
           <li><Check size={13} aria-hidden /> Cuts pauses and repeated takes</li>
           <li><Check size={13} aria-hidden /> Picks the best shots</li>
           <li><Check size={13} aria-hidden /> Captions</li>
           <li><Check size={13} aria-hidden /> Animated graphics</li>
+          <li><Check size={13} aria-hidden /> Pictures of what is said</li>
+          <li><Check size={13} aria-hidden /> Text kept off faces</li>
           <li><Check size={13} aria-hidden /> Your music, cut on the beat</li>
         </motion.ul>
         <motion.div className="qe-wide" {...rise(5)}>{choices(false, "qe-start")}</motion.div>
@@ -437,7 +517,7 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
     const faults = renderFaults(result.report);
     const s = result.stats;
     const lookName = themeById(result.look)?.name ?? result.look;
-    const changed = look !== result.look || (trackId ? tracks.find((t) => t.id === trackId)?.name ?? "" : null) !== result.music || scenesOn !== (s.scenes > 0) || (s.scenes > 0 && place !== placeOf(result.edl));
+    const changed = prompt.trim() !== result.prompt || look !== result.look || (trackId ? tracks.find((t) => t.id === trackId)?.name ?? "" : null) !== result.music || scenesOn !== (s.scenes > 0) || (s.scenes > 0 && place !== placeOf(result.edl));
     return (
       <section className="qe" aria-labelledby="qe-done">
         <div className={`qe-stage${compare && result.rawUrl ? " is-compare" : ""}`}>
@@ -495,12 +575,13 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
               </details>
             )}
             <details className="qe-notes">
-              <summary>Make it again with another look or music</summary>
+              <summary>Make it again with other instructions, look or music</summary>
+              {promptBox(false, "qe-done")}
               {choices(false, "qe-done")}
               <div className="qe-actions">
-                <button type="button" className="qe-btn" disabled={!changed} onClick={() => void run({ look, trackId, scenes: scenesOn, behind: place === "behind", split: place === "split" })}><RefreshCw size={14} aria-hidden /> Make it again</button>
+                <button type="button" className="qe-btn" disabled={!changed} onClick={() => void run({ look, trackId, scenes: scenesOn, behind: place === "behind", split: place === "split", prompt })}><RefreshCw size={14} aria-hidden /> Make it again</button>
               </div>
-              <p className="qe-fine">Same cut, same clips: only the look, the music and the graphics change. Nothing more is counted.</p>
+              <p className="qe-fine">Same clips and the same starting cut: your instructions, the look, the music and the graphics are applied again. No new cut is counted.</p>
             </details>
           </div>
         </div>
@@ -564,7 +645,7 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
           {failed.map((l) => <p key={l.key} className="qe-err" role="alert"><AlertTriangle size={14} aria-hidden /> {many ? `${l.name}: ` : ""}{l.phase === "duplicate" ? "This clip is already in this video." : l.error ?? "This clip couldn't be added."}{many && ready.length ? " The video is made without it." : ""}</p>)}
           {stage === "error" && error && <p className="qe-err" role="alert"><AlertTriangle size={14} aria-hidden /> {error}</p>}
           <div className="qe-actions">
-            {stage === "error" && ready.length > 0 && <button type="button" className="qe-btn is-primary" onClick={() => void run({ look, trackId, scenes: scenesOn, behind: place === "behind", split: place === "split" })}><RefreshCw size={14} aria-hidden /> Try again</button>}
+            {stage === "error" && ready.length > 0 && <button type="button" className="qe-btn is-primary" onClick={() => void run({ look, trackId, scenes: scenesOn, behind: place === "behind", split: place === "split", prompt })}><RefreshCw size={14} aria-hidden /> Try again</button>}
             {stage === "error" && buildId.current && <button type="button" className="qe-btn" onClick={() => onOpenEditor(buildId.current!, title)}>Open it in the editor instead</button>}
             <button type="button" className="qe-btn is-quiet" onClick={again}>{allFailed || stage === "error" ? "Use other footage" : "Stop"}</button>
           </div>

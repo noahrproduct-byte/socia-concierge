@@ -9,12 +9,14 @@ import { AbsoluteFill, Sequence, useCurrentFrame, useVideoConfig } from "remotio
 import { SceneLayer, SPLIT_SHIFT, splitShare } from "./remotion/SceneLayer";
 import { LogoCorner, LogoEnding } from "./remotion/ClipComposition";
 import type { SceneSpan } from "@/lib/studioClips/scenes";
+import { DEMO_EGYPT, DEMO_WAREHOUSE } from "@/lib/studioClips/sceneArtDemo";
 
 const FPS = 30;
 const SPANS: { name: string; what: string; span: SceneSpan; frames: number; stills: number[] }[] = [
   { name: "Figure", what: "When a number is said: \"we sell 200 burgers a day\".", frames: 96, stills: [15, 21, 60], span: { scene: { id: "g1", kind: "stat", key: "lab@0", dur: 2.6, text: "200", label: "burgers a day", icon: "food" }, from: 0, durationInFrames: 78, rows: [] } },
   { name: "Before and after", what: "When a change is said with its two numbers: \"from 65 seconds to 38\".", frames: 112, stills: [20, 34, 70], span: { scene: { id: "g4", kind: "change", key: "lab@0", dur: 3, text: "38", was: "65", label: "seconds", icon: "time" }, from: 0, durationInFrames: 92, rows: [] } },
   { name: "List", what: "When a list is counted out loud: \"first... second... third\".", frames: 170, stills: [16, 58, 110], span: { scene: { id: "g2", kind: "steps", key: "lab@0", dur: 5, text: "", items: [] }, from: 0, durationInFrames: 152, rows: [{ text: "we smash the beef", at: 0 }, { text: "we toast the buns", at: 36 }, { text: "we stack it high", at: 72 }] } },
+  { name: "Picture", what: "When a thing or a place is said, or you ask for it: \"I bought a warehouse in Egypt\". SOCIA draws it.", frames: 120, stills: [16, 34, 80], span: { scene: { id: "g5", kind: "picture", key: "lab@0", dur: 3.4, text: "Warehouse in Egypt", label: "500 rugs", art: [DEMO_WAREHOUSE, DEMO_EGYPT] }, from: 0, durationInFrames: 102, rows: [] } },
   { name: "Key line", what: "When a short line carries the point: \"nobody else does it this way\".", frames: 108, stills: [16, 30, 70], span: { scene: { id: "g3", kind: "line", key: "lab@0", dur: 3, text: "Nobody else does it this way", icon: "star" }, from: 0, durationInFrames: 90, rows: [] } },
 ];
 const ACCENTS = [["SOCIA blue", "#3d7bff"], ["Gold", "#e8b84a"], ["Yellow", "#ffd400"], ["Red", "#ff4d4d"], ["White", "#ffffff"]] as const;
@@ -95,7 +97,7 @@ export default function SceneLab() {
       </div>
       <h2 style={{ margin: "40px 0 6px", fontSize: 20, lineHeight: "28px" }}>Each one, step by step</h2>
       <p style={{ margin: "0 0 16px", maxWidth: 640, fontSize: 14, lineHeight: "20px", color: "rgba(244,245,247,0.62)" }}>Three moments of each card: as it comes on, part way through, and as it holds.</p>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(12, minmax(0, 112px))", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(96px, 112px))", gap: 10 }}>
         {SPANS.flatMap((x) => x.stills.map((frame) => (
           <figure key={`${x.name}-${frame}`} style={{ margin: 0 }}>
             <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)" }}>

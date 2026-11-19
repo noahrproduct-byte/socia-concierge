@@ -57,6 +57,16 @@
 .qe-field select:focus-visible, .qe-check input:focus-visible { outline: 2px solid var(--qe-blue); outline-offset: 2px; }
 .qe-field select:disabled { opacity: 0.5; }
 .qe-field small { font-size: 12px; line-height: 16px; color: var(--qe-faint); }
+.qe-prompt { display: flex; flex-direction: column; gap: 8px; text-align: left; }
+.qe-prompt > label { font-size: 14px; line-height: 20px; font-weight: 600; color: var(--qe-text); }
+.qe-prompt > label span { margin-left: 6px; font-size: 12px; font-weight: 500; color: var(--qe-faint); }
+.qe-prompt-box { display: flex; align-items: flex-end; gap: 10px; padding: 10px; border: 1px solid var(--qe-line); border-radius: 14px; background: var(--qe-input); }
+.qe-prompt-box:focus-within { border-color: var(--qe-blue); }
+.qe-prompt-box textarea { flex: 1; min-width: 0; min-height: 66px; resize: vertical; border: 0; outline: 0; background: transparent; color: var(--qe-text); font: inherit; font-size: 15px; line-height: 22px; }
+.qe-prompt-box textarea::placeholder { color: var(--qe-faint); }
+.qe-prompt-box textarea:disabled { opacity: 0.5; }
+.qe-prompt > small { font-size: 12px; line-height: 16px; color: var(--qe-faint); }
+.qe-prompt > small.qe-prompt-err { color: var(--qe-red, #d33); }
 .qe-check { display: flex; align-items: center; gap: 10px; font-size: 13px; line-height: 18px; color: var(--qe-text); }
 .qe-check input { width: 16px; height: 16px; margin: 0; accent-color: var(--qe-blue); }
 .qe-fine { margin: 0; max-width: 72ch; font-size: 12.5px; line-height: 18px; color: var(--qe-faint); }

@@ -163,3 +163,78 @@ describe("the cut's logo", () => {
     expect(sanitizeLogo({ src })).toBeUndefined();
   });
 });
+
+import { sanitizeArt } from "./sceneArt";
+import { withPictures } from "./scenes";
+import { clearest, headOf, placeClear, samplesFor } from "./placement";
+import { toOutput } from "./lookAtCut";
+import { countryArt } from "./countryMap";
+import { picturesFrom } from "./visualsModel";
+
+describe("picture scenes", () => {
+  it("keeps a drawing made only of path data in known tones", () => {
+    const art = sanitizeArt([{ kind: "draw", name: "Ware<b>house", shapes: [{ d: "M10 44 L50 22 L90 44 V88 H10 Z", fill: "accent" }, { d: "M0 0 <script>", fill: "accent" }, { d: "M1 1 L2 2", fill: "url(#x)", stroke: "none" }] }]);
+    expect(art).toHaveLength(1);
+    expect(art[0]).toMatchObject({ kind: "draw", name: "Warebhouse" });
+    expect(art[0].kind === "draw" && art[0].shapes).toHaveLength(1);
+  });
+  it("finds a country by how it is said, and nothing for a place that is not one", () => {
+    expect(countryArt("Egypt")?.name).toBe("Egypt");
+    expect(countryArt("the US")?.name).toBe("United States");
+    expect(countryArt("Narnia")).toBeNull();
+    expect(countryArt("constructor")).toBeNull();
+  });
+  it("turns a model's answer into scenes on the words it names, dropping what cannot be drawn", () => {
+    const said = [{ text: "I", key: "a@0", sec: 0 }, { text: "bought", key: "a@300", sec: 0.3 }, { text: "a", key: "a@600", sec: 0.6 }, { text: "warehouse", key: "a@900", sec: 0.9 }];
+    const out = picturesFrom({ scenes: [
+      { word: 4, dur: 9, headline: "Warehouse in Egypt.", art: [{ kind: "map", country: "Egypt" }, { kind: "draw", name: "warehouse", shapes: [{ d: "M10 44 L50 22 L90 44 V88 H10 Z", fill: "accent" }] }] },
+      { word: 99, headline: "No such word", art: [{ kind: "map", country: "Egypt" }] },
+      { word: 2, headline: "Nothing to draw", art: [{ kind: "map", country: "Narnia" }] },
+    ] }, said);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ kind: "picture", key: "a@900", dur: 4, text: "Warehouse in Egypt" });
+    expect(out[0].art?.map((a) => a.kind)).toEqual(["map", "draw"]);
+  });
+  it("survives the server's check of a cut and replaces a card that would be up with it", () => {
+    const words = { talk: [100, 400, 700, 1000, 1300, 1600, 1900, 2200, 2500, 2800, 3100, 3400].map((ms, i) => ({ text: `w${i}`, startMs: ms, endMs: ms + 200, confidence: 1 })) };
+    const edl = { version: 1, fps: 30, width: 1080, height: 1920, targetSec: { min: 1, max: 60 }, segments: [{ id: "s1", clipId: "talk", in: 0, out: 12, role: "opener", note: "" }], text: [], captions: null, enhance: [], audio: [], cta: null, music: null, caption: "", notes: [],
+      scenes: [{ id: "g1", kind: "stat", key: "talk@700", dur: 2, text: "500" }] } as unknown as Edl;
+    const pic = { id: "p1", kind: "picture" as const, key: "talk@1000", dur: 3, text: "Warehouse", art: sanitizeArt([{ kind: "draw", name: "w", shapes: [{ d: "M1 1 L9 9 Z", fill: "accent" }] }]) };
+    const merged = withPictures(edl, [pic], words);
+    expect(merged.map((s) => s.kind)).toEqual(["picture"]);
+    expect(sanitizeScenes(merged, new Set(["talk"]))?.[0].art).toHaveLength(1);
+    expect(sanitizeScenes([{ ...pic, art: [] }], new Set(["talk"]))).toBeUndefined();
+  });
+});
+
+describe("keeping things off the face", () => {
+  it("takes the top third of a person as their head and picks the place that clears it", () => {
+    const head = headOf({ top: 0.15, bottom: 0.95 });
+    expect(head.top).toBeCloseTo(0.14);
+    expect(head.bottom).toBeCloseTo(0.42, 1);
+    const cards = { top: { top: 0.12, bottom: 0.4 }, upper: { top: 0.27, bottom: 0.55 }, lower: { top: 0.5, bottom: 0.78 } };
+    expect(clearest(cards, ["top", "upper", "lower"], head)).toBe("lower");
+    expect(clearest(cards, ["top", "upper", "lower"], { top: 0.6, bottom: 0.8 })).toBe("top");
+  });
+  it("maps a band of a wide source into a tall frame's centred crop", () => {
+    expect(toOutput({ top: 0.25, bottom: 0.75 }, 1080, 1920, 1080, 1920)).toEqual({ top: 0.25, bottom: 0.75 });
+    const tall = toOutput({ top: 0, bottom: 0.5 }, 1080, 2400, 1080, 1920);
+    expect(tall.top).toBe(0);
+    expect(tall.bottom).toBeCloseTo(0.5, 1);
+  });
+  it("moves a card, a line and the captions when they would cross the head, and nothing when no one is seen", () => {
+    const words = { talk: [1000, 1300, 1600, 1900].map((ms, i) => ({ text: `w${i}`, startMs: ms, endMs: ms + 200, confidence: 1 })) };
+    const edl = { version: 1, fps: 30, width: 1080, height: 1920, targetSec: { min: 1, max: 60 }, segments: [{ id: "s1", clipId: "talk", in: 0, out: 10, role: "opener", note: "" }], captions: null, enhance: [], audio: [], cta: null, music: null, caption: "", notes: [],
+      text: [{ id: "t1", text: "Hello there", at: 5, end: 7, slot: "top" }], scenes: [{ id: "g1", kind: "stat", key: "talk@1000", dur: 2, text: "500" }],
+      style: { font: "inter", textBox: "none", accent: "#fff", captions: { preset: "pop", position: "top", size: "m", box: false, uppercase: false } } } as unknown as Edl;
+    const samples = samplesFor(edl, words);
+    expect(samples.length).toBeGreaterThanOrEqual(2);
+    const head = { top: 0.1, bottom: 0.45 };
+    const placed = placeClear(edl, samples.map((s) => ({ sec: s.sec, head })), words);
+    expect(placed.edl.scenes?.[0].place).toBe("lower");
+    expect((placed.edl.text[0] as { slot?: string }).slot).toBe("bottom");
+    expect(placed.edl.style?.captions.position).toBe("lower");
+    expect(placed.moved).toEqual({ scenes: 1, lines: 1, captions: true });
+    expect(placeClear(edl, samples.map((s) => ({ sec: s.sec, head: null })), words).edl).toBe(edl);
+  });
+});
