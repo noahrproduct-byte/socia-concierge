@@ -151,3 +151,12 @@ describe("judging which replies can go out on their own (automatic replies)", ()
     expect(off.upserts[0]).not.toHaveProperty("auto_ok");
   });
 });
+
+describe("replies to a comment-to-get-it post", () => {
+  it("the DM invitation the drafter is told to write can go out on its own", async () => {
+    const { autoSafe } = await import("./commentDrafts");
+    expect(autoSafe("Glad you're in! Send us a DM and we'll get it over to you.")).toBe(true);
+    // The old wording promised a link, so it was always held back.
+    expect(autoSafe("Thanks for jumping in! The team will send the link your way.")).toBe(false);
+  });
+});
