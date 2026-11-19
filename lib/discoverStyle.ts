@@ -94,6 +94,9 @@ export type CopyFound = { from: string; at: string };
 export const IG_HANDLE_RE = /^[a-z0-9._]{1,30}$/;
 /** Handles an account on the copy list mentions most, read as candidates in one background read. */
 export const COPY_FIND_PER_READ = 6;
+/** Mentioned accounts read per background read, and the most kept per brand (nicheFound). */
+export const NICHE_FIND_PER_READ = 10;
+export const NICHE_FOUND_MAX = 40;
 /** Accounts found from the copy list, kept per brand. */
 export const COPY_FOUND_MAX = 24;
 
@@ -128,6 +131,12 @@ export type StyleMemory = {
   copyFrom: string[];
   /** Accounts found from the copy list, by handle. */
   copyFound: Record<string, CopyFound>;
+  /**
+   * Accounts found from the niche accounts SOCIA read, by handle (Noah, 2026-11-17: "suggest more accounts"):
+   * the handles those accounts mention in their captions, read on Instagram, with 1,000+ followers and Reels.
+   * Suggested once the fit check calls them competitor or niche. `from` is the account that mentioned them.
+   */
+  nicheFound: Record<string, CopyFound>;
 };
 
 const MISSES: readonly string[] = ["not_found", "not_business", "unavailable"];
@@ -182,19 +191,23 @@ export function sanitizeMemory(v: unknown): StyleMemory {
   const copyFrom = Array.isArray(o.copyFrom)
     ? [...new Set((o.copyFrom as unknown[]).filter((h): h is string => typeof h === "string").map((h) => h.toLowerCase().replace(/^@/, "")).filter((h) => IG_HANDLE_RE.test(h)))].slice(0, 60)
     : [];
-  const copyFound: Record<string, CopyFound> = {};
-  const rawFound = o.copyFound && typeof o.copyFound === "object" ? (o.copyFound as Record<string, unknown>) : {};
-  Object.entries(rawFound)
-    .map(([h, v]) => {
-      const f = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
-      const at = typeof f.at === "string" && !Number.isNaN(Date.parse(f.at)) ? f.at : null;
-      const from = typeof f.from === "string" && IG_HANDLE_RE.test(f.from) ? f.from : null;
-      return [h.toLowerCase(), at && from ? { from, at } : null] as const;
-    })
-    .filter((e): e is readonly [string, CopyFound] => IG_HANDLE_RE.test(e[0]) && e[1] != null)
-    .sort((a, b) => Date.parse(b[1].at) - Date.parse(a[1].at))
-    .slice(0, COPY_FOUND_MAX)
-    .forEach(([h, f]) => { copyFound[h] = f; });
+  const foundList = (raw: unknown, max: number): Record<string, CopyFound> => {
+    const out: Record<string, CopyFound> = {};
+    Object.entries(raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {})
+      .map(([h, v]) => {
+        const f = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+        const at = typeof f.at === "string" && !Number.isNaN(Date.parse(f.at)) ? f.at : null;
+        const from = typeof f.from === "string" && IG_HANDLE_RE.test(f.from) ? f.from : null;
+        return [h.toLowerCase(), at && from ? { from, at } : null] as const;
+      })
+      .filter((e): e is readonly [string, CopyFound] => IG_HANDLE_RE.test(e[0]) && e[1] != null)
+      .sort((a, b) => Date.parse(b[1].at) - Date.parse(a[1].at))
+      .slice(0, max)
+      .forEach(([h, f]) => { out[h] = f; });
+    return out;
+  };
+  const copyFound = foundList(o.copyFound, COPY_FOUND_MAX);
+  const nicheFound = foundList(o.nicheFound, NICHE_FOUND_MAX);
   const reels: Record<string, ReelVerdict> = {};
   const rawReels = o.reels && typeof o.reels === "object" ? (o.reels as Record<string, unknown>) : {};
   Object.entries(rawReels)
@@ -208,7 +221,7 @@ export function sanitizeMemory(v: unknown): StyleMemory {
     .sort((a, b) => Date.parse(b[1].at) - Date.parse(a[1].at))
     .slice(0, REEL_VERDICTS_MAX)
     .forEach(([k, r]) => { reels[k] = r; });
-  return { own: sanitizeStyle(o.own), accounts, tried, fit, copyFrom, copyFound, reels };
+  return { own: sanitizeStyle(o.own), accounts, tried, fit, copyFrom, copyFound, nicheFound, reels };
 }
 
 /** Tried within the last day: don't ask again yet, and don't say it is being read. */
