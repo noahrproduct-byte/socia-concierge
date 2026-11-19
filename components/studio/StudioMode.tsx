@@ -1,18 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { Gauge, Layers, Music, Scissors } from "lucide-react";
+import { Gauge, Music, Scissors } from "lucide-react";
 
 export type StudioModeId = "quick" | "clips" | "edit" | "audio" | "guide";
 
-// Content Studio: Rate a video you've made, Build videos from raw clips (and
-// schedule them), the Video editor (clips, then a prompt or a reference to
-// copy, or your own edit), and Audio: music for a video. Plan a post (the
-// production guide) is opened from a planned post, so no tab is lit there.
+// Content Studio: Rate a video you've made, the Video editor (clips, then a
+// prompt or a reference to copy, or your own edit), and Audio: music for a
+// video. Plan a post (the production guide) is opened from a planned post,
+// and a Build project from an old link, so no tab is lit there. Build left
+// the tabs on 2026-11-18 (Noah): the Video editor does its job.
 // The mode lives in the URL so a refresh keeps it.
 const HINT: Record<StudioModeId, string> = {
   quick: "Rate a video you've made and fix it before it goes out.",
-  clips: "Drop raw clips. SOCIA makes the videos and schedules them after you check.",
+  clips: "A project from your clips: the videos SOCIA found in them, ready to check and schedule.",
   edit: "Put in clips, then a prompt or a video to copy. Or edit them yourself.",
   audio: "Drop a video and SOCIA adds music made for it from your taste.",
   guide: "Hooks, script and shot list for a planned post, before you film.",
@@ -25,7 +26,6 @@ export default function StudioMode({ mode }: { mode: StudioModeId }) {
   return (
     <nav className="st-tabs cb-mode" aria-label="Content Studio">
       {tab("quick", "/studio", <Gauge size={13} />, "Rate")}
-      {tab("clips", "/studio?mode=clips", <Layers size={13} />, "Build")}
       {tab("edit", "/studio?mode=edit", <Scissors size={13} />, "Video editor")}
       {tab("audio", "/studio?mode=audio", <Music size={13} />, "Audio")}
       <span className="cb-mode-hint">{HINT[mode]}</span>

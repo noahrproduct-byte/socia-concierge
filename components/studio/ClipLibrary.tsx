@@ -58,7 +58,7 @@ export default function ClipLibrary({ onOpenCut, allowPost = true, onUse, useLab
     const j = res ? await res.json().catch(() => null) : null;
     if (!res?.ok || !j?.id) { setBusy(null); if (isPlanError(j)) setPlanError(j); else setError(j?.error ?? "Couldn't start a new video."); return; }
     if (!j.added) { setBusy(null); setError((j.skipped as string[] | undefined)?.join(" ") || "None of those clips could be added."); return; }
-    router.push(`/studio?mode=clips&project=${encodeURIComponent(j.id)}`);
+    router.push(`/studio?mode=edit&project=${encodeURIComponent(j.id)}`);
   };
 
   return (

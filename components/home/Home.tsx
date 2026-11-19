@@ -32,7 +32,7 @@ const FAQ = [
   },
   {
     q: "What does the free plan include?",
-    a: `One Brand Workspace, ${MONTHLY_CREDITS.free.toLocaleString("en-US")} AI credits a month, ${PLANS.free.limits.competitors} competitors, ${formatHistory(PLANS.free.limits.analytics_history_days)} of analytics history, scheduling and publishing, breakout alerts, Content Studio's Build from clips, and read-only access for AI assistants. The pricing page lists every limit.`,
+    a: `One Brand Workspace, ${MONTHLY_CREDITS.free.toLocaleString("en-US")} AI credits a month, ${PLANS.free.limits.competitors} competitors, ${formatHistory(PLANS.free.limits.analytics_history_days)} of analytics history, scheduling and publishing, breakout alerts, Content Studio's Video editor, and read-only access for AI assistants. The pricing page lists every limit.`,
   },
   {
     q: "How do AI credits work?",

@@ -16,6 +16,7 @@
 // watched (components/studio/renderBuild.ts). ClipsStudio owns the uploads.
 // Every step shows what was really measured; a step with nothing to report
 // says nothing. No timer, no estimate, no invented score.
+import { PROMPT_MAX } from "@/lib/studioClips/reference";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, Check, Columns2, Download, Loader2, RefreshCw, Scissors, Upload } from "lucide-react";
@@ -73,7 +74,7 @@ function Count({ value }: { value: number }) {
 }
 const usable = (l: LocalClip) => l.phase === "done" && !!l.clip && (l.clip.status === "uploaded" || l.clip.status === "ready");
 
-export default function QuickEdit({ locals, uploading, projectId, canTranscribe, canPicture, drag, onPick, understand, onOpenEditor, onReset, onFull }: {
+export default function QuickEdit({ locals, uploading, projectId, canTranscribe, canPicture, drag, onPick, understand, onOpenEditor, onReset, onFull, prompt = "", onPromptChange, onUsePrompt }: {
   /** the dropped clips as ClipsStudio tracks them (their measuring and upload); empty before anything is dropped */
   locals: LocalClip[];
   /** clips are still being measured or uploaded */
@@ -93,6 +94,11 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
   onReset: () => void;
   /** the full editor: a prompt, a video to copy, an edit by hand */
   onFull: () => void;
+  /** What the person wrote on the first screen. With it, dropped clips open in the full editor with the prompt filled in. */
+  prompt?: string;
+  onPromptChange?: (text: string) => void;
+  /** Go on to the full editor with the prompt, before any clips are dropped. */
+  onUsePrompt?: () => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const supabase = useMemo(() => createClient(), []);
@@ -353,7 +359,8 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
   const take = (list: FileList | File[]) => {
     const files = Array.from(list).filter(isVideo);
     if (!files.length) { setPickNote("That isn't a video file. Use an MP4 or MOV."); return; }
-    if (files.length > 1 && canPicture === false) { setPickNote(MANY_LOCKED); return; }
+    // With a prompt the clips go to the full editor, which says there what the plan allows.
+    if (files.length > 1 && canPicture === false && !prompt.trim()) { setPickNote(MANY_LOCKED); return; }
     setPickNote(null);
     onPick(files);
   };
@@ -414,6 +421,23 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
         )}
         <input ref={input} type="file" hidden multiple accept="video/mp4,video/quicktime,video/webm,video/*" onChange={(e) => { if (e.target.files) take(e.target.files); e.target.value = ""; }} />
         {pickNote && <p className="qe-err" role="alert"><AlertTriangle size={14} aria-hidden /> {pickNote}</p>}
+        {onPromptChange && (
+          <motion.div className="qe-prompt" {...rise(3)}>
+            <label htmlFor="qe-prompt-text">Your prompt <small>Optional</small></label>
+            <textarea
+              id="qe-prompt-text"
+              rows={3}
+              maxLength={PROMPT_MAX}
+              value={prompt}
+              onChange={(e) => onPromptChange(e.target.value)}
+              placeholder="Say what the video should be: what it is about, how long, the first line, the feel."
+            />
+            <div className="qe-prompt-foot">
+              <small>{prompt.trim() ? "Now drop your clips above. They open in the full editor with this prompt, where you can also add a video to copy." : "Leave it empty and SOCIA edits the footage on its own."}</small>
+              {prompt.trim() && onUsePrompt && <button type="button" className="qe-btn" onClick={onUsePrompt}>Continue without clips</button>}
+            </div>
+          </motion.div>
+        )}
         <motion.ul className="qe-does" aria-label="What it does" {...rise(4)}>
           <li><Check size={13} aria-hidden /> Cuts pauses and repeated takes</li>
           <li><Check size={13} aria-hidden /> Picks the best shots</li>
@@ -426,7 +450,7 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
           {canPicture === false
             ? "One talking clip counts nothing on your plan. A cut from several clips, or from a clip where no one speaks, is included from Starter; on your plan such a clip plays whole."
             : "One talking clip counts nothing on your plan. Several clips, or a clip where no one speaks, count one footage analysis and one AI-made video, as in the full editor."}
-          {" "}For a prompt, a video to copy or an edit by hand, <button type="button" className="qe-link" onClick={onFull}>use the full editor</button>.
+          {" "}For a video to copy or an edit by hand, <button type="button" className="qe-link" onClick={onFull}>use the full editor</button>.
         </p>
       </section>
     );

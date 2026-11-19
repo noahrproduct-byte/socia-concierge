@@ -170,3 +170,13 @@
   --qe-on-green: #06281c;
   --qe-red: #ff7a7a;
 }
+
+/* The prompt on the first screen: written before the clips are dropped. */
+.qe-prompt { width: 100%; max-width: 760px; display: flex; flex-direction: column; gap: 8px; text-align: left; }
+.qe-prompt label { font-size: 14px; line-height: 20px; font-weight: 600; color: var(--qe-text); }
+.qe-prompt label small { margin-left: 6px; font-weight: 400; color: var(--qe-faint); }
+.qe-prompt textarea { width: 100%; min-height: 84px; padding: 12px 14px; border: 1px solid var(--qe-line); border-radius: 14px; background: var(--qe-input); color: var(--qe-text); font: inherit; font-size: 15px; line-height: 22px; resize: vertical; }
+.qe-prompt textarea::placeholder { color: var(--qe-faint); }
+.qe-prompt textarea:focus-visible { outline: 2px solid var(--qe-blue); outline-offset: 2px; border-color: transparent; }
+.qe-prompt-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.qe-prompt-foot small { min-width: 0; flex: 1 1 280px; font-size: 12.5px; line-height: 18px; color: var(--qe-dim); }

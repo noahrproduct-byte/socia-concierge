@@ -97,6 +97,8 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
   const [autoText, setAutoText] = useState(false);
   // A video idea from the Dashboard: its plan starts the prompt.
   const [startPrompt, setStartPrompt] = useState<string | null>(null);
+  // The prompt typed on the one-drop screen, before any clips.
+  const [quickPrompt, setQuickPrompt] = useState("");
   // A Reel from Discover to read as the reference ("Make a video like this").
   const [startReference, setStartReference] = useState<HandoffReference | null>(null);
   // Edit: every video made in this brand (null while loading).
@@ -512,10 +514,19 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
 
   // Video editor: the one-drop screen is first (no video open, the full editor not chosen), and stays while its clip is made.
   const quickScreen = editing && !migration && view !== "custom" && view !== "manual" && (quick != null || (!project && !full));
+  /** Open the full editor with the first screen's prompt filled in, and the clips (if any) added to it. */
+  const openWithPrompt = (files: File[]) => {
+    setStartPrompt(quickPrompt.trim());
+    setQuickPrompt("");
+    setFull(true);
+    if (files.length) void onFiles(files);
+  };
   /** Files dropped or chosen anywhere on the page: on the one-drop screen the footage is made into a video in one go; anywhere else it joins the video being made. */
   const incoming = (list: FileList | File[]) => {
     if (quick) return;
     const files = Array.from(list).filter((f) => f.type.startsWith("video/") || VIDEO_RE.test(f.name));
+    // A prompt was written first: the clips go to the full editor with it, not the one-drop edit.
+    if (quickScreen && files.length && quickPrompt.trim()) { openWithPrompt(files); return; }
     if (quickScreen && files.length > 1 && meta && !meta.autoBuild) { setNotice(MANY_LOCKED); return; }
     if (quickScreen && files.length) {
       setQuick({ id: `${Date.now()}`, name: files[0].name });
@@ -576,6 +587,9 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
             onOpenEditor={(id, title) => { setQuick(null); setFull(true); setCustom({ id, title }); }}
             onReset={backToStart}
             onFull={() => setFull(true)}
+            prompt={quickPrompt}
+            onPromptChange={setQuickPrompt}
+            onUsePrompt={() => openWithPrompt([])}
           />
           {!quick && <VideoList videos={videos} onOpen={(v) => setCustom({ id: v.id, title: v.title })} />}
           {!quick && <ClipLibrary onOpenCut={(id, title) => setCustom({ id, title })} onUse={addFromLibrary} useLabel="Add to a new video" />}
