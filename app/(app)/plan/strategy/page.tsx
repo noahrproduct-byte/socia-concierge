@@ -5,6 +5,11 @@ import { readStrategy } from "@/lib/strategyLoad";
 import { experimentResults } from "@/lib/experimentsLoad";
 import PageHeader from "@/components/PageHeader";
 import StrategyView from "@/components/plan/StrategyView";
+import StarterPanel from "@/components/plan/StarterPanel";
+import { getProfile } from "@/lib/profile";
+import { brandWorkspace } from "@/lib/context";
+import { admiredHandles, loadReadiness } from "@/lib/starter/load";
+import { starterQuestions } from "@/lib/starter/questions";
 
 export const metadata = { title: "Strategy | SOCIA" };
 
@@ -17,9 +22,18 @@ export default async function StrategyPage() {
   const strategy = await readStrategy(ctx).catch(() => null);
   // Each experiment's test posts and what they show (lib/experiments.ts).
   const experiments = await experimentResults(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, strategy).catch(() => []);
+  // A new or low-data account gets the starter panel: how much history there is, and what's still unanswered.
+  const [readiness, profile, admired] = await Promise.all([
+    loadReadiness(ctx).catch(() => null),
+    getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null),
+    admiredHandles(ctx).catch(() => []),
+  ]);
   return (
     <>
       <PageHeader title="Strategy" sub="Your objective, audience, content pillars and pace. Weekly plans are built from it." />
+      {readiness && readiness.stage !== "established" && (
+        <StarterPanel readiness={readiness} questions={starterQuestions(profile?.brand_detail?.growth ?? null, { admired })} canManage={can(ctx, "manage_workspace")} />
+      )}
       <StrategyView initial={strategy} experiments={experiments} canManage={can(ctx, "manage_workspace")} />
     </>
   );

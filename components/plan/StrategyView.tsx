@@ -10,7 +10,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Pencil, RefreshCw, Plus, X } from "lucide-react";
 import { Button, ConfirmDialog, Field, Input, Textarea } from "@/components/system";
-import type { ExperimentStatus, GrowthStrategy, StrategyExperiment, StrategyMilestone, StrategyPillar } from "@/lib/strategy";
+import { DIMENSION_LABEL, type ExperimentStatus, type GrowthStrategy, type StrategyExperiment, type StrategyMilestone, type StrategyPillar } from "@/lib/strategy";
 import { MIN_TESTS, VERDICT_LABEL, type ExperimentRow } from "@/lib/experiments";
 import "./strategy.css";
 
@@ -142,6 +142,14 @@ export default function StrategyView({ initial, experiments = [], canManage }: {
           {s.priorities.length ? <ol>{s.priorities.map((p) => <li key={p}>{p}</li>)}</ol> : <p>None yet.</p>}
         </article>
 
+        {s.observed && s.observed.length > 0 && (
+          <article className="gs-card gs-wide">
+            <h3>Seen on other accounts in your niche</h3>
+            <ul>{s.observed.map((o) => <li key={o}>{o}</li>)}</ul>
+            <p className="gs-note">Their published numbers, not yours. SOCIA tests these ideas on your account before relying on them.</p>
+          </article>
+        )}
+
         <article className="gs-card gs-wide">
           <h3>Experiments</h3>
           {s.experiments.length ? (
@@ -156,13 +164,28 @@ export default function StrategyView({ initial, experiments = [], canManage }: {
                       <span className="gs-chip">{status === "running" ? "Running" : status === "done" ? "Done" : "Stopped"}</span>
                       {r && <span className={`gs-chip gs-v-${r.verdict}`}>{VERDICT_LABEL[r.verdict]}</span>}
                     </div>
-                    <span>Test: {e.test}</span>
-                    <span>Measure: {e.measure}</span>
+                    <div className="gs-loop">
+                      <div>
+                        <small>What we&apos;re testing{e.dimension ? `: ${DIMENSION_LABEL[e.dimension].toLowerCase()}` : ""}</small>
+                        <p>{e.test}</p>
+                        <p className="gs-sub">Measured by {e.measure.replace(/^\w/, (c) => c.toLowerCase())}</p>
+                      </div>
+                      <div>
+                        <small>What we&apos;ve observed</small>
+                        {r && r.published > 0 ? (
+                          <>
+                            <p className="gs-exp-counts">{r.planned} planned, {r.published} published, {r.measured} measured{r.medianMultiplier != null ? `; median ${r.medianMultiplier}x your median` : ""}</p>
+                            <p>{r.interpretation}</p>
+                          </>
+                        ) : <p className="gs-sub">Nothing yet. No test post has been published{r?.planned ? `; ${r.planned} ${r.planned === 1 ? "is" : "are"} planned` : ""}.</p>}
+                      </div>
+                      <div>
+                        <small>What we&apos;ll try next</small>
+                        <p>{r && r.published > 0 ? r.nextAction : "Make the first test posts from your weekly plan. SOCIA reads them once their numbers settle."}</p>
+                      </div>
+                    </div>
                     {r && (
                       <>
-                        <p className="gs-exp-counts">{r.planned} planned, {r.published} published, {r.measured} measured{r.medianMultiplier != null ? `; median ${r.medianMultiplier}x your median` : ""}</p>
-                        <p>{r.interpretation}</p>
-                        <p className="gs-sub">Next: {r.nextAction}</p>
                         {r.tests.length > 0 && (
                           <ul className="gs-tests">
                             {r.tests.slice(0, 6).map((t, i) => (
