@@ -336,3 +336,19 @@ describe("the sound a graphic lands with", () => {
     expect(sceneSound("stamp", "stamp")).toMatchObject({ src: "/editor-sfx/m-hit.m4a", delay: 6 });
   });
 });
+
+import { landingShake } from "./sceneFx";
+
+describe("small things that make a scene act", () => {
+  it("shakes hard at a landing and is still half a second later", () => {
+    const hit = landingShake(0.03);
+    expect(Math.abs(hit.x) + Math.abs(hit.y)).toBeGreaterThan(4);
+    expect(landingShake(0.6)).toEqual({ x: 0, y: 0, k: 0 });
+    expect(landingShake(0.45).k).toBeLessThan(0.03);
+  });
+  it("keeps a drawing's way of moving only when it is a known one", () => {
+    const shape = { d: "M10 44 L50 22 L90 44 V88 H10 Z", fill: "accent" };
+    expect(sanitizeArt([{ kind: "draw", name: "truck", move: "drive", shapes: [shape] }])[0]).toMatchObject({ move: "drive" });
+    expect(sanitizeArt([{ kind: "draw", name: "truck", move: "explode", shapes: [shape] }])[0]).not.toHaveProperty("move");
+  });
+});

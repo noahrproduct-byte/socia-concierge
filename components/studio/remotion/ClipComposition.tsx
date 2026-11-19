@@ -41,7 +41,7 @@ import { pictureWindow, skinOf, type SplitSkinId } from "@/lib/studioClips/split
 import { cutoutSpans, sceneSpans, type SceneSpan } from "@/lib/studioClips/scenes";
 import { PersonCutout } from "./PersonCutout";
 import { EffectFront, EffectLayer, fxShare, pictureFx } from "./EffectLayer";
-import { fxNeedsPerson, sceneSound } from "@/lib/studioClips/sceneFx";
+import { fxNeedsPerson, fxShakes, landingShake, sceneSound } from "@/lib/studioClips/sceneFx";
 import type { BuildSource, Edl, EdlText, EndCard } from "@/lib/studioClips/types";
 import { END_CARD_SEC, endLineSize } from "@/lib/studioClips/teach";
 import { viewAt, viewBox } from "@/lib/clipper/reframe";
@@ -725,12 +725,15 @@ function PictureShift({ spans, effects, skin, focus, children }: { spans: SceneS
   const share = p ? 0 : spans.reduce((m, sp) => (f >= sp.from && f < sp.from + sp.durationInFrames ? Math.max(m, splitShare(f - sp.from, sp.durationInFrames, fps)) : m), 0);
   const look = skinOf(skin);
   const win = pictureWindow(look, share, width, height, focus);
+  // A hard landing shakes the picture for a moment.
+  const hit = effects.find((sp) => fxShakes(sp.scene.fx) && f >= sp.from + 4 && f < sp.from + 4 + fps / 2);
+  const shake = hit && !p ? landingShake((f - hit.from - 4) / fps) : null;
   // The same three boxes whatever is happening, so the shots inside are never mounted again when a scene starts:
   // the ground, the box the picture is clipped to, and the full-size picture moved inside that box.
   return (
     <AbsoluteFill style={p ? { backgroundColor: p.ground ?? "#0b0c10" } : share ? { backgroundColor: look.bg } : undefined}>
       <div style={p ? { position: "absolute", left: 0, top: 0, width, height, transform: p.transform, borderRadius: p.radius, overflow: "hidden" } : { position: "absolute", ...win.box, overflow: "hidden" }}>
-        <div style={{ position: "absolute", left: p ? 0 : win.inner.left, top: p ? 0 : win.inner.top, width, height }}>{children}</div>
+        <div style={{ position: "absolute", left: p ? 0 : win.inner.left, top: p ? 0 : win.inner.top, width, height, ...(shake ? { transform: `translate(${(shake.x * width) / 1080}px, ${(shake.y * width) / 1080}px) scale(${1 + 0.03 * shake.k})` } : {}) }}>{children}</div>
       </div>
     </AbsoluteFill>
   );

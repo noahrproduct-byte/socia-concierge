@@ -43,6 +43,7 @@ const SCENES: Record<string, EdlScene> = {
   filedrop: { id: "g1", kind: "effect", fx: "filedrop", key: "talk@2800", dur: 3.6, text: "room-photo.jpg" },
   name: { id: "g1", kind: "effect", fx: "name", key: "talk@2800", dur: 3.4, text: "Rug Depot", label: "Nashville showroom" },
   doc: { id: "g1", kind: "effect", fx: "doc", key: "talk@2800", dur: 4.2, text: "Before you buy", lines: ["Measure the room", "Bring a photo", "Ask about delivery"] },
+  race: { id: "g1", kind: "effect", fx: "race", key: "talk@2800", dur: 3.8, text: "In person", label: "Online" },
   canvas: { id: "g1", kind: "effect", fx: "canvas", key: "talk@2800", dur: 3.6, text: "Showroom" },
   cover: { id: "g1", kind: "effect", fx: "cover", key: "talk@2800", dur: 3.2, text: "Showroom", label: "500 rugs in stock" },
   glass: { id: "g1", kind: "effect", fx: "glass", key: "talk@2800", dur: 3.2, text: "Rugs" },

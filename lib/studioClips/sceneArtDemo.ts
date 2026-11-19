@@ -3,7 +3,7 @@
 // lib/studioClips/countryMap.ts would give. Not used by the product.
 import type { SceneArt } from "./sceneArt";
 
-export const DEMO_WAREHOUSE: SceneArt = { kind: "draw", name: "Warehouse", shapes: [
+export const DEMO_WAREHOUSE: SceneArt = { kind: "draw", name: "Warehouse", move: "pulse", shapes: [
   { d: "M10 44 L50 22 L90 44 V88 H10 Z", fill: "accent", stroke: "none" },
   { d: "M6 46 L50 20 L94 46", fill: "none", stroke: "light", w: 4 },
   { d: "M34 88 V58 H66 V88 Z", fill: "dark", stroke: "none" },

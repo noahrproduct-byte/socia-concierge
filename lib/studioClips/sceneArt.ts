@@ -14,9 +14,11 @@
 export const ART_TONES = ["accent", "light", "mid", "dark", "none"] as const;
 export type ArtTone = (typeof ART_TONES)[number];
 export type ArtShape = { d: string; fill: ArtTone; stroke: ArtTone; w?: number };
+export const ART_MOVES = ["drive", "spin", "bounce", "float", "pulse", "fill"] as const;
+export type ArtMove = (typeof ART_MOVES)[number];
 export type SceneArt =
   | { kind: "map"; name: string; d: string; /** a point inside the country, where the pin lands */ c: [number, number] }
-  | { kind: "draw"; name: string; shapes: ArtShape[] }
+  | { kind: "draw"; name: string; shapes: ArtShape[]; /** how the thing behaves once it is drawn, so it acts out what is said */ move?: ArtMove }
   /** a company's or product's own mark (lib/studioClips/brandLogo.ts fetches it on the server), kept as a small image */
   | { kind: "logo"; name: string; src: string }
   /** a real web page, photographed (lib/studioClips/pageCapture.ts), shown in a browser window; name is its host */
@@ -60,7 +62,8 @@ export function sanitizeArt(v: unknown): SceneArt[] {
         if (fill === "none" && stroke === "none") continue;
         shapes.push({ d: r.d, fill, stroke, ...(stroke !== "none" ? { w: num(r.w, 1, 8, 3) } : {}) });
       }
-      if (shapes.length) out.push({ kind: "draw", name: name(o.name), shapes });
+      const move = ART_MOVES.find((m) => m === o.move);
+      if (shapes.length) out.push({ kind: "draw", name: name(o.name), shapes, ...(move ? { move } : {}) });
     }
   }
   return out;

@@ -250,3 +250,14 @@ Still not ported from those styles: props that act a sentence out (a printer, a 
 - **Six more effects**: `orbit` (a hub with things circling it), `link` (two things joined by a line with a tick), `picker` (a list whose highlight lands on the one chosen), `filedrop` (a file dropped into an area that ticks), `name` (a name spelled out over a line), `doc` (a page whose key lines are highlighted). 31 effects in all.
 
 Seen running (2026-11-19) at `/dev/cutout-lab`: the six in browser-rendered files, rendered with sound on (the files carry audio; the sounds themselves were not listened to). Not seen: the captions of a look on a one-drop cut, anything signed in.
+
+## The last pieces taken from Motus (2026-11-19)
+
+- `race`: two things on two lanes, the first one named winning. 32 effects in all.
+- **Drawings that act.** A model-drawn thing can carry `move` (`sceneArt.ts` `ART_MOVES`: drive, spin, bounce, float, pulse, fill), applied once it has drawn (`acting` in `SceneLayer.tsx`). This is SOCIA's answer to Motus's hand-animated props: one generic motion per drawing, not a prop built for one sentence.
+- **Shake on landings.** `ribbon`, `stamp`, `title`, `cover` and `glass` shake the picture for half a second as they land (`landingShake`: 14 px at 7.5 Hz, dying away with a 0.11 s time constant, the picture drawn up to 3% larger meanwhile so its edges do not show). Not while the picture is itself being moved by another effect.
+- Several companies named together are asked for as up to three `logo` drawings in one scene.
+
+Left out on purpose: Motus's field staying up for the whole video with a new graphic every two or three seconds (SOCIA places at most six scenes and the field is up only with them); its photo fan and filmstrip (they need the person's own photos, which the one-drop screen does not collect); its demo player and Seamline (real product footage); its props built for one idea each.
+
+Seen running (2026-11-19) at `/dev/cutout-lab`: the race in a browser-rendered file; a file rendered with a shaking landing in it. Not seen: a drawing acting (the lab's stand-in drawing pulses but was not looked at in motion), a shake judged by eye.

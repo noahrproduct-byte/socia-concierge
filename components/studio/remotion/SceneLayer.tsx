@@ -29,7 +29,7 @@ import { Easing, Img, interpolate, spring, useCurrentFrame, useVideoConfig } fro
 import { readableOn, safeZoneFor } from "@/lib/textPresets";
 import type { SceneSpan } from "@/lib/studioClips/scenes";
 import { SCENE_ICONS, type IconShape, type SceneIconId } from "@/lib/studioClips/sceneIcons";
-import type { ArtTone, SceneArt } from "@/lib/studioClips/sceneArt";
+import type { ArtMove, ArtTone, SceneArt } from "@/lib/studioClips/sceneArt";
 import { skinOf, type SplitSkinId } from "@/lib/studioClips/splitSkins";
 
 const OUT_FRAMES = 7;
@@ -64,6 +64,19 @@ function SceneIcon({ id, size, accent, on, at = 4, style }: { id: SceneIconId; s
   );
 }
 
+/** How a drawing behaves once it is on (lib/studioClips/sceneArt.ts ArtMove): the thing acts out what is said. Nothing before it has drawn. */
+function acting(move: ArtMove | undefined, since: number, fps: number): React.CSSProperties {
+  if (!move || since <= 0) return {};
+  const t = since / fps, ease = Math.min(1, t / 0.4);
+  if (move === "spin") return { transform: `rotate(${t * 200 * ease}deg)`, transformOrigin: "50% 50%" };
+  if (move === "bounce") return { transform: `translateY(${-Math.abs(Math.sin(t * Math.PI * 2.2)) * 14 * ease}%)` };
+  if (move === "float") return { transform: `translate(${Math.sin(t * 1.6) * 3 * ease}%, ${Math.sin(t * 2.3) * 5 * ease}%)` };
+  if (move === "pulse") return { transform: `scale(${1 + 0.09 * Math.max(0, Math.sin(t * Math.PI * 3)) * ease})`, transformOrigin: "50% 50%" };
+  if (move === "drive") return { transform: `translateX(${Math.sin(t * 1.5) * 9 * ease}%) rotate(${Math.sin(t * 9) * 1.2}deg)`, transformOrigin: "50% 90%" };
+  // fill: the thing rises into view from its base, as a level does.
+  return { clipPath: `inset(${Math.max(0, 100 - t * 70)}% 0 0 0)` };
+}
+
 /** One drawing of a picture scene, on its 100 by 100 grid: the outline draws on, the fill comes in behind it, a map gets its pin. */
 function ArtPiece({ art, size, accent, at, s, ink = "#fff", ground = PANEL }: { art: SceneArt; size: number; accent: string; at: number; s: number; /** the look's ink and ground, on a light split screen */ ink?: string; ground?: string }) {
   const f = useCurrentFrame();
@@ -93,14 +106,14 @@ function ArtPiece({ art, size, accent, at, s, ink = "#fff", ground = PANEL }: { 
           <Img src={art.src} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
         </div>
       ) : (
-      <svg viewBox="0 0 100 100" width={size} height={size} style={{ overflow: "visible" }}>
+      <svg viewBox="0 0 100 100" width={size} height={size} style={{ overflow: "visible", ...(art.kind === "draw" ? acting(art.move, f - at - 16, fps) : {}) }}>
         {art.kind === "map" ? (
           <>
             <path d={art.d} fill={accent} fillOpacity={0.9 * fade(at + 10, 10)} stroke={ink} strokeWidth={1.6} strokeLinejoin="round" pathLength={1} strokeDasharray="1 1" strokeDashoffset={draw(at, 18)} />
             <circle cx={art.c[0]} cy={art.c[1]} r={3 + 9 * ring} fill="none" stroke={ink} strokeWidth={1.4} opacity={(1 - ring) * (f >= at + 24 ? 1 : 0)} />
             <circle cx={art.c[0]} cy={art.c[1] - (1 - Math.min(1, pin)) * 26} r={3.6} fill={ink} stroke={ground} strokeWidth={1.4} opacity={Math.min(1, Math.max(0, (f - at - 20) / 2))} />
           </>
-        ) : art.shapes.map((sh, i) => {
+        ) : art.kind !== "draw" ? null : art.shapes.map((sh, i) => {
           const from = at + 2 + i * 2;
           return <path key={i} d={sh.d} fill={tone(sh.fill)} fillOpacity={sh.fill === "none" ? 0 : fade(sh.stroke === "none" ? from : from + 6, 8)} stroke={tone(sh.stroke)} strokeWidth={sh.w ?? 3} strokeLinecap="round" strokeLinejoin="round" pathLength={1} strokeDasharray="1 1" strokeDashoffset={sh.stroke === "none" ? 0 : draw(from, 12)} />;
         })}

@@ -25,6 +25,7 @@ export const SCENE_FX = {
   filedrop: { label: "File drop", what: "A file glides into a drop area, which fills and ticks.", person: true, text: "File name", lines: 0 },
   name: { label: "Name reveal", what: "A name spelled out letter by letter over a line, with who they are above it.", person: true, text: "Name", lines: 0 },
   doc: { label: "Document", what: "A page with a title, and a marker that highlights its key lines.", person: true, text: "Page title", lines: 3 },
+  race: { label: "Race", what: "Two things race along two lanes; the first one named wins.", person: true, text: "The winner", lines: 0 },
   canvas: { label: "Open canvas", what: "The video becomes a layer in a design file: a selection frame on a drafting grid, and a cursor dragging its corner.", person: false, text: "Layer name", lines: 0 },
   cover: { label: "Magazine cover", what: "A masthead word across the top, behind the person.", person: true, text: "Masthead word", lines: 0 },
   glass: { label: "Glass text", what: "One big see-through word behind the person.", person: true, text: "Word", lines: 0 },
@@ -56,4 +57,13 @@ export function sceneSound(kind: string, fx: SceneFxId | undefined): { src: stri
   if (fx === "frame" || fx === "reveal" || fx === "canvas" || fx === "dolly") return at("boom", 0.6);
   if (!fx && kind === "stat") return at("pop", 0.09, 2);
   return at("swish", 0.34);
+}
+
+/** The effects that land hard enough to shake the picture for a moment (after Motus's shake on landings). */
+export const fxShakes = (id: SceneFxId | undefined): boolean => id === "ribbon" || id === "stamp" || id === "title" || id === "cover" || id === "glass";
+/** How far the picture is off its place, in pixels on a 1080 frame, `sec` seconds after such a landing: a quick shake that dies away. */
+export function landingShake(sec: number): { x: number; y: number; /** how much of the shake is left, 1 to 0: the picture is drawn that much larger so its edges never show */ k: number } {
+  if (sec < 0 || sec > 0.5) return { x: 0, y: 0, k: 0 };
+  const a = 14 * Math.exp(-sec / 0.11);
+  return { x: a * Math.sin(sec * 7.5 * Math.PI * 2), y: a * 0.6 * Math.sin(sec * 9.1 * Math.PI * 2), k: a / 14 };
 }

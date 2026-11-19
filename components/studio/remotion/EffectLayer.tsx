@@ -189,6 +189,30 @@ export function EffectLayer({ span, fontFamily, accent }: { span: SceneSpan; fon
   const glassCard: React.CSSProperties = { position: "absolute", left: 70 * s, top: top0, width: width - 140 * s, boxSizing: "border-box", padding: 36 * s, borderRadius: 36 * s, backgroundColor: "rgba(244,236,229,0.92)", color: "#21170f" };
   const rise = (at: number) => { const p = spring({ frame: f - at, fps, config: { damping: 200, stiffness: 150 }, durationInFrames: 12 }); return { opacity: seen(at), transform: `translateY(${(1 - p) * 26 * s}px)` }; };
 
+  if (fx === "race") {
+    const lanes = [text || "This", scene.label || "That"];
+    return (
+      <div style={fill}>
+        {dim}
+        {lanes.map((n, i) => {
+          // The first one named pulls away; the other trails in at two thirds.
+          const run = interpolate(f, [10, i ? 64 : 44], [0, i ? 0.62 : 1], EASE);
+          const laneW = width - 220 * s;
+          return (
+            <div key={i} style={{ position: "absolute", left: 70 * s, top: top0 + 40 * s + i * 190 * s, width: width - 140 * s, opacity: seen(2 + i * 4) }}>
+              <div style={{ fontSize: 34 * s, fontWeight: 700, color: "#fff" }}>{n}</div>
+              <div style={{ position: "relative", marginTop: 12 * s, height: 70 * s, borderRadius: 99, backgroundColor: "rgba(255,255,255,0.16)" }}>
+                <div style={{ position: "absolute", left: 0, top: 0, height: "100%", width: 70 * s + (laneW - 70 * s) * run, borderRadius: 99, backgroundColor: i ? "rgba(244,236,229,0.55)" : accent }} />
+                <div style={{ position: "absolute", left: (laneW - 70 * s) * run + 6 * s, top: 6 * s, width: 58 * s, height: 58 * s, borderRadius: 99, backgroundColor: "#fff" }} />
+              </div>
+            </div>
+          );
+        })}
+        <div style={{ position: "absolute", left: width - 150 * s, top: top0 + 30 * s, width: 8 * s, height: 400 * s, backgroundColor: "#fff", opacity: 0.5 * (1 - leave) }} />
+      </div>
+    );
+  }
+
   if (fx === "orbit") {
     const around = lines.slice(0, 4);
     const cx = width / 2, cy = top0 + 300 * s, R = 290 * s;
