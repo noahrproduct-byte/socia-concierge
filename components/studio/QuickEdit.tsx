@@ -29,6 +29,8 @@ import type { Track } from "@/lib/music/tracks";
 import { beatOfTrack } from "@/lib/studioClips/beatClient";
 import { AUTO_IMPROVE_TIMEOUT_MS } from "@/lib/studioClips/enhancePrompt";
 import { useSpeech } from "./useSpeech";
+import { SCENE_FX } from "@/lib/studioClips/sceneFx";
+import type { EdlScene } from "@/lib/studioClips/scenes";
 import MicButton from "./MicButton";
 import { lookAtCut } from "@/lib/studioClips/lookAtCut";
 import { placeClear, placeNote, samplesFor } from "@/lib/studioClips/placement";
@@ -323,9 +325,11 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
         const res = await call(`/api/studio/builds/${id}/visuals`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ edl: made, prompt: ask }) });
         const j = await json(res);
         const n = typeof j?.pictures === "number" ? j.pictures : 0;
-        if (res?.ok && Array.isArray(j?.scenes) && n > 0) {
+        const fxN = typeof j?.effects === "number" ? j.effects : 0;
+        if (res?.ok && Array.isArray(j?.scenes) && n + fxN > 0) {
           made = { ...made, scenes: j.scenes as Edl["scenes"] };
-          aiNotes.push(`${n} picture graphic${n === 1 ? "" : "s"} drawn from what is said${ask ? " and what you asked for" : ""}. Change or remove them in the editor, under Words.`);
+          if (fxN) aiNotes.push(`${fxN} effect${fxN === 1 ? "" : "s"} put in: ${(j.scenes as EdlScene[]).filter((x) => x.kind === "effect" && x.fx).map((x) => SCENE_FX[x.fx!].label.toLowerCase()).join(", ")}.`);
+          if (n) aiNotes.push(`${n} picture graphic${n === 1 ? "" : "s"} drawn from what is said${ask ? " and what you asked for" : ""}. Change or remove them in the editor, under Words.`);
         } else if (!res?.ok && ask) {
           aiNotes.push(`The pictures couldn't be drawn this time (${typeof j?.error === "string" ? j.error.replace(/\.$/, "") : "SOCIA couldn't be reached"}). Make it again to retry.`);
         }

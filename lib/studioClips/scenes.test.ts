@@ -238,3 +238,22 @@ describe("keeping things off the face", () => {
     expect(placeClear(edl, samples.map((s) => ({ sec: s.sec, head: null })), words).edl).toBe(edl);
   });
 });
+
+import { effectsFrom } from "./visualsModel";
+
+describe("effect scenes", () => {
+  const said = [{ text: "We", key: "a@0", sec: 0 }, { text: "grew", key: "a@300", sec: 0.3 }, { text: "10x", key: "a@600", sec: 0.6 }];
+  it("keeps known effects on the words named and drops the rest", () => {
+    const out = effectsFrom({ effects: [{ word: 3, dur: 9, fx: "graph", text: "10X" }, { word: 1, fx: "explode", text: "x" }, { word: 44, fx: "glass", text: "x" }, { word: 2, fx: "news", text: "One", lines: ["Two", "Three", "Four", "Five"] }] }, said);
+    expect(out.map((s) => [s.fx, s.key, s.dur])).toEqual([["graph", "a@600", 3.5], ["news", "a@300", 2.6]]);
+    expect(out[1].lines).toEqual(["Two", "Three", "Four"]);
+  });
+  it("survives the server's check of a cut, bounded", () => {
+    const kept = sanitizeScenes([{ kind: "effect", fx: "cover", key: "a@0", dur: 30, text: "x".repeat(80), label: "Cover line", lines: ["not for a cover"] }, { kind: "effect", fx: "nope", key: "a@0", dur: 2, text: "" }, { kind: "effect", fx: "dolly", key: "a@0", dur: 2, text: "" }], new Set(["a"]))!;
+    expect(kept).toHaveLength(2);
+    expect(kept[0]).toMatchObject({ kind: "effect", fx: "cover", dur: 5, label: "Cover line" });
+    expect(kept[0].text).toHaveLength(28);
+    expect(kept[0].lines).toBeUndefined();
+    expect(kept[1].fx).toBe("dolly");
+  });
+});

@@ -14,10 +14,11 @@
 import { captionKey } from "./captionMotion";
 import { iconFor, isSceneIcon, type SceneIconId } from "./sceneIcons";
 import { sanitizeArt, type SceneArt } from "./sceneArt";
+import { FX_LINE_MAX, FX_TEXT_MAX, SCENE_FX, isSceneFx, type SceneFxId } from "./sceneFx";
 import { captionsForEdl, FPS, timeline, type CaptionLike } from "./timeline";
 import type { Edl, TranscriptWord } from "./types";
 
-export type SceneKind = "stat" | "change" | "steps" | "line" | "picture";
+export type SceneKind = "stat" | "change" | "steps" | "line" | "picture" | "effect";
 /** Where a card sits so it clears the person's head: at the top, a little lower, or under the middle of the frame. */
 export type ScenePlace = "top" | "upper" | "lower";
 export const SCENE_PLACES: ScenePlace[] = ["top", "upper", "lower"];
@@ -40,6 +41,10 @@ export type EdlScene = {
   items?: SceneItem[];
   /** a small line drawing that says what the card is about (lib/studioClips/sceneIcons.ts); not on a list */
   icon?: SceneIconId;
+  /** effect: which one (lib/studioClips/sceneFx.ts) */
+  fx?: SceneFxId;
+  /** effect: its extra lines (headlines on a news wall, lines on a phone) */
+  lines?: string[];
   /** picture: what is drawn (lib/studioClips/sceneArt.ts) */
   art?: SceneArt[];
   /** where the card sits, when the picture was looked at (lib/studioClips/placement.ts); absent = the cut's default */
@@ -51,7 +56,7 @@ export const SCENE_TEXT_MAX = 60;
 export const SCENE_LABEL_MAX = 40;
 export const SCENE_ITEMS_MAX = 5;
 const KEY = /^[\w-]{1,64}@\d{1,9}$/;
-const KINDS: SceneKind[] = ["stat", "change", "steps", "line", "picture"];
+const KINDS: SceneKind[] = ["stat", "change", "steps", "line", "picture", "effect"];
 
 /** The opening seconds belong to the hook line, the last to the ending. */
 const HEAD_SEC = 3, TAIL_SEC = 2.5;
@@ -290,6 +295,16 @@ export function sanitizeScenes(v: unknown, clipIds: Set<string>): EdlScene[] | u
     if (kind === "stat" || kind === "change") { const label = str(o.label, SCENE_LABEL_MAX); if (label) scene.label = label; }
     if (kind === "change") { const was = str(o.was, SCENE_TEXT_MAX); if (!was) continue; scene.was = was; }
     if (kind !== "steps" && kind !== "picture" && isSceneIcon(o.icon)) scene.icon = o.icon;
+    if (kind === "effect") {
+      if (!isSceneFx(o.fx)) continue;
+      scene.fx = o.fx; scene.text = str(o.text, FX_TEXT_MAX);
+      const label = str(o.label, SCENE_LABEL_MAX); if (label) scene.label = label;
+      const lines = (Array.isArray(o.lines) ? o.lines : []).map((l) => str(l, FX_LINE_MAX)).filter(Boolean).slice(0, SCENE_FX[o.fx].lines);
+      if (lines.length) scene.lines = lines;
+      scene.dur = r2(Math.min(5, scene.dur));
+      out.push(scene);
+      continue;
+    }
     if (kind === "picture") { const art = sanitizeArt(o.art); if (!art.length) continue; scene.art = art; const label = str(o.label, SCENE_LABEL_MAX); if (label) scene.label = label; }
     const place = SCENE_PLACES.find((p) => p === o.place);
     if (place) scene.place = place;
@@ -305,7 +320,7 @@ export function sanitizeScenes(v: unknown, clipIds: Set<string>): EdlScene[] | u
 
 /** What a scene shows, in a few words, for a list. */
 export const sceneSummary = (s: EdlScene): string => (s.kind === "change" ? `${s.was ?? ""} to ${s.text}${s.label ? ` ${s.label}` : ""}` : s.kind === "stat" ? `${s.text}${s.label ? ` ${s.label}` : ""}` : s.kind === "steps" ? (s.items ?? []).map((i) => i.text).join(" · ") : s.text);
-export const SCENE_KIND_LABEL: Record<SceneKind, string> = { stat: "Figure", change: "Before and after", steps: "List", line: "Key line", picture: "Picture" };
+export const SCENE_KIND_LABEL: Record<SceneKind, string> = { stat: "Figure", change: "Before and after", steps: "List", line: "Key line", picture: "Picture", effect: "Effect" };
 export { captionKey };
 
 /**
@@ -314,9 +329,9 @@ export { captionKey };
  * for that moment; a card found by rule was not). Six scenes at most, pictures first.
  */
 export function withPictures(edl: Edl, pictures: EdlScene[], words: Record<string, TranscriptWord[] | null | undefined>): EdlScene[] {
-  const pics = sceneSpans({ ...edl, scenes: pictures.slice(0, MAX_PICTURES) }, words);
+  const pics = sceneSpans({ ...edl, scenes: pictures.slice(0, MAX_SCENES) }, words);
   const gap = Math.round(GAP_SEC * FPS);
-  const others = sceneSpans({ ...edl, scenes: (edl.scenes ?? []).filter((s) => s.kind !== "picture") }, words)
+  const others = sceneSpans({ ...edl, scenes: (edl.scenes ?? []).filter((s) => s.kind !== "picture" && s.kind !== "effect") }, words)
     .filter((o) => !pics.some((p) => o.from < p.from + p.durationInFrames + gap && p.from < o.from + o.durationInFrames + gap));
   return [...pics, ...others.slice(0, Math.max(0, MAX_SCENES - pics.length))].sort((a, b) => a.from - b.from).map((x, i) => ({ ...x.scene, id: `g${i + 1}` }));
 }

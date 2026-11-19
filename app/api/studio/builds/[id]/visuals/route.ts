@@ -37,10 +37,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!body.edl.segments.every((s) => known.has(s.clipId))) return NextResponse.json({ error: "That cut uses footage that is no longer in this project. Reload the editor." }, { status: 409 });
     const words = Object.fromEntries(data.sources.map((s) => [s.clipId, s.words]));
     const said = tokens(body.edl, words).map((t) => ({ text: t.text, key: t.key, sec: t.startMs / 1000 }));
-    if (!said.length) return NextResponse.json({ scenes: body.edl.scenes ?? [], pictures: 0 });
+    if (!said.length) return NextResponse.json({ scenes: body.edl.scenes ?? [], pictures: 0, effects: 0 });
     const pictures = await picturesFor(said, prompt, ctx.ownerId);
     const scenes = pictures.length ? withPictures(body.edl, pictures, words) : body.edl.scenes ?? [];
-    return NextResponse.json({ scenes, pictures: scenes.filter((s) => s.kind === "picture").length });
+    return NextResponse.json({ scenes, pictures: scenes.filter((s) => s.kind === "picture").length, effects: scenes.filter((s) => s.kind === "effect").length });
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
     const kind = aiFailure("studio/builds/visuals", e);

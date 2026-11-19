@@ -8,6 +8,7 @@ import { useState } from "react";
 import { LayoutPanelTop, RefreshCw, Trash2 } from "lucide-react";
 import { SCENE_ICONS, SCENE_ICON_IDS, isSceneIcon } from "@/lib/studioClips/sceneIcons";
 import { SCENE_PLACES } from "@/lib/studioClips/scenes";
+import { FX_LINE_MAX, FX_TEXT_MAX, SCENE_FX, SCENE_FX_IDS, isSceneFx } from "@/lib/studioClips/sceneFx";
 import { SCENE_ITEMS_MAX, SCENE_KIND_LABEL, SCENE_LABEL_MAX, SCENE_TEXT_MAX, type EdlScene, type SceneSpan } from "@/lib/studioClips/scenes";
 
 export type ScenePlace = "over" | "behind" | "split";
@@ -47,7 +48,7 @@ export default function ScenesPanel({ scenes, spans, disabled, hasWords, place, 
         return (
           <div key={s.id} className="sd-scene">
             <div className="sd-scene-head">
-              <span>{SCENE_KIND_LABEL[s.kind]}</span>
+              <span>{s.kind === "effect" && s.fx ? SCENE_FX[s.fx].label : SCENE_KIND_LABEL[s.kind]}</span>
               {span ? <button type="button" className="sd-check-go" onClick={() => onShow(span)}>Show me</button> : <small>Its words are not in the cut now, so it is not shown.</small>}
               <button type="button" className="ov-btn ghost small" disabled={disabled} aria-label={`Remove this ${SCENE_KIND_LABEL[s.kind].toLowerCase()}`} onClick={() => onChange(scenes.filter((x) => x.id !== s.id))}><Trash2 size={12} aria-hidden /> Remove</button>
             </div>
@@ -65,6 +66,21 @@ export default function ScenesPanel({ scenes, spans, disabled, hasWords, place, 
                   <label>What it counts<input type="text" maxLength={SCENE_LABEL_MAX} value={s.label ?? ""} disabled={disabled} onChange={(e) => set(s.id, { label: e.target.value })} /></label>
                 </>
               )}
+              {s.kind === "effect" && s.fx && (
+                <>
+                  <label>Effect
+                    <select value={s.fx} disabled={disabled} onChange={(e) => { const v = e.target.value; if (isSceneFx(v)) set(s.id, { fx: v, lines: (s.lines ?? []).slice(0, SCENE_FX[v].lines) }); }}>
+                      {SCENE_FX_IDS.map((id) => <option key={id} value={id}>{SCENE_FX[id].label}</option>)}
+                    </select>
+                  </label>
+                  {SCENE_FX[s.fx].text && <label>{SCENE_FX[s.fx].text}<input type="text" maxLength={FX_TEXT_MAX} value={s.text} disabled={disabled} onChange={(e) => set(s.id, { text: e.target.value })} /></label>}
+                  {s.fx === "cover" && <label>Cover line<input type="text" maxLength={SCENE_LABEL_MAX} value={s.label ?? ""} disabled={disabled} onChange={(e) => set(s.id, { label: e.target.value })} /></label>}
+                  {Array.from({ length: SCENE_FX[s.fx].lines - (s.fx === "news" ? 1 : 0) }, (_, i) => (
+                    <label key={i}>{s.fx === "news" ? `Headline ${i + 2}` : `Line ${i + 1}`}<input type="text" maxLength={FX_LINE_MAX} value={s.lines?.[i] ?? ""} disabled={disabled} onChange={(e) => { const lines = [...(s.lines ?? [])]; lines[i] = e.target.value; set(s.id, { lines }); }} /></label>
+                  ))}
+                  <small className="sd-fx-note">{SCENE_FX[s.fx].what}</small>
+                </>
+              )}
               {s.kind === "picture" && (
                 <>
                   <label>Headline<input type="text" maxLength={44} value={s.text} disabled={disabled} onChange={(e) => set(s.id, { text: e.target.value })} /></label>
@@ -72,7 +88,7 @@ export default function ScenesPanel({ scenes, spans, disabled, hasWords, place, 
                 </>
               )}
               {s.kind === "line" && <label>Line<input type="text" maxLength={SCENE_TEXT_MAX} value={s.text} disabled={disabled} onChange={(e) => set(s.id, { text: e.target.value })} /></label>}
-              {place === "over" && (
+              {place === "over" && s.kind !== "effect" && (
                 <label>Where it sits
                   <select value={s.place ?? ""} disabled={disabled} onChange={(e) => onChange(scenes.map((x) => { if (x.id !== s.id) return x; const { place: _p, ...rest } = x; void _p; const v = SCENE_PLACES.find((q) => q === e.target.value); return v ? { ...rest, place: v } : rest; }))}>
                     <option value="">Automatic</option>
@@ -82,7 +98,7 @@ export default function ScenesPanel({ scenes, spans, disabled, hasWords, place, 
                   </select>
                 </label>
               )}
-              {s.kind !== "steps" && s.kind !== "picture" && (
+              {s.kind !== "steps" && s.kind !== "picture" && s.kind !== "effect" && (
                 <label>Icon
                   <select value={s.icon ?? ""} disabled={disabled} onChange={(e) => setIcon(s.id, e.target.value)}>
                     <option value="">None</option>

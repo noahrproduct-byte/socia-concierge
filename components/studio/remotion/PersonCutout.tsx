@@ -8,7 +8,7 @@
 // Where no one is found, or the segmenter can't run, nothing is drawn and the
 // graphic simply stays in front.
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { continueRender, delayRender } from "remotion";
+import { continueRender, delayRender, useCurrentFrame } from "remotion";
 import { Video } from "@remotion/media";
 import type { ImageSegmenter } from "@mediapipe/tasks-vision";
 import { drawPerson, loadSegmenter, makeMatte, type Matte } from "@/lib/studioClips/matte";
@@ -20,7 +20,7 @@ const sizeOf = (f: CanvasImageSource): { w: number; h: number } => {
   return { w, h };
 };
 
-export function PersonCutout({ src, trimBefore, frames, style, filter }: {
+export function PersonCutout({ src, trimBefore, frames, style, filter, edge }: {
   src: string;
   /** the clip frame this run starts on, as the shot under it */
   trimBefore: number;
@@ -29,7 +29,13 @@ export function PersonCutout({ src, trimBefore, frames, style, filter }: {
   style: React.CSSProperties;
   /** the cut's look as a canvas filter, so the person matches the picture behind */
   filter?: string;
+  /** an edge drawn around the person (a paper cut-out's white edge, a sketch's wobbling line) */
+  edge?: { width: number; color: string; wobble?: boolean };
 }) {
+  // A wobbling edge is redrawn every third frame, like a line drawn again by hand.
+  const boil = Math.floor(useCurrentFrame() / 3);
+  const edgeRef = useRef<{ width: number; color: string; wobble?: number } | undefined>(undefined);
+  edgeRef.current = edge ? { width: edge.width, color: edge.color, ...(edge.wobble ? { wobble: boil } : {}) } : undefined;
   const canvas = useRef<HTMLCanvasElement>(null);
   const matte = useRef<Matte | null>(null);
   const [seg, setSeg] = useState<ImageSegmenter | null>(null);
@@ -49,7 +55,7 @@ export function PersonCutout({ src, trimBefore, frames, style, filter }: {
     matte.current ??= makeMatte(w, h);
     const ctx = c.getContext("2d");
     if (!ctx) return;
-    try { drawPerson(seg, matte.current, frame, ctx, filter); } catch { ctx.clearRect(0, 0, w, h); }
+    try { drawPerson(seg, matte.current, frame, ctx, filter, edgeRef.current); } catch { ctx.clearRect(0, 0, w, h); }
   }, [seg, filter]);
   return (
     <>

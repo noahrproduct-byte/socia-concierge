@@ -5,6 +5,7 @@
 // vertical clip of a person there) with one graphic over it, in front of the
 // person or behind them, in the Player and as a real browser render.
 // The words here are stand-ins that only place the graphic. Development only.
+import { SCENE_FX, type SceneFxId } from "@/lib/studioClips/sceneFx";
 import React, { useEffect, useMemo, useState } from "react";
 import { Player } from "@remotion/player";
 import { ClipComposition } from "./remotion/ClipComposition";
@@ -21,6 +22,16 @@ const WORDS: TranscriptWord[] = [w("We", 2.4, 2.6), w("have", 2.6, 2.8), w("500"
 const SCENES: Record<string, EdlScene> = {
   stat: { id: "g1", kind: "stat", key: "talk@2800", dur: 3.4, text: "500", label: "rugs in stock", icon: "shop" },
   line: { id: "g1", kind: "line", key: "talk@2800", dur: 3.4, text: "Nobody else does it this way", icon: "star" },
+  cover: { id: "g1", kind: "effect", fx: "cover", key: "talk@2800", dur: 3.2, text: "Showroom", label: "500 rugs in stock" },
+  glass: { id: "g1", kind: "effect", fx: "glass", key: "talk@2800", dur: 3.2, text: "Rugs" },
+  graph: { id: "g1", kind: "effect", fx: "graph", key: "talk@2800", dur: 3.4, text: "10X" },
+  news: { id: "g1", kind: "effect", fx: "news", key: "talk@2800", dur: 3.4, text: "500 rugs land in Nashville", lines: ["Showroom opens its doors", "Prices cut this week"] },
+  paper: { id: "g1", kind: "effect", fx: "paper", key: "talk@2800", dur: 3.4, text: "Rugs" },
+  sketch: { id: "g1", kind: "effect", fx: "sketch", key: "talk@2800", dur: 3.4, text: "" },
+  dolly: { id: "g1", kind: "effect", fx: "dolly", key: "talk@2800", dur: 3, text: "" },
+  frame: { id: "g1", kind: "effect", fx: "frame", key: "talk@2800", dur: 3, text: "Come and see us" },
+  reveal: { id: "g1", kind: "effect", fx: "reveal", key: "talk@2800", dur: 3, text: "The showroom" },
+  phone: { id: "g1", kind: "effect", fx: "phone", key: "talk@2800", dur: 3.6, text: "Before you come", lines: ["Measure the room", "Pick two colours", "Bring a photo"] },
   steps: { id: "g1", kind: "steps", key: "talk@2800", dur: 3.6, text: "", items: [{ key: "talk@2800", text: "pick your size" }, { key: "talk@3500", text: "pick your colour" }, { key: "talk@4000", text: "take it home" }] },
 };
 
@@ -100,7 +111,7 @@ export default function CutoutLab() {
         <button type="button" aria-pressed={place === "over"} style={btn(place === "over")} onClick={() => setPlace("over")}>In front</button>
         <button type="button" aria-pressed={place === "split"} style={btn(place === "split")} onClick={() => setPlace("split")}>Split screen</button>
         <button type="button" aria-pressed={logoOn} style={btn(logoOn)} onClick={() => setLogoOn((v) => !v)}>Logo</button>
-        {(Object.keys(SCENES) as (keyof typeof SCENES)[]).map((k) => <button key={k} type="button" aria-pressed={kind === k} style={btn(kind === k)} onClick={() => setKind(k)}>{k === "stat" ? "Figure" : k === "line" ? "Key line" : "List"}</button>)}
+        {(Object.keys(SCENES) as (keyof typeof SCENES)[]).map((k) => <button key={k} type="button" aria-pressed={kind === k} style={btn(kind === k)} onClick={() => setKind(k)}>{k === "stat" ? "Figure" : k === "line" ? "Key line" : k === "steps" ? "List" : SCENE_FX[k as SceneFxId].label}</button>)}
         <button type="button" aria-pressed={low} style={btn(low)} onClick={() => setLow((v) => !v)}>Card lower</button>
         <button type="button" style={{ ...btn(false), background: "#3d7bff", borderColor: "#3d7bff" }} disabled={!inputs || (busy != null && !busy.startsWith("failed"))} onClick={() => void render()}>{busy && !busy.startsWith("failed") ? `Rendering ${busy}` : "Render the file"}</button>
         {busy?.startsWith("failed") && <span role="alert" style={{ alignSelf: "center", color: "#ff7a7a", fontSize: 13 }}>{busy}</span>}

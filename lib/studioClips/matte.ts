@@ -44,7 +44,7 @@ export function loadSegmenter(): Promise<ImageSegmenter | null> {
   return loading;
 }
 
-export type Matte = { small: HTMLCanvasElement | OffscreenCanvas; mask: HTMLCanvasElement | OffscreenCanvas };
+export type Matte = { small: HTMLCanvasElement | OffscreenCanvas; mask: HTMLCanvasElement | OffscreenCanvas; edge?: HTMLCanvasElement | OffscreenCanvas };
 const canvasOf = (w: number, h: number): HTMLCanvasElement | OffscreenCanvas => {
   if (typeof OffscreenCanvas !== "undefined") return new OffscreenCanvas(w, h);
   const c = document.createElement("canvas"); c.width = w; c.height = h; return c;
@@ -66,7 +66,7 @@ export function alphaOf(confidence: number): number {
  * left clear. Synchronous, so a render can call it on the frame it is about to
  * capture. Returns the share of the picture that is a person (0 when no one is found).
  */
-export function drawPerson(seg: ImageSegmenter, matte: Matte, frame: CanvasImageSource, out: CanvasRenderingContext2D, filter?: string): number {
+export function drawPerson(seg: ImageSegmenter, matte: Matte, frame: CanvasImageSource, out: CanvasRenderingContext2D, filter?: string, edge?: { /** the edge's width as a share of the frame's width */ width: number; color: string; /** a number that changes when the line should wobble */ wobble?: number }): number {
   const { small, mask } = matte;
   const sctx = small.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
   const mctx = mask.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
@@ -101,5 +101,26 @@ export function drawPerson(seg: ImageSegmenter, matte: Matte, frame: CanvasImage
   out.imageSmoothingQuality = "high";
   out.drawImage(mask as unknown as CanvasImageSource, 0, 0, W, H);
   out.restore();
+  if (edge && edge.width > 0) {
+    // An edge around the person: their shape in one colour, drawn behind them a little to every side.
+    const sil = (matte.edge ??= typeof OffscreenCanvas !== "undefined" ? new OffscreenCanvas(mask.width, mask.height) : Object.assign(document.createElement("canvas"), { width: mask.width, height: mask.height }));
+    if (sil.width !== mask.width || sil.height !== mask.height) { sil.width = mask.width; sil.height = mask.height; }
+    const x = sil.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
+    if (x) {
+      x.globalCompositeOperation = "source-over"; x.clearRect(0, 0, sil.width, sil.height);
+      x.drawImage(mask as unknown as CanvasImageSource, 0, 0);
+      x.globalCompositeOperation = "source-in"; x.fillStyle = edge.color; x.fillRect(0, 0, sil.width, sil.height);
+      const r = edge.width * W, wob = edge.wobble ?? 0;
+      out.save();
+      out.globalCompositeOperation = "destination-over";
+      out.imageSmoothingEnabled = true;
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2 + wob * 0.7;
+        const k = edge.wobble == null ? 1 : 0.75 + 0.5 * Math.abs(Math.sin(wob * 1.9 + i * 2.1));
+        out.drawImage(sil as unknown as CanvasImageSource, Math.cos(a) * r * k, Math.sin(a) * r * k, W, H);
+      }
+      out.restore();
+    }
+  }
   return share;
 }

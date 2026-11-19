@@ -62,5 +62,6 @@ describe("the client/server boundary", () => {
       }
     }
     expect(leaks).toEqual([]);
-  });
+  // The walk reads every source file; under a full run on a slow machine it has taken longer than the default five seconds.
+  }, 30_000);
 });
