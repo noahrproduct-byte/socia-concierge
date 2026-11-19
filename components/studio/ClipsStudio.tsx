@@ -101,6 +101,8 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
   const [quickPrompt, setQuickPrompt] = useState("");
   // A Reel from Discover to read as the reference ("Make a video like this").
   const [startReference, setStartReference] = useState<HandoffReference | null>(null);
+  // Clips and a script sent from Ask SOCIA: the video is made without another click (Noah, 2026-11-18).
+  const [startAuto, setStartAuto] = useState(false);
   // Edit: every video made in this brand (null while loading).
   const [videos, setVideos] = useState<VideoSummary[] | null>(null);
   // Video editor, first screen: one raw clip dropped is made into a finished video in one go
@@ -327,6 +329,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
       const handed = takeHandoff(audio ? "audio" : "edit");
       if (editing && handed.data.prompt) setStartPrompt(handed.data.prompt);
       if (editing && handed.data.reference) setStartReference(handed.data.reference);
+      if (editing && handed.data.autoMake && handed.files.length && (handed.data.prompt || handed.data.reference)) setStartAuto(true);
       // Anything handed over (a prompt, a Reel to copy, clips with text) is for the full editor.
       if (editing && (handed.data.prompt || handed.data.reference || handed.files.length)) setFull(true);
       if (!handed.files.length) return;
@@ -617,6 +620,8 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
             heading="Prompt and reference"
             initialPrompt={startPrompt}
             initialReference={startReference}
+            autoMake={startAuto && !uploading && busyIds === 0 && readyClips.length > 0}
+            onAutoMade={() => setStartAuto(false)}
             noClipsNote="Add clips above first, or pick some from Your clips below."
             beforeMake={ensureUnderstood}
             onOpen={(id, title) => setCustom({ id, title })}

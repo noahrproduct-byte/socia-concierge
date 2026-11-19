@@ -12,7 +12,8 @@ export type HandoffFix = { panel: EditorPanel; cleanSound?: boolean; cuts?: { st
 /** `layers`: text lines (preset, words, timing) ready to go on the cut's EDL; `fix`: what Rate asked the editor to do. */
 /** A video to read as the reference for a brief, by a link SOCIA serves (a competitor's Reel from Discover). */
 export type HandoffReference = { url: string; name: string };
-export type HandoffData = { layers?: EdlText[]; prompt?: string; fix?: HandoffFix; reference?: HandoffReference };
+/** `autoMake`: start making the video as soon as the clips are in (Ask SOCIA's "send to the editor"). */
+export type HandoffData = { layers?: EdlText[]; prompt?: string; fix?: HandoffFix; reference?: HandoffReference; autoMake?: boolean };
 let pending: { files: File[]; to: string; data: HandoffData; at: number } | null = null;
 
 /** A handoff is for the click that made it: one not taken within this long is dropped. */

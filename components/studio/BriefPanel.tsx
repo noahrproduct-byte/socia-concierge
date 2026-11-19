@@ -35,7 +35,11 @@ const toBase64 = (blob: Blob) => new Promise<string>((resolve, reject) => {
   r.readAsDataURL(blob);
 });
 
-export default function BriefPanel({ projectId, viewerId, canMake, onOpen, beforeMake, heading = "Make a video your way", noClipsNote, initialPrompt, initialReference }: {
+export default function BriefPanel({ projectId, viewerId, canMake, onOpen, beforeMake, heading = "Make a video your way", noClipsNote, initialPrompt, initialReference, autoMake, onAutoMade }: {
+  /** true once handed-over clips are all in: make the video without a click (Ask SOCIA's hand-off) */
+  autoMake?: boolean;
+  /** called when the automatic make has started, so it runs once */
+  onAutoMade?: () => void;
   /** null: no clips yet (the Video editor shows this panel before any are added) */
   projectId: string | null; viewerId: string;
   /** null = plan unknown yet; false = not on this plan */ canMake: boolean | null;
@@ -214,6 +218,15 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
   };
 
   const ready = Boolean(projectId) && (prompt.trim().length >= 3 || ref) && !reading && !busy && !improving;
+  // Sent from Ask SOCIA with clips and a script: start as soon as everything is in. Only on a plan that
+  // includes it (canMake true); otherwise the plan note shows and nothing starts.
+  useEffect(() => {
+    if (!autoMake || canMake !== true || !ready) return;
+    onAutoMade?.();
+    void make();
+    // make reads the current prompt and reference; it runs once per hand-off.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoMake, canMake, ready]);
   const canImprove = Boolean(projectId) && prompt.trim().length >= 3 && !busy && !improving && !reading;
   const shots = ref?.cuts ? ref.cuts.length + 1 : null;
 
