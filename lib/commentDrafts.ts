@@ -113,6 +113,7 @@ export async function draftReply(input: { comment: SocialComment; brand: BrandVo
 Rules:
 - One short reply (1–2 sentences, under 220 characters). Sound like a real person from the team, warm and specific to what the commenter said.
 - If they asked a question you can't answer from the post, acknowledge it and invite them to DM or say the team will follow up — never invent facts, prices, hours or promises.
+- If the post asks people to comment a word to get something (a link, a guide, a template, a discount) and this comment is them doing that, nothing is sent to them automatically: never say it was sent, is on its way or will be sent. Reply with one warm sentence that invites them to send a DM to get it, and don't use the word "link".
 - No hashtags, no links, no emoji spam (at most one emoji, only if it fits), no "Thanks for your comment!" boilerplate, nothing that reads as automated.
 - Match the commenter's language. If the comment is hostile or sensitive, keep it calm, brief and de-escalating.
 - If the comment is spam, a bot, a scam, or promotes something unrelated to the post, don't write a reply or advice: output exactly NO_REPLY.
@@ -152,6 +153,7 @@ const AUTO_RULES = `
 
 This brand replies to comments automatically. Start your output with AUTO: or REVIEW:, then the reply.
 - AUTO: praise, thanks, an emoji or reaction, tagging a friend, a simple "love this": one short, warm sentence.
+- AUTO: someone commenting the word the post asked for: one warm sentence inviting them to send a DM to get it, as in the rule above.
 - AUTO: a question, when the answer is in the facts above (the brand, its location, website and notes) or in the post caption: answer it plainly in one or two short sentences, using only those facts. When the answer isn't there, reply warmly and invite them to send a DM so the team can help. Never guess a price, time, date, stock level or promise.
 - REVIEW: a complaint or criticism, anything negative or angry, a problem with an order, a booking, a refund or a delivery, anything about health, safety, money owed, legal matters or personal details, or when you are unsure. A person answers these.
 - An AUTO reply is one line, under 220 characters, with no links, no discounts and no offers.
