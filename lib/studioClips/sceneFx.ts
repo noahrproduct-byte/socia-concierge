@@ -19,6 +19,12 @@ export const SCENE_FX = {
   keys: { label: "Key caps", what: "Keyboard keys that press one after another.", person: true, text: "Keys, with + between", lines: 0 },
   stamp: { label: "Stamp", what: "One word slammed on like a rubber stamp.", person: true, text: "Word", lines: 0 },
   comment: { label: "Comment keyword", what: "\"Comment\" and the word to comment, typed into a comment box.", person: true, text: "Word to comment", lines: 0 },
+  orbit: { label: "Hub", what: "One thing in the middle with the things around it circling it: a system, a toolkit, everything in one place.", person: true, text: "The middle", lines: 4 },
+  link: { label: "Link", what: "Two things joined by a line that draws between them, with a tick where they meet.", person: true, text: "First thing", lines: 0 },
+  picker: { label: "Picker", what: "A list of options; the highlight runs down it and lands on the one chosen.", person: true, text: "The one chosen", lines: 3 },
+  filedrop: { label: "File drop", what: "A file glides into a drop area, which fills and ticks.", person: true, text: "File name", lines: 0 },
+  name: { label: "Name reveal", what: "A name spelled out letter by letter over a line, with who they are above it.", person: true, text: "Name", lines: 0 },
+  doc: { label: "Document", what: "A page with a title, and a marker that highlights its key lines.", person: true, text: "Page title", lines: 3 },
   canvas: { label: "Open canvas", what: "The video becomes a layer in a design file: a selection frame on a drafting grid, and a cursor dragging its corner.", person: false, text: "Layer name", lines: 0 },
   cover: { label: "Magazine cover", what: "A masthead word across the top, behind the person.", person: true, text: "Masthead word", lines: 0 },
   glass: { label: "Glass text", what: "One big see-through word behind the person.", person: true, text: "Word", lines: 0 },
@@ -39,3 +45,15 @@ export const fxNeedsPerson = (id: SceneFxId): boolean => SCENE_FX[id].person;
 export const FX_TEXT_MAX = 28;
 export const FX_LINE_MAX = 48;
 export const MAX_EFFECTS = 4;
+
+/** The sound a scene lands with, when the cut has sound on its graphics: which file, how long it runs, and how many frames after the scene starts. Synthesised originals from Motus's style packs (MIT). */
+export function sceneSound(kind: string, fx: SceneFxId | undefined): { src: string; frames: number; delay: number } {
+  const at = (name: string, sec: number, delay = 0) => ({ src: `/editor-sfx/m-${name}.m4a`, frames: Math.ceil(sec * 30) + 2, delay });
+  if (fx === "stamp") return at("hit", 0.37, 6);
+  if (fx === "button") return at("click", 0.18, 36);
+  if (fx === "keys" || fx === "search" || fx === "code" || fx === "comment") return at("click", 0.18, 8);
+  if (fx === "notify" || fx === "chat" || fx === "link" || fx === "filedrop") return at("ping", 0.25, 6);
+  if (fx === "frame" || fx === "reveal" || fx === "canvas" || fx === "dolly") return at("boom", 0.6);
+  if (!fx && kind === "stat") return at("pop", 0.09, 2);
+  return at("swish", 0.34);
+}

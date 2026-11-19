@@ -6,6 +6,10 @@
 //   3. the look's own edit (captions on, dead air, the hook, jump cuts: themes/autoEdit.ts).
 // What it reports is counted from the cut itself, never estimated. Pure,
 // unit-tested (quickEdit.test.ts).
+import { SPLIT_SKINS } from "./splitSkins";
+import { DEFAULT_STYLE, withCaptionStyle, type CaptionStyleId } from "./style";
+/** The caption style each split-screen look is read with (after the Motus style it follows); SOCIA's own keeps the look's captions. */
+const SKIN_CAPTIONS: Partial<Record<SplitSkinId, { preset: CaptionStyleId; highlight?: string }>> = { prop: { preset: "boxed" }, editorial: { preset: "highlight", highlight: "#fe4d2e" }, ember: { preset: "highlight", highlight: "#ff3ab0" }, night: { preset: "pop" } };
 import type { SplitSkinId } from "./splitSkins";
 import { alignToBeats, type Beat } from "./beats";
 import { clipsForEdl } from "./clientClips";
@@ -81,6 +85,8 @@ export type QuickOptions = {
   split?: boolean;
   /** the look the split screen wears */
   skin?: SplitSkinId;
+  /** a short sound as each graphic lands */
+  sound?: boolean;
   /** the beat of the music in the cut, when it has music with a steady beat: cuts land on it */
   beat?: Beat | null;
 };
@@ -93,12 +99,16 @@ function finish(cut: Edl, notes: string[], sources: BuildSource[], words: WordsB
     if (r.moved) { out = r.edl; notes.push(`${r.moved} of ${r.total} cut${r.total === 1 ? "" : "s"} moved onto the beat of the music (${Math.round(r.bpm)} BPM).`); }
   }
   // The scenes keep clear of the lines the look just placed, so they are found on the finished cut.
-  const { scenes: _old, scenesBehind: _was, scenesSplit: _split, scenesSkin: _skin, ...rest } = out; void _old; void _was; void _split; void _skin;
+  const { scenes: _old, scenesBehind: _was, scenesSplit: _split, scenesSkin: _skin, scenesSound: _snd, ...rest } = out; void _old; void _was; void _split; void _skin; void _snd;
   const scenes = opts.scenes ? findScenes(rest, words) : [];
   if (scenes.length) notes.push(sceneNote(scenes));
   if (scenes.length && opts.split) notes.push("Split screen: each graphic takes the top of the frame and the picture moves down under it.");
   else if (scenes.length && opts.behind) notes.push("The graphics sit behind the person talking, wherever the two cross.");
-  return { edl: scenes.length ? { ...rest, scenes, ...(opts.split ? { scenesSplit: true as const, ...(opts.skin && opts.skin !== "socia" ? { scenesSkin: opts.skin } : {}) } : opts.behind ? { scenesBehind: true as const } : {}) } : rest, notes };
+  // A split-screen look brings its captions with it: the style and colour that look is read with.
+  const cap = opts.split && scenes.length ? SKIN_CAPTIONS[opts.skin ?? "socia"] : undefined;
+  const styled = cap ? (() => { const st = withCaptionStyle(rest.style ?? DEFAULT_STYLE, cap.preset); return { ...rest, style: cap.highlight ? { ...st, captions: { ...st.captions, highlight: cap.highlight } } : st }; })() : rest;
+  if (cap) notes.push(`Captions follow the ${SPLIT_SKINS[opts.skin ?? "socia"].label} look.`);
+  return { edl: scenes.length ? { ...styled, scenes, ...(opts.sound ? { scenesSound: true as const } : {}), ...(opts.split ? { scenesSplit: true as const, ...(opts.skin && opts.skin !== "socia" ? { scenesSkin: opts.skin } : {}) } : opts.behind ? { scenesBehind: true as const } : {}) } : rest, notes };
 }
 
 /** The cut SOCIA makes of one raw talking clip in one go, in the given look, with a line for each thing it did. */

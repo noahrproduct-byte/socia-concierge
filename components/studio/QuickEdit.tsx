@@ -47,10 +47,11 @@ import { renderBlocker, renderBuild } from "./renderBuild";
 type Stage = "upload" | "words" | "picture" | "cut" | "render" | "check" | "done" | "error";
 type Result = { buildId: string; title: string; blob: Blob; url: string; rawUrl: string | null; stats: QuickStats; clips: number; clipsUsed: number; picture: boolean; prompt: string; fx: SceneFxId[]; notes: string[]; lines: string[]; report: RenderReport | null; edl: Edl; look: string; music: string | null; width: number; height: number };
 type Draft = { phase: "idle" } | { phase: "saving"; progress: number } | { phase: "saved"; postId: string } | { phase: "error"; message: string };
-type Choice = { look: string; trackId: string; scenes: boolean; behind: boolean; split: boolean; /** how the person wants it, typed or spoken */ prompt: string; /** the effects the person picked; none = SOCIA picks */ fx: SceneFxId[]; /** the look a split screen wears */ skin: SplitSkinId };
+type Choice = { look: string; trackId: string; scenes: boolean; behind: boolean; split: boolean; /** how the person wants it, typed or spoken */ prompt: string; /** the effects the person picked; none = SOCIA picks */ fx: SceneFxId[]; /** the look a split screen wears */ skin: SplitSkinId; /** a short sound as each graphic lands */ sound: boolean };
 const PROMPT_KEY = "socia.quickEdit.prompt";
 const FX_KEY = "socia.quickEdit.fx";
 const SKIN_KEY = "socia.quickEdit.skin";
+const SOUND_KEY = "socia.quickEdit.sound";
 const keptFx = (): SceneFxId[] => { try { return (window.localStorage.getItem(FX_KEY) ?? "").split(",").filter(isSceneFx).slice(0, 4); } catch { return []; } };
 /** Sent with the person's words to the step that changes the cut, so asks for pictures (made in their own step) are not answered as "can't". */
 const NOT_PICTURES = " (Requests for pictures, graphics or visuals are handled in another step: leave them out, and do not mention them in the reply.)";
@@ -125,6 +126,8 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
   const [scenesOn, setScenesOn] = useState(true);
   const [place, setPlace] = useState<Place>("behind");
   const [skin, setSkin] = useState<SplitSkinId>("socia");
+  const [soundOn, setSoundOn] = useState(true);
+  const pickSound = (on: boolean) => { setSoundOn(on); try { window.localStorage.setItem(SOUND_KEY, on ? "on" : "off"); } catch { /* not kept */ } };
   const pickSkin = (id: SplitSkinId) => { setSkin(id); try { window.localStorage.setItem(SKIN_KEY, id); } catch { /* not kept */ } };
   const [trackId, setTrackId] = useState("");
   // The effects picked before the drop (kept on this computer); none picked = SOCIA picks.
@@ -159,6 +162,7 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
       const kept = window.localStorage.getItem(LOOK_KEY);
       if (kept && themeById(kept)) setLook(kept);
       if (window.localStorage.getItem(SCENES_KEY) === "off") setScenesOn(false);
+      if (window.localStorage.getItem(SOUND_KEY) === "off") setSoundOn(false);
       const keptSkin = window.localStorage.getItem(SKIN_KEY);
       if (isSplitSkin(keptSkin)) setSkin(keptSkin);
       const effects = keptFx();
@@ -340,7 +344,7 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
         musicIn.current = null;
       }
       setStep(null);
-      const opts = { scenes: choice.scenes, behind: choice.behind, split: choice.split, skin: choice.skin, beat };
+      const opts = { scenes: choice.scenes, behind: choice.behind, split: choice.split, skin: choice.skin, sound: choice.sound, beat };
       const cut = viaPicture.current ? quickLook(start, chosen, data.sources, opts) : quickCut(start, chosen, data.sources, opts);
       let made = cut.edl;
       const aiNotes: string[] = [];
@@ -418,7 +422,7 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
   useEffect(() => {
     if (!settled || !ready.length || !projectId || started.current) return;
     started.current = true;
-    void run({ look, trackId, scenes: scenesOn, behind: place === "behind", split: place === "split", prompt: prompt || promptRef.current, fx: fxPick.length ? fxPick : keptFx(), skin });
+    void run({ look, trackId, scenes: scenesOn, behind: place === "behind", split: place === "split", prompt: prompt || promptRef.current, fx: fxPick.length ? fxPick : keptFx(), skin, sound: soundOn });
     // The choices are read when the clips land; changing them afterwards is "Make it again".
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settled, ready.length, projectId, run]);
@@ -495,6 +499,7 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
         <small>{tracks.length ? "From your playlist. Cuts land on its beat; it sits low under talking." : "Your playlist is empty. Add sounds in the editor, under Sound."}</small>
       </label>
       <label className="qe-check"><input type="checkbox" checked={scenesOn} disabled={disabled} onChange={(e) => pickScenes(e.target.checked)} /> Animated graphics for the figures, lists and key lines that are said</label>
+      <label className="qe-check"><input type="checkbox" checked={scenesOn && soundOn} disabled={disabled || !scenesOn} onChange={(e) => pickSound(e.target.checked)} /> A short sound as each graphic lands</label>
       <label className="qe-field" htmlFor={`${idPrefix}-place`}>
         <span>Layout</span>
         <select value={place} disabled={disabled || !scenesOn} id={`${idPrefix}-place`} onChange={(e) => pickPlace(e.target.value as Place)}>
@@ -563,7 +568,7 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
     const faults = renderFaults(result.report);
     const s = result.stats;
     const lookName = themeById(result.look)?.name ?? result.look;
-    const changed = fxPick.join() !== result.fx.join() || prompt.trim() !== result.prompt || look !== result.look || (trackId ? tracks.find((t) => t.id === trackId)?.name ?? "" : null) !== result.music || scenesOn !== (s.scenes > 0) || (s.scenes > 0 && (place !== placeOf(result.edl) || (place === "split" && skin !== (result.edl.scenesSkin ?? "socia"))));
+    const changed = fxPick.join() !== result.fx.join() || prompt.trim() !== result.prompt || look !== result.look || (trackId ? tracks.find((t) => t.id === trackId)?.name ?? "" : null) !== result.music || scenesOn !== (s.scenes > 0) || (s.scenes > 0 && soundOn !== Boolean(result.edl.scenesSound)) || (s.scenes > 0 && (place !== placeOf(result.edl) || (place === "split" && skin !== (result.edl.scenesSkin ?? "socia"))));
     return (
       <section className="qe" aria-labelledby="qe-done">
         <div className={`qe-stage${compare && result.rawUrl ? " is-compare" : ""}`}>
@@ -626,7 +631,7 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
               {fxBox(false)}
               {choices(false, "qe-done")}
               <div className="qe-actions">
-                <button type="button" className="qe-btn" disabled={!changed} onClick={() => void run({ look, trackId, scenes: scenesOn, behind: place === "behind", split: place === "split", prompt, fx: fxPick, skin })}><RefreshCw size={14} aria-hidden /> Make it again</button>
+                <button type="button" className="qe-btn" disabled={!changed} onClick={() => void run({ look, trackId, scenes: scenesOn, behind: place === "behind", split: place === "split", prompt, fx: fxPick, skin, sound: soundOn })}><RefreshCw size={14} aria-hidden /> Make it again</button>
               </div>
               <p className="qe-fine">Same clips and the same starting cut: your instructions, the look, the music and the graphics are applied again. No new cut is counted.</p>
             </details>
@@ -692,7 +697,7 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
           {failed.map((l) => <p key={l.key} className="qe-err" role="alert"><AlertTriangle size={14} aria-hidden /> {many ? `${l.name}: ` : ""}{l.phase === "duplicate" ? "This clip is already in this video." : l.error ?? "This clip couldn't be added."}{many && ready.length ? " The video is made without it." : ""}</p>)}
           {stage === "error" && error && <p className="qe-err" role="alert"><AlertTriangle size={14} aria-hidden /> {error}</p>}
           <div className="qe-actions">
-            {stage === "error" && ready.length > 0 && <button type="button" className="qe-btn is-primary" onClick={() => void run({ look, trackId, scenes: scenesOn, behind: place === "behind", split: place === "split", prompt, fx: fxPick, skin })}><RefreshCw size={14} aria-hidden /> Try again</button>}
+            {stage === "error" && ready.length > 0 && <button type="button" className="qe-btn is-primary" onClick={() => void run({ look, trackId, scenes: scenesOn, behind: place === "behind", split: place === "split", prompt, fx: fxPick, skin, sound: soundOn })}><RefreshCw size={14} aria-hidden /> Try again</button>}
             {stage === "error" && buildId.current && <button type="button" className="qe-btn" onClick={() => onOpenEditor(buildId.current!, title)}>Open it in the editor instead</button>}
             <button type="button" className="qe-btn is-quiet" onClick={again}>{allFailed || stage === "error" ? "Use other footage" : "Stop"}</button>
           </div>

@@ -189,6 +189,116 @@ export function EffectLayer({ span, fontFamily, accent }: { span: SceneSpan; fon
   const glassCard: React.CSSProperties = { position: "absolute", left: 70 * s, top: top0, width: width - 140 * s, boxSizing: "border-box", padding: 36 * s, borderRadius: 36 * s, backgroundColor: "rgba(244,236,229,0.92)", color: "#21170f" };
   const rise = (at: number) => { const p = spring({ frame: f - at, fps, config: { damping: 200, stiffness: 150 }, durationInFrames: 12 }); return { opacity: seen(at), transform: `translateY(${(1 - p) * 26 * s}px)` }; };
 
+  if (fx === "orbit") {
+    const around = lines.slice(0, 4);
+    const cx = width / 2, cy = top0 + 300 * s, R = 290 * s;
+    return (
+      <div style={fill}>
+        {dim}
+        <div style={{ position: "absolute", left: cx - R, top: cy - R * 0.62, width: R * 2, height: R * 1.24, boxSizing: "border-box", border: `${Math.max(1, 2 * s)}px solid rgba(255,255,255,0.35)`, borderRadius: "50%", opacity: seen(4) }} />
+        {around.map((t, i) => {
+          const a = (i / Math.max(1, around.length)) * Math.PI * 2 + f / 90 - Math.PI / 2;
+          const x = cx + Math.cos(a) * R, y = cy + Math.sin(a) * R * 0.62, p = pop(8 + i * 5);
+          return <div key={i} style={{ position: "absolute", left: x - 130 * s, top: y - 38 * s, width: 260 * s, height: 76 * s, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 38 * s, backgroundColor: "rgba(244,236,229,0.94)", color: "#21170f", fontSize: Math.min(34, 400 / Math.max(6, t.length)) * s, fontWeight: 600, opacity: seen(8 + i * 5), transform: `scale(${(0.5 + 0.5 * p) * (0.86 + 0.14 * (Math.sin(a) + 1) / 2)})` }}>{t}</div>;
+        })}
+        <div style={{ position: "absolute", left: cx - 150 * s, top: cy - 70 * s, width: 300 * s, height: 140 * s, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 40 * s, backgroundColor: accent, color: on, fontSize: Math.min(52, 520 / Math.max(5, (text || "Hub").length)) * s, fontWeight: 800, textAlign: "center", opacity: seen(2), transform: `scale(${0.6 + 0.4 * pop(2)})` }}>{text || "Hub"}</div>
+      </div>
+    );
+  }
+
+  if (fx === "link") {
+    const a = text || "This", b = scene.label || "That";
+    const drawn = interpolate(f, [12, 30], [0, 1], EASE), tick = pop(30);
+    const pill: React.CSSProperties = { position: "absolute", top: top0 + 120 * s, width: 380 * s, height: 130 * s, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 36 * s, backgroundColor: "rgba(244,236,229,0.94)", color: "#21170f", fontWeight: 700, textAlign: "center" };
+    return (
+      <div style={fill}>
+        {dim}
+        <div style={{ position: "absolute", left: 450 * s, top: top0 + 180 * s, width: 180 * s * drawn, height: 10 * s, borderRadius: 99, backgroundColor: accent, opacity: 1 - leave }} />
+        <div style={{ ...pill, left: 70 * s, fontSize: Math.min(46, 620 / Math.max(6, a.length)) * s, ...rise(2) }}>{a}</div>
+        <div style={{ ...pill, left: width - 450 * s, fontSize: Math.min(46, 620 / Math.max(6, b.length)) * s, ...rise(8) }}>{b}</div>
+        <div style={{ position: "absolute", left: width / 2 - 42 * s, top: top0 + 143 * s, width: 84 * s, height: 84 * s, borderRadius: 99, backgroundColor: accent, display: "flex", alignItems: "center", justifyContent: "center", opacity: seen(30), transform: `scale(${0.3 + 0.7 * tick})` }}>
+          <svg viewBox="0 0 24 24" width={48 * s} height={48 * s} fill="none" stroke={on} strokeWidth={3.4} strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+        </div>
+      </div>
+    );
+  }
+
+  if (fx === "picker") {
+    const others = lines.slice(0, 3);
+    const opts = [others[0], text || "This one", others[1], others[2]].filter((x): x is string => Boolean(x));
+    const chosen = opts.indexOf(text || "This one");
+    const rowH = 96 * s;
+    // The highlight steps down the list and stops on the one chosen.
+    const travel = Math.min(opts.length - 1 + chosen, Math.floor(Math.max(0, f - 8) / 5));
+    const at = travel < opts.length ? travel : chosen;
+    const landed = f >= 8 + (opts.length - 1 + chosen) * 5;
+    return (
+      <div style={fill}>
+        {dim}
+        <div style={{ ...glassCard, padding: 18 * s, ...rise(2) }}>
+          <div style={{ position: "absolute", left: 18 * s, top: 18 * s + (landed ? chosen : at) * rowH, width: width - 176 * s, height: rowH, borderRadius: 22 * s, backgroundColor: landed ? accent : "rgba(33,23,15,0.12)" }} />
+          {opts.map((o, i) => <div key={i} style={{ position: "relative", height: rowH, padding: `0 ${28 * s}px`, display: "flex", alignItems: "center", fontSize: 38 * s, fontWeight: landed && i === chosen ? 800 : 500, color: landed && i === chosen ? on : "#21170f" }}>{o}</div>)}
+        </div>
+      </div>
+    );
+  }
+
+  if (fx === "filedrop") {
+    const fly = spring({ frame: f - 8, fps, config: { damping: 16, stiffness: 90 }, durationInFrames: 24 });
+    const done = interpolate(f, [30, 42], [0, 1], CLAMP);
+    return (
+      <div style={fill}>
+        {dim}
+        <div style={{ position: "absolute", left: 130 * s, top: top0 + 20 * s, width: width - 260 * s, height: 420 * s, boxSizing: "border-box", border: `${6 * s}px dashed ${done > 0.5 ? accent : "rgba(255,255,255,0.6)"}`, borderRadius: 44 * s, backgroundColor: `rgba(244,236,229,${0.1 + 0.16 * done})`, opacity: seen(2) }} />
+        <div style={{ position: "absolute", left: width / 2 - 110 * s, top: top0 + 90 * s, width: 220 * s, opacity: seen(8), transform: `translate(${(1 - fly) * 360 * s}px, ${(1 - fly) * 520 * s}px) rotate(${(1 - fly) * 14}deg)` }}>
+          <svg viewBox="0 0 100 120" width={220 * s} height={264 * s}><path d="M10 4H66L92 30V116H10Z" fill="#fbf8f4" /><path d="M66 4V30H92Z" fill="#d9d2c8" /><path d="M26 54H76M26 70H76M26 86H60" stroke="#b9b0a4" strokeWidth="6" strokeLinecap="round" /></svg>
+          <div style={{ marginTop: 6 * s, textAlign: "center", color: "#fff", fontSize: 30 * s, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{text || "file"}</div>
+        </div>
+        <div style={{ position: "absolute", left: width / 2 + 70 * s, top: top0 + 70 * s, width: 80 * s, height: 80 * s, borderRadius: 99, backgroundColor: accent, display: "flex", alignItems: "center", justifyContent: "center", opacity: done * (1 - leave), transform: `scale(${0.4 + 0.6 * pop(32)})` }}>
+          <svg viewBox="0 0 24 24" width={46 * s} height={46 * s} fill="none" stroke={on} strokeWidth={3.4} strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+        </div>
+      </div>
+    );
+  }
+
+  if (fx === "name") {
+    const letters = (text || "Name").split("");
+    const size = Math.min(170, 900 / Math.max(3, letters.length * 0.56));
+    return (
+      <div style={fill}>
+        {dim}
+        <div style={{ position: "absolute", left: 70 * s, top: top0 + 40 * s, width: width - 140 * s, color: "#fff" }}>
+          {scene.label && <div style={{ fontSize: 36 * s, fontWeight: 700, letterSpacing: `${0.14 * 36 * s}px`, textTransform: "uppercase", color: accent, ...rise(2) }}>{scene.label}</div>}
+          <div style={{ marginTop: 10 * s, fontFamily: SERIF, fontWeight: 700, fontSize: size * s, lineHeight: 1.05, whiteSpace: "nowrap" }}>
+            {letters.map((c, i) => { const p = interpolate(f, [6 + i * 2, 12 + i * 2], [0, 1], EASE); return <span key={i} style={{ display: "inline-block", whiteSpace: "pre", opacity: p * (1 - leave), transform: `translateY(${(1 - p) * 40 * s}px)` }}>{c}</span>; })}
+          </div>
+          <div style={{ marginTop: 14 * s, height: 10 * s, width: `${interpolate(f, [10, 10 + letters.length * 2 + 10], [0, 100], EASE)}%`, borderRadius: 99, backgroundColor: accent, opacity: 1 - leave }} />
+        </div>
+      </div>
+    );
+  }
+
+  if (fx === "doc") {
+    const marks = lines.slice(0, 3);
+    return (
+      <div style={fill}>
+        {dim}
+        <div style={{ position: "absolute", left: 150 * s, top: top0 - 10 * s, width: width - 300 * s, boxSizing: "border-box", padding: `${44 * s}px ${48 * s}px ${50 * s}px`, borderRadius: 14 * s, backgroundColor: "#fdfbf7", color: "#21170f", opacity: seen(2), transform: `rotate(-2deg) translateY(${(1 - pop(2)) * 60 * s}px)` }}>
+          <div style={{ fontFamily: SERIF, fontWeight: 700, fontSize: 48 * s, lineHeight: 1.12 }}>{text || "Document"}</div>
+          <div style={{ marginTop: 18 * s, height: 8 * s, width: "70%", backgroundColor: "rgba(33,23,15,0.14)" }} />
+          {marks.map((m, i) => (
+            <div key={i} style={{ position: "relative", marginTop: 22 * s, fontSize: 32 * s, lineHeight: 1.3, fontWeight: 500 }}>
+              <span style={{ position: "absolute", left: -8 * s, top: "8%", height: "84%", width: `${interpolate(f, [14 + i * 10, 26 + i * 10], [0, 100], EASE)}%`, backgroundColor: accent, opacity: 0.32 }} />
+              <span style={{ position: "relative" }}>{m}</span>
+            </div>
+          ))}
+          <div style={{ marginTop: 22 * s, height: 8 * s, width: "88%", backgroundColor: "rgba(33,23,15,0.14)" }} />
+          <div style={{ marginTop: 14 * s, height: 8 * s, width: "56%", backgroundColor: "rgba(33,23,15,0.14)" }} />
+        </div>
+      </div>
+    );
+  }
+
   if (fx === "title") {
     const word = text || "Title";
     const size = Math.min(170, 900 / Math.max(3, Math.max(...word.split(/\s+/).map((w) => w.length)) * 0.6));

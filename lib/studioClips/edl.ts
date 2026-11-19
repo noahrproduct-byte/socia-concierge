@@ -389,6 +389,7 @@ export function revalidateEdl(edited: Edl, clips: ClipForEdl[]): { edl: Edl; war
   if (scenes) r.edl.scenes = scenes;
   if (scenes && edited.scenesSplit === true) { r.edl.scenesSplit = true; if (isSplitSkin(edited.scenesSkin) && edited.scenesSkin !== "socia") r.edl.scenesSkin = edited.scenesSkin; if (typeof edited.scenesFocus === "number" && Number.isFinite(edited.scenesFocus)) r.edl.scenesFocus = Math.round(Math.min(0.85, Math.max(0.15, edited.scenesFocus)) * 100) / 100; }
   else if (scenes && edited.scenesBehind === true) r.edl.scenesBehind = true;
+  if (scenes && edited.scenesSound === true) r.edl.scenesSound = true;
   const logo = sanitizeLogo(edited.logo);
   if (logo) r.edl.logo = logo;
   if (typeof edited.lookAuto === "string" && !Number.isNaN(Date.parse(edited.lookAuto))) r.edl.lookAuto = new Date(edited.lookAuto).toISOString();

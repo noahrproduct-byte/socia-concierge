@@ -356,6 +356,9 @@ export function effectAt(edl: Edl, words: Record<string, TranscriptWord[] | null
   const figure = toks.slice(i, i + 14).map((t) => plain(t.text)).find((w) => FIGURE_LIKE.test(w));
   const half = (from: number) => near.slice(from, from + 3).map((t) => plain(t.text)).join(" ").slice(0, FX_TEXT_MAX);
   if (fx === "compare") return { id: "new", kind: "effect", fx, key: toks[i].key, dur: 3.6, text: half(0), ...(half(3) ? { label: half(3) } : {}) };
+  if (fx === "link") return { id: "new", kind: "effect", fx, key: toks[i].key, dur: 3.4, text: half(0), ...(half(3) ? { label: half(3) } : {}) };
+  if (fx === "name" || fx === "filedrop") return { id: "new", kind: "effect", fx, key: toks[i].key, dur: 3.2, text: word };
+  if (fx === "orbit" || fx === "picker" || fx === "doc") return { id: "new", kind: "effect", fx, key: toks[i].key, dur: 4, text: fx === "doc" ? half(0) : word, lines: [half(0), half(3)].filter(Boolean).slice(0, 3) };
   if (fx === "title") return { id: "new", kind: "effect", fx, key: toks[i].key, dur: 3, text: near.slice(0, 3).map((t) => plain(t.text)).join(" ").slice(0, FX_TEXT_MAX) };
   if (fx === "stamp" || fx === "comment" || fx === "keys") return { id: "new", kind: "effect", fx, key: toks[i].key, dur: 3, text: fx === "keys" ? "cmd+k" : word };
   if (fx === "bars" || fx === "table" || fx === "flow" || fx === "code") return { id: "new", kind: "effect", fx, key: toks[i].key, dur: 4, text: fx === "code" ? "terminal" : half(0), lines: fx === "flow" ? [half(3)].filter(Boolean) : fx === "code" ? [line] : [half(0), half(3)].filter(Boolean) };

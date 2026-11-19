@@ -326,3 +326,13 @@ describe("real marks and real pages in a picture scene", () => {
     expect(sanitizeArt([{ kind: "page", name: "x", src: "https://example.com/a.png" }, { kind: "logo", name: "x", src: "data:text/html;base64,AAAA" }])).toEqual([]);
   });
 });
+
+import { SCENE_FX_IDS, sceneSound } from "./sceneFx";
+
+describe("the sound a graphic lands with", () => {
+  it("has a file and a length for every effect and every card", () => {
+    for (const fx of SCENE_FX_IDS) { const s = sceneSound("effect", fx); expect(s.src).toMatch(/^\/editor-sfx\/m-(pop|click|swish|hit|ping|boom)\.m4a$/); expect(s.frames).toBeGreaterThan(2); }
+    expect(sceneSound("stat", undefined).src).toBe("/editor-sfx/m-pop.m4a");
+    expect(sceneSound("stamp", "stamp")).toMatchObject({ src: "/editor-sfx/m-hit.m4a", delay: 6 });
+  });
+});

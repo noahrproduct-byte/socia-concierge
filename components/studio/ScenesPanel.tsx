@@ -14,7 +14,7 @@ import { SCENE_ITEMS_MAX, SCENE_KIND_LABEL, SCENE_LABEL_MAX, SCENE_TEXT_MAX, typ
 
 export type ScenePlace = "over" | "behind" | "split";
 
-export default function ScenesPanel({ scenes, spans, disabled, hasWords, place, onPlace, skin, onSkin, onChange, onFind, onShow }: {
+export default function ScenesPanel({ scenes, spans, disabled, hasWords, place, onPlace, skin, onSkin, sound, onSound, onChange, onFind, onShow }: {
   scenes: EdlScene[];
   /** where each scene sits in the cut now; a scene whose words were cut has none */
   spans: SceneSpan[];
@@ -27,6 +27,9 @@ export default function ScenesPanel({ scenes, spans, disabled, hasWords, place, 
   /** the look a split screen wears */
   skin: SplitSkinId;
   onSkin: (skin: SplitSkinId) => void;
+  /** a short sound as each graphic or effect lands */
+  sound: boolean;
+  onSound: (on: boolean) => void;
   onChange: (scenes: EdlScene[]) => void;
   /** look through what is said again; returns how many it found */
   onFind: () => number;
@@ -140,6 +143,7 @@ export default function ScenesPanel({ scenes, spans, disabled, hasWords, place, 
           <small className="sd-fx-note">{place === "split" ? `${SPLIT_SKINS[skin].what} The picture moves into place under it while a graphic is up.` : place === "behind" ? "The person is found in the picture on this computer and drawn in front of the card wherever the two cross. Where no one is found, or the clip carries a colour correction, the card stays in front." : "Each graphic is a card over the top of the picture."}</small>
         </>
       )}
+      {scenes.length > 0 && <label className="cbb-check"><input type="checkbox" checked={sound} disabled={disabled} onChange={(e) => onSound(e.target.checked)} /> A short sound as each graphic lands</label>}
       <div className="sd-done-actions">
         <button type="button" className="ov-btn ghost small" disabled={disabled || !hasWords} onClick={find}><RefreshCw size={12} aria-hidden /> {scenes.length ? "Find them again" : "Find them in what is said"}</button>
         {!hasWords && <small className="sd-fx-note">No speech in this cut, so there is nothing to make a graphic from.</small>}

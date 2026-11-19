@@ -2,7 +2,7 @@
 
 ## Motus
 
-Parts of the video editor's effects are ported from Motus (https://github.com/kyleherbel/motus), starting with the glass ribbon in `lib/studioClips/ribbon.ts` and the Ribbon Depth scene built on it. Motus is used under the MIT licence:
+Parts of the video editor's effects are ported from or follow Motus (https://github.com/kyleherbel/motus): the glass ribbon in `lib/studioClips/ribbon.ts` and the Ribbon Depth scene built on it, the other effects in `components/studio/remotion/EffectLayer.tsx` that follow its style packs' elements, the split-screen looks in `lib/studioClips/splitSkins.ts`, and the six sound effects in `public/editor-sfx/m-*.m4a` (its synthesised originals, converted to AAC). Motus is used under the MIT licence:
 
 MIT License
 

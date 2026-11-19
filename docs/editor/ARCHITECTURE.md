@@ -242,3 +242,11 @@ As effects, in the dimmed room with the person in front, after elements of Night
 Seen running (2026-11-19) at `/dev/cutout-lab`: all eight in browser-rendered files. Not seen: chosen by the model, signed in.
 
 Still not ported from those styles: props that act a sentence out (a printer, a tank draining), the picker, item stacks, file drop, the before-and-after wipe, name reveal, rank and price lists as their own designs, logo grids and chips, the hub, the race and link animations, the demo player, document pages, and every style's own captions, sounds and cut pacing.
+
+## Sounds, the looks' captions, and six more effects (2026-11-19)
+
+- **Sound on graphics.** `edl.scenesSound` plays a short sound as each card or effect lands (`sceneSound` in `sceneFx.ts`: a pop for a figure, a hit for a stamp, a click for a button, keys, a search or code, a ping for a notification or a chat, a low boom when the picture itself moves, a swish for the rest), at 0.42 of full level. The six files in `public/editor-sfx/m-*.m4a` are Motus's own (Editorial Proof and Prop Room packs): synthesised from code, MIT, converted from WAV to AAC. On by default on the one-drop screen; a checkbox there and in the Words tool.
+- **The looks' captions.** A split-screen look other than SOCIA's now brings a caption style with it when the one-drop cut is made (`SKIN_CAPTIONS` in `quickEdit.ts`): Prop Room boxed, Editorial Proof and Ember Brief the highlight style in their accent, Night Class one word at a time. The captions do not sit on the seam as Motus's do, because SOCIA's field is only up while a graphic is.
+- **Six more effects**: `orbit` (a hub with things circling it), `link` (two things joined by a line with a tick), `picker` (a list whose highlight lands on the one chosen), `filedrop` (a file dropped into an area that ticks), `name` (a name spelled out over a line), `doc` (a page whose key lines are highlighted). 31 effects in all.
+
+Seen running (2026-11-19) at `/dev/cutout-lab`: the six in browser-rendered files, rendered with sound on (the files carry audio; the sounds themselves were not listened to). Not seen: the captions of a look on a one-drop cut, anything signed in.

@@ -48,6 +48,12 @@ Effects. Separately from pictures you may give up to ${MAX_EFFECTS} effect scene
 - "keys": key caps pressing, when a keyboard shortcut is said. text = the keys with + between, like "cmd+shift+4".
 - "stamp": one word stamped on, for a verdict: done, banned, free, approved, sold. text = that one word.
 - "comment": "Comment" and a keyword typed into a comment box, when viewers are told to comment a word. text = that word.
+- "orbit": a hub, for a system, a toolkit, "everything in one place". text = the thing in the middle (1 to 2 words); lines = 2 to 4 things around it, 1 to 2 words each.
+- "link": two things joined, for "this connects to that", "works with", "send from A to B". text = the first, label = the second, 1 to 3 words each.
+- "picker": a list whose highlight lands on one, for a choice being made or a recommendation among options. text = the one chosen; lines = 2 or 3 other options that are said.
+- "filedrop": a file dropped into an upload area, for uploading, dropping in, importing. text = the file's name or kind (1 to 3 words).
+- "name": a name spelled out, when a person, a product or a place is introduced by name. text = the name; label = an optional 1 to 3 words on who or what they are.
+- "doc": a page with highlighted lines, for a rule, a report, a contract, notes. text = the page's title; lines = up to 3 short lines that are said, to highlight.
 - "cover": magazine cover. text = one masthead word of 4 to 9 letters taken from what is said; label = a 2 to 4 word cover line.
 - "glass": one huge see-through word behind the person. text = the one word being stressed (up to 8 letters).
 - "graph": a line chart rising behind the person, for growth, money, results. text = the figure said (like "10X", "$5K", "200%"), at most 5 characters.

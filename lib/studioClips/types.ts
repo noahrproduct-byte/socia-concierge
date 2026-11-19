@@ -395,6 +395,8 @@ export type Edl = {
   scenesSplit?: true;
   /** The look a split screen wears (lib/studioClips/splitSkins.ts). Absent = SOCIA's own. */
   scenesSkin?: SplitSkinId;
+  /** A short sound as each graphic or effect lands (lib/studioClips/sceneFx.ts sceneSound). */
+  scenesSound?: true;
   /** Split screen: where the person's face is in the picture, top (0) to bottom (1), so it stays in view under the field. Set when the cut is looked at (lib/studioClips/placement.ts). */
   scenesFocus?: number;
   /** The brand's logo on this cut (a small image kept with the cut): in the corner throughout, and/or on the ending. */

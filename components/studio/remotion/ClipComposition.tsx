@@ -41,7 +41,7 @@ import { pictureWindow, skinOf, type SplitSkinId } from "@/lib/studioClips/split
 import { cutoutSpans, sceneSpans, type SceneSpan } from "@/lib/studioClips/scenes";
 import { PersonCutout } from "./PersonCutout";
 import { EffectFront, EffectLayer, fxShare, pictureFx } from "./EffectLayer";
-import { fxNeedsPerson } from "@/lib/studioClips/sceneFx";
+import { fxNeedsPerson, sceneSound } from "@/lib/studioClips/sceneFx";
 import type { BuildSource, Edl, EdlText, EndCard } from "@/lib/studioClips/types";
 import { END_CARD_SEC, endLineSize } from "@/lib/studioClips/teach";
 import { viewAt, viewBox } from "@/lib/clipper/reframe";
@@ -108,6 +108,7 @@ const SFX_WHOOSH = "/editor-sfx/whoosh.m4a";
 const SFX_FRAMES = 15, SFX_LEAD_FRAMES = 6, SFX_LEVEL = 0.5;
 const SFX_POP = "/editor-sfx/pop.m4a";
 const POP_FRAMES = 8, POP_LEVEL = 0.5;
+const SCENE_SOUND_LEVEL = 0.42;
 
 /** How long before a shot appears the Player starts loading it. */
 const PREMOUNT_FRAMES = 45;
@@ -940,6 +941,12 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
         </Sequence>
       ))}
       {ranking && <RankingLayer ranking={ranking} fontFamily={fontFamily} />}
+      {edl.scenesSound && [...fxSpans, ...cards].map((sp) => {
+        // A short sound as each one lands (synthesised originals from Motus's style packs).
+        const snd = sceneSound(sp.scene.kind, sp.scene.fx);
+        if (snd.delay + snd.frames > sp.durationInFrames) return null;
+        return <Sequence key={`snd-${sp.scene.id}`} from={sp.from + snd.delay} durationInFrames={snd.frames} name="graphic sound"><Audio src={snd.src} volume={SCENE_SOUND_LEVEL} /></Sequence>;
+      })}
       {fxSpans.map((sp) => (
         <Sequence key={sp.scene.id} from={sp.from} durationInFrames={sp.durationInFrames} name={`effect · ${sp.scene.fx}`}>
           <EffectLayer span={sp} fontFamily={fontFamily} accent={theme?.color.accent ?? style.accent} />
