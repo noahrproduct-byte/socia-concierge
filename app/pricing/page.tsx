@@ -8,6 +8,7 @@ import PricingCards from "@/components/pricing/PricingCards";
 import BillingSwitch from "@/components/pricing/BillingSwitch";
 import { priceIdFor } from "@/lib/stripe";
 import { isPaidPlanId } from "@/lib/yearly";
+import { loadPlanCounts } from "@/lib/planCounts";
 import ComparisonTable from "@/components/pricing/ComparisonTable";
 import { LaunchCountdown } from "@/components/pricing/Launch";
 import "@/components/home/home.css";
@@ -45,7 +46,7 @@ const PAID = SALE_ORDER.filter(isPaidPlanId);
 const yearlyOnSale = () => PAID.every((p) => priceIdFor(p, "year"));
 
 export default async function PricingPage({ searchParams }: { searchParams: Promise<{ plan?: string; billing?: string; interval?: string }> }) {
-  const [{ signedIn, plan }, { plan: wanted, billing, interval: askedInterval }] = await Promise.all([readVisitor(), searchParams]);
+  const [{ signedIn, plan }, { plan: wanted, billing, interval: askedInterval }, counts] = await Promise.all([readVisitor(), searchParams, loadPlanCounts()]);
   const yearly = yearlyOnSale();
   // The yearly prices open first when they are on sale; ?interval=month opens the monthly ones.
   const start = yearly && askedInterval !== "month" ? "year" : "month";
@@ -89,11 +90,11 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
             <BillingSwitch
               plans={PAID}
               start={start}
-              monthly={<PricingCards currentPlan={plan} signedIn={signedIn} checkout={checkout} highlight={start === "month" ? highlight : null} interval="month" yearly />}
-              yearly={<PricingCards currentPlan={plan} signedIn={signedIn} checkout={checkout} highlight={start === "year" ? highlight : null} interval="year" />}
+              monthly={<PricingCards currentPlan={plan} signedIn={signedIn} checkout={checkout} highlight={start === "month" ? highlight : null} interval="month" yearly counts={counts} />}
+              yearly={<PricingCards currentPlan={plan} signedIn={signedIn} checkout={checkout} highlight={start === "year" ? highlight : null} interval="year" counts={counts} />}
             />
           ) : (
-            <PricingCards currentPlan={plan} signedIn={signedIn} checkout={checkout} highlight={highlight} />
+            <PricingCards currentPlan={plan} signedIn={signedIn} checkout={checkout} highlight={highlight} counts={counts} />
           )}
         </section>
 

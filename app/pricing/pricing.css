@@ -262,3 +262,6 @@
   .pr-year-bar { min-width: 0; }
   .pr-year-why { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* A plan's real paying-account count, shown only once it is proof (lib/planCounts.ts). */
+.pr-proof { margin: 0 0 6px; font-size: 12.5px; line-height: 1.5; color: var(--hm-ink); font-weight: 600; }
