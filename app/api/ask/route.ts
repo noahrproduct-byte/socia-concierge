@@ -22,6 +22,9 @@ import { intentBlock, linkIn, planSources } from "@/lib/research/intent";
 import { readIntent } from "@/lib/research/readIntent";
 import { gatherResearch, type Research } from "@/lib/research/gather";
 import { buildResearch } from "@/lib/research/answer";
+import { guessIntent, type SourcePlan } from "@/lib/research/intent";
+import { briefBlock, checkDraft, formatRule, nextBrief, readTurn, repairNote, sanitizeBrief, type Problem } from "@/lib/assistant/brief";
+import { falseClaimsIn, productBlock } from "@/lib/socia/productKnowledge";
 
 export const runtime = "nodejs";
 
@@ -70,8 +73,22 @@ const RESEARCH_RULES = `Research answers: when the evidence has "Comparable publ
 - why: one to three sentences on what recurs across the examples and how the approach uses it. Keep apart what was observed (a pattern in these titles or numbers) from your reading of it, and never present correlation as cause. When no examples were found, say so here and that the approach rests on general practice.
 - test: how to judge it after posting, in one or two sentences (what to compare, after how long).
 - steps: 1 to 3 of content_plan (add it to their plan), writer (write the post in Create Post), editor (make the video in the Video editor), idea (save it as a calendar draft), with a short label.
-- For a video or pitch request also write the full script in "draft" (the creative-director standard), with an "Editing:" part (pacing, captions, visual changes) after "Filming notes:". Each request gets its own structure from its research; never reuse one template.
+- For a video or pitch request also write the script in "draft", in the parts the deliverable rule for this message asks for. Each request gets its own structure from its research; never reuse one template. The research informs the script; it never replaces or crowds it.
 - "text" stays one sentence; observed, derived, interpretation and recommendation stay empty unless they add something the card doesn't.`;
+
+const NO_RESEARCH = `Research: none ran for this message, so "research" stays empty (approach "", examples [], why "", test "", steps []). Never refer to example videos.`;
+
+const BRIEF_RULES = `brief: the creative brief after this message, for the piece of content being worked on: contentType, topic, audience, platform, goal, hook (the exact opening line when the person set or approved one, else ""), duration, mustInclude (the features, products or talking points that have to be in it, by their real names), tone, structure, cta. Start from the brief given and change only what the latest message changes; never drop a requirement the person set unless they dropped it. When the message isn't about a piece of content, return the brief given unchanged, or every field "" and [] when there is none.`;
+
+/** No outside research and only a summary of the account: for a message that continues the current piece. */
+const CONTINUE_SOURCES: SourcePlan = { account: "summary", external: false, niche: false, competitors: false, reference: false, post: false, why: "Continuing the piece already in this chat." };
+
+/** What is said under an answer a check couldn't fully fix: never a silent problem. */
+function noticeFor(problems: Problem[]): string | null {
+  if (problems.some((p) => p.kind === "incomplete" || p.kind === "missing")) return "This may not be complete. Ask for it again in full.";
+  const claim = problems.find((p): p is Extract<Problem, { kind: "claim" }> => p.kind === "claim");
+  return claim ? `Check this before using it: ${claim.detail}` : null;
+}
 
 function parseJson(text: string): ModelAnswer | null {
   const cleaned = text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
@@ -117,8 +134,13 @@ export async function POST(req: Request) {
   if (!messages.length) return NextResponse.json({ error: "No message to send." }, { status: 400 });
   const latest = messages[messages.length - 1];
   if (latest.role === "user" && latest.content.length > LIMITS.question) return tooLongResponse("Your question", LIMITS.question);
-  // Earlier turns are context SOCIA re-sends: trimmed, never refused.
-  for (const m of messages) m.content = m.content.slice(0, LIMITS.historyMessage);
+  // Earlier turns are context SOCIA re-sends: trimmed, never refused. SOCIA's own turns carry the script
+  // being revised, so they keep more: a script trimmed here was a script the next answer couldn't keep.
+  for (const m of messages) m.content = m.content.slice(0, m.role === "assistant" ? LIMITS.historyMessage * 4 : LIMITS.historyMessage);
+  // The brief SOCIA returned last turn, and what this message asks for against it (lib/assistant/brief.ts).
+  const prevBrief = sanitizeBrief(askCtx.brief);
+  delete askCtx.brief;
+  const hasWork = Boolean(prevBrief) || messages.slice(0, -1).some((m) => m.role === "assistant" && /(?:^|\n)\s*(?:Say|Your lines|Film)\s*:/i.test(m.content));
 
   // The evidence window is the client's choice, but never longer than the
   // plan's analytics history.
@@ -135,8 +157,21 @@ export async function POST(req: Request) {
   // What this request is about, then the evidence it needs (lib/research).
   const earlierUser = messages.slice(0, -1).filter((m) => m.role === "user").map((m) => m.content).slice(-2).join(" | ");
   const latestText = latest.role === "user" ? latest.content : "";
-  const { intent } = await readIntent({ ownerId: ctx.ownerId, question: latestText, earlier: earlierUser, page: askCtx.page, brand: ctx.workspace?.name ?? "" });
-  const sources = planSources(intent, { linkInQuestion: Boolean(linkIn(latestText)), page: askCtx.page });
+  const read = readTurn(latestText, { hasWork, brief: prevBrief });
+  const { turn } = read;
+  let deliverable = read.deliverable;
+  // A message that continues the current piece ("more storytelling", "only the lines", "again, complete")
+  // needs no new research: running it again is what brought the same examples back every turn.
+  const continuing = turn === "revise" || turn === "format" || turn === "again";
+  const intent = continuing
+    ? { ...guessIntent(latestText, { page: askCtx.page }), kind: "create_content" as const, queries: [] }
+    : (await readIntent({ ownerId: ctx.ownerId, question: latestText, earlier: earlierUser, page: askCtx.page, brand: ctx.workspace?.name ?? "" })).intent;
+  const sources = continuing ? CONTINUE_SOURCES : planSources(intent, { linkInQuestion: Boolean(linkIn(latestText)), page: askCtx.page });
+  // Where the words alone weren't clear, the model's read of a new request settles what to write.
+  if (!continuing && deliverable === "answer") {
+    if (intent.kind === "create_content" && /\b(script|reel|video|short|tiktok|pitch)\b/i.test(latestText) && !/\bideas?\b/i.test(latestText)) deliverable = "full_script";
+    else if (intent.kind === "niche_research" || intent.kind === "reference_style") deliverable = "research";
+  }
   const researchP: Promise<Research> = (sources.external || sources.niche || sources.reference)
     ? competitorScopeId(ctx.client, wsId).catch(() => wsId).then((scopeId) => gatherResearch({ client: ctx.client, ownerId: ctx.ownerId, scopeId, question: latestText, intent, plan: sources, now: new Date() }))
       .catch(() => ({ evidence: "", examples: [], notes: ["The research couldn't run this time."], reference: null }))
@@ -161,37 +196,72 @@ export async function POST(req: Request) {
   const ratedEvidence = ratedBlock(rated, nowDate);
   const schedEvidence = `# Posts SOCIA can schedule or move (the user's time zone is ${tz}; it is now ${nowLocal})\n${schedulableBlock(sched.posts, tz, new Set((Array.isArray(askCtx.newPosts) ? askCtx.newPosts : []).filter((x): x is string => typeof x === "string")))}${ratedEvidence ? `\n\n${ratedEvidence}` : ""}`;
   const first = messages[0];
-  const convo: Msg[] = [{ role: "user", content: `${ev.evidence}\n\n${schedEvidence}\n\n${messages.length === 1 ? `${researchEvidence}\n\n` : ""}# The user's question\n${first.content}` }, ...messages.slice(1)];
-  // A follow-up needs the current list too (it may have changed since the
-  // first turn) and its own research: a new request in the same chat is
-  // researched for itself.
-  if (convo.length > 1 && convo[convo.length - 1].role === "user") convo[convo.length - 1] = { role: "user", content: `${schedEvidence}\n\n${researchEvidence}\n\n# The user's message\n${convo[convo.length - 1].content}` };
+  const researchOn = !continuing && (sources.external || sources.niche || sources.reference);
+  // What this message asks for: the brief so far and the one deliverable to write (lib/assistant/brief.ts).
+  const turnBlock = [briefBlock(prevBrief), `# What to write for this message\n${formatRule(deliverable, turn)}`].filter(Boolean).join("\n\n");
+  const convo: Msg[] = [{ role: "user", content: `${ev.evidence}\n\n${schedEvidence}\n\n${messages.length === 1 ? `${researchEvidence}\n\n${turnBlock}\n\n` : ""}# The user's question\n${first.content}` }, ...messages.slice(1)];
+  // A follow-up needs the current list too (it may have changed since the first turn). A new request in
+  // the same chat is researched for itself; a message that continues the current piece gets no research.
+  if (convo.length > 1 && convo[convo.length - 1].role === "user") convo[convo.length - 1] = { role: "user", content: `${schedEvidence}\n\n${researchOn ? `${researchEvidence}\n\n` : ""}${turnBlock}\n\n# The user's message\n${convo[convo.length - 1].content}` };
 
 
   const model = modelFor("ask");
   const params = {
     model,
-    // Room for a full script or caption in "draft" as well as the answer.
-    max_tokens: 4000,
-    system: `${ev.system}\n${RESEARCH_RULES}\n${SCHEDULE_RULES}`,
+    // Room for a full script in "draft", the rest of the answer and the model's thinking (which counts
+    // toward this limit): at 4,000 long scripts ran out. An answer that still hits it is caught below.
+    max_tokens: 16000,
+    system: `${ev.system}\n${productBlock()}\n${researchOn ? RESEARCH_RULES : NO_RESEARCH}\n${BRIEF_RULES}\n${SCHEDULE_RULES}`,
     output_config: { format: { type: "json_schema", schema: askAnswerSchema }, ...effortFor(model, "medium") },
     messages: convo,
   };
 
   // From the finished model message to the answer (or an error response).
-  const answerFrom = async (res: Message): Promise<Response> => {
+  const answerFrom = async (first: Message): Promise<Response> => {
   try {
+    let res = first;
     recordAiUsage(ctx.ownerId, "ask", res);
     if (res.stop_reason === "refusal") {
       await u.release();
       return NextResponse.json({ error: "SOCIA can't help with that one. Try rephrasing." }, { status: 422 });
     }
-    const block = res.content.find((b) => b.type === "text");
-    const raw = block && "text" in block ? parseJson(block.text) : null;
+    const textOf = (m: Message) => { const b = m.content.find((x) => x.type === "text"); return b && "text" in b ? b.text : ""; };
+    // An answer stopped by the output limit is never shown as if it were whole.
+    if (res.stop_reason === "max_tokens") {
+      await u.release();
+      console.error("[ask] answer hit max_tokens", res.usage?.output_tokens ?? "");
+      return NextResponse.json({ error: "SOCIA's answer ran too long and was cut off before the end, so it isn't shown. Try again, or ask for a shorter version.", kind: "cut_off" }, { status: 502 });
+    }
+    let raw = parseJson(textOf(res));
     if (!raw) {
       await u.release();
       return NextResponse.json({ error: "SOCIA returned something unreadable. Try again." }, { status: 502 });
     }
+    // Checks before it is shown (lib/assistant/brief.ts): the deliverable asked for is there, complete, in
+    // the format asked for, and says nothing false about SOCIA. What can be fixed here is fixed here; what
+    // can't gets one repair pass, a second model call only when a check fails.
+    const wantsDraft = deliverable !== "research" && deliverable !== "answer";
+    const check = (r: ModelAnswer) => checkDraft(r.draft && r.draft.kind !== "none" ? r.draft.body ?? "" : "", wantsDraft ? deliverable : "answer", falseClaimsIn);
+    let checked = check(raw);
+    let problems: Problem[] = checked.problems.filter((p) => wantsDraft || p.kind === "claim");
+    const textClaims = falseClaimsIn(raw.text ?? "").map((detail) => ({ kind: "claim" as const, detail }));
+    problems = [...problems, ...textClaims];
+    if (problems.length) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const again = await anthropic.messages.create({ ...params, messages: [...convo, { role: "assistant", content: textOf(res) }, { role: "user", content: repairNote(problems, deliverable) }] } as any) as Message;
+        recordAiUsage(ctx.ownerId, "ask", again);
+        const fixedRaw = again.stop_reason === "end_turn" ? parseJson(textOf(again)) : null;
+        if (fixedRaw) {
+          const re = check(fixedRaw);
+          const left = [...re.problems.filter((p) => wantsDraft || p.kind === "claim"), ...falseClaimsIn(fixedRaw.text ?? "").map((detail) => ({ kind: "claim" as const, detail }))];
+          if (left.length < problems.length) { raw = fixedRaw; res = again; checked = re; problems = left; }
+        }
+      } catch (e) { logAskFailure("repair", aiFailureKind(e), e); }
+    }
+    console.info("[ask] turn", JSON.stringify({ turn, deliverable, research: researchOn, fixed: checked.fixed, problems: problems.map((p) => p.kind) }));
+    // Research belongs only to a turn that ran it: a revision never brings the examples back.
+    if (!researchOn && raw.research) raw.research = { approach: "", examples: [], why: "", test: "", steps: [] };
 
     const post = raw.postId ? ev.posts.find((p) => p.id === raw.postId) ?? null : null;
     const proposals: AskProposal[] = [];
@@ -257,7 +327,7 @@ export async function POST(req: Request) {
     // Post ids are for the model's postId field, never for prose; and the
     // product's copy rule (no em dashes) applies to SOCIA's answers too.
     const clean = (t: string) => (t ?? "").replace(/\[\d{6,}\]\s*/g, "").replace(/\s*—\s*/g, ", ").replace(/\s*–\s*/g, " to ").trim();
-    const draftBody = raw.draft && raw.draft.kind !== "none" ? raw.draft.body ?? "" : "";
+    const draftBody = raw.draft && raw.draft.kind !== "none" ? checked.body : "";
     const answer: AskAnswer = {
       text: clean(raw.text),
       research: buildResearch({
@@ -272,9 +342,20 @@ export async function POST(req: Request) {
       actions: (raw.actions ?? []).map((a) => ({ label: a.label, href: hrefFor(a.type, a.note ?? "", post) })).filter((a): a is { label: string; href: string } => Boolean(a.href) && Boolean(a.label)).slice(0, 3),
       proposals,
       post: post ? { id: post.id, title: post.title, thumb: post.thumb, stat: post.views != null ? `${post.views.toLocaleString("en-US")} views` : `${post.engagements.toLocaleString("en-US")} interactions`, permalink: post.permalink } : null,
-      draft: raw.draft && raw.draft.kind !== "none" && raw.draft.body?.trim()
-        ? { kind: raw.draft.kind, title: clean(raw.draft.title).slice(0, 80) || "Draft", body: raw.draft.body.replace(/\s*—\s*/g, ", ").replace(/\r/g, "").trim().slice(0, 4000) }
+      // Never cut short here: the old 4,000-character cap ended long scripts mid-line without a word.
+      draft: raw.draft && raw.draft.kind !== "none" && draftBody.trim()
+        ? {
+            kind: deliverable === "spoken_lines" ? "script" : raw.draft.kind,
+            title: deliverable === "spoken_lines" ? "Your lines" : clean(raw.draft.title).slice(0, 80) || "Draft",
+            body: draftBody.replace(/\s*—\s*/g, ", ").replace(/\r/g, "").trim().slice(0, 24000),
+            seconds: checked.seconds,
+          }
         : null,
+      brief: nextBrief(prevBrief, sanitizeBrief({ ...(raw.brief ?? {}), output: deliverable }), turn, deliverable, latestText),
+      deliverable,
+      // "Photos of your place" only for a business people visit, under a script that films somewhere.
+      placeScan: ev.placeFilming && Boolean(draftBody) && /^\s*Film\s*:/im.test(draftBody),
+      notice: noticeFor(problems),
     };
 
     // Keep a record in the workspace's history (best-effort), so nothing the

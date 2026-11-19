@@ -154,7 +154,7 @@ export function AudioPanel({ a }: { a: StudioAnalysis }) {
         ) : <div className="ov-empty small">Audio direction applies to video. For a still post, the caption carries the tone.</div>}
       </section>
       {a.kind === "video" && <AudioInsights canEdit={false} current={null} onUse={() => null} />}
-      <p className="ov-source">Instagram&apos;s trending audio is listed on <Link href="/discover">Discover</Link>, in Instagram&apos;s order; TikTok shares none.</p>
+      <p className="ov-source">SOCIA doesn&apos;t list trending audio: pick a current sound in Instagram or TikTok when you post.</p>
     </div>
   );
 }
