@@ -32,6 +32,9 @@ vi.mock("./entitlements", () => ({
   consumeUsage: async () => { s.consumed++; return { allowed: true, usage: { used: 1 } }; },
   releaseUsage: async () => null,
 }));
+vi.mock("./planGuard", () => ({
+  requireUsage: async () => { s.consumed++; return { ent: { plan: "growth" }, usage: { used: 1 }, denied: null, release: async () => {} }; },
+}));
 vi.mock("./workspaces", () => ({ getActiveWorkspace: async () => null, competitorScopeId: async () => null, scopeToWorkspace: (q: unknown) => q }));
 vi.mock("./instagramSync", () => ({ getIgSnapshot: async () => { s.snapshots++; return null; } }));
 vi.mock("./planGenerate", () => ({ generatePlan: async () => { s.generated++; return { data: {}, saved: null }; } }));

@@ -1,5 +1,6 @@
 "use client";
 
+import { waitingDayIndexes } from "@/lib/planWaiting";
 import EvidenceSplitView from "@/components/plan/EvidenceSplitView";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -658,6 +659,8 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
       if (!res.ok) { setSaveNote(j.error ?? "Couldn't put it on the Calendar."); return; }
       setOutcomeTick((t) => t + 1);
       await persist(withItem(i, { decision: { status: "approved", at: now.toISOString() } }), `${item.day} approved: it's on the Calendar as a draft. Nothing publishes until you schedule it with media.`);
+    } catch {
+      setSaveNote(`${item.day} couldn't be put on the Calendar. Check your connection and try again.`);
     } finally { setItemBusy(null); }
   };
   const reject = async (i: number, reasons: string[], note: string | null, replace: boolean) => {
@@ -734,7 +737,7 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
 
   // Days still waiting for a decision: not turned down, not approved, not already on the Calendar.
   // Animated posts go on the Calendar with their video ("Generate animated videos"), not through Approve week.
-  const pendingDays = (data.weeklyPlan ?? []).filter((d, i) => !d.animated && !d.decision && !onCalendar(i)).length;
+  const pendingDays = waitingDayIndexes(data.weeklyPlan ?? [], onCalendar).length;
   const anyApproved = (data.weeklyPlan ?? []).some((d) => !d.animated && d.decision?.status === "approved");
 
   // When a plan day would post if placed now: the same week and audience hour
@@ -759,12 +762,19 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
       // Thursday or later (or Sunday): most of this week is gone, use next.
       const nextWeek = now.getDay() === 0 || now.getDay() >= 4;
       const weekStart = new Date(mondayOf(now).getTime() + (nextWeek ? 7 : 0) * DAY_MS);
-      // Ideas the person turned down never go on the Calendar.
-      const { drafts, skipped } = draftsFromPlan((data.weeklyPlan ?? []).filter((d) => !d.animated && d.decision?.status !== "rejected"), weekStart, (wd) =>
+      // Only days still waiting for a decision: a day turned down never goes
+      // on the Calendar, and one already approved or placed is never placed a
+      // second time (in a later week, or at a different hour).
+      const waiting = waitingDayIndexes(data.weeklyPlan ?? [], onCalendar).map((i) => data.weeklyPlan[i]);
+      if (!waiting.length) {
+        setSched({ busy: false, ok: true, planError: null, msg: "Every day of this plan is already approved, turned down or on your Calendar." });
+        return;
+      }
+      const { drafts, skipped } = draftsFromPlan(waiting, weekStart, (wd) =>
         suggestedHour(aud, (wd + 6) % 7)
       );
       const usable = drafts.filter((d) => new Date(d.scheduled_at).getTime() > now.getTime());
-      if (!usable.length) throw new Error("None of the plan's days land on a future date this week or next.");
+      if (!usable.length) throw new Error("None of the days still waiting land on a future date this week or next.");
       const res = await fetch("/api/schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -779,7 +789,7 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
       const already = Number(j.skipped ?? 0);
       setOutcomeTick((t) => t + 1);
       const placed = new Set(usable.map((d) => d.plan_day));
-      const decided = (data.weeklyPlan ?? []).map((it) => (it.decision || !placed.has(it.day) ? it : { ...it, decision: { status: "approved" as const, at: now.toISOString() } }));
+      const decided = (data.weeklyPlan ?? []).map((it) => (it.decision || it.animated || !placed.has(it.day) ? it : { ...it, decision: { status: "approved" as const, at: now.toISOString() } }));
       if (planId && await persist(decided, "")) setSaveNote(null);
       const wk = weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric" });
       const notes = [
