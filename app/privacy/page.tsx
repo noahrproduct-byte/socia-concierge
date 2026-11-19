@@ -207,6 +207,12 @@ export default function PrivacyPage() {
           each feature used, so we can set fair plan limits. Our hosting keeps
           server logs for operating and debugging the service.
         </li>
+        <li>
+          <b>Platform launch requests</b>: when you ask to be told when TikTok
+          or Facebook connections open, we keep that choice with the email
+          address you sign in with, only to send that one message. Stop it any
+          time from the same button.
+        </li>
       </ul>
 
       <h2>How we use it</h2>

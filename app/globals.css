@@ -11968,3 +11968,26 @@ p.cbm-muted { display: block; }
 /* Ask SOCIA: under a script to film, the way to the AI editor */
 .ask-to-editor { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
 .ask-to-editor p { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--text-secondary); }
+
+/* A platform not open yet: status, countdown when confirmed, notify me (components/PlatformLaunch.tsx) */
+.pl { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); min-width: 0; }
+.pl.is-compact { padding: 10px 12px; gap: 6px; width: 100%; }
+.pl-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pl-icon { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; background: var(--surface-muted); color: var(--text-primary); flex-shrink: 0; }
+.pl-name { font-size: 14px; font-weight: 650; color: var(--text-primary); }
+.pl-status { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--text-secondary); padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; white-space: nowrap; }
+.pl-count { display: flex; flex-direction: column; gap: 2px; }
+.pl-clock { margin: 0; display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.pl-num { display: inline-flex; align-items: baseline; gap: 4px; }
+.pl-num b { font-size: 20px; line-height: 1.2; font-weight: 650; color: var(--text-primary); font-variant-numeric: tabular-nums; animation: pl-tick 0.32s ease-out; }
+.pl-num small { font-size: 12px; color: var(--text-secondary); }
+@keyframes pl-tick { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .pl-num b { animation: none; } }
+.pl-when, .pl-contact { font-size: 12px; color: var(--text-secondary); }
+.pl-contact a { color: var(--text-primary); }
+.pl-wait, .pl-what { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+.pl-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pl-undo { display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; padding: 0; font: inherit; font-size: 12px; color: var(--text-secondary); cursor: pointer; text-decoration: underline; }
+.pl-undo:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; border-radius: 4px; }
+.pl-note { margin: 0; font-size: 12.5px; color: var(--text-primary); }
+.conn-row.is-launch { display: block; padding: 6px 0 0; border: 0; }

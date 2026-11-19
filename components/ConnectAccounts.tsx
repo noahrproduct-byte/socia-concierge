@@ -2,6 +2,7 @@
 
 import { Check } from "lucide-react";
 import { OFFLINE_LABEL } from "@/lib/platformStatus";
+import PlatformLaunch from "./PlatformLaunch";
 
 // The platforms SOCIA really connects, each through its own OAuth flow. There
 // is no "register" toggle: a platform is either connected (read from the
@@ -68,6 +69,8 @@ export type ConnectState = {
   connectedAs: string | null;
   /** Why this platform can't be connected right now (lib/platformStatus.ts); no Connect button then. */
   offline?: string | null;
+  /** The confirmed launch instant of an offline platform (lib/platformLaunch.ts), or null. */
+  launchAt?: string | null;
 };
 
 export default function ConnectAccounts({ states }: { states: ConnectState[] }) {
@@ -76,6 +79,10 @@ export default function ConnectAccounts({ states }: { states: ConnectState[] }) 
       {states.map((st) => {
         const a = ACCOUNTS.find((x) => x.id === st.id);
         if (!a) return null;
+        // Not open yet: its launch card (status, countdown when confirmed, notify me) instead of a row with no button.
+        if (!st.connectedAs && st.offline && (a.id === "TikTok" || a.id === "Facebook")) {
+          return <li className="conn-row is-launch" key={a.id}><PlatformLaunch platform={a.id === "TikTok" ? "tiktok" : "facebook"} at={st.launchAt ?? null} compact /></li>;
+        }
         return (
           <li className="conn-row" key={a.id}>
             <span className="conn-icon" aria-hidden>{a.mark(a.color, 18)}</span>
