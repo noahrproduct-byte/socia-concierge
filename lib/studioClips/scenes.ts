@@ -335,3 +335,35 @@ export function withPictures(edl: Edl, pictures: EdlScene[], words: Record<strin
     .filter((o) => !pics.some((p) => o.from < p.from + p.durationInFrames + gap && p.from < o.from + o.durationInFrames + gap));
   return [...pics, ...others.slice(0, Math.max(0, MAX_SCENES - pics.length))].sort((a, b) => a.from - b.from).map((x, i) => ({ ...x.scene, id: `g${i + 1}` }));
 }
+
+const FIGURE_LIKE = /^[$£€]?\d[\d,.]*(%|x|k|m|\+)?$/i;
+/** The word that carries a stretch of speech: its longest word that is not a small one. */
+const salient = (toks: Tok[]): string => toks.map((t) => plain(t.text).replace(/[^\p{L}\p{N}'-]/gu, "")).filter((w) => w && !SMALL.test(w)).reduce((best, w) => (w.length > best.length ? w : best), "");
+
+/**
+ * An effect scene on the word being said at `sec` of the cut (the next word, if none is being said), with
+ * its words taken from what is said there: the word that carries the line for a cover, a glass word or a
+ * cut-out; the figure said for a graph; the line itself for a headline. Null when the cut has no words.
+ */
+export function effectAt(edl: Edl, words: Record<string, TranscriptWord[] | null | undefined>, fx: SceneFxId, sec: number): EdlScene | null {
+  const toks = tokens(edl, words);
+  if (!toks.length) return null;
+  let i = toks.findIndex((t) => t.endMs / 1000 > sec);
+  if (i < 0) i = toks.length - 1;
+  const near = toks.slice(i, i + 8);
+  const word = salient(near).slice(0, FX_TEXT_MAX);
+  const line = near.slice(0, 5).map((t) => plain(t.text)).join(" ").slice(0, FX_LINE_MAX);
+  const figure = toks.slice(i, i + 14).map((t) => plain(t.text)).find((w) => FIGURE_LIKE.test(w));
+  const text = fx === "cover" || fx === "glass" || fx === "paper" ? word : fx === "graph" ? (figure ?? "").slice(0, 6) : fx === "news" ? line.slice(0, FX_TEXT_MAX) : fx === "reveal" || fx === "phone" ? word : "";
+  const lines = fx === "phone" ? [line].filter(Boolean) : [];
+  return { id: "new", kind: "effect", fx, key: toks[i].key, dur: 3, text, ...(lines.length ? { lines } : {}) };
+}
+
+/** A scene put onto a cut: whatever would be on screen with it, or within a second of it, comes out. Sorted by when they show. */
+export function addScene(edl: Edl, words: Record<string, TranscriptWord[] | null | undefined>, scene: EdlScene): EdlScene[] {
+  const [mine] = sceneSpans({ ...edl, scenes: [scene] }, words);
+  if (!mine) return edl.scenes ?? [];
+  const gap = Math.round(GAP_SEC * FPS);
+  const kept = sceneSpans(edl, words).filter((o) => !(o.from < mine.from + mine.durationInFrames + gap && mine.from < o.from + o.durationInFrames + gap));
+  return [...kept, mine].sort((a, b) => a.from - b.from).slice(0, MAX_SCENES).map((x, k) => ({ ...x.scene, id: `g${k + 1}` }));
+}

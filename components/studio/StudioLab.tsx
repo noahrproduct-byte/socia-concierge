@@ -8,7 +8,8 @@
 //   rate, rate-analysis, rate-improve, build, build-collect, build-yield,
 //   opportunity, editor, editor-text, editor-finish, edit, audio, guide.
 import type { Edl } from "@/lib/studioClips/types";
-import { tokens, withPictures } from "@/lib/studioClips/scenes";
+import { addScene, effectAt, tokens, withPictures } from "@/lib/studioClips/scenes";
+import { isSceneFx } from "@/lib/studioClips/sceneFx";
 import { DEMO_EGYPT, DEMO_WAREHOUSE } from "@/lib/studioClips/sceneArtDemo";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -97,8 +98,11 @@ function installMock(thumbs: fx.Thumb[], durationSec: number, screen: Screen): (
       const words = Object.fromEntries(d.sources.map((s) => [s.clipId, s.words]));
       const toks = edl ? tokens(edl, words) : [];
       if (!edl || !toks.length) return json({ scenes: edl?.scenes ?? [], pictures: 0 });
-      const scenes = withPictures(edl, [{ id: "p1", kind: "picture", key: toks[Math.min(3, toks.length - 1)].key, dur: 3.2, text: "Warehouse in Egypt", art: [DEMO_WAREHOUSE, DEMO_EGYPT] }], words);
-      return json({ scenes, pictures: scenes.filter((s) => s.kind === "picture").length });
+      const wanted = ((init?.body ? (JSON.parse(String(init.body)) as { wanted?: unknown[] }).wanted : null) ?? []).filter(isSceneFx);
+      // Picked effects go on the first words; with none picked the stand-in picture shows instead.
+      let scenes = wanted.length ? edl.scenes ?? [] : withPictures(edl, [{ id: "p1", kind: "picture", key: toks[Math.min(3, toks.length - 1)].key, dur: 3.2, text: "Warehouse in Egypt", art: [DEMO_WAREHOUSE, DEMO_EGYPT] }], words);
+      wanted.forEach((fx, i) => { const made = effectAt(edl, words, fx, 0.4 + i * 3.4); if (made) scenes = addScene({ ...edl, scenes }, words, made); });
+      return json({ scenes, pictures: scenes.filter((s) => s.kind === "picture").length, effects: scenes.filter((s) => s.kind === "effect").length });
     }
     if (p.startsWith("/api/studio/builds/") && p.endsWith("/instruct")) return json({ edl: null, reply: "", done: [], skipped: [], changed: false });
     if (fresh && p === `/api/studio/projects/${fx.PROJECT_ID}/clip-build`) return json(freshBuild());

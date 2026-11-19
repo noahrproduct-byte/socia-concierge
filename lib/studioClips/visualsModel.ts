@@ -4,7 +4,7 @@ import { AnalysisError } from "./analysis";
 import { countryArt } from "./countryMap";
 import { sanitizeArt, ART_MAX, type SceneArt } from "./sceneArt";
 import { MAX_PICTURES, SCENE_LABEL_MAX, type EdlScene } from "./scenes";
-import { FX_LINE_MAX, FX_TEXT_MAX, MAX_EFFECTS, SCENE_FX, isSceneFx } from "./sceneFx";
+import { FX_LINE_MAX, FX_TEXT_MAX, MAX_EFFECTS, SCENE_FX, isSceneFx, type SceneFxId } from "./sceneFx";
 
 // Picture scenes from what is said and what the person asked for: the model
 // reads the cut's words (numbered, with their times) and the person's prompt,
@@ -96,12 +96,13 @@ export function effectsFrom(data: unknown, said: SaidWord[]): EdlScene[] {
   return out;
 }
 
-export async function picturesFor(said: SaidWord[], prompt: string, ownerId: string): Promise<EdlScene[]> {
+export async function picturesFor(said: SaidWord[], prompt: string, ownerId: string, wanted: SceneFxId[] = []): Promise<EdlScene[]> {
   if (!said.length) return [];
   const model = modelFor("studio_edl");
   const words = said.slice(0, 900).map((w, i) => `${i + 1}|${w.sec.toFixed(1)}|${w.text}`).join("\n");
   const user = `The words (number|second|word):\n${words}\n\n${prompt.trim() ? `The person editing asked: """${prompt.trim().slice(0, 1200)}"""` : "The person editing gave no instructions: picture only what clearly deserves it, and use an effect only where the words clearly call for one."}`;
-  const params = { model, max_tokens: 6000, system: SYSTEM, messages: [{ role: "user", content: user }], output_config: { ...effortFor(model, "medium") } };
+  const picked = wanted.length ? `\n\nThe person picked these effects themselves: ${wanted.map((id) => `"${id}"`).join(", ")}. Use every one of them exactly once, each on the moment in the words it fits best, with its text taken from what is said there. Use no effect they did not pick.` : "";
+  const params = { model, max_tokens: 6000, system: SYSTEM, messages: [{ role: "user", content: user + picked }], output_config: { ...effortFor(model, "medium") } };
   // output_config (the effort setting) is ahead of the SDK's types, as in analysis.ts.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const res = await anthropic.messages.create(params as any);

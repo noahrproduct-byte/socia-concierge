@@ -26,7 +26,9 @@ import FinishPanel from "./FinishPanel";
 import TextLayersPanel from "./TextLayersPanel";
 import ScenesPanel from "./ScenesPanel";
 import LogoPanel from "./LogoPanel";
-import { findScenes, sceneSpans } from "@/lib/studioClips/scenes";
+import MotionEffectsPanel from "./MotionEffectsPanel";
+import { SCENE_FX } from "@/lib/studioClips/sceneFx";
+import { addScene, effectAt, findScenes, sceneSpans } from "@/lib/studioClips/scenes";
 import { useSafeZoneGuide } from "./TextOverlay";
 import Timeline, { editorKey, type TimelineSelection } from "./Timeline";
 import { reorder, tracksFor, trimCut } from "@/lib/studioClips/tracks";
@@ -116,10 +118,11 @@ function Finished({ message }: { message: string }) {
 }
 
 /** The tabs, in CapCut's order: the theme first, then what it is made of. */
-type Panel = "ask" | "theme" | "cut" | "words" | "sound" | "look" | "regenerate";
+type Panel = "ask" | "motion" | "theme" | "cut" | "words" | "sound" | "look" | "regenerate";
 /** The tools under the timeline, in order (the way CapCut lays its tools under the preview); one opens at a time as a panel. */
 const SECTIONS: { id: Panel; label: string; hint: string }[] = [
   { id: "ask", label: "Tell SOCIA", hint: "Type or say what to change in this cut." },
+  { id: "motion", label: "Motion effects", hint: "Press an effect to put it on the video at the playhead." },
   { id: "theme", label: "Theme", hint: "The look, the motion and the joins. Your trims and words stay." },
   { id: "cut", label: "This cut", hint: "Trim, sound, motion and the join of the cut under the playhead." },
   { id: "words", label: "Words", hint: "The lines on the video, the captions, the lower third and the ending." },
@@ -128,7 +131,7 @@ const SECTIONS: { id: Panel; label: string; hint: string }[] = [
   { id: "regenerate", label: "Make it again", hint: "Another first cut, from SOCIA." },
 ];
 const TOOL_ICON: Record<Panel, ReactNode> = {
-  ask: <MessageSquare size={16} />, theme: <Layers size={16} />, cut: <Scissors size={16} />, words: <Type size={16} />, sound: <Music size={16} />, look: <SlidersHorizontal size={16} />, regenerate: <RefreshCw size={16} />,
+  ask: <MessageSquare size={16} />, motion: <Clapperboard size={16} />, theme: <Layers size={16} />, cut: <Scissors size={16} />, words: <Type size={16} />, sound: <Music size={16} />, look: <SlidersHorizontal size={16} />, regenerate: <RefreshCw size={16} />,
 };
 const PANEL_FOR: Record<string, Panel> = { themes: "theme", cut: "cut", text: "words", captions: "words", effects: "cut", transitions: "cut", audio: "sound", finish: "look", adjust: "look", regenerate: "regenerate" };
 
@@ -188,6 +191,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     }
   };
   // The Look tool in four short pages (it was one five-screen scroll).
+  const [fxNote, setFxNote] = useState<string | null>(null);
   const [lookTab, setLookTab] = useState<"look" | "type" | "frame" | "fix">("look");
   const [presets, setPresets] = useState<VideoPresets>({ brand: null, templates: [] });
   const [tplName, setTplName] = useState("");
@@ -1225,6 +1229,33 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               )}
             </div>
           </details>
+          </section>
+        )}
+        {section === "motion" && (
+          <section className="sd-tool-body" aria-labelledby="sd-tool-motion">
+            <MotionEffectsPanel
+              scenes={edl.scenes ?? []}
+              spans={sceneSpans(edl, applyCtx.words)}
+              disabled={!data.canEdit || busy}
+              hasWords={anySpeech}
+              note={fxNote}
+              onAdd={(fx) => {
+                const sec = (player.current?.getCurrentFrame() ?? 0) / OUTPUT.fps;
+                const made = effectAt(edl, applyCtx.words, fx, sec);
+                if (!made) { setFxNote("There is no speech in this cut to put an effect on."); return; }
+                const scenes = addScene(edl, applyCtx.words, made);
+                const mine = scenes.find((x) => x.kind === "effect" && x.key === made.key && x.fx === fx);
+                if (!mine) { setFxNote("There is not enough of the video left after the playhead for an effect. Move the playhead earlier."); return; }
+                const next = { ...edl, scenes };
+                commit(next);
+                const span = sceneSpans(next, applyCtx.words).find((x) => x.scene.id === mine.id);
+                const p = player.current;
+                if (p && span) { p.pause(); p.seekTo(Math.min(tl.durationFrames - 1, span.from + 18)); }
+                setFxNote(`${SCENE_FX[fx].label} is on the video${mine.text ? `, with "${mine.text}" from what is said there` : ""}. Change its words below, or press play.`);
+              }}
+              onChange={(scenes) => { const { scenes: _old, scenesBehind: _b, scenesSplit: _s, ...rest } = edl; commit(scenes.length ? { ...rest, scenes, ...(edl.scenesSplit ? { scenesSplit: true as const } : edl.scenesBehind ? { scenesBehind: true as const } : {}) } : rest); }}
+              onShow={(span) => { const p = player.current; if (p) { p.pause(); p.seekTo(Math.min(tl.durationFrames - 1, span.from + 18)); } }}
+            />
           </section>
         )}
         {section === "words" && (

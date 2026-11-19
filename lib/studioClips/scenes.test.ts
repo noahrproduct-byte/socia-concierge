@@ -257,3 +257,25 @@ describe("effect scenes", () => {
     expect(kept[1].fx).toBe("dolly");
   });
 });
+
+import { addScene, effectAt } from "./scenes";
+
+describe("an effect pressed at the playhead", () => {
+  const say = ["We", "sold", "500", "handmade", "rugs", "this", "week", "and", "people", "loved", "them", "so", "much"];
+  const words = { talk: say.map((text, i) => ({ text, startMs: 1000 + i * 400, endMs: 1300 + i * 400, confidence: 1 })) };
+  const edl = { version: 1, fps: 30, width: 1080, height: 1920, targetSec: { min: 1, max: 60 }, segments: [{ id: "s1", clipId: "talk", in: 0, out: 12, role: "opener", note: "" }], text: [], captions: null, enhance: [], audio: [], cta: null, music: null, caption: "", notes: [],
+    scenes: [{ id: "g1", kind: "stat", key: "talk@1800", dur: 2, text: "500" }] } as unknown as Edl;
+  it("lands on the word being said, with its words taken from what is said there", () => {
+    expect(effectAt(edl, words, "glass", 1.1)).toMatchObject({ kind: "effect", fx: "glass", key: "talk@1000", text: "handmade" });
+    expect(effectAt(edl, words, "graph", 1.1)?.text).toBe("500");
+    expect(effectAt(edl, words, "dolly", 99)).toMatchObject({ key: "talk@5800", text: "" });
+    expect(effectAt({ ...edl, segments: [] } as Edl, words, "glass", 0)).toBeNull();
+  });
+  it("takes the place of whatever was on screen then, and leaves the rest", () => {
+    const made = effectAt(edl, words, "cover", 1.1)!;
+    const scenes = addScene(edl, words, made);
+    expect(scenes.map((s) => s.kind)).toEqual(["effect"]);
+    const later = addScene(edl, words, effectAt(edl, words, "frame", 5.4)!);
+    expect(later.map((s) => s.kind)).toEqual(["stat", "effect"]);
+  });
+});

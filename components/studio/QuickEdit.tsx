@@ -29,7 +29,8 @@ import type { Track } from "@/lib/music/tracks";
 import { beatOfTrack } from "@/lib/studioClips/beatClient";
 import { AUTO_IMPROVE_TIMEOUT_MS } from "@/lib/studioClips/enhancePrompt";
 import { useSpeech } from "./useSpeech";
-import { SCENE_FX } from "@/lib/studioClips/sceneFx";
+import { SCENE_FX, isSceneFx, type SceneFxId } from "@/lib/studioClips/sceneFx";
+import { EffectTiles } from "./MotionEffectsPanel";
 import type { EdlScene } from "@/lib/studioClips/scenes";
 import MicButton from "./MicButton";
 import { lookAtCut } from "@/lib/studioClips/lookAtCut";
@@ -42,11 +43,13 @@ import type { LocalClip } from "./ClipsViews";
 import { renderBlocker, renderBuild } from "./renderBuild";
 
 type Stage = "upload" | "words" | "picture" | "cut" | "render" | "check" | "done" | "error";
-type Result = { buildId: string; title: string; blob: Blob; url: string; rawUrl: string | null; stats: QuickStats; clips: number; clipsUsed: number; picture: boolean; prompt: string; notes: string[]; lines: string[]; report: RenderReport | null; edl: Edl; look: string; music: string | null; width: number; height: number };
+type Result = { buildId: string; title: string; blob: Blob; url: string; rawUrl: string | null; stats: QuickStats; clips: number; clipsUsed: number; picture: boolean; prompt: string; fx: SceneFxId[]; notes: string[]; lines: string[]; report: RenderReport | null; edl: Edl; look: string; music: string | null; width: number; height: number };
 type Draft = { phase: "idle" } | { phase: "saving"; progress: number } | { phase: "saved"; postId: string } | { phase: "error"; message: string };
-type Choice = { look: string; trackId: string; scenes: boolean; behind: boolean; split: boolean; /** how the person wants it, typed or spoken */ prompt: string };
+type Choice = { look: string; trackId: string; scenes: boolean; behind: boolean; split: boolean; /** how the person wants it, typed or spoken */ prompt: string; /** the effects the person picked; none = SOCIA picks */ fx: SceneFxId[] };
 const PROMPT_MAX = 1200;
 const PROMPT_KEY = "socia.quickEdit.prompt";
+const FX_KEY = "socia.quickEdit.fx";
+const keptFx = (): SceneFxId[] => { try { return (window.localStorage.getItem(FX_KEY) ?? "").split(",").filter(isSceneFx).slice(0, 4); } catch { return []; } };
 /** Sent with the person's words to the step that changes the cut, so asks for pictures (made in their own step) are not answered as "can't". */
 const NOT_PICTURES = " (Requests for pictures, graphics or visuals are handled in another step: leave them out, and do not mention them in the reply.)";
 /** Where the graphics sit: a card over the picture, behind the person talking, or a split screen. */
@@ -115,6 +118,13 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
   const [scenesOn, setScenesOn] = useState(true);
   const [place, setPlace] = useState<Place>("behind");
   const [trackId, setTrackId] = useState("");
+  // The effects picked before the drop (kept on this computer); none picked = SOCIA picks.
+  const [fxPick, setFxPick] = useState<SceneFxId[]>([]);
+  const toggleFx = (id: SceneFxId) => setFxPick((was) => {
+    const next = was.includes(id) ? was.filter((x) => x !== id) : was.length >= 4 ? was : [...was, id];
+    try { window.localStorage.setItem(FX_KEY, next.join(",")); } catch { /* not kept */ }
+    return next;
+  });
   // How the person wants it, typed or spoken; it goes with the cut and decides the pictures.
   const [prompt, setPromptState] = useState("");
   // Kept for this tab, so what was typed before the drop is still there when the clips land and after the video is made.
@@ -136,6 +146,8 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
       const kept = window.localStorage.getItem(LOOK_KEY);
       if (kept && themeById(kept)) setLook(kept);
       if (window.localStorage.getItem(SCENES_KEY) === "off") setScenesOn(false);
+      const effects = keptFx();
+      if (effects.length) setFxPick(effects);
       const where = window.localStorage.getItem(BEHIND_KEY);
       if (where === "off") setPlace("over");
       else if (where === "split") setPlace("split");
@@ -322,7 +334,7 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
       // Pictures of what is being talked about, and of what the person asked for.
       if (choice.scenes && anyWords) {
         setStep("Drawing the pictures");
-        const res = await call(`/api/studio/builds/${id}/visuals`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ edl: made, prompt: ask }) });
+        const res = await call(`/api/studio/builds/${id}/visuals`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ edl: made, prompt: ask, wanted: choice.fx }) });
         const j = await json(res);
         const n = typeof j?.pictures === "number" ? j.pictures : 0;
         const fxN = typeof j?.effects === "number" ? j.effects : 0;
@@ -374,7 +386,7 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
       urls.current.push(url);
       const used = new Set([...kept.segments.map((s) => s.clipId), ...(kept.broll ?? []).map((b) => b.clipId)]).size;
       setResult({
-        buildId: id, title, blob: out.blob, url, rawUrl: data.sources.length === 1 ? data.sources[0].url : null, stats: st, clips: data.sources.length, clipsUsed: used, picture: viaPicture.current, prompt: choice.prompt.trim(),
+        buildId: id, title, blob: out.blob, url, rawUrl: data.sources.length === 1 ? data.sources[0].url : null, stats: st, clips: data.sources.length, clipsUsed: used, picture: viaPicture.current, prompt: choice.prompt.trim(), fx: choice.fx,
         notes: [...cut.notes, ...aiNotes, ...musicNotes], lines: kept.text.map((t) => t.text.trim()).filter(Boolean), report: out.report, edl: kept, look: chosen.id, music: musicName, width: out.width, height: out.height,
       });
       setStage("done");
@@ -391,7 +403,7 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
   useEffect(() => {
     if (!settled || !ready.length || !projectId || started.current) return;
     started.current = true;
-    void run({ look, trackId, scenes: scenesOn, behind: place === "behind", split: place === "split", prompt: prompt || promptRef.current });
+    void run({ look, trackId, scenes: scenesOn, behind: place === "behind", split: place === "split", prompt: prompt || promptRef.current, fx: fxPick.length ? fxPick : keptFx() });
     // The choices are read when the clips land; changing them afterwards is "Make it again".
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settled, ready.length, projectId, run]);
@@ -439,6 +451,13 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
         <small>{speech.listening ? "Listening. Press the button again when you're done talking." : "Type it or press the microphone and talk. SOCIA cuts to it and draws the pictures you ask for."}</small>
         {speech.error && <small className="qe-prompt-err" role="alert">{speech.error}</small>}
       </div>
+  );
+  const fxBox = (disabled: boolean) => (
+    <details className="qe-fx" open={fxPick.length > 0 || undefined}>
+      <summary>Motion effects <span>{fxPick.length ? `${fxPick.length} picked: ${fxPick.map((id) => SCENE_FX[id].label.toLowerCase()).join(", ")}` : "SOCIA picks. Press to choose your own."}</span></summary>
+      <EffectTiles on={fxPick} disabled={disabled || !scenesOn} onPress={toggleFx} />
+      <small>Pick up to four. Each is used once, on the moment it fits best. Pick none and SOCIA decides.</small>
+    </details>
   );
   const choices = (disabled: boolean, idPrefix: string) => (
     <div className="qe-choices">
@@ -495,7 +514,7 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
         )}
         <input ref={input} type="file" hidden multiple accept="video/mp4,video/quicktime,video/webm,video/*" onChange={(e) => { if (e.target.files) take(e.target.files); e.target.value = ""; }} />
         {pickNote && <p className="qe-err" role="alert"><AlertTriangle size={14} aria-hidden /> {pickNote}</p>}
-        {!blocker && <motion.div className="qe-wide" {...rise(4)}>{promptBox(false, "qe-start")}</motion.div>}
+        {!blocker && <motion.div className="qe-wide" {...rise(4)}><div className="qe-stack">{promptBox(false, "qe-start")}{fxBox(false)}</div></motion.div>}
         <motion.ul className="qe-does" aria-label="What it does" {...rise(4)}>
           <li><Check size={13} aria-hidden /> Cuts pauses and repeated takes</li>
           <li><Check size={13} aria-hidden /> Picks the best shots</li>
@@ -521,7 +540,7 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
     const faults = renderFaults(result.report);
     const s = result.stats;
     const lookName = themeById(result.look)?.name ?? result.look;
-    const changed = prompt.trim() !== result.prompt || look !== result.look || (trackId ? tracks.find((t) => t.id === trackId)?.name ?? "" : null) !== result.music || scenesOn !== (s.scenes > 0) || (s.scenes > 0 && place !== placeOf(result.edl));
+    const changed = fxPick.join() !== result.fx.join() || prompt.trim() !== result.prompt || look !== result.look || (trackId ? tracks.find((t) => t.id === trackId)?.name ?? "" : null) !== result.music || scenesOn !== (s.scenes > 0) || (s.scenes > 0 && place !== placeOf(result.edl));
     return (
       <section className="qe" aria-labelledby="qe-done">
         <div className={`qe-stage${compare && result.rawUrl ? " is-compare" : ""}`}>
@@ -581,9 +600,10 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
             <details className="qe-notes">
               <summary>Make it again with other instructions, look or music</summary>
               {promptBox(false, "qe-done")}
+              {fxBox(false)}
               {choices(false, "qe-done")}
               <div className="qe-actions">
-                <button type="button" className="qe-btn" disabled={!changed} onClick={() => void run({ look, trackId, scenes: scenesOn, behind: place === "behind", split: place === "split", prompt })}><RefreshCw size={14} aria-hidden /> Make it again</button>
+                <button type="button" className="qe-btn" disabled={!changed} onClick={() => void run({ look, trackId, scenes: scenesOn, behind: place === "behind", split: place === "split", prompt, fx: fxPick })}><RefreshCw size={14} aria-hidden /> Make it again</button>
               </div>
               <p className="qe-fine">Same clips and the same starting cut: your instructions, the look, the music and the graphics are applied again. No new cut is counted.</p>
             </details>
@@ -649,7 +669,7 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
           {failed.map((l) => <p key={l.key} className="qe-err" role="alert"><AlertTriangle size={14} aria-hidden /> {many ? `${l.name}: ` : ""}{l.phase === "duplicate" ? "This clip is already in this video." : l.error ?? "This clip couldn't be added."}{many && ready.length ? " The video is made without it." : ""}</p>)}
           {stage === "error" && error && <p className="qe-err" role="alert"><AlertTriangle size={14} aria-hidden /> {error}</p>}
           <div className="qe-actions">
-            {stage === "error" && ready.length > 0 && <button type="button" className="qe-btn is-primary" onClick={() => void run({ look, trackId, scenes: scenesOn, behind: place === "behind", split: place === "split", prompt })}><RefreshCw size={14} aria-hidden /> Try again</button>}
+            {stage === "error" && ready.length > 0 && <button type="button" className="qe-btn is-primary" onClick={() => void run({ look, trackId, scenes: scenesOn, behind: place === "behind", split: place === "split", prompt, fx: fxPick })}><RefreshCw size={14} aria-hidden /> Try again</button>}
             {stage === "error" && buildId.current && <button type="button" className="qe-btn" onClick={() => onOpenEditor(buildId.current!, title)}>Open it in the editor instead</button>}
             <button type="button" className="qe-btn is-quiet" onClick={again}>{allFailed || stage === "error" ? "Use other footage" : "Stop"}</button>
           </div>

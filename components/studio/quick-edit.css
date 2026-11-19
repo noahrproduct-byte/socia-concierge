@@ -67,6 +67,15 @@
 .qe-prompt-box textarea:disabled { opacity: 0.5; }
 .qe-prompt > small { font-size: 12px; line-height: 16px; color: var(--qe-faint); }
 .qe-prompt > small.qe-prompt-err { color: var(--qe-red, #d33); }
+.qe-stack { display: flex; flex-direction: column; width: 100%; }
+.qe-fx { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--qe-line); border-radius: 14px; background: var(--qe-input); text-align: left; }
+.qe-fx > summary { cursor: pointer; font-size: 14px; line-height: 20px; font-weight: 600; color: var(--qe-text); }
+.qe-fx > summary span { margin-left: 8px; font-size: 12px; font-weight: 500; color: var(--qe-faint); }
+.qe-fx[open] > summary { margin-bottom: 12px; }
+.qe-fx > small { display: block; margin-top: 10px; font-size: 12px; line-height: 16px; color: var(--qe-faint); }
+.qe-fx .fxp-tile { border-color: var(--qe-line); color: var(--qe-text); background: transparent; }
+.qe-fx .fxp-tile.is-on { border-color: var(--qe-blue); background: var(--qe-hover); }
+.qe-fx .fxp-tile small { color: var(--qe-faint); }
 .qe-check { display: flex; align-items: center; gap: 10px; font-size: 13px; line-height: 18px; color: var(--qe-text); }
 .qe-check input { width: 16px; height: 16px; margin: 0; accent-color: var(--qe-blue); }
 .qe-fine { margin: 0; max-width: 72ch; font-size: 12.5px; line-height: 18px; color: var(--qe-faint); }
