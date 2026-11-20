@@ -920,3 +920,62 @@ html[data-ws-switching]::after {
     transform: none;
   }
 }
+
+/* The account menu's appearance row (components/AppearanceChoice.tsx): Light, Dark, System. */
+.s-menu-appearance {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-1) var(--sp-2);
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.s-menu-appearance > div {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--r-control);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+}
+.s-menu-appearance button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--r-chip);
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: background-color var(--t-press) var(--ease-out), color var(--t-press) var(--ease-out);
+}
+.s-menu-appearance button svg { width: 15px; height: 15px; }
+.s-menu-appearance button.is-on {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-ring);
+}
+@media (hover: hover) and (pointer: fine) {
+  .s-menu-appearance button:not(.is-on):hover { color: var(--ink); }
+}
+.s-menu-appearance button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Settings, Appearance */
+.s-appearance {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+.s-appearance-note {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}

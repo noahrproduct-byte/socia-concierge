@@ -57,7 +57,8 @@ import WorkspacesManager, { type WorkspaceRow } from "@/components/settings/Work
 import TeamManager, { type TeamMemberRow, type TeamInviteRow } from "@/components/settings/TeamManager";
 import { resolveContext, can, brandWorkspace } from "@/lib/context";
 import { teamEnabled, listMembers, listInvites, seatsUsed } from "@/lib/team";
-import { Gift, Users } from "lucide-react";
+import { Gift, SunMoon, Users } from "lucide-react";
+import { AppearanceSetting } from "@/components/AppearanceChoice";
 import type { BrandDetail } from "@/lib/profile";
 import { workspacesEnabled, listWorkspaces, getActiveWorkspace, activeWorkspaces, scopeToWorkspace, competitorScopeId } from "@/lib/workspaces";
 import { listTracked } from "@/lib/trackedCompetitors";
@@ -591,6 +592,16 @@ export default async function SettingsPage({
               </div>
               <StrategistSettings />
               <AnimatedChoice canEdit={connCtx.role !== "member"} />
+            </section>
+
+            {/* Appearance: Light, Dark or System (lib/appearance.ts) */}
+            <section className="st2-card" id="appearance">
+              <div className="st2-card-head">
+                <span className="st2-card-ico"><SunMoon size={15} /></span>
+                <h3>Appearance</h3>
+                <span className="st2-card-note">Saved to your account</span>
+              </div>
+              <AppearanceSetting />
             </section>
 
             {/* 6 — Notifications & Reports (planned; no fake toggles) */}

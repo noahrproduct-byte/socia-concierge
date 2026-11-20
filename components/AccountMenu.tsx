@@ -8,6 +8,7 @@
 import { ArrowUpRight, ChevronsUpDown, LogOut, Settings } from "lucide-react";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/system";
 import { PLANS, type PlanId } from "@/lib/plans";
+import { AppearanceMenuRow } from "@/components/AppearanceChoice";
 
 export default function AccountMenu({
   email,
@@ -60,6 +61,8 @@ export default function AccountMenu({
             <span>Upgrade to {upgrade.name}</span>
           </MenuItem>
         )}
+        <MenuSeparator />
+        <AppearanceMenuRow />
         <MenuSeparator />
         <form action="/auth/signout" method="post">
           <MenuItem render={<button type="submit" />}>
