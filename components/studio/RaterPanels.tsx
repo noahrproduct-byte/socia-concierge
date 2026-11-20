@@ -16,7 +16,7 @@ import { CATEGORY_INFO, fmtT, type ApplyField, type Marker, type StudioAnalysis,
 import { CONFIDENCE_LABEL, PRIORITY_LABEL, directionText, fmtSpan, scoreAfterEdits, type Direction, type PostRef } from "@/lib/studioVerdict";
 import { CAPABILITY, type Moment } from "@/lib/studioFixes";
 import { KIND_LABEL, finding, nextStep, outlookFinding, type Lesson, type RaterOutcome } from "@/lib/raterLog";
-import { BASELINE_MIN, RECENT_N, SETTLE_DAYS, STRONG_VIDEO, fmtViews, outlookFor, roundViews, strengthAfter, videoStrength, type Backtest, type Forecast } from "@/lib/outlook";
+import { BASELINE_MIN, RECENT_N, SETTLE_DAYS, STRONG_VIDEO, fmtViews, nicheForecast, outlookFor, roundViews, strengthAfter, videoStrength, type Backtest, type Forecast } from "@/lib/outlook";
 import type { OutlookPayload } from "@/lib/outlookLoad";
 import { MomentPreview, type FixOptions } from "./ImproveWalkthrough";
 import { Bar, CountUp, Reveal, Ring } from "@/components/dashboard/motion";
@@ -183,6 +183,7 @@ export function OutlookBlock({ state, caption, suggestion, strength, onRetry }: 
               <div><dt>Your usual</dt><dd>Median {fmtViews(b.median)} views. Half of those Reels fell between {fmtViews(b.low)} and {fmtViews(b.high)}.</dd></div>
               {mo && <div><dt>Momentum</dt><dd>Your last {mo.recentN} Reels have a median of {fmtViews(mo.recentMedian)} views; the {mo.earlierN} before them, {fmtViews(mo.earlierMedian)}.</dd></div>}
               <div><dt>Virality potential</dt><dd>SOCIA&apos;s read of this video alone: the hook counts for 30%, story, pacing, clarity and picture for 15% each, captions and sound for 5% each. The ask and brand fit don&apos;t count, and neither does your account.</dd></div>
+              <div><dt>Estimated views</dt><dd>When your own Reels can&apos;t predict yet: real Reels SOCIA read from your competitors and suggested accounts, as views per follower so big and small accounts compare, placed by this video&apos;s potential and scaled to your followers. Other accounts&apos; results, so always low confidence.</dd></div>
               <div><dt>Predicted views</dt><dd>An ordinary video lands at your median; each point of potential moves it up or down your own range. That is weighed 70 to 30 with what your history expects, then widened by how far your Reels vary. A video with potential of {STRONG_VIDEO} or more can reach at least your best Reel.</dd></div>
               <div><dt>The check</dt><dd>On your history alone: {bt ? bt.why : "no Reel can be replayed yet."} The video part can only be checked against rated videos&apos; real results, so it stays low confidence until those exist.</dd></div>
               <div><dt>Not included</dt><dd>How each Reel&apos;s views grew over time (SOCIA has kept only the latest count), past Reels&apos; video length, and what your followers saw that week.</dd></div>
@@ -215,11 +216,30 @@ function ViralityHero({ outlook, strength, f }: { outlook: OutlookState; strengt
     : !data?.connected ? "Connect Instagram to predict views from your own Reels."
     : data.insightsOk === false ? "Instagram isn't sharing view counts for this account. Reconnect it in Settings."
     : `SOCIA has ${data.model.reels.length} Reel${data.model.reels.length === 1 ? "" : "s"} with views out ${SETTLE_DAYS} days or more, and needs ${BASELINE_MIN}.${data.model.pending > 0 ? ` ${data.model.pending} newer ${data.model.pending === 1 ? "one counts" : "ones count"} once ${data.model.pending === 1 ? "it reaches" : "they reach"} that age.` : ""}`;
-  const views = (
+  // Without enough of the account's own Reels: an estimate from real Reels in the niche (lib/outlook.ts nicheForecast).
+  const nf = !f && data ? nicheForecast(data.niche, data.connected ? data.followers : null, strength) : null;
+  const views = f ? (
     <div className="sd-heroviews">
       <small>Predicted views on your account</small>
-      {f ? <b>{fmtViews(f.low)} to {fmtViews(f.high)}</b> : <p>{missing}</p>}
-      {f && !f.checked && <em className="ov-chip warning">Low confidence</em>}
+      <b>{fmtViews(f.low)} to {fmtViews(f.high)}</b>
+      {!f.checked && <em className="ov-chip warning">Low confidence</em>}
+    </div>
+  ) : nf ? (
+    <div className="sd-heroviews">
+      <small>Estimated views</small>
+      <b>{fmtViews(nf.low)} to {fmtViews(nf.high)}</b>
+      <em className="ov-chip warning">Low confidence</em>
+      <p>
+        {nf.basis === "followers"
+          ? `From ${nf.reels} Reels by ${nf.accounts} accounts in your niche, as views per follower, scaled to your ${fmtViews(data!.followers ?? 0)} followers and placed by this video's potential.`
+          : `What ${nf.reels} Reels by ${nf.accounts} accounts in your niche got (their middle size is ${fmtViews(nf.medianFollowers)} followers), placed by this video's potential. Connect Instagram to scale it to your account.`}
+        {data?.connected ? ` Your own Reels take over once SOCIA has ${BASELINE_MIN} that are ${SETTLE_DAYS} days old.` : ""}
+      </p>
+    </div>
+  ) : (
+    <div className="sd-heroviews">
+      <small>Predicted views on your account</small>
+      <p>{missing}{data && !data.niche ? " Or track a few competitors on Discover, and SOCIA estimates from their Reels." : ""}</p>
     </div>
   );
   if (strength == null) return <div className="st-score-meta sd-duo-empty"><small>Virality potential</small><b>Not ready yet</b><p>Too little of this video could be scored.</p>{views}</div>;
