@@ -95,7 +95,7 @@ export default function BrandRead({ visual, value, onChange }: { visual: VisualR
                   )}
                   <div className="br-format-body">
                     <div className="br-format-head">
-                      <Input aria-label="Name of this kind of video" maxLength={40} value={f.name} disabled={!f.keep} onChange={(e) => setFormat(i, { name: e.target.value })} />
+                      <Input aria-label="Name of this kind of video" autoComplete="off" maxLength={40} value={f.name} disabled={!f.keep} onChange={(e) => setFormat(i, { name: e.target.value })} />
                       <select className="s-input br-made" aria-label="How it's made" value={f.made} disabled={!f.keep} onChange={(e) => setFormat(i, { made: e.target.value as Made })}>
                         {MADE.map((m) => <option key={m} value={m}>{MADE_LABEL[m]}</option>)}
                       </select>
@@ -118,7 +118,8 @@ export default function BrandRead({ visual, value, onChange }: { visual: VisualR
 
       <div className="br-block">
         <Field label="Your look" optional hint="What your videos share: colours, type, logo, characters.">
-          <Input maxLength={240} value={value.look} placeholder="e.g. Dark navy, bold condensed yellow headlines, the green logo top right" onChange={(e) => onChange({ ...value, look: e.target.value })} />
+          {/* Not an address: browsers once filled a street name in here, and every plan repeated it as the "look". */}
+          <Input name="socia-video-look" autoComplete="off" data-1p-ignore data-lpignore="true" maxLength={240} value={value.look} placeholder="e.g. Dark navy, bold condensed yellow headlines, the green logo top right" onChange={(e) => onChange({ ...value, look: e.target.value })} />
         </Field>
       </div>
       {visual && visual.limitations.length > 0 && <p className="br-note">{visual.limitations.join(" ")}</p>}

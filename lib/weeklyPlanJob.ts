@@ -30,6 +30,7 @@ import { alertsEnabled, recordAlerts } from "./alerts";
 import { planReadyAlert } from "./alertDetectors";
 import type { GenerateInput } from "./schema";
 import { startingMix } from "./planMixLoad";
+import { primaryPlatform } from "./planPlatform";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
@@ -108,7 +109,8 @@ export async function planInputsFor(svc: Supa, ownerId: string, ws: Workspace | 
   const input: GenerateInput = {
     clientHandle: (brandWs?.brand_name || profile?.brand_name || snap?.name || (snap?.username ? `@${snap.username}` : "")) ?? "",
     niche: (brandWs?.niche || profile?.niche) ?? "",
-    platform: "Instagram",
+    // The platform the person chose (lib/planPlatform.ts), not always Instagram.
+    platform: primaryPlatform(profile?.platforms, { instagramConnected: Boolean(snap) }),
     brandVoice: "",
     recentPosts: "",
     competitors: "",

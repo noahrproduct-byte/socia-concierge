@@ -377,6 +377,52 @@ export function goalSentence(g: Goal): string {
 }
 
 /**
+ * A target far past what the account can be expected to reach by its date.
+ * The ceilings are generous on purpose (one breakout video can do a lot), so
+ * only targets beyond them are flagged: followers growing three times over,
+ * or by 5,000, each month; views in 30 days reaching twenty times today's,
+ * or 50,000, each month. A flag is a warning, never a block: the target
+ * stays the person's, and SOCIA plans toward the first step on the way.
+ */
+export type FarGoal = { multiple: number; days: number; firstStep: number };
+
+const niceDown = (n: number): number => {
+  if (n < 100) return Math.max(1, Math.floor(n));
+  const p = 10 ** (Math.floor(Math.log10(n)) - 1);
+  return Math.floor(n / p) * p;
+};
+
+export function farGoal(g: Pick<Goal, "metric" | "baseline" | "current_value" | "target" | "due_date">, now: Date = new Date()): FarGoal | null {
+  if (g.metric !== "followers" && g.metric !== "views_30d") return null;
+  const from = g.current_value ?? g.baseline;
+  if (from == null || !g.due_date || !(g.target > 0)) return null;
+  const days = Math.max(1, Math.round((new Date(`${g.due_date}T12:00:00Z`).getTime() - now.getTime()) / 86_400_000));
+  const months = Math.max(1, Math.ceil(days / 30));
+  let ceiling = Math.max(0, from);
+  if (g.metric === "followers") {
+    for (let i = 0; i < months; i++) ceiling = Math.max(ceiling * 3, ceiling + 5000);
+  } else {
+    ceiling = Math.max(Math.max(1, from) * 20, 50_000) * months;
+  }
+  if (g.target <= ceiling) return null;
+  return { multiple: Math.round(g.target / Math.max(1, from)), days, firstStep: niceDown(ceiling) };
+}
+
+/** The far-goal note for people: "That's about 333,333 times ... a first step of 50,000 ...". */
+export function farGoalNote(g: Pick<Goal, "metric" | "baseline" | "current_value" | "target" | "due_date">, now: Date = new Date()): string | null {
+  const f = farGoal(g, now);
+  if (!f) return null;
+  return `That's about ${f.multiple.toLocaleString("en-US")} times where you are now, in ${f.days} days. SOCIA will plan toward a first step of ${formatGoalValue(g.metric, f.firstStep)} and keep your target as the end goal.`;
+}
+
+/** The same flag in words for SOCIA's own writers (plan, strategy, Ask), appended to the goal's line. */
+export function farGoalForAi(g: Pick<Goal, "metric" | "baseline" | "current_value" | "target" | "due_date">, now: Date = new Date()): string {
+  const f = farGoal(g, now);
+  if (!f) return "";
+  return ` (far beyond reach by then: about ${f.multiple.toLocaleString("en-US")} times today's number in ${f.days} days. Plan and set milestones toward a first step of ${formatGoalValue(g.metric, f.firstStep)}; keep the full target as the end goal and never promise it)`;
+}
+
+/**
  * The goals as the free-text `goals` field every existing reader (plan,
  * Ask, captions, Studio) already uses, so they all see the structured goals
  * without being rewritten. Bounded to the field's limit.
@@ -387,8 +433,8 @@ export function goalsSummary(goals: Goal[], max = 1500): string | null {
   const primary = active.filter((g) => g.kind === "primary");
   const secondary = active.filter((g) => g.kind !== "primary");
   const parts = [
-    ...primary.map((g) => `Main goal: ${goalSentence(g)}.`),
-    ...(secondary.length ? [`Also: ${secondary.map(goalSentence).join("; ")}.`] : []),
+    ...primary.map((g) => `Main goal: ${goalSentence(g)}${farGoalForAi(g)}.`),
+    ...(secondary.length ? [`Also: ${secondary.map((g) => `${goalSentence(g)}${farGoalForAi(g)}`).join("; ")}.`] : []),
   ];
   return parts.join(" ").slice(0, max);
 }

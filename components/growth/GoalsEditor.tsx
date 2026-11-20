@@ -7,7 +7,7 @@
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
 import { Button, Field, Input, Select, IconButton } from "@/components/system";
-import { GOAL_METRICS, GOAL_PLATFORM_NAME, goalMetric, goalSentence, type Goal, type GoalMetricId, type GoalPlatform } from "@/lib/growth";
+import { GOAL_METRICS, GOAL_PLATFORM_NAME, farGoalNote, goalMetric, goalSentence, type Goal, type GoalMetricId, type GoalPlatform } from "@/lib/growth";
 import "./growth.css";
 
 const blank = { metric: "followers" as GoalMetricId, platforms: [] as GoalPlatform[], target: "", due: "", current: "" };
@@ -83,6 +83,7 @@ export default function GoalsEditor({
                     ? "No starting point yet: SOCIA records it once these accounts are connected and return a number."
                     : goalMetric(g.metric)?.note}
                 </small>
+                {farGoalNote(g) && <small className="gp-goal-far" suppressHydrationWarning>{farGoalNote(g)}</small>}
               </div>
               {g.id && (
                 <IconButton label="Remove goal" onClick={() => remove(g.id!)}>

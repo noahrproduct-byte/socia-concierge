@@ -8,7 +8,7 @@
 // unless changed. The first goal picked is the main goal. Nothing here says a
 // target will be met.
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { CUSTOMER_GOALS, GOAL_PLATFORM_NAME, formatGoalValue, goalMetric, mainGoalsFor, type CustomerGoalId, type Goal, type GoalMetricId, type GoalPlatform, type MainGoalId } from "@/lib/growth";
+import { CUSTOMER_GOALS, GOAL_PLATFORM_NAME, farGoalNote, formatGoalValue, goalMetric, mainGoalsFor, type CustomerGoalId, type Goal, type GoalMetricId, type GoalPlatform, type MainGoalId } from "@/lib/growth";
 import { TIMEFRAMES, daysUntil, dueFor, dueIn, goalStepError, goalStepSummary, targetNumber, type Timeframe } from "@/lib/goalStep";
 import { Field, Input } from "@/components/system";
 import { Choices } from "@/components/growth/GrowthFields";
@@ -231,7 +231,15 @@ const GoalStep = forwardRef<GoalStepHandle, Props>(function GoalStep({ tableRead
                 {chosen.map((id) => {
                   const v = view(id);
                   const t = targetNumber(v.target);
-                  return t == null ? null : <li key={id}>{v.goal.label}: {goalStepSummary(v.goal.metric, v.now, t, dueDate!, today)}</li>;
+                  if (t == null) return null;
+                  // A target far past reach is said plainly, never blocked: the person keeps it as the end goal.
+                  const far = farGoalNote({ metric: v.goal.metric, baseline: v.now, current_value: null, target: t, due_date: dueDate! });
+                  return (
+                    <li key={id}>
+                      {v.goal.label}: {goalStepSummary(v.goal.metric, v.now, t, dueDate!, today)}
+                      {far && <span className="obg-far">{far}</span>}
+                    </li>
+                  );
                 })}
               </ul>
               <small>SOCIA measures against {chosen.length > 1 ? "them" : "it"} and never promises a result.</small>

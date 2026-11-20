@@ -646,6 +646,8 @@ a.pf-basis:hover { text-decoration: underline; }
 .obg-sum b { font-weight: var(--fw-semibold); }
 .obg-sum ul { list-style: none; margin: 0; padding: 0; font-variant-numeric: tabular-nums; }
 .obg-sum small { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+/* A target far past reach: said plainly under the goal, never blocking it. */
+.obg-sum .obg-far { display: block; margin-top: 2px; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--warning-text); }
 /* Filming sessions (components/filming/FilmingSessions.tsx), on the Content Plan and the Dashboard */
 .film { display: flex; flex-direction: column; gap: var(--sp-3); margin-bottom: var(--sp-5); }
 .film.s-card { padding: var(--sp-4); margin-bottom: 0; }

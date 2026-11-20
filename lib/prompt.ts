@@ -4,6 +4,7 @@ import type { GenerateInput } from "./schema";
 import type { BrandDetail } from "./profile";
 import type { Evidence } from "./planEvidence";
 import { FILMING_ALLOWANCE_LINE } from "./filmingPlan";
+import { shortVideoName } from "./planPlatform";
 import { FILMING_DIRECTION_RULE, placeLines } from "./place";
 import { MADE_LABEL } from "./intel/reelReadCore";
 
@@ -71,6 +72,8 @@ export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null
   parts.push(`Account / handle: ${input.clientHandle || "(not given)"}`);
   parts.push(`Niche: ${input.niche || "(not given)"}`);
   parts.push(`Primary platform: ${input.platform || "Instagram"}`);
+  // A short vertical video has the platform's own name: a Short on YouTube, never a Reel.
+  if (input.platform && shortVideoName(input.platform) !== "Reel") parts.push(`On ${input.platform} a short vertical video is a "${shortVideoName(input.platform)}": use that word for format, never "Reel". Do not call ${input.platform} anything other than the primary platform.`);
   if (input.goal.trim()) parts.push(`My goal: ${input.goal.trim()}`);
   if (input.brandVoice.trim())
     parts.push(`Brand voice / notes: ${input.brandVoice.trim()}`);

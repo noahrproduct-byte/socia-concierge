@@ -14,7 +14,7 @@ import { listInsights } from "./intel/insightStore";
 import { currentDetail } from "./intel/understandLoad";
 import { listGoals } from "./growthStore";
 import { getProfile, type BrandDetail } from "./profile";
-import { GOAL_PLATFORM_NAME, formatGoalValue, goalMetric, growthLines } from "./growth";
+import { GOAL_PLATFORM_NAME, farGoalForAi, formatGoalValue, goalMetric, growthLines } from "./growth";
 import { anthropic, FAST_MODEL, effortFor } from "./anthropic";
 import { recordAiUsage } from "./aiUsage";
 import type { TtVideo } from "./tiktokAuth";
@@ -76,7 +76,8 @@ export async function strategyFacts(ctx: Ctx): Promise<{ facts: StrategyFacts; g
       pace: paces.length ? Math.round(paces.reduce((a, b) => a + b, 0) * 10) / 10 : null,
       works: whatWorks(sample).slice(0, 6).map((w) => `${w.format}s: ${w.multiple}x the account's median ${w.metric} (${w.posts} posts) on ${GOAL_PLATFORM_NAME[w.platform]}`),
       findings: insights.insights.map((i) => `${i.title}. ${i.observation}`),
-      goals: goalLines.map((l, i) => `${goals.goals[i].kind === "primary" ? "Primary" : "Secondary"}: ${l}`),
+      // A target far past reach carries its first step, so milestones aim there (lib/growth.ts farGoal).
+      goals: goalLines.map((l, i) => `${goals.goals[i].kind === "primary" ? "Primary" : "Secondary"}: ${l}${farGoalForAi(goals.goals[i])}`),
       themes: growth?.understanding?.themes ?? [],
       readiness,
       nicheSeen: niche,
