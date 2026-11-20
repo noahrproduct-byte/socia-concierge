@@ -3,6 +3,8 @@ import { ArrowUpRight } from "lucide-react";
 import WorkspaceSwitcher, { type ShellAccount } from "@/components/WorkspaceSwitcher";
 import TopBar, { type SearchItem, type AlertItem } from "@/components/TopBar";
 import AccountMenu from "@/components/AccountMenu";
+import ThemeSync from "@/components/ThemeSync";
+import { isAppearance, type Appearance } from "@/lib/appearance";
 import { SideNav } from "@/components/SideNav";
 import PageTransition from "@/components/PageTransition";
 import { ToastProvider, TooltipProvider } from "@/components/system";
@@ -64,11 +66,16 @@ export default async function AppShell({ children }: { children: React.ReactNode
   let alerts: AlertItem[] = [];
   let unreadAlerts = 0;
   let userEmail: string | null = null;
+  // The viewer's own saved appearance (profiles.appearance), for their other devices.
+  let savedAppearance: Appearance | null = null;
   let activeWs: { id: string; name: string } | null = null;
   try {
     const { supabase, user } = await getViewer();
     if (user) {
       userEmail = user.email ?? null;
+      // Its own catch: an unmigrated column never blanks the shell.
+      const ap = await supabase.from("profiles").select("appearance").eq("user_id", user.id).maybeSingle().then((r) => r.data as { appearance?: unknown } | null, () => null);
+      savedAppearance = isAppearance(ap?.appearance) ? ap.appearance : null;
       // The shell describes the ACTIVE Brand Workspace (the owner's accounts,
       // activity and posts when the viewer is an invited team member). The plan
       // on the account row is the viewer's own.
@@ -176,6 +183,7 @@ export default async function AppShell({ children }: { children: React.ReactNode
             sheet={sheetBody}
           />
           <PageTransition>{children}</PageTransition>
+          <ThemeSync saved={savedAppearance} />
         </div>
       </ToastProvider>
     </TooltipProvider>

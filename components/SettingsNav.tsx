@@ -21,6 +21,7 @@ import {
   Globe,
   Eye,
   Palette,
+  SunMoon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -48,6 +49,7 @@ const GROUPS: Group[] = [
   {
     label: "Preferences",
     items: [
+      { id: "appearance", label: "Appearance", Icon: SunMoon },
       { id: "notifications", label: "Notifications & Reports", Icon: Bell },
     ],
   },

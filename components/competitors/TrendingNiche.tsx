@@ -20,10 +20,10 @@ import { BREAKOUT_MULTIPLE, TREND_WINDOW_DAYS, VIRAL_MIN_VIEWS, refResult } from
 import type { CompetitorsData, ProvenReel } from "./types";
 import { fmtN } from "./shared";
 
-const PLATFORM: Record<string, string> = { instagram: "Instagram", youtube: "YouTube", facebook: "Facebook" };
+export const PLATFORM: Record<string, string> = { instagram: "Instagram", youtube: "YouTube", facebook: "Facebook" };
 const SHORT = new Set(["Reel", "Short"]);
 
-function ago(iso: string | null, now: Date): string | null {
+export function ago(iso: string | null, now: Date): string | null {
   if (!iso) return null;
   const d = Math.round((now.getTime() - new Date(iso).getTime()) / 86400000);
   if (!Number.isFinite(d) || d < 0) return null;
@@ -51,7 +51,7 @@ function gateText(r: CompetitorRow, igEnabled: boolean): string {
   return "No recent Shorts from this channel.";
 }
 
-function metricLine(x: { views: number | null; likes: number | null; comments: number | null }): string | null {
+export function metricLine(x: { views: number | null; likes: number | null; comments: number | null }): string | null {
   if (x.views != null) return `${fmtN(x.views)} views`;
   const i = interactions(x);
   if (i == null) return null;
@@ -191,7 +191,7 @@ const HOOK_HOW: Record<string, string> = {
 };
 
 /** What the Reel does, in the words of its own data: its hook structure, topic and format. */
-function does(r: ProvenReel): string[] {
+export function does(r: ProvenReel): string[] {
   return [
     ...r.structures.slice(0, 1).map((h) => `Hook: ${hookName(h)}`),
     ...r.topics.slice(0, 1).map((t) => `About: ${t}`),
@@ -200,13 +200,24 @@ function does(r: ProvenReel): string[] {
 }
 
 /** How to make your own version, from what the Reel does. */
-function recipe(r: ProvenReel): string {
+export function recipe(r: ProvenReel): string {
   const open = HOOK_HOW[r.structures[0] ?? ""] ?? "Open on the moment itself, with no setup line.";
   return `${open} Film it as a ${r.format} with your own subject, footage and words.`;
 }
 
+/**
+ * Make a video like this (Discover and the Dashboard): the brief written from the Reel starts the
+ * video editor's prompt, and, when official data gives the Reel's file, the Reel is read there as the
+ * reference. The person adds their own clips; their version is original, never a copy.
+ */
+export function makeLikeReel(r: ProvenReel, go: (href: string) => void): void {
+  const reference = r.refToken && r.video ? { url: `/api/studio/reference/media?url=${encodeURIComponent(r.video)}&token=${r.refToken}`, name: `${r.accountHandle ? `@${r.accountHandle}` : r.accountName} ${r.format}.mp4` } : undefined;
+  handFiles("edit", [], { prompt: `${brief(r)}\n\nCopy its length, pace, order of shots and on-screen text style with my clips.`, ...(reference ? { reference } : {}) });
+  go("/studio?mode=edit");
+}
+
 /** A short brief for the user's own version: the idea, never the video. */
-function brief(r: ProvenReel): string {
+export function brief(r: ProvenReel): string {
   const lines = [
     `Make my version of a ${r.format} that took off for ${r.accountHandle ? `@${r.accountHandle}` : r.accountName} on ${PLATFORM[r.platform] ?? r.platform}`,
     r.line ? `It opens: "${r.line}"` : r.title ? `What it is: ${r.title}` : null,
@@ -270,11 +281,7 @@ export function ReelsToCopy({ d }: { d: ReelsToCopyInput }) {
 
   // Make a video like this: the brief written from the Reel starts the Build tab's prompt, and, when official data
   // gives the Reel's file, the Reel itself is read there as the reference. The person adds their own clips.
-  const makeLike = (r: ProvenReel) => {
-    const reference = r.refToken && r.video ? { url: `/api/studio/reference/media?url=${encodeURIComponent(r.video)}&token=${r.refToken}`, name: `${r.accountHandle ? `@${r.accountHandle}` : r.accountName} ${r.format}.mp4` } : undefined;
-    handFiles("edit", [], { prompt: `${brief(r)}\n\nCopy its length, pace, order of shots and on-screen text style with my clips.`, ...(reference ? { reference } : {}) });
-    router.push("/studio?mode=edit");
-  };
+  const makeLike = (r: ProvenReel) => makeLikeReel(r, (href) => router.push(href));
 
   const card = (r: ProvenReel) => (
     <article key={r.url} className="cx3-card">

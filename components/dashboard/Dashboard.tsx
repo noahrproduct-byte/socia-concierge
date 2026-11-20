@@ -26,7 +26,7 @@ import UpdatedAgo from "@/components/UpdatedAgo";
 import TodayCard, { useTodaySummary, type TodayCardProps } from "@/components/TodayCard";
 import RepurposeCard from "@/components/RepurposeCard";
 import VideoIdeasCard from "@/components/VideoIdeasCard";
-import NicheScanCard from "@/components/NicheScanCard";
+import ViralNow from "./ViralNow";
 import Momentum from "@/components/dashboard/Momentum";
 import FilmingSessions from "@/components/filming/FilmingSessions";
 import ShareWins from "@/components/dashboard/ShareWins";
@@ -387,10 +387,10 @@ export default function Dashboard({ d }: { d: DashboardData }) {
       {/* ---- posts that beat the account's usual result, with an image to share (lib/share) ---- */}
       <ShareWins />
 
-      {/* ---- what goes viral in the niche (lib/nicheScan) ------------------------- */}
+      {/* ---- going viral in the niche: real Reels that took off (Discover's, app/api/dashboard/viral) ---- */}
       {!nothingConnected && (
         <Reveal index={next()}>
-          <NicheScanCard />
+          <ViralNow />
         </Reveal>
       )}
 
