@@ -43,6 +43,7 @@
 .gp-goal-list li > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .gp-goal-list b { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-3); font-weight: var(--fw-medium); }
 .gp-goal-list span { font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink); }
+.gp-goal-list .gp-goal-far { color: var(--warning-text); }
 .gp-goal-list small { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-3); }
 .gp-goal-form { display: flex; flex-direction: column; gap: var(--sp-3); align-items: stretch; }
 .gp-goal-form > .s-btn { align-self: flex-start; }

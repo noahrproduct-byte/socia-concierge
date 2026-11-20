@@ -114,3 +114,26 @@ describe("who makes the videos", () => {
     expect(lines).toContain("Videos their Claude may make: Animated text");
   });
 });
+
+describe("far goals", async () => {
+  const { farGoal, farGoalNote, farGoalForAi } = await import("./growth");
+  const now = new Date("2026-11-19T10:00:00Z");
+  it("flags the new account's goals from 2026-11-19 and gives a first step", () => {
+    const views = { metric: "views_30d" as const, baseline: 3, current_value: null, target: 1_000_000, due_date: "2026-12-19" };
+    const subs = { metric: "followers" as const, baseline: 13, current_value: null, target: 1_000_000_000, due_date: "2026-12-19" };
+    expect(farGoal(views, now)).toEqual({ multiple: 333_333, days: 30, firstStep: 50_000 });
+    expect(farGoal(subs, now)?.firstStep).toBe(5_000);
+    expect(farGoalNote(views, now)).toBe("That's about 333,333 times where you are now, in 30 days. SOCIA will plan toward a first step of 50,000 and keep your target as the end goal.");
+    expect(farGoalForAi(subs, now)).toContain("first step of 5,000");
+  });
+  it("leaves reachable goals alone", () => {
+    expect(farGoal({ metric: "followers", baseline: 2400, current_value: null, target: 6000, due_date: "2027-02-17" }, now)).toBeNull();
+    expect(farGoal({ metric: "views_30d", baseline: 20_000, current_value: null, target: 200_000, due_date: "2026-12-19" }, now)).toBeNull();
+    expect(farGoalForAi({ metric: "followers", baseline: 100, current_value: null, target: 200, due_date: "2026-12-19" }, now)).toBe("");
+  });
+  it("says nothing without a starting point, a date, or for other goals", () => {
+    expect(farGoal({ metric: "followers", baseline: null, current_value: null, target: 1e9, due_date: "2026-12-19" }, now)).toBeNull();
+    expect(farGoal({ metric: "followers", baseline: 10, current_value: null, target: 1e9, due_date: null }, now)).toBeNull();
+    expect(farGoal({ metric: "sales", baseline: 1, current_value: null, target: 1e9, due_date: "2026-12-19" }, now)).toBeNull();
+  });
+});
