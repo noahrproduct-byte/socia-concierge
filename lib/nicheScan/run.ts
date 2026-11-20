@@ -4,6 +4,8 @@
 // supabase/niche-scan-cron.sql), its state saved after every step in
 // intelligence_jobs.result. Service role; server only.
 
+import { scanPatterns } from "../editPatterns/fromScan";
+import { saveScanPatterns } from "../editPatterns/store";
 import { createServiceClient } from "../supabase/service";
 import { brandWorkspace, nicheScopeId, type Ctx } from "../context";
 import { workspacesByIds, scopeToWorkspace } from "../workspaces";
@@ -260,6 +262,8 @@ async function step(ctx: Ctx, state: ScanState, now: Date): Promise<ScanState> {
       playbook.scanned.reels = state.counts.reelsRead;
       await ctx.client.from("niche_trends").upsert({ niche: playbookKey(nicheScopeId(ctx)), data: playbook, updated_at: playbook.builtAt }, { onConflict: "niche" });
       await storeInsights(ctx, ["niche_scan"], playbookInsights(playbook), now).catch(() => null);
+      // The editing patterns the measured Reels show (lib/editPatterns), for the editor's research step.
+      await saveScanPatterns(createServiceClient() ?? ctx.client, nicheScopeId(ctx), scanPatterns(watched, state.niche, now));
       state.counts.patterns = patternCount(playbook);
       state.phase = "done";
       return state;

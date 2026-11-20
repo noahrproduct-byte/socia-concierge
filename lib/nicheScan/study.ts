@@ -4,6 +4,7 @@
 // answers are checked against the Reels before anything is kept
 // (lib/nicheScan/playbook.ts). Server only.
 
+import { measureEditing } from "./editing";
 import { anthropic, FAST_MODEL, MODEL, effortFor } from "../anthropic";
 import { recordAiUsage } from "../aiUsage";
 import { cleanWatched, keepTemplates, REEL_FORMATS, CTA_KINDS, type RawTemplate, type TextTemplate, type WatchedReel } from "./playbook";
@@ -70,10 +71,12 @@ Plain text, no em dashes.`;
 
 /** Study one batch of Reels; every Reel in the batch comes back, as "other" when the model skipped it. */
 export async function studyBatch(ownerId: string, niche: string | null, batch: ScanReel[]): Promise<WatchedReel[]> {
-  const [images, frames] = await Promise.all([
+  const [images, frames, editing] = await Promise.all([
     Promise.all(batch.map((r) => coverImage(r.thumb))),
     // Frames inside the video catch the lines that land after the cover (2026-11-12, Noah: "build it").
     Promise.all(batch.map((r) => reelFrames(r).catch(() => []))),
+    // How it's cut, from the same video (lib/nicheScan/editing.ts): the pattern library's evidence.
+    Promise.all(batch.map((r) => (r.platform === "instagram" ? measureEditing(r.video).catch(() => null) : Promise.resolve(null)))),
   ]);
   type Block = { type: "text"; text: string } | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
   const content: Block[] = [{ type: "text", text: `Niche: ${niche ?? "not set"}. ${batch.length} videos follow.` }];
@@ -104,7 +107,7 @@ export async function studyBatch(ownerId: string, niche: string | null, batch: S
     rows = [];
   }
   const byId = new Map(rows.filter((r) => typeof r.id === "string").map((r) => [r.id as string, r]));
-  return batch.map((r, i) => cleanWatched(r, byId.get(r.id) ?? null, frames[i].length ? "frames" : images[i] ? "cover" : "caption"));
+  return batch.map((r, i) => cleanWatched(r, byId.get(r.id) ?? null, frames[i].length ? "frames" : images[i] ? "cover" : "caption", editing[i]));
 }
 
 const templateSchema = {

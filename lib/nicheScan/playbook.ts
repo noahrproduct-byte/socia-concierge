@@ -9,6 +9,7 @@
 //              are recomputed here from those Reels, never taken from a model.
 // Pure; browser-safe.
 
+import type { ReelEditing } from "./editing";
 import type { InsightDraft } from "../intel/insight";
 import { confidenceFor } from "../intel/insight";
 import type { ScanReel } from "./plan";
@@ -65,6 +66,8 @@ export type WatchedReel = ScanReel & {
   framing: string | null;
   /** What the study could read: the cover image and the caption, or the caption only. */
   read: "frames" | "cover" | "caption";
+  /** How it's edited, measured from its video (lib/nicheScan/editing.ts); null when the video couldn't be read. */
+  editing?: ReelEditing | null;
 };
 
 export type Evidence = { id: string; url: string; account: string; platform: string; multiplier: number | null; views: number | null; basis: string; publishedAt: string | null };
@@ -294,7 +297,7 @@ export const standsFor = (p: Playbook | null, now: Date, nicheNow: string | null
 export const isFresh = (p: Playbook | null, now: Date): boolean => Boolean(p && now.getTime() - Date.parse(p.builtAt) < PLAYBOOK_FRESH_DAYS * 86_400_000);
 
 /** One studied Reel from a model's answer, checked: only known enums, words trimmed, never a number. */
-export function cleanWatched(reel: ScanReel, raw: Record<string, unknown> | null | undefined, read: "frames" | "cover" | "caption"): WatchedReel {
+export function cleanWatched(reel: ScanReel, raw: Record<string, unknown> | null | undefined, read: "frames" | "cover" | "caption", editing: ReelEditing | null = null): WatchedReel {
   const str = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? v.replace(EM_DASH, ",").replace(/\s+/g, " ").trim().slice(0, max) : null);
   const format = REEL_FORMATS.includes(raw?.format as ReelFormat) ? (raw!.format as ReelFormat) : "other";
   const ctaKind = CTA_KINDS.includes(raw?.cta_kind as CtaKind) ? (raw!.cta_kind as CtaKind) : "none";
@@ -309,5 +312,6 @@ export function cleanWatched(reel: ScanReel, raw: Record<string, unknown> | null
     textStyle: seen ? str(raw?.text_style, 120) : null,
     framing: seen ? str(raw?.framing, 120) : null,
     read,
+    editing,
   };
 }

@@ -10,7 +10,7 @@ export default function PrivacyPage() {
   return (
     <LegalShell>
       <h1>Privacy Policy</h1>
-      <p className="legal-date">Last updated: November 16, 2026</p>
+      <p className="legal-date">Last updated: November 17, 2026</p>
 
       <p>
         SOCIA (sociaos.com) is an AI social media strategist operated by SOCIA
@@ -118,8 +118,12 @@ export default function PrivacyPage() {
           other accounts&apos; public Reels and Shorts (their captions, cover
           images and published numbers), sends the ones that took off to
           Anthropic to describe their format and on-screen text, and keeps a
-          playbook of the patterns with links to those posts. Each new
-          research run replaces the last playbook; cover images are not kept.
+          playbook of the patterns with links to those posts. Where the
+          platform&apos;s API gives the video file, SOCIA also measures how each
+          one is cut (its length, how often the shot changes and when the first
+          cut comes) and keeps those numbers, with links to the posts, as your
+          brand&apos;s editing patterns. Each new research run replaces the last
+          playbook and patterns; cover images and video files are not kept.
         </li>
         <li>
           <b>Reading your own account</b>: when you set up a brand, and when
