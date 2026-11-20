@@ -8,6 +8,7 @@
 import type { AskInstagram, AskRatedVideo } from "./assistant/askExtras";
 import type { ResearchExample } from "./research/examples";
 import type { IntentKind } from "./research/intent";
+import { CREATIVE_STYLES, type CreativeDirection, type CreativeStyle } from "./research/direction";
 import type { CreativeBrief, Deliverable } from "./assistant/brief";
 
 export type AskPage = "global" | "dashboard" | "analytics" | "post" | "competitors" | "plan" | "studio";
@@ -49,6 +50,12 @@ export type AskContext = {
   rated?: AskRatedVideo[];
   /** The creative brief SOCIA returned with its last answer in this chat (lib/assistant/brief.ts). */
   brief?: CreativeBrief | null;
+  /** The creative direction the person chose from a reference gallery in this chat (lib/research/direction.ts). */
+  direction?: CreativeDirection | null;
+  /** This message is the one that chose the direction (a gallery button): write in it now, no new research. */
+  choseNow?: boolean;
+  /** "Show different examples": the gallery's links so far, to leave out of the next search. */
+  moreRefs?: string[];
 };
 
 export type PlanDayDraft = { concept: string; hook: string; format: string; rationale: string };
@@ -90,7 +97,7 @@ export type AskResearch = {
   /** the recommended approach, in two sentences */
   approach: string;
   /** real videos SOCIA found, each with why it is comparable; every number comes from the platform */
-  examples: (ResearchExample & { why: string })[];
+  examples: (ResearchExample & { why: string; letter: string; style: CreativeStyle; techniques: string[] })[];
   /** how the research supports the approach: patterns, kept apart from guesses */
   why: string;
   /** how to judge the result after posting */
@@ -128,6 +135,8 @@ export type AskDraft = { kind: AskDraftKind; title: string; body: string; /** sp
 
 export type AskMessage = {
   role: "user" | "assistant"; content: string; answer?: AskAnswer;
+  /** a user message that chose a creative direction */
+  direction?: CreativeDirection;
   /** drafts this turn saved from footage the person added in the chat */
   drafts?: string[];
 };
@@ -195,7 +204,7 @@ export type ModelAnswer = {
   /** kind "none" when nothing was asked to be written */
   draft: { kind: AskDraftKind | "none"; title: string; body: string };
   /** a research answer; approach "" and examples [] when the request wasn't one */
-  research: { approach: string; examples: { ref: string; why: string }[]; why: string; test: string; steps: { type: ResearchStep; label: string }[] };
+  research: { approach: string; examples: { ref: string; why: string; style: CreativeStyle; techniques: string[] }[]; why: string; test: string; steps: { type: ResearchStep; label: string }[] };
   postId: string;
   /** Scheduling: what the person asked for, in their own terms. The server works out the times. */
   schedule: {
@@ -284,7 +293,7 @@ export const askAnswerSchema = {
       additionalProperties: false,
       properties: {
         approach: { type: "string" },
-        examples: { type: "array", items: { type: "object", additionalProperties: false, properties: { ref: { type: "string" }, why: { type: "string" } }, required: ["ref", "why"] } },
+        examples: { type: "array", items: { type: "object", additionalProperties: false, properties: { ref: { type: "string" }, why: { type: "string" }, style: { type: "string", enum: CREATIVE_STYLES.map((s) => s.id) }, techniques: { type: "array", items: { type: "string" } } }, required: ["ref", "why", "style", "techniques"] } },
         why: { type: "string" },
         test: { type: "string" },
         steps: { type: "array", items: { type: "object", additionalProperties: false, properties: { type: { type: "string", enum: [...RESEARCH_STEPS] }, label: { type: "string" } }, required: ["type", "label"] } },

@@ -18,6 +18,16 @@ export type InstructReply = { edl: Edl; reply: string; done: string[]; skipped: 
 
 const EXAMPLES = ["mute the background sound", "captions bigger", "cut the second shot", "no transitions", "add “come see this rug” over the close-ups", "make it shorter"];
 
+/** One-tap revisions after the first cut. Each goes through the same route as typed words, so the editor says what it did and what it couldn't. */
+export const QUICK_CHANGES = [
+  "Make it faster: shorter shots and tighter gaps",
+  "Add more animated text on the key points",
+  "Make it more cinematic: slower, smoother, a richer grade",
+  "Reduce the effects and animations",
+  "Change the captions to bold key words",
+  "Show more of the product demo",
+] as const;
+
 export default function AskPanel({ buildId, edl, canEdit, busy, fixture, onApply, onRegenerate }: {
   buildId: string;
   edl: Edl;
@@ -64,7 +74,7 @@ export default function AskPanel({ buildId, edl, canEdit, busy, fixture, onApply
   const locked = !canEdit || busy || sending;
   return (
     <section className="ov-card sd-ask" aria-label="Tell SOCIA what to change">
-      <div className="sd-ask-head"><b>Tell SOCIA what to change</b><small>Type it, or press the microphone and talk; press it again when you\u2019re done. SOCIA edits this cut; Undo takes it back.</small></div>
+      <div className="sd-ask-head"><b>Tell SOCIA what to change</b><small>Type it, or press the microphone and talk; press it again when you&apos;re done. SOCIA edits this cut; Undo takes it back.</small></div>
       <form className="sd-ask-row" onSubmit={(e) => { e.preventDefault(); void send(text); }}>
         <textarea
           className="sd-ask-input"
@@ -81,6 +91,11 @@ export default function AskPanel({ buildId, edl, canEdit, busy, fixture, onApply
           <button type="submit" className="ov-btn primary small" disabled={locked || !text.trim()}>{sending ? <Loader2 size={13} className="spin" /> : <Send size={13} />} Do it</button>
         </div>
       </form>
+      <div className="sd-ask-quick" aria-label="Quick changes">
+        {QUICK_CHANGES.map((q) => (
+          <button key={q} type="button" className="sd-ask-chip" disabled={locked} onClick={() => void send(q)}>{q.split(":")[0]}</button>
+        ))}
+      </div>
       {(err ?? speech.error) && <p className="sd-ask-err" role="alert"><AlertTriangle size={12} aria-hidden /> {err ?? speech.error}</p>}
       {last && (
         <div className="sd-ask-reply" role="status">

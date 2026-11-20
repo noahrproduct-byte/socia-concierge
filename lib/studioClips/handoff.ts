@@ -13,7 +13,9 @@ export type HandoffFix = { panel: EditorPanel; cleanSound?: boolean; cuts?: { st
 /** A video to read as the reference for a brief, by a link SOCIA serves (a competitor's Reel from Discover). */
 export type HandoffReference = { url: string; name: string };
 /** `autoMake`: start making the video as soon as the clips are in (Ask SOCIA's "send to the editor"). */
-export type HandoffData = { layers?: EdlText[]; prompt?: string; fix?: HandoffFix; reference?: HandoffReference; autoMake?: boolean };
+/** The creative style chosen in Ask SOCIA's reference gallery, for the editor's direction defaults. */
+export type HandoffStyle = import("@/lib/research/direction").CreativeStyle;
+export type HandoffData = { layers?: EdlText[]; prompt?: string; fix?: HandoffFix; reference?: HandoffReference; autoMake?: boolean; style?: HandoffStyle };
 let pending: { files: File[]; to: string; data: HandoffData; at: number } | null = null;
 
 /** A handoff is for the click that made it: one not taken within this long is dropped. */

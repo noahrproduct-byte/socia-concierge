@@ -7,6 +7,7 @@
 import type { AskAction, AskResearch, ModelAnswer, ResearchStep } from "../ask";
 import type { ResearchExample } from "./examples";
 import type { IntentKind } from "./intent";
+import { LETTERS, isCreativeStyle } from "./direction";
 
 const q = (s: string) => encodeURIComponent(s.replace(/\s+/g, " ").trim().slice(0, 400));
 
@@ -46,12 +47,16 @@ export function buildResearch(opts: {
   const r = opts.raw;
   const byRef = new Map(opts.examples.map((x) => [x.ref, x]));
   const picked: AskResearch["examples"] = [];
+  // Up to four, each in a different creative style: four near-identical videos are no choice at all.
   for (const e of r?.examples ?? []) {
     const ref = String(e?.ref ?? "").replace(/^\[|\]$/g, "").trim().toUpperCase();
     const x = byRef.get(ref);
     if (!x || picked.some((p) => p.ref === ref)) continue;
-    picked.push({ ...x, why: noNumbers(opts.clean(String(e.why ?? ""))).slice(0, 240) });
-    if (picked.length >= 3) break;
+    const style = isCreativeStyle(e.style) ? e.style : null;
+    if (!style || picked.some((p) => p.style === style)) continue;
+    const techniques = (Array.isArray(e.techniques) ? e.techniques : []).map((t) => noNumbers(opts.clean(String(t ?? ""))).slice(0, 120)).filter(Boolean).slice(0, 3);
+    picked.push({ ...x, why: noNumbers(opts.clean(String(e.why ?? ""))).slice(0, 240), letter: LETTERS[picked.length], style, techniques });
+    if (picked.length >= LETTERS.length) break;
   }
   const approach = opts.clean(r?.approach ?? "");
   if (!approach && !picked.length) return null;

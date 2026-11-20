@@ -79,6 +79,8 @@ async function reference(url: string): Promise<ResearchReference> {
 export async function gatherResearch(opts: {
   client: Supa; ownerId: string; scopeId: string | null; question: string; intent: ResearchIntent; plan: SourcePlan;
   location?: string | null; now?: Date;
+  /** links already shown in this chat's gallery ("show different examples") */
+  exclude?: string[];
 }): Promise<Research> {
   const { intent, plan } = opts;
   const now = opts.now ?? new Date();
@@ -110,7 +112,11 @@ export async function gatherResearch(opts: {
   if (plan.external || plan.niche) notes.push("Instagram and TikTok have no public search, so examples from them come only from accounts SOCIA already reads.");
 
   const topic = [intent.topic, intent.format, intent.goal].filter(Boolean).join(" ");
-  const examples = rankExamples([...yt, ...nicheEx], { topic, now, freshDays: days, shortOnly: short, max: 6 });
+  const seen = new Set((opts.exclude ?? []).map((u) => u.replace(/^https?:\/\/(www\.|m\.)?/, "").replace(/\/$/, "").toLowerCase()));
+  const fresh = [...yt, ...nicheEx].filter((x) => !seen.has(x.url.replace(/^https?:\/\/(www\.|m\.)?/, "").replace(/\/$/, "").toLowerCase()));
+  if (seen.size && !fresh.length) notes.push("Every comparable video SOCIA found was already shown.");
+  // More candidates than the gallery shows, so the answer can pick four in different styles.
+  const examples = rankExamples(fresh, { topic, now, freshDays: days, shortOnly: short, max: 10 });
   if (examples.length) {
     blocks.push(`# Comparable public videos SOCIA found for this request (real videos with the numbers their platform publishes; cite them only by [R#]; SOCIA read their titles and numbers, it did not watch them)\n${examples.map(exampleLine).join("\n")}`);
   } else if (plan.external || plan.niche) {

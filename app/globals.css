@@ -12002,3 +12002,44 @@ p.cbm-muted { display: block; }
 .stn-link { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 600; color: var(--text-primary); text-decoration: none; white-space: nowrap; }
 .stn-link:hover { text-decoration: underline; }
 .stn-link:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; border-radius: 4px; }
+
+/* Ask SOCIA reference gallery (components/ask/ReferenceGallery.tsx) */
+.rg { display: flex; flex-direction: column; gap: 10px; }
+.rg-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr)); gap: 10px; }
+.rg-card { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-muted); overflow: hidden; }
+.rg-card.on { border-color: var(--text-primary); box-shadow: 0 0 0 1px var(--text-primary); }
+.rg-media { position: relative; aspect-ratio: 16 / 10; max-width: 100%; background: var(--surface-hover); }
+.rg-media img, .rg-media iframe, .rg-ph { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; object-fit: cover; display: block; }
+.rg-letter { position: absolute; top: 6px; left: 6px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; display: grid; place-items: center; font-size: 12px; font-weight: 700; background: var(--surface); color: var(--text-primary); }
+.rg-body { display: flex; flex-direction: column; gap: 3px; padding: 10px; min-width: 0; }
+.rg-style { font-size: 13px; font-weight: 650; color: var(--text-primary); }
+.rg-title { font-size: 12.5px; line-height: 1.35; color: var(--text-primary); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.rg-body small { font-size: 11.5px; color: var(--text-secondary); }
+.rg-nums { font-variant-numeric: tabular-nums; }
+.rg-lift { color: var(--text-primary) !important; font-weight: 600; }
+.rg-body p { margin: 4px 0 0; font-size: 12px; line-height: 1.45; color: var(--text-secondary); }
+.rg-tech { margin: 2px 0 0; padding-left: 16px; list-style: disc; display: flex; flex-direction: column; gap: 2px; font-size: 12px; line-height: 1.4; color: var(--text-primary); }
+.rg-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.rg-chosen { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--text-primary); }
+.rg-note { margin: 0; font-size: 11.5px; line-height: 1.45; color: var(--text-secondary); }
+.rg-choose { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); }
+.rg-choose > b { font-size: 13px; font-weight: 650; color: var(--text-primary); }
+.rg-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-secondary); }
+.rg-own { flex: 1 1 220px; min-width: 0; padding: 7px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text-primary); font: inherit; font-size: 13px; }
+.rg-own:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 1px; }
+
+/* Video editor: creative direction before the first cut (components/studio/BriefPanel.tsx) */
+.cbr-dir { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; }
+.cbr-dir-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cbr-dir-grid { display: flex; flex-direction: column; gap: 8px; }
+.cbr-dir-row { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 8px; align-items: baseline; }
+.cbr-dir-row > span { font-size: 12px; color: var(--text-secondary); }
+.cbr-dir-row > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.cbr-dir-chip { padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text-secondary); font: inherit; font-size: 12px; cursor: pointer; }
+.cbr-dir-chip.on { background: var(--text-primary); color: var(--surface); border-color: var(--text-primary); }
+.cbr-dir-chip:focus-visible, .sd-ask-chip:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
+@media (max-width: 520px) { .cbr-dir-row { grid-template-columns: minmax(0, 1fr); } }
+/* Video editor: one-tap revisions (components/studio/AskPanel.tsx) */
+.sd-ask-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.sd-ask-chip { padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text-primary); font: inherit; font-size: 12px; cursor: pointer; }
+.sd-ask-chip:disabled { opacity: 0.5; cursor: default; }

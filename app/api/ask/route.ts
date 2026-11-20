@@ -24,6 +24,9 @@ import { gatherResearch, type Research } from "@/lib/research/gather";
 import { buildResearch } from "@/lib/research/answer";
 import { guessIntent, type SourcePlan } from "@/lib/research/intent";
 import { briefBlock, checkDraft, formatRule, nextBrief, readTurn, repairNote, sanitizeBrief, type Problem } from "@/lib/assistant/brief";
+import { CREATIVE_STYLES, directionBlock, sanitizeDirection } from "@/lib/research/direction";
+import { prefsLine, recordChoice } from "@/lib/creativePrefs";
+import { currentDetail } from "@/lib/intel/understandLoad";
 import { falseClaimsIn, productBlock } from "@/lib/socia/productKnowledge";
 
 export const runtime = "nodejs";
@@ -69,7 +72,8 @@ Never work out or state the times yourself: SOCIA calculates them and shows the 
 const RESEARCH_RULES = `Research answers: when the evidence has "Comparable public videos SOCIA found" (or the request is to make content, study a niche, plan a week or recreate a reference), fill "research"; otherwise approach "", examples [], why "", test "", steps [].
 - Base the answer on the request and the research, not on the user's past posts. Use the user's own posts only when the evidence lists them and they genuinely help.
 - approach: the recommended approach in at most two sentences.
-- examples: the 2 or 3 most comparable videos by their [R#] and, for each, why it is comparable in one short line (technique, structure or subject; no numbers, SOCIA shows them). Never refer to a video that isn't listed; never say you watched one (SOCIA read titles and numbers only).
+- examples: 3 or 4 videos by their [R#], each in a different creative style, so the person has a real choice of direction (never four near-identical videos; fewer when the list doesn't hold different styles). For each: style, one of ${CREATIVE_STYLES.map((s) => `${s.id} (${s.label})`).join(", ")}, as best read from its title, length and numbers; why it is relevant to this request in one short line; techniques: 1 to 3 specific techniques worth adapting (an opening move, a structure, a pacing or caption choice), read from what is known about it, never invented detail. No numbers in these lines, SOCIA shows them. Never refer to a video that isn't listed; never say you watched one (SOCIA read titles and numbers only), and only call one viral when its numbers show it far above its creator's usual. List first the example whose style fits this request best.
+- When the person hasn't chosen a direction yet and you write a script now, write it in the first example's style and say so in "text" in a few words; the person can choose another direction below. Never hold the script back for a choice.
 - why: one to three sentences on what recurs across the examples and how the approach uses it. Keep apart what was observed (a pattern in these titles or numbers) from your reading of it, and never present correlation as cause. When no examples were found, say so here and that the approach rests on general practice.
 - test: how to judge it after posting, in one or two sentences (what to compare, after how long).
 - steps: 1 to 3 of content_plan (add it to their plan), writer (write the post in Create Post), editor (make the video in the Video editor), idea (save it as a calendar draft), with a short label.
@@ -140,6 +144,11 @@ export async function POST(req: Request) {
   // The brief SOCIA returned last turn, and what this message asks for against it (lib/assistant/brief.ts).
   const prevBrief = sanitizeBrief(askCtx.brief);
   delete askCtx.brief;
+  // The creative direction chosen from a gallery in this chat (lib/research/direction.ts), kept for every later message.
+  const direction = sanitizeDirection(askCtx.direction);
+  const choseNow = askCtx.choseNow === true && Boolean(direction);
+  const moreRefs = (Array.isArray(askCtx.moreRefs) ? askCtx.moreRefs : []).filter((u): u is string => typeof u === "string" && /^https:\/\//.test(u)).slice(0, 12);
+  delete askCtx.direction; delete askCtx.choseNow; delete askCtx.moreRefs;
   const hasWork = Boolean(prevBrief) || messages.slice(0, -1).some((m) => m.role === "assistant" && /(?:^|\n)\s*(?:Say|Your lines|Film)\s*:/i.test(m.content));
 
   // The evidence window is the client's choice, but never longer than the
@@ -158,14 +167,20 @@ export async function POST(req: Request) {
   const earlierUser = messages.slice(0, -1).filter((m) => m.role === "user").map((m) => m.content).slice(-2).join(" | ");
   const latestText = latest.role === "user" ? latest.content : "";
   const read = readTurn(latestText, { hasWork, brief: prevBrief });
-  const { turn } = read;
-  let deliverable = read.deliverable;
+  // Choosing a direction rewrites the current piece in it (or writes it, when there is none yet); asking
+  // for different examples is research for the same piece.
+  const turn = choseNow ? (hasWork ? "revise" : "new") : moreRefs.length ? "new" : read.turn;
+  let deliverable = choseNow ? (prevBrief?.output && prevBrief.output !== "research" ? prevBrief.output : "full_script") : moreRefs.length ? "research" : read.deliverable;
   // A message that continues the current piece ("more storytelling", "only the lines", "again, complete")
   // needs no new research: running it again is what brought the same examples back every turn.
-  const continuing = turn === "revise" || turn === "format" || turn === "again";
+  const continuing = turn === "revise" || turn === "format" || turn === "again" || choseNow;
+  // Different examples for the same piece: search from the brief, not from "show me others".
+  const aboutPiece = [prevBrief?.topic, prevBrief?.contentType].filter(Boolean).join(" ");
   const intent = continuing
     ? { ...guessIntent(latestText, { page: askCtx.page }), kind: "create_content" as const, queries: [] }
-    : (await readIntent({ ownerId: ctx.ownerId, question: latestText, earlier: earlierUser, page: askCtx.page, brand: ctx.workspace?.name ?? "" })).intent;
+    : moreRefs.length && aboutPiece
+      ? (await readIntent({ ownerId: ctx.ownerId, question: `Find comparable short videos for: ${aboutPiece}`, earlier: earlierUser, page: askCtx.page, brand: ctx.workspace?.name ?? "" })).intent
+      : (await readIntent({ ownerId: ctx.ownerId, question: latestText, earlier: earlierUser, page: askCtx.page, brand: ctx.workspace?.name ?? "" })).intent;
   const sources = continuing ? CONTINUE_SOURCES : planSources(intent, { linkInQuestion: Boolean(linkIn(latestText)), page: askCtx.page });
   // Where the words alone weren't clear, the model's read of a new request settles what to write.
   if (!continuing && deliverable === "answer") {
@@ -173,7 +188,7 @@ export async function POST(req: Request) {
     else if (intent.kind === "niche_research" || intent.kind === "reference_style") deliverable = "research";
   }
   const researchP: Promise<Research> = (sources.external || sources.niche || sources.reference)
-    ? competitorScopeId(ctx.client, wsId).catch(() => wsId).then((scopeId) => gatherResearch({ client: ctx.client, ownerId: ctx.ownerId, scopeId, question: latestText, intent, plan: sources, now: new Date() }))
+    ? competitorScopeId(ctx.client, wsId).catch(() => wsId).then((scopeId) => gatherResearch({ client: ctx.client, ownerId: ctx.ownerId, scopeId, question: latestText, intent, plan: sources, now: new Date(), exclude: moreRefs }))
       .catch(() => ({ evidence: "", examples: [], notes: ["The research couldn't run this time."], reference: null }))
     : Promise.resolve({ evidence: "", examples: [], notes: [], reference: null });
   const schedP = loadSchedulable(ctx.client, ctx.ownerId, wsId, nowDate).catch(() => ({ posts: [] as Schedulable[], others: [] }));
@@ -198,7 +213,10 @@ export async function POST(req: Request) {
   const first = messages[0];
   const researchOn = !continuing && (sources.external || sources.niche || sources.reference);
   // What this message asks for: the brief so far and the one deliverable to write (lib/assistant/brief.ts).
-  const turnBlock = [briefBlock(prevBrief), `# What to write for this message\n${formatRule(deliverable, turn)}`].filter(Boolean).join("\n\n");
+  // A choice is kept on the brand (best-effort) so later galleries can start from the styles this person picks.
+  if (choseNow && direction?.refs.length) void recordChoice(ctx, direction.refs.map((r) => r.style));
+  const prefs = researchOn ? prefsLine((await currentDetail(ctx).catch(() => null))?.creative) : "";
+  const turnBlock = [briefBlock(prevBrief), directionBlock(direction), prefs, choseNow ? "The person just chose this direction: rewrite the piece in it now, complete." : "", `# What to write for this message\n${formatRule(deliverable, turn)}`].filter(Boolean).join("\n\n");
   const convo: Msg[] = [{ role: "user", content: `${ev.evidence}\n\n${schedEvidence}\n\n${messages.length === 1 ? `${researchEvidence}\n\n${turnBlock}\n\n` : ""}# The user's question\n${first.content}` }, ...messages.slice(1)];
   // A follow-up needs the current list too (it may have changed since the first turn). A new request in
   // the same chat is researched for itself; a message that continues the current piece gets no research.

@@ -61,7 +61,7 @@ describe("buildResearch", () => {
 
   it("shows only videos SOCIA found, with SOCIA's numbers, never the model's", () => {
     const r = buildResearch({
-      raw: { approach: "Lead with the problem.", examples: [{ ref: "[R1]", why: "Same founder-to-camera pitch, 9.9M views" }, { ref: "R7", why: "Invented" }], why: "w", test: "t", steps: [{ type: "editor", label: "x" }, { type: "editor", label: "dup" }] },
+      raw: { approach: "Lead with the problem.", examples: [{ ref: "[R1]", why: "Same founder-to-camera pitch, 9.9M views", style: "talking_head_story", techniques: ["Problem in the first line"] }, { ref: "R7", why: "Invented", style: "product_demo", techniques: [] }], why: "w", test: "t", steps: [{ type: "editor", label: "x" }, { type: "editor", label: "dup" }] },
       kind: "create_content", examples: found, notes: ["Searched YouTube"], seed: "Lead with the problem.", clean,
     })!;
     expect(r.examples).toHaveLength(1);

@@ -5,6 +5,8 @@
 // cut in the editor. The reference is read here in the browser (its length,
 // every cut, a few frames and its speech with times); only those facts are
 // sent, and the reference itself is never uploaded or kept.
+import { DIRECTION_OPTIONS, directionFor, directionSummary, withDirection, type DirectionKey, type EditDirection } from "@/lib/studioClips/editDirection";
+import type { CreativeStyle } from "@/lib/research/direction";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, Clapperboard, Film, Loader2, PenLine, Undo2, Upload, X } from "lucide-react";
@@ -35,7 +37,7 @@ const toBase64 = (blob: Blob) => new Promise<string>((resolve, reject) => {
   r.readAsDataURL(blob);
 });
 
-export default function BriefPanel({ projectId, viewerId, canMake, onOpen, beforeMake, heading = "Make a video your way", noClipsNote, initialPrompt, initialReference, autoMake, onAutoMade }: {
+export default function BriefPanel({ projectId, viewerId, canMake, onOpen, beforeMake, heading = "Make a video your way", noClipsNote, initialPrompt, initialReference, initialStyle, autoMake, onAutoMade }: {
   /** true once handed-over clips are all in: make the video without a click (Ask SOCIA's hand-off) */
   autoMake?: boolean;
   /** called when the automatic make has started, so it runs once */
@@ -53,6 +55,8 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
   initialPrompt?: string | null;
   /** a video to read as the reference, by a link SOCIA serves (a competitor's Reel from Discover) */
   initialReference?: { url: string; name: string } | null;
+  /** the creative style chosen in Ask SOCIA: the direction starts from its defaults */
+  initialStyle?: CreativeStyle | null;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [prompt, setPrompt] = useState(initialPrompt ?? "");
@@ -77,6 +81,10 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
   // "Add a voiceover" and what it should say (Noah, 2026-11-12): a voice only when the person asks.
   const [voiceOn, setVoiceOn] = useState(false);
   const [voiceNotes, setVoiceNotes] = useState("");
+  // The creative direction before the first cut (lib/studioClips/editDirection.ts): sensible defaults, changed only if the person wants.
+  const [direction, setDirection] = useState<EditDirection>(() => directionFor(initialStyle));
+  const [directionOpen, setDirectionOpen] = useState(false);
+  useEffect(() => { if (initialStyle) setDirection(directionFor(initialStyle)); }, [initialStyle]);
 
   const loadPast = useCallback(async () => {
     if (!projectId) { setPast([]); return; }
@@ -205,7 +213,7 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
         }
         setStep(null);
       }
-      const res = await fetch(`/api/studio/projects/${projectId}/brief`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: brief.trim() || null, reference: ref, ...(voiceOn ? { voiceover: { on: true, notes: voiceNotes.trim() || null } } : {}) }) });
+      const res = await fetch(`/api/studio/projects/${projectId}/brief`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: withDirection(brief, direction).trim() || null, reference: ref, ...(voiceOn ? { voiceover: { on: true, notes: voiceNotes.trim() || null } } : {}) }) });
       const j = (await res.json().catch(() => null)) as { build?: StudioBuild; error?: string } | null;
       if (!res.ok || !j?.build) { setError(j?.error ?? "SOCIA couldn't make that cut. Try again."); return; }
       void loadPast();
@@ -258,6 +266,30 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
               </>
             ) : (
               <small>{!projectId ? "Add clips first, so SOCIA can use what's in them." : ownWords != null && ownWords === prompt ? "SOCIA will use your words as written." : "SOCIA improves every prompt when you make the video, from what's in your clips: the length, the first shot, the order and the ending. It doesn't count as a video."}</small>
+            )}
+          </div>
+
+          <div className="cbr-dir">
+            <div className="cbr-dir-head">
+              <span className="cbr-ref-label">Creative direction</span>
+              <button type="button" className="ov-btn ghost small" aria-expanded={directionOpen} onClick={() => setDirectionOpen((o) => !o)}>{directionOpen ? "Done" : "Change"}</button>
+            </div>
+            {!directionOpen && <p className="cbp-muted">{directionSummary(direction)}</p>}
+            {directionOpen && (
+              <div className="cbr-dir-grid">
+                {(Object.keys(DIRECTION_OPTIONS) as DirectionKey[]).map((k) => (
+                  <div key={k} className="cbr-dir-row" role="radiogroup" aria-label={DIRECTION_OPTIONS[k].label}>
+                    <span>{DIRECTION_OPTIONS[k].label}</span>
+                    <div>
+                      {(DIRECTION_OPTIONS[k].options as readonly (readonly [string, string])[]).map(([id, label]) => (
+                        <button key={id} type="button" role="radio" aria-checked={direction[k] === id} className={`cbr-dir-chip${direction[k] === id ? " on" : ""}`} disabled={busy}
+                          onClick={() => setDirection((d) => ({ ...d, [k]: id }) as EditDirection)}>{label}</button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                <p className="cbp-muted">These go into the brief the cut is made from{initialStyle ? ", starting from the style you chose in Ask SOCIA" : ""}. Change anything after in the editor.</p>
+              </div>
             )}
           </div>
 
