@@ -1,0 +1,23 @@
+/* "What you offer" (components/BrandKnowledge.tsx): setup and Settings. Tokens only. */
+
+.bk { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+.bk-lead { margin: 0; max-width: 68ch; color: var(--ink-2); font-size: var(--fs-body); line-height: var(--lh-body); }
+.bk-meta { margin: 0; color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.bk-err { margin: 0; color: var(--danger-text); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+
+.bk-site { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp-2); }
+.bk-site > :first-child { flex: 1 1 260px; min-width: 0; }
+
+.bk-offers { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-2); min-width: 0; }
+.bk-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); width: 100%; }
+.bk-rows li { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) auto; gap: var(--sp-2); align-items: center; }
+@media (max-width: 600px) {
+  .bk-rows li { grid-template-columns: minmax(0, 1fr) auto; }
+  .bk-rows li > :nth-child(2) { grid-column: 1; grid-row: 2; }
+  .bk-rows li > :nth-child(3) { grid-column: 2; grid-row: 1; }
+}
+
+.bk-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-1); }
+.bk-list li { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-2); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.bk-list b { color: var(--ink); font-weight: var(--fw-semibold); }
+.bk-list span { color: var(--ink-2); }

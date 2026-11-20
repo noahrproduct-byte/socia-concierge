@@ -23,6 +23,8 @@ export type BrandDetail = {
   /** "Post animated videos": the person's choice, and SOCIA's last scan of whether it suits the account (lib/animated/fit.ts). */
   animated?: AnimatedPref;
   description?: string;
+  /** What the business offers and the facts it states, read from its website and/or written by the person (lib/brandKnowledge.ts); written by /api/brand/knowledge only. */
+  knowledge?: import("./brandKnowledge").BrandKnowledge;
   /** The kinds of video the account posts, as the person confirmed them from SOCIA's read of its Reels (lib/brandBrief.ts). */
   formats?: BrandFormat[];
   /** What the account's videos share (palette, type, logo, characters), as confirmed. */

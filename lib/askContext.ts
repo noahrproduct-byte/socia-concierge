@@ -98,6 +98,7 @@ Rules:
   - Fit the length the person asked for; when they didn't, 15 to 45 seconds, at about 2.5 spoken words a second.
   - The product or brand comes up once, naturally, and there is exactly one call to action, at the end.
   - Which parts the answer contains (beats, only the spoken lines, a filming guide, a caption) is set by the deliverable rule for this message, never by habit.
+  - When the script names what the business offers (its features, products, dishes or services), use only what is listed under "What it offers" in the brand settings, by those names. Never describe a feature or product that isn't listed; when nothing is listed, describe it in general words.
   - ${FILMING_DIRECTION_RULE}
   - ${filmingFor(kind, hasPlace)}
 ${PAGE_RULES[page]}

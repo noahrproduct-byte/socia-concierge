@@ -19,6 +19,7 @@ import { ACCOUNT_TYPES, GOAL_PLATFORM_NAME, type AccountType, type GoalPlatform 
 import { confidenceLabel, type Understanding } from "@/lib/intel/understanding";
 import type { BrandDetail } from "@/lib/profile";
 import { Field, Input } from "@/components/system";
+import BrandKnowledge from "@/components/BrandKnowledge";
 import PlanNotice from "@/components/PlanNotice";
 import { Choices } from "./growth/GrowthFields";
 import ConnectAccounts, { type ConnectState } from "./ConnectAccounts";
@@ -449,6 +450,11 @@ export default function OnboardingFlow({
                       <Input maxLength={120} value={location} placeholder="e.g. Hermitage, TN" onChange={(e) => setLocation(e.target.value)} />
                     </Field>
                     {u?.geography?.value.place && <Inferred confidence={u.geography.confidence} evidence={u.geography.evidence} />}
+                  </div>
+                  {/* What the business offers: features, menu, products or services, read from its website (lib/brandKnowledge.ts). */}
+                  <div className="ob-infield">
+                    <span className="s-label">What you offer</span>
+                    <BrandKnowledge intro="Add your website and SOCIA reads what you offer: your app's features, your menu, your products or services. Check the list, or type it yourself. Every script and post names only what's on it." />
                   </div>
                   {u && u.themes.length > 0 && (
                     <div className="ob-themes">

@@ -4,6 +4,7 @@
 // brand personality.
 
 import type { BrandVoice } from "./commentDrafts";
+import { sanitizeKnowledge } from "./brandKnowledge";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ProfileLike = any;
@@ -19,6 +20,10 @@ export function brandVoiceFrom(profile: ProfileLike, workspaceName: string | nul
   const voice = str(bd.voice);
   const avoid = str(bd.avoid);
   const website = str(bd.website);
-  const notesParts = [voice ? `Voice: ${voice}` : null, str(bd.description), website ? `Website: ${website}` : null, str(profile?.goals), avoid ? `Never mention: ${avoid}` : null].filter((s): s is string => Boolean(s));
-  return { name, niche, location, notes: notesParts.length ? notesParts.join(" · ").slice(0, 600) : null };
+  // What it offers and the facts it states (lib/brandKnowledge.ts), so a question gets a real answer.
+  const k = sanitizeKnowledge(bd.knowledge);
+  const offers = k?.offerings.length ? `What it offers: ${k.offerings.map((o) => o.name).join(", ")}` : null;
+  const facts = k?.facts.length ? `Facts: ${k.facts.join("; ")}` : null;
+  const notesParts = [voice ? `Voice: ${voice}` : null, str(bd.description), website ? `Website: ${website}` : null, offers, facts, str(profile?.goals), avoid ? `Never mention: ${avoid}` : null].filter((s): s is string => Boolean(s));
+  return { name, niche, location, notes: notesParts.length ? notesParts.join(" · ").slice(0, 1400) : null };
 }
