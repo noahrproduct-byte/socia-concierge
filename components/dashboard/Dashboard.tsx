@@ -283,9 +283,6 @@ export default function Dashboard({ d, look = "auto" }: { d: DashboardData; look
         </p>
       )}
 
-      {/* ---- onboarding: a new account's first steps, and the posting streak (lib/perks) ---- */}
-      <Momentum />
-
       {/* ---- this week's videos: what went out and what each one got. Press one for its breakdown. ---- */}
       <Reveal index={next()}>
         <section className="dash-week" aria-labelledby="dash-week-title">
@@ -304,7 +301,8 @@ export default function Dashboard({ d, look = "auto" }: { d: DashboardData; look
               {weekPosts.map((p) => {
                 const tag = standout(p);
                 const seen = p.reach ?? p.views;
-                const rate = seen ? p.engagements / seen : null;
+                // A rate over 100% means the platform's view count is behind its likes; no ring then.
+                const rate = seen && p.engagements <= seen ? p.engagements / seen : null;
                 const pct = rate != null ? `${(rate * 100).toFixed(1)}%` : null;
                 return (
                   <li key={p.id}>
@@ -341,6 +339,9 @@ export default function Dashboard({ d, look = "auto" }: { d: DashboardData; look
           )}
         </section>
       </Reveal>
+
+      {/* ---- onboarding, under the week's videos: a new account's first steps, and the posting streak (lib/perks) ---- */}
+      <Momentum />
 
       {/* The session being filmed today, or the next one (lib/filmingPlan.ts). Nothing when there is none. */}
       <FilmingSessions where="dashboard" />

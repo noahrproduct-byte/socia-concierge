@@ -657,3 +657,12 @@ button.dash-hud-ring {
   --chart-4: var(--positive);
   --chart-5: var(--warning);
 }
+
+/* The best post's title is its caption's first lines, never the whole caption. */
+.dash-hud-best-body > b {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
