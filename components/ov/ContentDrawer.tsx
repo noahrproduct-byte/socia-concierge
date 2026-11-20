@@ -11,6 +11,8 @@ import { askSocia } from "@/lib/ask";
 import { trialLine } from "@/lib/publishing/trial";
 import DeleteOnPlatform, { useDeleteInfo, type DeleteInfo } from "@/components/DeleteOnPlatform";
 import { deletedLine } from "@/lib/platformDelete/types";
+import { postVerdicts, standout } from "@/lib/postVerdicts";
+import "@/app/(app)/dashboard/dashboard-week.css";
 
 type MediaDeleteAnswer = { canDelete: boolean; target: DeleteInfo };
 const pickMediaDelete = (j: unknown): MediaDeleteAnswer | null => {
@@ -49,8 +51,10 @@ function why(p: PostCard, baseline: number | null, medianViews: number | null) {
   return { observed, interpretation, recommendation };
 }
 
-export default function ContentDrawer({ post, baseline, medianViews, onClose }: { post: PostCard | null; baseline: number | null; medianViews: number | null; onClose: () => void }) {
+export default function ContentDrawer({ post, posts, baseline, medianViews, onClose }: { post: PostCard | null; posts?: PostCard[]; baseline: number | null; medianViews: number | null; onClose: () => void }) {
   const p = post;
+  const verdicts = p && posts ? postVerdicts(p, posts) : null;
+  const tag = p ? standout(p) : null;
   const w = p ? why(p, baseline, medianViews) : null;
   // A post this account posted can be deleted from its platform here: an
   // Instagram post or Reel, a Facebook Page post, a YouTube video or Short (a
@@ -89,6 +93,21 @@ export default function ContentDrawer({ post, baseline, medianViews, onClose }: 
             <div><dt>Engagement</dt><dd>{fmtNum(p.engagements)}</dd></div>
             <div><dt>vs. baseline</dt><dd className={p.multiplier != null ? (p.multiplier >= 1 ? "up" : "down") : ""}>{p.multiplier != null ? `${p.multiplier.toFixed(1)}×` : "—"}</dd></div>
           </dl>
+          {verdicts && (
+            <section className="dash-verdicts" aria-label="How this post did against your other posts">
+              {tag && <span className={`dash-week-tag is-${tag.tone}`}>{tag.word}</span>}
+              <ul>
+                {verdicts.map((v) => (
+                  <li key={v.id} className={`is-${v.tone}`}>
+                    <b>{v.label}</b>
+                    <span className="dash-verdict-bar" aria-hidden><i style={{ width: `${Math.round(v.share * 100)}%` }} /></span>
+                    <small>{v.line}</small>
+                  </li>
+                ))}
+              </ul>
+              <p>Read from this post&apos;s totals. Instagram does not share where in a video people stop watching.</p>
+            </section>
+          )}
           <section className="ov-why">
             <h3>Why this worked</h3>
             <div className="ov-why-block"><small>Observed data</small><ul>{w.observed.map((o) => <li key={o}>{o}</li>)}</ul></div>

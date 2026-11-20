@@ -32,7 +32,6 @@ import type { TtVideo } from "@/lib/tiktokAuth";
 import type { Deliverable } from "@/lib/schema";
 import type { ScheduledPost } from "@/lib/scheduling";
 import { captionlessLabels } from "@/lib/publishing/postLabelLoad";
-import { computeContentScore } from "@/lib/contentScore";
 import { coverOf, type CalendarItem, type Competitors, type PlanDayItem } from "@/lib/overviewVisual";
 import { listTracked } from "@/lib/trackedCompetitors";
 import { competitorScopeId } from "@/lib/workspaces";
@@ -240,7 +239,7 @@ export default async function DashboardPage({
     top = rankPosts(posts, "views", 8);
     medianViews = median(posts.map((p) => p.views).filter((v): v is number => v != null));
     const kpisAll = buildKpis({ media, daily: dailyRows, followers: snap!.followers_count ?? null, days });
-    kpis = (["views", "engagement_rate", "followers", "posts"] as const).map((id) => kpisAll.find((k) => k.id === id)!);
+    kpis = (["views", "reach", "engagement_rate", "followers", "posts"] as const).map((id) => kpisAll.find((k) => k.id === id)!);
     series = {
       views: buildSeries("views", media, dailyRows, days),
       engagement: buildSeries("engagement", media, dailyRows, days),
@@ -278,10 +277,6 @@ export default async function DashboardPage({
   const recent12 = [...media].filter((m) => m.timestamp).sort((a, b) => Date.parse(b.timestamp!) - Date.parse(a.timestamp!)).slice(0, 12);
   const yourLC = recent12.length >= 3 ? median(recent12.map((m) => (m.like_count ?? 0) + (m.comments_count ?? 0))) : null;
   const comp = await compP;
-  // The content score (lib/contentScore.ts): calculated from the account's own
-  // posts, followers and daily reach; null until five dated posts exist.
-  const dailyReach = dailyRows.filter((r) => r.source === "instagram_api" && r.reach != null).map((r) => r.reach as number);
-  const score = live ? computeContentScore(media, snap!.followers_count ?? null, dailyReach, days) : null;
   // The latest plan's week, for the strip, only while that plan is this week's.
   const planIsThisWeek = Boolean(latestPlan && now.getTime() - Date.parse(latestPlan.created_at) < 7 * DAY_MS);
   const planWeek: PlanDayItem[] | null = planIsThisWeek && Array.isArray(latestPlan?.data?.weeklyPlan)
@@ -373,7 +368,6 @@ export default async function DashboardPage({
     firstName,
     lastPost: lastIg ? { platform: "Instagram", at: lastIg } : null,
     competitors: comp ? { ...comp, you: { engagement: yourLC, followers: live ? snap!.followers_count ?? null : null } } : null,
-    score: score ? { score: score.score, verdict: score.verdict, dims: score.dims.map((x) => ({ label: x.label, value: x.value, method: x.method })), sampleSize: score.sampleSize } : null,
     calendar,
     planWeek,
     tasks: mine.tasks,

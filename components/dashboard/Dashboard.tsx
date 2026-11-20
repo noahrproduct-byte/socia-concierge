@@ -13,9 +13,10 @@
 
 import "@/app/(app)/dashboard/dashboard.css";
 import "@/app/(app)/dashboard/dashboard-motion.css";
+import "@/app/(app)/dashboard/dashboard-week.css";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, ArrowDownRight, CalendarDays, CheckCircle2, ChevronDown, CircleDot, Eye, FileText, Film, Heart, Image as ImageIcon, Images, Plus, Users } from "lucide-react";
+import { ArrowRight, ArrowUpRight, ArrowDownRight, CheckCircle2, ChevronDown, CircleDot, Eye, FileText, Film, Heart, Image as ImageIcon, Images, Plus, Users } from "lucide-react";
 import OverviewChart from "@/components/ov/OverviewChart";
 import ContentDrawer from "@/components/ov/ContentDrawer";
 import { InsightList } from "@/components/ov/Insights";
@@ -35,11 +36,12 @@ import type { Candidate } from "@/lib/repurpose";
 import type { PlatformSummary } from "@/lib/metrics/allPlatforms";
 import { fmtNum, audienceInsight, type Kpi, type Series, type Insight, type PostCard, type Focus, type Upcoming, type GoalTracker } from "@/lib/overview";
 import type { CalPost } from "@/lib/audience";
-import { buildWeek, compareBars, describeDay, scoreTone, COMPETITOR_METRICS, type CalendarItem, type CompetitorMetric, type Competitors, type PlanDayItem, type WeekCover, type WeekDay } from "@/lib/overviewVisual";
+import { buildWeek, compareBars, describeDay, COMPETITOR_METRICS, type CalendarItem, type CompetitorMetric, type Competitors, type PlanDayItem, type WeekCover, type WeekDay } from "@/lib/overviewVisual";
 import { ActionChips, AngleSections, BriefingLines, GoalBars, GoalNotes, LearningLines, WorksBars, WorksNotes, type IntelData } from "./IntelSections";
-import { Bar, CountUp, Details, Reveal, Ring, useMotionOk } from "./motion";
+import { Bar, CountUp, Details, Reveal, useMotionOk } from "./motion";
 import YourTasks from "./YourTasks";
 import type { MyTask } from "@/lib/teamWork";
+import { standout } from "@/lib/postVerdicts";
 
 const DASH = String.fromCharCode(0x2014);
 
@@ -110,7 +112,7 @@ function DayCover({ cover }: { cover: WeekCover }) {
 }
 
 /** The stat row shows three numbers: the three that drive the chart. */
-const STAT_COUNT = 3;
+const STAT_COUNT = 4;
 /** Remembers on this device whether "More from your account" was left open. */
 const MORE_KEY = "socia-dash-more";
 
@@ -221,7 +223,7 @@ export default function Dashboard({ d }: { d: DashboardData }) {
 
   // ---- greeting ----------------------------------------------------------------
   const part = partOfDay(clock);
-  const greeting = d.firstName ? `${part ?? "Welcome back"}, ${d.firstName}` : "Your overview";
+  const greeting = d.firstName ? `${part ?? "Welcome back"}, ${d.firstName}` : "Dashboard";
 
   // ---- today's one sentence: the account's real schedule and recommendations ---
   const priority = (() => {
@@ -249,10 +251,11 @@ export default function Dashboard({ d }: { d: DashboardData }) {
     };
   })();
 
-  // ---- the score ring -------------------------------------------------------
-  const score = d.score ?? null;
-  const tone = score ? scoreTone(score.score) : null;
-  const ringLabel = score ? `Content score ${score.score} of 100, ${score.verdict.toLowerCase()}` : nothingConnected ? "No content score: nothing connected" : "No content score yet: needs five posts on Instagram";
+  // ---- this week's posts: the last 7 days, newest first ---------------------------
+  const weekPosts = useMemo(() => (clock ? d.posts.filter((p) => clock.getTime() - new Date(p.published).getTime() < 7 * 86400000) : null), [d.posts, clock]);
+  const weekViews = (weekPosts ?? []).reduce((n, p) => n + (p.views ?? 0), 0);
+  const weekEng = (weekPosts ?? []).reduce((n, p) => n + p.engagements, 0);
+  const weekMaxEng = Math.max(1, ...(weekPosts ?? []).map((p) => p.engagements));
 
   // ---- stat cards with their own trend -------------------------------------------
   const rangeDays = d.series?.views.current.length ?? 30;
@@ -330,69 +333,63 @@ export default function Dashboard({ d }: { d: DashboardData }) {
         </p>
       )}
 
-      {/* ---- hero: the score and today's one sentence ------------------------------ */}
+      {/* ---- onboarding: a new account's first steps, and the posting streak (lib/perks) ---- */}
+      <Momentum />
+
+      {/* ---- this week's posts: what went out and what each one got. Press one for its breakdown. ---- */}
       <Reveal index={next()}>
-      <section className="dash-hero dash-lift" aria-labelledby="dash-hero-title">
-        <div className="dash-hero-ring">
-          <Ring share={score ? score.score / 100 : 0} tone={tone?.tone ?? "none"} label={ringLabel}>
-            {score ? <b><CountUp value={score.score} /></b> : <b className="is-na">{DASH}</b>}
-            <small>{score ? "of 100" : "no score"}</small>
-          </Ring>
-          {/* What the number is, said on the screen (it was only in the ring's hidden label), and one word for it, not two. */}
-          <span className="dash-hero-tag">
-            <span className="dash-hero-what">Content score</span>
-            <span className={`dash-hero-word is-${tone?.tone ?? "none"}`}>{score ? score.verdict : nothingConnected ? "Nothing connected" : "Needs 5 posts"}</span>
-          </span>
-        </div>
-        <div className="dash-hero-body">
-          <span className="dash-eyebrow"><CalendarDays aria-hidden /> Today</span>
-          {priority ? (
-            <>
-              <h2 id="dash-hero-title">{priority.title}</h2>
-              <p>{priority.sub}</p>
-              <div className="dash-hero-actions">
-                <ButtonLink href={priority.href} variant="primary" size="sm">{priority.cta} <ArrowRight aria-hidden /></ButtonLink>
-              </div>
-            </>
-          ) : (
-            <div className="s-stack" aria-busy="true"><Skeleton variant="title" width="70%" /><Skeleton variant="text" width="50%" /></div>
-          )}
-          <Details label="Details" openLabel="Less">
-            {score && (
-              <div className="dash-dims">
-                <span className="dash-mini-label">How the score is built</span>
-                <ul className="dash-bars">
-                  {score.dims.map((x) => (
-                    <li key={x.label} role="img" aria-label={`${x.label}: ${x.value} of 100. ${x.method}`}>
-                      <span className="dash-bars-name"><b>{x.label}</b><small>{x.method}</small></span>
-                      <Bar share={x.value / 100} />
-                      <b className="dash-bars-num">{x.value}</b>
-                    </li>
-                  ))}
-                </ul>
-                <p className="dash-note">Calculated from {score.sampleSize} posts, your followers and daily reach. A measure of what is visible, never a prediction of reach or virality.</p>
-              </div>
+        <section className="dash-week" aria-labelledby="dash-week-title">
+          <div className="dash-sec">
+            <h2 id="dash-week-title">This week</h2>
+            {weekPosts && weekPosts.length > 0 && (
+              <ul className="dash-week-sum" aria-label="The last 7 days in total">
+                <li><Film aria-hidden /><b>{weekPosts.length}</b> {weekPosts.length === 1 ? "post" : "posts"}</li>
+                <li><Eye aria-hidden /><b>{fmtNum(weekViews)}</b> views</li>
+                <li><Heart aria-hidden /><b>{fmtNum(weekEng)}</b> interactions</li>
+              </ul>
             )}
-            <BriefingLines b={d.intel.briefing} />
-            {!nothingConnected && <div className="dash-nested"><TodayCard {...d.today} view={todayView} /></div>}
-          </Details>
-        </div>
-      </section>
+          </div>
+          {!d.live ? (
+            <Empty action={<ButtonLink href={d.connectHref} size="sm">Connect Instagram</ButtonLink>}>
+              <b>Your posts show here.</b> Connect Instagram to see each post with its views and interactions.
+            </Empty>
+          ) : !weekPosts ? (
+            <div className="dash-week-row" aria-busy="true">{Array.from({ length: 4 }, (_, k) => <Skeleton key={k} variant="block" className="dash-week-skel" />)}</div>
+          ) : weekPosts.length ? (
+            <ul className="dash-week-row">
+              {weekPosts.map((p) => {
+                const tag = standout(p);
+                return (
+                  <li key={p.id}>
+                    <button type="button" className="dash-week-card dash-lift" onClick={() => setOpen(p)} aria-label={`${p.title}: ${p.views != null ? `${fmtNum(p.views)} views, ` : ""}${fmtNum(p.engagements)} interactions${tag ? `, ${tag.word.toLowerCase()}` : ""}. Open the breakdown`}>
+                      <span className="dash-week-cover">
+                        {p.thumb ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={p.thumb} alt="" loading="lazy" />
+                        ) : (
+                          <Film aria-hidden />
+                        )}
+                        {tag && <span className={`dash-week-tag is-${tag.tone}`}>{tag.word}</span>}
+                        <span className="dash-week-day">{new Date(p.published).toLocaleDateString("en-US", { weekday: "short" })}</span>
+                      </span>
+                      <span className="dash-week-num"><b>{p.views != null ? fmtNum(p.views) : DASH}</b><small>views</small></span>
+                      <Bar share={p.engagements / weekMaxEng} tone={tag?.tone === "bad" ? "muted" : "data"} />
+                      <span className="dash-week-eng"><Heart aria-hidden />{fmtNum(p.engagements)}{p.multiplier != null && <i>{p.multiplier.toFixed(1)}x</i>}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <Empty action={<ButtonLink href="/create" size="sm">Create a post</ButtonLink>}>
+              <b>Nothing posted in the last 7 days.</b> Each post you publish shows here with its views and interactions.
+            </Empty>
+          )}
+        </section>
       </Reveal>
 
-      {/* ---- a new account's first steps, and the posting streak (lib/perks) -------- */}
-      <Momentum />
       {/* The session being filmed today, or the next one (lib/filmingPlan.ts). Nothing when there is none. */}
       <FilmingSessions where="dashboard" />
-      {/* ---- posts that beat the account's usual result, with an image to share (lib/share) ---- */}
-      <ShareWins />
-
-      {/* ---- going viral in the niche: real Reels that took off (Discover's, app/api/dashboard/viral) ---- */}
-      {!nothingConnected && (
-        <Reveal index={next()}>
-          <ViralNow />
-        </Reveal>
-      )}
 
       {/* ---- plan posts handed to you ---------------------------------------------- */}
       {(d.tasks?.length ?? 0) > 0 && (
@@ -401,68 +398,11 @@ export default function Dashboard({ d }: { d: DashboardData }) {
         </Reveal>
       )}
 
-      {/* ---- this week ------------------------------------------------------------ */}
-      <Reveal index={next()}>
-        <Card className="dash-lift">
-          <CardHeader title="This week" actions={<Link href="/plan/calendar" className="s-link">Calendar</Link>} />
-          {week ? (
-            <ol className="dash-strip" aria-label="This week">
-              {week.map((day) => (
-                <li key={day.date} className={`dash-day${day.isToday ? " is-today" : ""}${day.isPast ? " is-past" : ""}`}>
-                  <span className="s-sr">{describeDay(day)}</span>
-                  <span className="dash-day-head" aria-hidden><small>{day.label}</small><b>{day.dayNum}</b></span>
-                  <span className="dash-day-items" aria-hidden>
-                    {day.items.length ? day.items.map((it, k) => {
-                      const Icon = KIND_ICON[it.kind];
-                      return (
-                        <span key={k} className={`dash-day-item is-${it.status}`} title={`${it.title}: ${STATUS_WORD[it.status]}`}>
-                          <Icon />
-                          {it.cover && <DayCover cover={it.cover} />}
-                          <i />
-                        </span>
-                      );
-                    }) : day.isPast ? <span className="dash-day-none" /> : <Link href="/create" className="dash-day-add" aria-label={`Create a post for ${day.label} ${day.dayNum}`} tabIndex={-1}><Plus /></Link>}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <div className="dash-strip is-loading" aria-busy="true">{Array.from({ length: 7 }, (_, k) => <Skeleton key={k} variant="block" className="dash-day-skel" />)}</div>
-          )}
-          <ul className="dash-legend" aria-hidden>
-            <li className="is-posted"><i />Posted</li>
-            <li className="is-scheduled"><i />Scheduled</li>
-            <li className="is-planned"><i />Planned</li>
-            <li className="is-draft"><i />Draft</li>
-          </ul>
-          {d.focus ? (
-            <p className="dash-line"><Link href="/plan" className="s-link">Plan</Link>: {d.focus.headline}</p>
-          ) : (
-            <p className="dash-line dash-line--empty">No plan yet. <Link href="/plan" className="s-link">Generate a Content Plan</Link></p>
-          )}
-          {(d.focus || d.upcoming.length > 0) && (
-            <Details label="Details" openLabel="Less">
-              {d.focus && (
-                <>
-                  {d.focus.outcomeLine && <p className="dash-note">So far: {d.focus.outcomeLine}</p>}
-                  <ul className="dash-notes">
-                    {d.focus.tiles.map((t, k) => <li key={k}><b>{t.title}</b> {t.detail}</li>)}
-                  </ul>
-                  <p className="dash-note">From your Content Plan of {new Date(d.focus.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}, built on your performance, goals and competitors.</p>
-                </>
-              )}
-              {d.upcoming.length > 0 && (
-                <>
-                  <span className="dash-mini-label">Next up</span>
-                  <ul className="dash-notes">
-                    {d.upcoming.map((u) => <li key={u.id}><b>{clock ? dayLabel(new Date(u.at), clock) : ""}</b> {u.title} <small>({u.format})</small></li>)}
-                  </ul>
-                </>
-              )}
-            </Details>
-          )}
-        </Card>
-      </Reveal>
+      {/* ---- analytics: the numbers, the chart and the best posts ---- */}
+      <div className="dash-sec">
+        <h2>Analytics</h2>
+        {!nothingConnected && <Link href="/analytics" className="s-link">Full analytics</Link>}
+      </div>
 
       {/* ---- stat cards -------------------------------------------------------------- */}
       <Reveal index={next()} className="dash-stats">
@@ -554,17 +494,107 @@ export default function Dashboard({ d }: { d: DashboardData }) {
         )}
       </Reveal>
 
+      {/* ---- what to do next: today's one sentence, then the next three actions ---- */}
+      <Reveal index={next()}>
+        <Card className="dash-lift">
+          <CardHeader title="What to do next" period="From your own posts" />
+          {priority && (
+            <div className="dash-next-lead">
+              <p><b>{priority.title}</b> {priority.sub}</p>
+              <ButtonLink href={priority.href} variant="primary" size="sm">{priority.cta} <ArrowRight aria-hidden /></ButtonLink>
+            </div>
+          )}
+          {(d.intel.actions.length > 0 || !priority) && <ActionChips actions={d.intel.actions} />}
+          <Details label="Details" openLabel="Less">
+            <BriefingLines b={d.intel.briefing} />
+            {!nothingConnected && <div className="dash-nested"><TodayCard {...d.today} view={todayView} /></div>}
+          </Details>
+        </Card>
+      </Reveal>
+
       {/* ---- more from your account: closed until opened -------------------------------- */}
       <section className="dash-more" aria-labelledby="dash-more-title">
         <button type="button" className="dash-more-toggle" aria-expanded={more} aria-controls="dash-more-body" onClick={toggleMore}>
           <span className="dash-more-text">
             <b id="dash-more-title">More from your account</b>
-            <small>What&apos;s working, next actions, competitors, goals, audience, platforms and ideas</small>
+            <small>Your week, competitors, goals, audience, platforms and ideas</small>
           </span>
           <ChevronDown aria-hidden />
         </button>
         {more && (
           <div id="dash-more-body" className="dash-stack dash-more-body">
+            {/* ---- this week ------------------------------------------------------------ */}
+            <Reveal index={next()}>
+              <Card className="dash-lift">
+                <CardHeader title="This week" actions={<Link href="/plan/calendar" className="s-link">Calendar</Link>} />
+                {week ? (
+                  <ol className="dash-strip" aria-label="This week">
+                    {week.map((day) => (
+                      <li key={day.date} className={`dash-day${day.isToday ? " is-today" : ""}${day.isPast ? " is-past" : ""}`}>
+                        <span className="s-sr">{describeDay(day)}</span>
+                        <span className="dash-day-head" aria-hidden><small>{day.label}</small><b>{day.dayNum}</b></span>
+                        <span className="dash-day-items" aria-hidden>
+                          {day.items.length ? day.items.map((it, k) => {
+                            const Icon = KIND_ICON[it.kind];
+                            return (
+                              <span key={k} className={`dash-day-item is-${it.status}`} title={`${it.title}: ${STATUS_WORD[it.status]}`}>
+                                <Icon />
+                                {it.cover && <DayCover cover={it.cover} />}
+                                <i />
+                              </span>
+                            );
+                          }) : day.isPast ? <span className="dash-day-none" /> : <Link href="/create" className="dash-day-add" aria-label={`Create a post for ${day.label} ${day.dayNum}`} tabIndex={-1}><Plus /></Link>}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <div className="dash-strip is-loading" aria-busy="true">{Array.from({ length: 7 }, (_, k) => <Skeleton key={k} variant="block" className="dash-day-skel" />)}</div>
+                )}
+                <ul className="dash-legend" aria-hidden>
+                  <li className="is-posted"><i />Posted</li>
+                  <li className="is-scheduled"><i />Scheduled</li>
+                  <li className="is-planned"><i />Planned</li>
+                  <li className="is-draft"><i />Draft</li>
+                </ul>
+                {d.focus ? (
+                  <p className="dash-line"><Link href="/plan" className="s-link">Plan</Link>: {d.focus.headline}</p>
+                ) : (
+                  <p className="dash-line dash-line--empty">No plan yet. <Link href="/plan" className="s-link">Generate a Content Plan</Link></p>
+                )}
+                {(d.focus || d.upcoming.length > 0) && (
+                  <Details label="Details" openLabel="Less">
+                    {d.focus && (
+                      <>
+                        {d.focus.outcomeLine && <p className="dash-note">So far: {d.focus.outcomeLine}</p>}
+                        <ul className="dash-notes">
+                          {d.focus.tiles.map((t, k) => <li key={k}><b>{t.title}</b> {t.detail}</li>)}
+                        </ul>
+                        <p className="dash-note">From your Content Plan of {new Date(d.focus.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}, built on your performance, goals and competitors.</p>
+                      </>
+                    )}
+                    {d.upcoming.length > 0 && (
+                      <>
+                        <span className="dash-mini-label">Next up</span>
+                        <ul className="dash-notes">
+                          {d.upcoming.map((u) => <li key={u.id}><b>{clock ? dayLabel(new Date(u.at), clock) : ""}</b> {u.title} <small>({u.format})</small></li>)}
+                        </ul>
+                      </>
+                    )}
+                  </Details>
+                )}
+              </Card>
+            </Reveal>
+
+            {/* ---- posts that beat the account's usual result, with an image to share (lib/share) ---- */}
+            <ShareWins />
+            {/* ---- going viral in the niche: real Reels that took off (Discover's, app/api/dashboard/viral) ---- */}
+            {!nothingConnected && (
+              <Reveal index={next()}>
+                <ViralNow />
+              </Reveal>
+            )}
+
             {/* ---- you against competitors, and what's working ------------------------------ */}
             <Reveal index={next()} className="dash-duo">
               <Card className="dash-lift">
@@ -616,14 +646,6 @@ export default function Dashboard({ d }: { d: DashboardData }) {
                 {(d.intel.works.length > 0 || d.intel.angles.length > 0 || d.intel.nicheRead) && (
                   <Details label="Details" openLabel="Less"><WorksNotes works={d.intel.works} themes={d.intel.themes} postsRead={d.intel.postsRead} nicheRead={d.intel.nicheRead} /></Details>
                 )}
-              </Card>
-            </Reveal>
-
-            {/* ---- next actions as chips ------------------------------------------------------ */}
-            <Reveal index={next()}>
-              <Card className="dash-lift">
-                <CardHeader title="Next actions" period="From your own posts" />
-                <ActionChips actions={d.intel.actions} />
               </Card>
             </Reveal>
 
@@ -744,7 +766,7 @@ export default function Dashboard({ d }: { d: DashboardData }) {
         )}
       </section>
 
-      <ContentDrawer post={open} baseline={d.baseline} medianViews={d.medianViews} onClose={() => setOpen(null)} />
+      <ContentDrawer post={open} posts={d.posts} baseline={d.baseline} medianViews={d.medianViews} onClose={() => setOpen(null)} />
     </div>
   );
 }

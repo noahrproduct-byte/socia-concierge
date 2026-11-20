@@ -1,0 +1,285 @@
+/* The Dashboard's week of posts, its section labels, the "what to do next"
+   lead and the post breakdown's four readings. Tokens only. */
+
+/* ---- section label: a short rule, the name, and one link ---- */
+.dash-sec {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+.dash-sec h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: var(--fw-semibold);
+}
+.dash-sec h2::before {
+  content: "";
+  width: var(--sp-4);
+  height: 2px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+}
+
+/* ---- this week ---- */
+.dash-week {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.dash-week-sum {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.dash-week-sum li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+.dash-week-sum b {
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.dash-week-sum svg {
+  width: 14px;
+  height: 14px;
+}
+.dash-week-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 148px;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0 0 var(--sp-2);
+  list-style: none;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+}
+.dash-week-row > li {
+  scroll-snap-align: start;
+  min-width: 0;
+}
+.dash-week-skel {
+  height: 300px;
+}
+.dash-week-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dash-week-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.dash-week-cover {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 9 / 14;
+  border-radius: var(--r-control);
+  background: var(--surface-hover);
+  color: var(--ink-3);
+  overflow: hidden;
+}
+.dash-week-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.dash-week-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-weight: var(--fw-semibold);
+}
+.dash-week-tag.is-good {
+  color: var(--positive-ink);
+  background: var(--positive-bg);
+}
+.dash-week-tag.is-bad {
+  color: var(--negative-ink);
+  background: var(--negative-bg);
+}
+.dash-week-cover .dash-week-tag {
+  position: absolute;
+  top: var(--sp-1);
+  left: var(--sp-1);
+}
+.dash-week-day {
+  position: absolute;
+  right: var(--sp-1);
+  bottom: var(--sp-1);
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-weight: var(--fw-medium);
+}
+.dash-week-num {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-1);
+}
+.dash-week-num b {
+  font-size: var(--fs-lead);
+  line-height: var(--lh-lead);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.dash-week-num small,
+.dash-week-eng {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.dash-week-eng {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-variant-numeric: tabular-nums;
+}
+.dash-week-eng svg {
+  width: 12px;
+  height: 12px;
+}
+.dash-week-eng i {
+  margin-left: auto;
+  color: var(--ink-2);
+  font-style: normal;
+  font-weight: var(--fw-medium);
+}
+
+/* ---- four stat cards ---- */
+.dash-stack .dash-stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* ---- what to do next ---- */
+.dash-next-lead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-3);
+}
+.dash-next-lead p {
+  flex: 1 1 280px;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.dash-next-lead p b {
+  color: var(--ink);
+  font-weight: var(--fw-semibold);
+}
+
+/* ---- the post breakdown: four readings against the account's other posts ---- */
+.dash-verdicts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  margin: var(--sp-3) 0;
+}
+.dash-verdicts ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dash-verdicts li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  align-items: center;
+  column-gap: var(--sp-3);
+  row-gap: var(--sp-1);
+}
+.dash-verdicts li b {
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-semibold);
+}
+.dash-verdicts li small {
+  grid-column: 1 / -1;
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.dash-verdict-bar {
+  display: block;
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: var(--surface-hover);
+  overflow: hidden;
+}
+.dash-verdict-bar i {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--ink-3);
+}
+.dash-verdicts li.is-good .dash-verdict-bar i {
+  background: var(--positive);
+}
+.dash-verdicts li.is-bad .dash-verdict-bar i {
+  background: var(--negative);
+}
+.dash-verdicts li.is-good small {
+  color: var(--positive-ink);
+}
+.dash-verdicts li.is-bad small {
+  color: var(--negative-ink);
+}
+.dash-verdicts > p {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+
+@media (max-width: 960px) {
+  .dash-stack .dash-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .dash-week-row {
+    grid-auto-columns: 132px;
+  }
+}

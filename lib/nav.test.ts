@@ -42,8 +42,8 @@ describe("activeNavGroup and navIndex", () => {
 });
 
 describe("DOCK", () => {
-  it("links the five daily destinations directly, each a real section, once", () => {
-    expect(DOCK.map((d) => d.label)).toEqual(["Home", "Analytics", "Plan", "Create", "Inbox"]);
+  it("links the four daily destinations directly, each a real section, once", () => {
+    expect(DOCK.map((d) => d.label)).toEqual(["Dashboard", "Plan", "Create", "Inbox"]);
     expect(new Set(DOCK.map((d) => d.key)).size).toBe(DOCK.length);
     for (const d of DOCK) expect(NAV.some((n) => n.key === d.key)).toBe(true);
     for (const k of DOCK.flatMap((d) => d.also ?? [])) expect(NAV.some((n) => n.key === k)).toBe(true);
