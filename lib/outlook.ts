@@ -428,6 +428,18 @@ export const NICHE_MIN_REELS = 15;
 export const NICHE_MIN_ACCOUNTS = 3;
 /** Reels taken from one account, so one big account can't decide it. */
 export const NICHE_PER_ACCOUNT = 10;
+/**
+ * How views grow with followers, as a power: views ~ followers^k. Views don't grow in step with followers:
+ * Reels are shown mostly to people who don't follow the account, so a small account gets far more views per
+ * follower than a big one (2026-11-19: scaling straight by followers gave a 35-follower account "1 to 42"
+ * views for a video that got about 2,000 elsewhere). k is fitted from the niche's own accounts, within these
+ * bounds; with too little spread in sizes to fit it, the middle of them.
+ */
+export const GROWTH_MIN = 0.25;
+export const GROWTH_MAX = 0.9;
+const GROWTH_DEFAULT = 0.5;
+/** Own Reels that start to count in the estimate (below BASELINE_MIN, where the account's own forecast takes over). */
+export const OWN_MIN = 2;
 
 /** One niche account's settled Reels, as read. */
 export type NicheAccountReels = { handle: string; followers: number; views: number[] };
@@ -435,12 +447,16 @@ export type NicheAccountReels = { handle: string; followers: number; views: numb
 export type NicheBaseline = {
   accounts: number;
   reels: number;
-  /** Views per follower of every Reel used, sorted. */
-  perFollower: number[];
-  /** Views of every Reel used, sorted (for an account with no followers to scale by). */
+  /** views ~ exp(intercept) * followers^growth, fitted on the accounts' median views */
+  growth: number;
+  intercept: number;
+  /** Each Reel's distance from what its account's size predicts (log views), sorted. */
+  residuals: number[];
+  /** Views of every Reel used, sorted (for a brand with no account to scale by). */
   views: number[];
-  /** The middle follower count of the accounts used. */
+  /** The middle follower count of the accounts used, and the smallest. */
   medianFollowers: number;
+  minFollowers: number;
 };
 
 /** The niche baseline from the accounts read, or null when there aren't enough Reels or accounts. Pure. */
@@ -451,41 +467,67 @@ export function nicheBaseline(accounts: NicheAccountReels[]): NicheBaseline | nu
     .filter((a) => a.views.length > 0);
   const reels = used.reduce((n, a) => n + a.views.length, 0);
   if (used.length < NICHE_MIN_ACCOUNTS || reels < NICHE_MIN_REELS) return null;
-  const perFollower = used.flatMap((a) => a.views.map((v) => v / a.followers)).sort((x, y) => x - y);
-  const views = used.flatMap((a) => a.views).sort((x, y) => x - y);
-  return { accounts: used.length, reels, perFollower, views, medianFollowers: Math.round(quantile(used.map((a) => a.followers), 0.5)) };
+  // One point per account (its median views at its size), so an account with more Reels doesn't weigh more.
+  const xs = used.map((a) => Math.log(a.followers));
+  const ys = used.map((a) => Math.log(quantile(a.views, 0.5)));
+  const mx = xs.reduce((t, x) => t + x, 0) / xs.length, my = ys.reduce((t, y) => t + y, 0) / ys.length;
+  const vx = xs.reduce((t, x) => t + (x - mx) ** 2, 0);
+  const fitted = vx > 0.5 ? xs.reduce((t, x, i) => t + (x - mx) * (ys[i] - my), 0) / vx : GROWTH_DEFAULT;
+  const growth = clamp(fitted, GROWTH_MIN, GROWTH_MAX);
+  const intercept = my - growth * mx;
+  const residuals = used.flatMap((a) => a.views.map((v) => Math.log(v) - (intercept + growth * Math.log(a.followers)))).sort((x, y) => x - y);
+  return {
+    accounts: used.length, reels, growth, intercept, residuals,
+    views: used.flatMap((a) => a.views).sort((x, y) => x - y),
+    medianFollowers: Math.round(quantile(used.map((a) => a.followers), 0.5)),
+    minFollowers: Math.min(...used.map((a) => a.followers)),
+  };
 }
 
 export type NicheForecast = {
   estimate: number;
   low: number;
   high: number;
-  /** "followers": scaled to the brand's own followers; "accounts": what the niche's accounts themselves get. */
+  /** "followers": the niche's curve at the brand's size; "accounts": what the niche's accounts themselves get. */
   basis: "followers" | "accounts";
   accounts: number;
   reels: number;
   medianFollowers: number;
+  /** The brand's own settled Reels that went into it (0 when none did). */
+  own: number;
 };
 
 /**
- * Where this video lands in the niche: its potential places it in the niche's range (an ordinary video at
- * the middle, as with the account's own Reels), the range around it is the niche's middle spread there.
- * Scaled by the brand's followers when it has an account. Pure.
+ * Where this video lands: the niche's curve gives the views a typical Reel gets at the brand's size; the
+ * video's potential places it within the niche's spread around that curve (an ordinary video at the middle);
+ * the brand's own settled Reels, when it has a few, pull it toward what its account really gets, half and
+ * half. Without an account: what the niche's accounts themselves get. Pure.
  */
-export function nicheForecast(b: NicheBaseline | null, followers: number | null, strength: number | null): NicheForecast | null {
+export function nicheForecast(b: NicheBaseline | null, followers: number | null, strength: number | null, ownViews: number[] = []): NicheForecast | null {
   if (!b || strength == null) return null;
   const place = clamp(0.5 + (strength - ORDINARY) * PER_POINT, 0.05, 0.95);
   const lowAt = clamp(place - 0.2, 0.05, 0.95), highAt = clamp(place + 0.2, 0.05, 0.95);
   const scaled = followers != null && followers > 0;
-  const at = (q: number) => (scaled ? quantile(b.perFollower, q) * followers! : quantile(b.views, q));
-  const estimate = at(place);
+  if (!scaled) {
+    const at = (q: number) => quantile(b.views, q);
+    return { estimate: roundViews(at(place)), low: roundViews(Math.min(at(lowAt), at(place))), high: roundViews(Math.max(at(highAt), at(place))), basis: "accounts", accounts: b.accounts, reels: b.reels, medianFollowers: b.medianFollowers, own: 0 };
+  }
+  const typical = Math.exp(b.intercept + b.growth * Math.log(followers!));
+  const mid = quantile(b.residuals, 0.5);
+  // Shifts from a typical Reel at this size, by where the video lands in the niche's spread.
+  const shift = (q: number) => Math.exp(quantile(b.residuals, q) - mid);
+  const own = ownViews.filter((v) => v > 0);
+  // A few of the account's own Reels: half the weight, since they are this account's real results.
+  const base = own.length >= OWN_MIN ? Math.exp(0.5 * Math.log(typical) + 0.5 * Math.log(quantile(own, 0.5))) : typical;
+  const estimate = base * shift(place);
   return {
     estimate: roundViews(estimate),
-    low: roundViews(Math.min(at(lowAt), estimate)),
-    high: roundViews(Math.max(at(highAt), estimate)),
-    basis: scaled ? "followers" : "accounts",
+    low: roundViews(Math.min(base * shift(lowAt), estimate)),
+    high: roundViews(Math.max(base * shift(highAt), estimate)),
+    basis: "followers",
     accounts: b.accounts,
     reels: b.reels,
     medianFollowers: b.medianFollowers,
+    own: own.length >= OWN_MIN ? own.length : 0,
   };
 }
