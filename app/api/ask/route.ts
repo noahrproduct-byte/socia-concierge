@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { LIMITS, clipDeep, tooLongResponse } from "@/lib/inputLimits";
 import { anthropic, modelFor, effortFor, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
 import { partialStringField } from "@/lib/assistant/streamText";
+import { isGrammarTooLarge } from "@/lib/assistant/strictFormat";
 import type { Message } from "@anthropic-ai/sdk/resources/messages";
 import { recordAiUsage } from "@/lib/aiUsage";
 import { createClient } from "@/lib/supabase/server";
@@ -92,6 +93,24 @@ function noticeFor(problems: Problem[]): string | null {
   if (problems.some((p) => p.kind === "incomplete" || p.kind === "missing")) return "This may not be complete. Ask for it again in full.";
   const claim = problems.find((p): p is Extract<Problem, { kind: "claim" }> => p.kind === "claim");
   return claim ? `Check this before using it: ${claim.detail}` : null;
+}
+
+// Anthropic compiles a strict response format into a grammar with an unpublished size limit. Ask's format
+// went over it on 2026-11-20 and every message failed ("The compiled grammar is too large"). When that
+// happens the same request is sent once more with the format written into the instructions instead, and
+// the JSON is read as before (parseJson tolerates fences and stray text; every field is optional below).
+// The switch is remembered per server instance, so later messages don't pay for the refused first try.
+let strictFormatRefused = false;
+/** The same request without the strict format: the schema goes into the system prompt as plain instructions. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function withoutStrictFormat<P extends { system: string; output_config: any }>(params: P): P {
+  const { format: _format, ...rest } = params.output_config ?? {};
+  void _format;
+  return {
+    ...params,
+    system: `${params.system}\n\n# Reply format\nReply with one JSON object and nothing else: no code fences, no words before or after it. It must match this JSON Schema exactly, with every field present (use "", [], 0, false or "none" where a field doesn't apply):\n${JSON.stringify(askAnswerSchema)}`,
+    output_config: rest,
+  };
 }
 
 function parseJson(text: string): ModelAnswer | null {
@@ -224,7 +243,7 @@ export async function POST(req: Request) {
 
 
   const model = modelFor("ask");
-  const params = {
+  const strictParams = {
     model,
     // Room for a full script in "draft", the rest of the answer and the model's thinking (which counts
     // toward this limit): at 4,000 long scripts ran out. An answer that still hits it is caught below.
@@ -233,6 +252,8 @@ export async function POST(req: Request) {
     output_config: { format: { type: "json_schema", schema: askAnswerSchema }, ...effortFor(model, "medium") },
     messages: convo,
   };
+  // The request actually sent: strict unless Anthropic has refused the format's size (see isGrammarTooLarge).
+  let params = strictFormatRefused ? withoutStrictFormat(strictParams) : strictParams;
 
   // From the finished model message to the answer (or an error response).
   const answerFrom = async (first: Message): Promise<Response> => {
@@ -414,18 +435,31 @@ export async function POST(req: Request) {
       };
       const close = () => { if (!open) return; open = false; try { controller.close(); } catch { /* already closed */ } };
       let res: Message | null = null;
-      let stream: { currentMessage?: Message } | null = null;
+      let stream = null as { currentMessage?: Message } | null;
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const s = anthropic.messages.stream(params as any);
-        stream = s;
-        let json = "", shown = "";
-        s.on("text", (delta: string) => {
-          json += delta;
-          const t = partialStringField(json, "text");
-          if (t != null && t.length > shown.length) { shown = t; send({ type: "text", text: t }); }
-        });
-        res = await s.finalMessage();
+        const run = async () => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const s = anthropic.messages.stream(params as any);
+          stream = s;
+          let json = "", shown = "";
+          s.on("text", (delta: string) => {
+            json += delta;
+            const t = partialStringField(json, "text");
+            if (t != null && t.length > shown.length) { shown = t; send({ type: "text", text: t }); }
+          });
+          return s.finalMessage();
+        };
+        try {
+          res = await run();
+        } catch (err) {
+          // Refused before anything was written: send it again with the format as instructions.
+          if (!isGrammarTooLarge(err) || params !== strictParams) throw err;
+          console.error("[ask] strict format refused as too large; answering with the format in the instructions");
+          strictFormatRefused = true;
+          params = withoutStrictFormat(strictParams);
+          stream = null;
+          res = await run();
+        }
       } catch (err) {
         // A stream that broke part-way was billed for what it had read and written.
         if (stream?.currentMessage) recordAiUsage(ctx.ownerId, "ask", stream.currentMessage);
