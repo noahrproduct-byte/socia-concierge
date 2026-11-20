@@ -273,9 +273,9 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
   const toEditor = useMemo(() => (latestScript?.draft ? { title: latestScript.draft.title, prompt: editorPrompt(latestScript.draft, { approach: latestScript.research?.approach }) } : null), [latestScript]);
   const sendToEditor = useCallback((sent: File[]) => {
     if (!toEditor) return;
-    handFiles("edit", sent, { prompt: toEditor.prompt });
+    handFiles("edit", sent, { prompt: toEditor.prompt, autoMake: true });
     const n = sent.length;
-    const text = `Sent ${n} ${n === 1 ? "clip" : "clips"} and the script “${toEditor.title}” to the Video editor. Check the brief there, then make the video.`;
+    const text = `Sent ${n} ${n === 1 ? "clip" : "clips"} and the script “${toEditor.title}” to the Video editor. SOCIA starts making the video as soon as the clips are in, and opens it in the editor when it's ready.`;
     setMessages((m) => [...m, { role: "user", content: `Added ${n} ${n === 1 ? "clip" : "clips"} for “${toEditor.title}”` }, { role: "assistant", content: text, answer: { text, observed: [], derived: [], interpretation: "", recommendation: "", proposals: [], post: null, actions: [{ label: "Open the Video editor", href: "/studio?mode=edit" }] } }]);
     setFiles([]); setFileNote(null);
     router.push("/studio?mode=edit");
