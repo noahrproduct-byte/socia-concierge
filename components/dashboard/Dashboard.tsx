@@ -164,7 +164,8 @@ function agoDays(iso: string, clock: Date): string {
 const kpiFormat = (k: Kpi): ((n: number) => string) =>
   k.id === "engagement_rate" ? (n) => `${n.toFixed(k.raw != null && k.raw < 1 ? 2 : 1)}%` : k.id === "followers" ? (n) => Math.round(n).toLocaleString("en-US") : k.id === "posts" ? (n) => String(Math.round(n)) : (n) => fmtNum(Math.round(n));
 
-export default function Dashboard({ d }: { d: DashboardData }) {
+/** `look`: "dark" keeps the panel dark whatever the app's appearance is; "auto" follows the app. */
+export default function Dashboard({ d, look = "auto" }: { d: DashboardData; look?: "dark" | "auto" }) {
   const connected = d.summaries.filter((s) => s.connected);
   const nothingConnected = connected.length === 0;
   const clock = useClock();
@@ -254,7 +255,7 @@ export default function Dashboard({ d }: { d: DashboardData }) {
   const next = () => i++;
 
   return (
-    <div className="dash-stack dash-hud dark" data-theme="dark">
+    <div className={`dash-stack dash-hud${look === "dark" ? " dark" : ""}`} data-theme={look === "dark" ? "dark" : undefined}>
       <header className="dash-head">
         <div className="dash-hello">
           <span className="dash-date">{clock ? clock.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }) : " "}</span>

@@ -2,6 +2,7 @@
 
 // The Dashboard on made-up numbers, for looking at its layout without an
 // account. Development only (app/dev/dash-lab). Nothing here is real data.
+import { useEffect, useState } from "react";
 import Dashboard, { type DashboardData } from "./Dashboard";
 import type { PostCard, Series, SeriesPoint } from "@/lib/overview";
 
@@ -52,5 +53,8 @@ const d = {
 } as unknown as DashboardData;
 
 export default function DashLab() {
-  return <div className="s-page"><Dashboard d={d} /></div>;
+  // ?look=dark shows the always-dark panel; by default the page follows the app's appearance.
+  const [look, setLook] = useState<"dark" | "auto">("auto");
+  useEffect(() => { if (new URLSearchParams(window.location.search).get("look") === "dark") setLook("dark"); }, []);
+  return <div className="s-page"><Dashboard d={d} look={look} /></div>;
 }
