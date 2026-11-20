@@ -11,14 +11,21 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, ExternalLink } from "lucide-react";
 import type { AskResearch } from "@/lib/ask";
+import type { CreativeDirection } from "@/lib/research/direction";
+import ReferenceGallery from "./ReferenceGallery";
 
 const PLATFORM: Record<string, string> = { youtube: "YouTube", instagram: "Instagram", tiktok: "TikTok", facebook: "Facebook" };
 
 const compact = (v: number) => new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(v);
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : null);
 
-export default function ResearchCard({ r, version, details }: {
+export default function ResearchCard({ r, version, details, chosen = [], onChoose, onAsk }: {
   r: AskResearch;
+  /** gallery letters the person chose in this chat */
+  chosen?: string[];
+  /** on the latest answer only: choose a direction, or send a follow-up */
+  onChoose?: (d: CreativeDirection, label: string) => void;
+  onAsk?: (text: string, opts?: { moreRefs?: string[] }) => void;
   /** the person's own version (the script or caption), rendered by the caller */
   version?: ReactNode;
   /** the labelled evidence lines, if the answer has any */
@@ -33,7 +40,14 @@ export default function ResearchCard({ r, version, details }: {
         </section>
       )}
 
-      {r.examples.length > 0 && (
+      {r.examples.length > 0 && r.examples.every((x) => x.letter && x.style) && (
+        <section className="rs-part">
+          <h4>Reference styles</h4>
+          <ReferenceGallery examples={r.examples} chosen={chosen} onChoose={onChoose} onAsk={onAsk} hasScript={Boolean(version)} />
+        </section>
+      )}
+
+      {r.examples.length > 0 && !r.examples.every((x) => x.letter && x.style) && (
         <section className="rs-part">
           <h4>Relevant examples</h4>
           <ul className="rs-examples">

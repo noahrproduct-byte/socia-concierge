@@ -35,7 +35,8 @@ const reportOnlyCsp = [
   `media-src 'self' blob: data: ${supabaseOrigin} https://*.cdninstagram.com https://*.fbcdn.net`,
   "font-src 'self' data: https://fonts.gstatic.com",
   `connect-src 'self' ${supabaseOrigin} ${supabaseWs} https://fonts.gstatic.com https://*.cdninstagram.com https://*.fbcdn.net blob: data:`,
-  "frame-src 'none'",
+  // YouTube's privacy-enhanced player only: Ask SOCIA's reference gallery plays YouTube examples in place.
+  "frame-src https://www.youtube-nocookie.com",
   "object-src 'none'",
   "base-uri 'self'",
   "frame-ancestors 'self'",

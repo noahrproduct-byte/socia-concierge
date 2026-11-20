@@ -97,6 +97,8 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
   const [autoText, setAutoText] = useState(false);
   // A video idea from the Dashboard: its plan starts the prompt.
   const [startPrompt, setStartPrompt] = useState<string | null>(null);
+  // The creative style chosen in Ask SOCIA, for the brief panel's direction defaults.
+  const [startStyle, setStartStyle] = useState<import("@/lib/research/direction").CreativeStyle | null>(null);
   // The prompt typed on the one-drop screen, before any clips.
   const [quickPrompt, setQuickPrompt] = useState("");
   // A Reel from Discover to read as the reference ("Make a video like this").
@@ -329,6 +331,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
       const handed = takeHandoff(audio ? "audio" : "edit");
       if (editing && handed.data.prompt) setStartPrompt(handed.data.prompt);
       if (editing && handed.data.reference) setStartReference(handed.data.reference);
+      if (editing && handed.data.style) setStartStyle(handed.data.style);
       if (editing && handed.data.autoMake && handed.files.length && (handed.data.prompt || handed.data.reference)) setStartAuto(true);
       // Anything handed over (a prompt, a Reel to copy, clips with text) is for the full editor.
       if (editing && (handed.data.prompt || handed.data.reference || handed.files.length)) setFull(true);
@@ -619,6 +622,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
             canMake={meta ? meta.autoBuild : null}
             heading="Prompt and reference"
             initialPrompt={startPrompt}
+            initialStyle={startStyle}
             initialReference={startReference}
             autoMake={startAuto && !uploading && busyIds === 0 && readyClips.length > 0}
             onAutoMade={() => setStartAuto(false)}

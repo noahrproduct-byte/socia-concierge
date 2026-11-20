@@ -28,6 +28,7 @@ import type { UsageSnapshot } from "@/lib/entitlements";
 import PlanNotice, { UsageLine } from "./PlanNotice";
 import ScheduleProposal from "./ask/ScheduleProposal";
 import ResearchCard from "./ask/ResearchCard";
+import { directionFromText, type CreativeDirection, type DirectionRef } from "@/lib/research/direction";
 import { ratedVideos, scopeRated } from "@/lib/assistant/rated";
 import FootageTray, { MAX_FOOTAGE, type FootageResult } from "./ask/FootageTray";
 import { acceptFor } from "./composer/MediaSection";
@@ -105,10 +106,14 @@ function nextSteps(a: AskAnswer): string[] {
   return ["Only the spoken lines", "Show the filming guide", "Make it more storytelling"];
 }
 
-function AnswerView({ a, onProposal, applied, setApplied, onPlaceScanned, onAddClips, onAsk }: {
+function AnswerView({ a, onProposal, applied, setApplied, onPlaceScanned, onAddClips, onAsk, onChoose, chosen }: {
   a: AskAnswer; onProposal?: ProposalHandler; applied: Record<string, string>; setApplied: (k: string, v: string) => void;
   /** On the latest answer only: send a follow-up. */
-  onAsk?: (text: string) => void;
+  onAsk?: (text: string, opts?: { moreRefs?: string[] }) => void;
+  /** On the latest answer only: choose a creative direction from its reference gallery. */
+  onChoose?: (d: CreativeDirection, label: string) => void;
+  /** gallery letters chosen after this answer */
+  chosen?: string[];
   /** On the latest filmed script only: pick the clips, which then go to the AI editor with this script. */
   onAddClips?: () => void;
   /** On the latest script only: photos of the place were just scanned, so rewrite it with real spots. */
@@ -151,7 +156,7 @@ function AnswerView({ a, onProposal, applied, setApplied, onPlaceScanned, onAddC
     return (
       <div className="ask-answer">
         {a.text && <p className="ask-text">{a.text}</p>}
-        <ResearchCard r={a.research} version={draftBox} details={lines.length ? <>{lines}</> : undefined} />
+        <ResearchCard r={a.research} version={draftBox} details={lines.length ? <>{lines}</> : undefined} chosen={chosen} onChoose={onChoose} onAsk={onAsk} />
         {a.recommendation && <div className="ov-why-block rec"><small>Recommendation</small><p>{a.recommendation}</p></div>}
       </div>
     );
@@ -271,16 +276,18 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
   }, [messages]);
   const latestScript = scriptAt >= 0 ? messages[scriptAt].answer! : null;
   const toEditor = useMemo(() => (latestScript?.draft ? { title: latestScript.draft.title, prompt: editorPrompt(latestScript.draft, { approach: latestScript.research?.approach }) } : null), [latestScript]);
+  // The creative style chosen in this chat, so the editor starts from matching direction defaults.
+  const chosenStyle = [...messages].reverse().find((m) => m.role === "user" && m.direction?.refs.length)?.direction?.refs[0]?.style ?? null;
   const sendToEditor = useCallback((sent: File[]) => {
     if (!toEditor) return;
-    handFiles("edit", sent, { prompt: toEditor.prompt, autoMake: true });
+    handFiles("edit", sent, { prompt: toEditor.prompt, autoMake: true , ...(chosenStyle ? { style: chosenStyle } : {}) });
     const n = sent.length;
     const text = `Sent ${n} ${n === 1 ? "clip" : "clips"} and the script “${toEditor.title}” to the Video editor. SOCIA starts making the video as soon as the clips are in, and opens it in the editor when it's ready.`;
     setMessages((m) => [...m, { role: "user", content: `Added ${n} ${n === 1 ? "clip" : "clips"} for “${toEditor.title}”` }, { role: "assistant", content: text, answer: { text, observed: [], derived: [], interpretation: "", recommendation: "", proposals: [], post: null, actions: [{ label: "Open the Video editor", href: "/studio?mode=edit" }] } }]);
     setFiles([]); setFileNote(null);
     router.push("/studio?mode=edit");
     onClose();
-  }, [toEditor, router, onClose]);
+  }, [toEditor, router, onClose, chosenStyle]);
   const footageDone = useCallback((r: FootageResult) => {
     const names = r.names.length > 3 ? `${r.names.slice(0, 3).join(", ")} and ${r.names.length - 3} more` : r.names.join(", ");
     const saved = r.drafts.length;
@@ -300,15 +307,22 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
   const chips = useMemo(() => contextChips(context, contextLabel), [context, contextLabel]);
   const sugg = suggestions ?? ASK_SUGGESTIONS[context.page];
 
-  const send = useCallback(async (text: string, base?: AskMessage[]) => {
+  const send = useCallback(async (text: string, base?: AskMessage[], extra: { direction?: CreativeDirection; moreRefs?: string[] } = {}) => {
     const q = text.trim();
     if (!q || busy) return;
-    const next: AskMessage[] = [...(base ?? messages), { role: "user", content: q }];
+    const prior = base ?? messages;
+    // "I like option B" typed in the box picks from the last gallery too (lib/research/direction.ts).
+    const lastGallery: DirectionRef[] = ([...prior].reverse().find((m) => m.role === "assistant" && m.answer?.research?.examples?.some((x) => x.letter))?.answer?.research?.examples ?? [])
+      .filter((x) => x.letter && x.style).map((x) => ({ letter: x.letter, style: x.style, title: x.title, creator: x.creator, url: x.url, techniques: x.techniques }));
+    const picked = extra.direction ?? (lastGallery.length ? directionFromText(q, lastGallery) : null) ?? undefined;
+    const next: AskMessage[] = [...prior, { role: "user", content: q, ...(picked ? { direction: picked } : {}) }];
     setMessages(next); setInput(""); setBusy(true); setError(null); setPlanError(null);
     try {
       // The brief SOCIA returned last keeps the requirements across the chat (lib/assistant/brief.ts).
       const brief = [...next].reverse().find((m) => m.role === "assistant" && m.answer?.brief)?.answer?.brief ?? null;
-      const r = await askApi({ ...context, brief }, next, (t) => setLive(t.replace(/\s*\u2014\s*/g, ", ").replace(/\s*\u2013\s*/g, " to ")));
+      // The direction chosen in this chat stays with every later message.
+      const direction = [...next].reverse().find((m) => m.role === "user" && m.direction)?.direction ?? null;
+      const r = await askApi({ ...context, brief, direction, ...(picked ? { choseNow: true } : {}), ...(extra.moreRefs?.length ? { moreRefs: extra.moreRefs } : {}) }, next, (t) => setLive(t.replace(/\s*\u2014\s*/g, ", ").replace(/\s*\u2013\s*/g, " to ")));
       if (!r.ok) { setPlanError(r.planError); return; }
       const a = r.answer;
       if (r.usage) setUsage(r.usage);
@@ -372,7 +386,7 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
           )}
           {messages.map((m, i) => m.role === "user"
             ? <div key={i} className="ask-msg user"><p>{m.content}</p></div>
-            : <div key={i} className="ask-msg assistant"><span className="ask-avatar is-sio"><Sio size={28} shadow={false} /></span>{m.answer ? <AnswerView a={m.answer} onProposal={onProposal} applied={applied} setApplied={setApplied} onPlaceScanned={i === messages.length - 1 && !busy ? () => void send("Rewrite this script using the photos of my place, with every shot at a real spot.") : undefined} onAddClips={footage && i === scriptAt && !saving ? () => pickRef.current?.click() : undefined} onAsk={i === messages.length - 1 && !busy ? (t) => void send(t) : undefined} /> : <p>{m.content}</p>}</div>)}
+            : <div key={i} className="ask-msg assistant"><span className="ask-avatar is-sio"><Sio size={28} shadow={false} /></span>{m.answer ? <AnswerView a={m.answer} onProposal={onProposal} applied={applied} setApplied={setApplied} onPlaceScanned={i === messages.length - 1 && !busy ? () => void send("Rewrite this script using the photos of my place, with every shot at a real spot.") : undefined} onAddClips={footage && i === scriptAt && !saving ? () => pickRef.current?.click() : undefined} onAsk={i === messages.length - 1 && !busy ? (t, o) => void send(t, undefined, { moreRefs: o?.moreRefs }) : undefined} onChoose={i === messages.length - 1 && !busy ? (d, label) => void send(label, undefined, { direction: d }) : undefined} chosen={messages.slice(i + 1).find((x) => x.role === "user" && x.direction)?.direction?.refs.map((r) => r.letter) ?? []} /> : <p>{m.content}</p>}</div>)}
           {busy && (
             <div className="ask-msg assistant" aria-live="polite">
               <span className="ask-avatar is-sio"><Sio size={28} shadow={false} expression="thinking" /></span>
