@@ -96,8 +96,19 @@ async function askApi(context: AskContext, messages: AskMessage[], onText?: (tex
   return { ok: true, answer: final.answer as AskAnswer, usage: (final.usage as UsageSnapshot | undefined) ?? null };
 }
 
-function AnswerView({ a, onProposal, applied, setApplied, onPlaceScanned, onAddClips }: {
+/** Follow-ups that fit the draft just written (lib/assistant/brief.ts reads them as format or revision turns). */
+function nextSteps(a: AskAnswer): string[] {
+  if (!a.draft || a.draft.kind !== "script") return [];
+  const d = a.deliverable ?? "full_script";
+  if (d === "spoken_lines") return ["Show the full script with shots", "Make it more storytelling"];
+  if (d === "filming_guide") return ["Show the full script", "Only the spoken lines"];
+  return ["Only the spoken lines", "Show the filming guide", "Make it more storytelling"];
+}
+
+function AnswerView({ a, onProposal, applied, setApplied, onPlaceScanned, onAddClips, onAsk }: {
   a: AskAnswer; onProposal?: ProposalHandler; applied: Record<string, string>; setApplied: (k: string, v: string) => void;
+  /** On the latest answer only: send a follow-up. */
+  onAsk?: (text: string) => void;
   /** On the latest filmed script only: pick the clips, which then go to the AI editor with this script. */
   onAddClips?: () => void;
   /** On the latest script only: photos of the place were just scanned, so rewrite it with real spots. */
@@ -112,7 +123,16 @@ function AnswerView({ a, onProposal, applied, setApplied, onPlaceScanned, onAddC
         <button type="button" className="ov-btn ghost small" onClick={() => void copy(a.draft!.body)}>{copied === a.draft.body ? "Copied" : "Copy"}</button>
       </div>
       <pre>{a.draft.body}</pre>
-      {a.draft.kind === "script" && onPlaceScanned && <PlaceScan variant="inline" onScanned={onPlaceScanned} />}
+      {a.draft.seconds != null && a.draft.kind === "script" && <p className="ask-draft-meta">About {a.draft.seconds} seconds spoken, at a natural pace.</p>}
+      {a.notice && <p className="ask-draft-notice" role="status">{a.notice}</p>}
+      {/* Only for a business people visit: an app's or a creator's script never asks for photos of a place. */}
+      {a.draft.kind === "script" && a.placeScan && onPlaceScanned && <PlaceScan variant="inline" onScanned={onPlaceScanned} />}
+      {onAsk && nextSteps(a).length > 0 && (
+        <div className="ask-next">
+          {nextSteps(a).map((t) => <button key={t} type="button" className="ov-btn ghost small" onClick={() => onAsk(t)}>{t}</button>)}
+          <a className="ov-btn ghost small" href={`/plan?note=${encodeURIComponent(`${a.draft.title}: ${a.draft.body.slice(0, 300)}`)}`}>Add to Content Plan</a>
+        </div>
+      )}
       {onAddClips && isFilmedScript(a.draft) && (
         <div className="ask-to-editor">
           <p>Once you&apos;ve filmed it, add your clips here. SOCIA sends them to the AI editor with this script and its editing directions.</p>
@@ -286,7 +306,9 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
     const next: AskMessage[] = [...(base ?? messages), { role: "user", content: q }];
     setMessages(next); setInput(""); setBusy(true); setError(null); setPlanError(null);
     try {
-      const r = await askApi(context, next, (t) => setLive(t.replace(/\s*\u2014\s*/g, ", ").replace(/\s*\u2013\s*/g, " to ")));
+      // The brief SOCIA returned last keeps the requirements across the chat (lib/assistant/brief.ts).
+      const brief = [...next].reverse().find((m) => m.role === "assistant" && m.answer?.brief)?.answer?.brief ?? null;
+      const r = await askApi({ ...context, brief }, next, (t) => setLive(t.replace(/\s*\u2014\s*/g, ", ").replace(/\s*\u2013\s*/g, " to ")));
       if (!r.ok) { setPlanError(r.planError); return; }
       const a = r.answer;
       if (r.usage) setUsage(r.usage);
@@ -350,7 +372,7 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
           )}
           {messages.map((m, i) => m.role === "user"
             ? <div key={i} className="ask-msg user"><p>{m.content}</p></div>
-            : <div key={i} className="ask-msg assistant"><span className="ask-avatar is-sio"><Sio size={28} shadow={false} /></span>{m.answer ? <AnswerView a={m.answer} onProposal={onProposal} applied={applied} setApplied={setApplied} onPlaceScanned={i === messages.length - 1 && !busy ? () => void send("Rewrite this script using the photos of my place, with every shot at a real spot.") : undefined} onAddClips={footage && i === scriptAt && !saving ? () => pickRef.current?.click() : undefined} /> : <p>{m.content}</p>}</div>)}
+            : <div key={i} className="ask-msg assistant"><span className="ask-avatar is-sio"><Sio size={28} shadow={false} /></span>{m.answer ? <AnswerView a={m.answer} onProposal={onProposal} applied={applied} setApplied={setApplied} onPlaceScanned={i === messages.length - 1 && !busy ? () => void send("Rewrite this script using the photos of my place, with every shot at a real spot.") : undefined} onAddClips={footage && i === scriptAt && !saving ? () => pickRef.current?.click() : undefined} onAsk={i === messages.length - 1 && !busy ? (t) => void send(t) : undefined} /> : <p>{m.content}</p>}</div>)}
           {busy && (
             <div className="ask-msg assistant" aria-live="polite">
               <span className="ask-avatar is-sio"><Sio size={28} shadow={false} expression="thinking" /></span>

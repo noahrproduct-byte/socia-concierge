@@ -8,6 +8,7 @@
 import type { AskInstagram, AskRatedVideo } from "./assistant/askExtras";
 import type { ResearchExample } from "./research/examples";
 import type { IntentKind } from "./research/intent";
+import type { CreativeBrief, Deliverable } from "./assistant/brief";
 
 export type AskPage = "global" | "dashboard" | "analytics" | "post" | "competitors" | "plan" | "studio";
 
@@ -46,6 +47,8 @@ export type AskContext = {
   newPosts?: string[];
   /** Videos rated in Content Studio in this tab ("the video I just rated"); lib/assistant/rated.ts. */
   rated?: AskRatedVideo[];
+  /** The creative brief SOCIA returned with its last answer in this chat (lib/assistant/brief.ts). */
+  brief?: CreativeBrief | null;
 };
 
 export type PlanDayDraft = { concept: string; hook: string; format: string; rationale: string };
@@ -110,10 +113,18 @@ export type AskAnswer = {
   post: AskPost | null;
   /** Something the person asked SOCIA to write (a script, caption, hooks, a reply), in full. */
   draft?: AskDraft | null;
+  /** The creative brief after this answer: sent back with the next message (lib/assistant/brief.ts). */
+  brief?: CreativeBrief | null;
+  /** The deliverable this answer was written as, for the actions shown under it. */
+  deliverable?: Deliverable;
+  /** Whether "photos of your place" applies (a business customers visit, with a filmed script). */
+  placeScan?: boolean;
+  /** Said under the answer when a check found something SOCIA couldn't fix (an answer cut off, a wrong claim). */
+  notice?: string | null;
 };
 
 export type AskDraftKind = "script" | "caption" | "hooks" | "reply" | "other";
-export type AskDraft = { kind: AskDraftKind; title: string; body: string };
+export type AskDraft = { kind: AskDraftKind; title: string; body: string; /** spoken length at about 2.5 words a second */ seconds?: number | null };
 
 export type AskMessage = {
   role: "user" | "assistant"; content: string; answer?: AskAnswer;
@@ -162,6 +173,8 @@ export type ActionType = (typeof ACTION_TYPES)[number];
 
 export type ModelAnswer = {
   text: string;
+  /** The creative brief as the model updated it this turn (lib/assistant/brief.ts sanitizes and merges it). */
+  brief?: Partial<CreativeBrief> | null;
   observed: string[];
   derived: string[];
   interpretation: string;
@@ -256,6 +269,16 @@ export const askAnswerSchema = {
       },
       required: ["kind", "title", "body"],
     },
+    brief: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        contentType: { type: "string" }, topic: { type: "string" }, audience: { type: "string" }, platform: { type: "string" },
+        goal: { type: "string" }, hook: { type: "string" }, duration: { type: "string" }, mustInclude: { type: "array", items: { type: "string" } },
+        tone: { type: "string" }, structure: { type: "string" }, cta: { type: "string" },
+      },
+      required: ["contentType", "topic", "audience", "platform", "goal", "hook", "duration", "mustInclude", "tone", "structure", "cta"],
+    },
     research: {
       type: "object",
       additionalProperties: false,
@@ -296,5 +319,5 @@ export const askAnswerSchema = {
       required: ["want", "posts", "startLocal", "spacingMinutes", "perDay", "times", "days", "videos", "trialReel", "trialShare", "collaborators", "ideas"],
     },
   },
-  required: ["text", "observed", "derived", "interpretation", "recommendation", "actions", "proposals", "postId", "draft", "research", "schedule"],
+  required: ["text", "observed", "derived", "interpretation", "recommendation", "actions", "proposals", "postId", "draft", "brief", "research", "schedule"],
 } as const;

@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AskContext, AskPage } from "./ask";
 import { getProfile, type Profile, type BrandSource } from "./profile";
 import { FILMING_DIRECTION_RULE } from "./place";
+import { brandKind, type BrandKind } from "./discoverRules";
 import { scopeToWorkspace, competitorScopeId } from "./workspaces";
 import { brandContext } from "./prompt";
 import { getIgSnapshot, readDailySnapshots, type IgMediaItem } from "./instagramSync";
@@ -33,6 +34,10 @@ import { readinessLines, readinessOf, readinessThresholds } from "./starter/read
 type Supa = SupabaseClient<any, any, any>;
 
 export type AskEvidence = {
+  /** What kind of brand this is (lib/discoverRules.ts): an app's scripts never ask for photos of a place. */
+  kind: BrandKind;
+  /** Whether filming at the brand's own place makes sense (a business customers visit, not an app or creator). */
+  placeFilming: boolean;
   system: string;
   evidence: string;
   posts: PostCard[];
@@ -55,7 +60,18 @@ const PAGE_RULES: Record<AskPage, string> = {
   studio: "The user is in Content Studio with a piece of content analysed. When asked for hooks, captions, CTAs or on-screen text, return a text proposal with 3 options; never rewrite their content silently.",
 };
 
-function systemPrompt(page: AskPage, profile: Profile | null): string {
+/**
+ * Where the shots happen, by kind of brand. The filming rule names a shop's front door and counter, which
+ * made an app's explainer ask for storefront photos (2026-11-18); an app or a creator films at a desk, on a
+ * phone and in screen recordings.
+ */
+export function filmingFor(kind: BrandKind, hasPlace: boolean): string {
+  if (kind.app) return "This brand is an app or software: shots are the person at their desk or with their phone, and screen recordings of the app itself (name the real screen). Never a storefront, counter, front door or photos of a place.";
+  if (!kind.business) return "This is a creator or personal brand: shots are the person where they actually film (their desk, their room, out and about as they say), and screen recordings or b-roll of what they talk about. Never a storefront or counter.";
+  return hasPlace ? "This business has a real place: use its spots by name from \"Your place\"." : "This business has a place customers visit: name a spot it usually has, written as theirs to swap (\"your counter\").";
+}
+
+function systemPrompt(page: AskPage, profile: Profile | null, kind: BrandKind, hasPlace: boolean): string {
   const acct = profile?.niche
     ? `The user's account: niche ${profile.niche}${profile.brand_name ? `, brand ${profile.brand_name}` : ""}${profile.goals ? `, goal "${profile.goals}"` : ""}${profile.platforms?.length ? `, platforms ${profile.platforms.join(", ")}` : ""}.`
     : "The user has not set a niche yet; reason from the evidence and say when something is missing.";
@@ -78,11 +94,12 @@ Rules:
   - Name the place in the hook or the first line when the brand serves local customers. With more than one location, or an offer at "your nearest" location, name the wider city or metro area they are all in (a Hermitage brand with several locations: "Nashville"), never one neighborhood; a single-location brand names its own city or neighborhood.
   - Unless the user says otherwise, an offer or promo video is made to win new customers: talk to people who haven't tried the brand yet, show the range of what they can get (for a restaurant: the pizza, the pasta, the whole menu), and close with an invitation to try it ("come give us a try").
   - Never state facts about the business that aren't in the evidence or the conversation: equipment, ingredients, recipes, awards, prices, hours, years in business. Describe what the camera sees instead.
-  - Numbered beats, each on its own lines: "1. 0 to 2s", then "Film:" (where to stand, what the camera does and what is in frame first, following the filming directions rule below), "On screen:", "Say:" and "Transition:" (how it cuts into the next beat: a match cut, whip pan, hand over the lens, cut on action, a reveal; the last beat has none). 15 to 30 seconds unless the user says otherwise.
+  - Write it to be said out loud: short sentences, everyday words, one idea per line, a story that moves (a problem or moment, a turn, a result), and specific benefits instead of slogans. No stock marketing phrases ("game-changer", "level up", "unlock", "take it to the next level", "all-in-one solution") and no line that says the same thing as an earlier one.
+  - Fit the length the person asked for; when they didn't, 15 to 45 seconds, at about 2.5 spoken words a second.
   - The product or brand comes up once, naturally, and there is exactly one call to action, at the end.
-  - After the beats, short parts: "Caption:" ready to post, with up to 5 hashtags, including a local one when the brand is local; "Sound:" the kind of audio that fits (Discover lists Instagram's trending audio); "Filming notes:" two or three practical lines (light, sound, what to have ready before you start); "Editing:" one or two lines for the AI editor (pacing, where the captions go, any zoom, cut or speed change); and, whenever someone speaks in the video, "Your lines:" every "Say" line in order as one block to read from a phone or teleprompter, about 2.5 words a second for the video's length.
+  - Which parts the answer contains (beats, only the spoken lines, a filming guide, a caption) is set by the deliverable rule for this message, never by habit.
   - ${FILMING_DIRECTION_RULE}
-  - A follow-up ("shorter", "change the hook", "add X") returns the whole revised script, not just the changed part.
+  - ${filmingFor(kind, hasPlace)}
 ${PAGE_RULES[page]}
 ${acct}${brandContext(profile?.brand_detail)}`;
 }
@@ -242,7 +259,10 @@ export async function buildAskEvidence(supabase: Supa, userId: string, ctx: AskC
       s.caption ? `Draft caption: """${s.caption.slice(0, 600)}"""` : "No caption yet.");
   }
 
-  return { system: systemPrompt(ctx.page, profile), evidence: parts.join("\n\n"), posts: acct.posts, plan, handle: acct.handle };
+  const bd = profile?.brand_detail;
+  const kind = brandKind({ accountType: bd?.growth?.account_type ?? null, name: profile?.brand_name ?? null, niche: profile?.niche ?? null, about: [bd?.description, bd?.growth?.business?.offer] });
+  const hasPlace = Boolean(bd?.place);
+  return { system: systemPrompt(ctx.page, profile, kind, hasPlace), evidence: parts.join("\n\n"), posts: acct.posts, plan, handle: acct.handle, kind, placeFilming: !kind.app && kind.business };
 }
 
 /** The selected competitor's saved Instagram read: its numbers and its most-liked recent posts, when SOCIA holds one. */
