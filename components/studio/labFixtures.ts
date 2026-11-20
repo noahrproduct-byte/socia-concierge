@@ -10,7 +10,7 @@ import type { ProjectSummary } from "@/lib/studioClips/server";
 import type { VideoSummary } from "@/lib/studioClips/videos";
 import type { LibraryClip } from "@/lib/studioClips/library";
 import type { Lesson, RaterOutcome } from "@/lib/raterLog";
-import { buildModel, type OutlookReel } from "@/lib/outlook";
+import { buildModel, nicheBaseline, type OutlookReel } from "@/lib/outlook";
 import type { OutlookPayload } from "@/lib/outlookLoad";
 import type { StudioAnalysis } from "@/lib/studio";
 import type { TranscriptWord } from "@/lib/transcribe/types";
@@ -221,7 +221,13 @@ export const transcript = () => ({ text: SPEECH.c1.map((w) => w.text).join(" "),
  * score shows as low confidence.
  */
 export function outlook(mode: string | null): OutlookPayload {
-  if (mode === "none") return { connected: false, handle: null, insightsOk: null, model: buildModel([], 0) };
+  // Made-up niche accounts, for the estimate a thin or unconnected account gets (lib/outlook.ts nicheForecast).
+  const niche = nicheBaseline([
+    { handle: "slicehouse", followers: 18_000, views: [4200, 9100, 3300, 15000, 6100, 2800] },
+    { handle: "pizzapalace", followers: 52_000, views: [12000, 30000, 8800, 41000, 9900] },
+    { handle: "ovenandco", followers: 6_400, views: [1900, 2600, 7400, 1500, 3100, 2200] },
+  ]);
+  if (mode === "none") return { connected: false, handle: null, insightsOk: null, model: buildModel([], 0), followers: null, niche };
   const at = (i: number, n: number) => new Date(Date.parse(NOW) - (10 + (n - 1 - i) * 4) * 86_400_000).toISOString();
   const wobble = [0.6, 0.8, 1, 1.3, 1.7];
   const noise = [1900, 640, 3100, 1250, 2300, 880, 1500, 2750, 1020, 1700];
@@ -229,7 +235,7 @@ export function outlook(mode: string | null): OutlookPayload {
   const reels: OutlookReel[] = Array.from({ length: n }, (_, i) => mode === "forecast"
     ? { at: at(i, n), views: Math.round((i % 2 ? 4000 : 1000) * wobble[i % 5]), traits: [i % 2 ? "open:Question" : "open:Listicle hook", "caption:short"] }
     : { at: at(i, n), views: Math.round(noise[(i * 3) % 10] * (i >= n - 8 ? 1.4 : 1)), traits: [i % 3 === 0 ? "open:Question" : "open:Listicle hook", i % 4 === 0 ? "caption:long" : "caption:short", ...(i % 5 === 0 ? ["theme:Behind the scenes"] : [])] });
-  return { connected: true, handle: "smashdowntown", insightsOk: true, model: buildModel(reels, 2) };
+  return { connected: true, handle: "smashdowntown", insightsOk: true, model: buildModel(reels, 2), followers: 9_800, niche };
 }
 
 /** The rater's memory: three earlier videos, at each stage, and one lesson (lib/raterLog.ts). */

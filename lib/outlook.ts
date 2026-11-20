@@ -413,3 +413,79 @@ export function recordCheck(r: OutlookRecord, viewsNow: number, early: boolean):
   const where = viewsNow < r.low ? "below the range" : viewsNow > r.high ? "above the range" : "inside the range";
   return `${said} It has ${fmtViews(viewsNow)}${early ? " so far" : ""}: ${where}${early ? ", and the number is still moving" : ""}.`;
 }
+
+// ------------------------------------------------------------ from the niche ----
+//
+// Noah, 2026-11-19: "with the virality potential, also add the estimated views SOCIA thinks it's going to get,
+// an educated estimate based off facts". Without enough of the account's own Reels, the estimate comes from
+// real Reels SOCIA has read in the niche (the brand's competitors and suggested accounts, read through
+// Instagram): each Reel's views per follower of the account that posted it, so a 500K account and a 5K one
+// compare, placed by this video's potential and scaled to the brand's own followers. Always low confidence:
+// it is other accounts' results, not this account's.
+
+/** Reels a niche estimate needs, and from how many accounts. */
+export const NICHE_MIN_REELS = 15;
+export const NICHE_MIN_ACCOUNTS = 3;
+/** Reels taken from one account, so one big account can't decide it. */
+export const NICHE_PER_ACCOUNT = 10;
+
+/** One niche account's settled Reels, as read. */
+export type NicheAccountReels = { handle: string; followers: number; views: number[] };
+
+export type NicheBaseline = {
+  accounts: number;
+  reels: number;
+  /** Views per follower of every Reel used, sorted. */
+  perFollower: number[];
+  /** Views of every Reel used, sorted (for an account with no followers to scale by). */
+  views: number[];
+  /** The middle follower count of the accounts used. */
+  medianFollowers: number;
+};
+
+/** The niche baseline from the accounts read, or null when there aren't enough Reels or accounts. Pure. */
+export function nicheBaseline(accounts: NicheAccountReels[]): NicheBaseline | null {
+  const used = accounts
+    .filter((a) => a.followers >= 1000)
+    .map((a) => ({ ...a, views: a.views.filter((v) => v > 0).slice(0, NICHE_PER_ACCOUNT) }))
+    .filter((a) => a.views.length > 0);
+  const reels = used.reduce((n, a) => n + a.views.length, 0);
+  if (used.length < NICHE_MIN_ACCOUNTS || reels < NICHE_MIN_REELS) return null;
+  const perFollower = used.flatMap((a) => a.views.map((v) => v / a.followers)).sort((x, y) => x - y);
+  const views = used.flatMap((a) => a.views).sort((x, y) => x - y);
+  return { accounts: used.length, reels, perFollower, views, medianFollowers: Math.round(quantile(used.map((a) => a.followers), 0.5)) };
+}
+
+export type NicheForecast = {
+  estimate: number;
+  low: number;
+  high: number;
+  /** "followers": scaled to the brand's own followers; "accounts": what the niche's accounts themselves get. */
+  basis: "followers" | "accounts";
+  accounts: number;
+  reels: number;
+  medianFollowers: number;
+};
+
+/**
+ * Where this video lands in the niche: its potential places it in the niche's range (an ordinary video at
+ * the middle, as with the account's own Reels), the range around it is the niche's middle spread there.
+ * Scaled by the brand's followers when it has an account. Pure.
+ */
+export function nicheForecast(b: NicheBaseline | null, followers: number | null, strength: number | null): NicheForecast | null {
+  if (!b || strength == null) return null;
+  const place = clamp(0.5 + (strength - ORDINARY) * PER_POINT, 0.05, 0.95);
+  const lowAt = clamp(place - 0.2, 0.05, 0.95), highAt = clamp(place + 0.2, 0.05, 0.95);
+  const scaled = followers != null && followers > 0;
+  const at = (q: number) => (scaled ? quantile(b.perFollower, q) * followers! : quantile(b.views, q));
+  const estimate = at(place);
+  return {
+    estimate: roundViews(estimate),
+    low: roundViews(Math.min(at(lowAt), estimate)),
+    high: roundViews(Math.max(at(highAt), estimate)),
+    basis: scaled ? "followers" : "accounts",
+    accounts: b.accounts,
+    reels: b.reels,
+    medianFollowers: b.medianFollowers,
+  };
+}
