@@ -16,7 +16,7 @@ import "@/app/(app)/dashboard/dashboard-motion.css";
 import "@/app/(app)/dashboard/dashboard-week.css";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, ArrowDownRight, CheckCircle2, ChevronDown, CircleDot, Eye, FileText, Film, Heart, Image as ImageIcon, Images, Plus, Users } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronDown, CircleDot, FileText, Film, Image as ImageIcon, Images, Plus, Target, Zap } from "lucide-react";
 import OverviewChart from "@/components/ov/OverviewChart";
 import ContentDrawer from "@/components/ov/ContentDrawer";
 import { InsightList } from "@/components/ov/Insights";
@@ -37,8 +37,8 @@ import type { PlatformSummary } from "@/lib/metrics/allPlatforms";
 import { fmtNum, audienceInsight, type Kpi, type Series, type Insight, type PostCard, type Focus, type Upcoming, type GoalTracker } from "@/lib/overview";
 import type { CalPost } from "@/lib/audience";
 import { buildWeek, compareBars, describeDay, COMPETITOR_METRICS, type CalendarItem, type CompetitorMetric, type Competitors, type PlanDayItem, type WeekCover, type WeekDay } from "@/lib/overviewVisual";
-import { ActionChips, AngleSections, BriefingLines, GoalBars, GoalNotes, LearningLines, WorksBars, WorksNotes, type IntelData } from "./IntelSections";
-import { Bar, CountUp, Details, Reveal, useMotionOk } from "./motion";
+import { AngleSections, BriefingLines, GoalBars, GoalNotes, LearningLines, WorksBars, WorksNotes, type IntelData } from "./IntelSections";
+import { Bar, CountUp, Details, Reveal, Ring, useMotionOk } from "./motion";
 import YourTasks from "./YourTasks";
 import type { MyTask } from "@/lib/teamWork";
 import { standout } from "@/lib/postVerdicts";
@@ -95,7 +95,6 @@ export type DashboardData = {
 
 type Metric = "views" | "engagement" | "followers";
 const KPI_METRIC: Partial<Record<Kpi["id"], Metric>> = { views: "views", engagement_rate: "engagement", followers: "followers" };
-const KPI_ICON: Record<string, typeof Eye> = { views: Eye, engagement_rate: Heart, followers: Users, posts: FileText, reach: Eye };
 const KIND_ICON = { reel: Film, photo: ImageIcon, carousel: Images, story: CircleDot, post: FileText } as const;
 const STATUS_WORD = { posted: "Posted", scheduled: "Scheduled", planned: "Planned", draft: "Draft", failed: "Failed" } as const;
 /** The post's own cover on the week strip: its picture, or its video's opening
@@ -113,6 +112,7 @@ function DayCover({ cover }: { cover: WeekCover }) {
 
 /** The stat row shows three numbers: the three that drive the chart. */
 const STAT_COUNT = 4;
+const TODO_ICON = [Zap, Target, CalendarDays] as const;
 /** Remembers on this device whether "More from your account" was left open. */
 const MORE_KEY = "socia-dash-more";
 
@@ -161,43 +161,6 @@ function agoDays(iso: string, clock: Date): string {
   return days <= 0 ? "today" : days === 1 ? "yesterday" : `${days} days ago`;
 }
 
-/** A small trend inside a stat card: bars for counts, a line for a rate. Real points only. */
-function Spark({ values, kind }: { values: number[]; kind: "bars" | "line" }) {
-  if (values.length < 2) return null;
-  const max = Math.max(...values, 1);
-  if (kind === "line") {
-    const min = Math.min(...values);
-    const span = max - min || 1;
-    const pts = values.map((v, i) => `${((i / (values.length - 1)) * 100).toFixed(1)},${(30 - ((v - min) / span) * 26).toFixed(1)}`);
-    return (
-      <svg className="dash-spark" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden>
-        <polyline points={pts.join(" ")} />
-      </svg>
-    );
-  }
-  const w = 100 / values.length;
-  return (
-    <svg className="dash-spark" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden>
-      {values.map((v, i) => {
-        const h = Math.max(2, (v / max) * 30);
-        return <rect key={i} x={(i * w + w * 0.18).toFixed(2)} width={(w * 0.64).toFixed(2)} y={(32 - h).toFixed(2)} height={h.toFixed(2)} className={i === values.length - 1 ? "is-last" : undefined} />;
-      })}
-    </svg>
-  );
-}
-/** At most `n` buckets of a daily series, summed (counts) or averaged (rates), oldest first. */
-function bucket(values: (number | null)[], n: number, mode: "sum" | "mean" | "last"): number[] {
-  if (!values.some((v) => v != null)) return [];
-  const size = Math.max(1, Math.ceil(values.length / n));
-  const out: number[] = [];
-  for (let i = 0; i < values.length; i += size) {
-    const xs = values.slice(i, i + size).filter((v): v is number => v != null);
-    if (!xs.length) continue;
-    out.push(mode === "sum" ? xs.reduce((a, b) => a + b, 0) : mode === "mean" ? xs.reduce((a, b) => a + b, 0) / xs.length : xs[xs.length - 1]);
-  }
-  return out;
-}
-/** The figure's own format, so the count-up lands on exactly what the server wrote. */
 const kpiFormat = (k: Kpi): ((n: number) => string) =>
   k.id === "engagement_rate" ? (n) => `${n.toFixed(k.raw != null && k.raw < 1 ? 2 : 1)}%` : k.id === "followers" ? (n) => Math.round(n).toLocaleString("en-US") : k.id === "posts" ? (n) => String(Math.round(n)) : (n) => fmtNum(Math.round(n));
 
@@ -253,29 +216,14 @@ export default function Dashboard({ d }: { d: DashboardData }) {
 
   // ---- this week's posts: the last 7 days, newest first ---------------------------
   const weekPosts = useMemo(() => (clock ? d.posts.filter((p) => clock.getTime() - new Date(p.published).getTime() < 7 * 86400000) : null), [d.posts, clock]);
-  const weekViews = (weekPosts ?? []).reduce((n, p) => n + (p.views ?? 0), 0);
-  const weekEng = (weekPosts ?? []).reduce((n, p) => n + p.engagements, 0);
-  const weekMaxEng = Math.max(1, ...(weekPosts ?? []).map((p) => p.engagements));
 
-  // ---- stat cards with their own trend -------------------------------------------
-  const rangeDays = d.series?.views.current.length ?? 30;
-  const sparkFor = (id: Kpi["id"]): { values: number[]; kind: "bars" | "line" } | null => {
-    if (!d.series) return null;
-    if (id === "views") return { values: bucket(d.series.views.current.map((p) => p.value), 7, "sum"), kind: "bars" };
-    if (id === "engagement_rate") return { values: bucket(d.series.engagement.current.map((p) => p.value), 10, "mean"), kind: "line" };
-    if (id === "followers") return { values: bucket(d.series.followers.current.map((p) => p.value), 10, "last"), kind: "line" };
-    if (id === "posts" && clock) {
-      const start = clock.getTime() - rangeDays * 86400000;
-      const counts = new Array(Math.min(6, Math.max(2, Math.ceil(rangeDays / 7)))).fill(0);
-      const span = (rangeDays * 86400000) / counts.length;
-      for (const p of d.timed) {
-        const t = new Date(p.t).getTime();
-        if (t >= start) counts[Math.min(counts.length - 1, Math.floor((t - start) / span))]++;
-      }
-      return { values: counts, kind: "bars" };
-    }
-    return null;
-  };
+  const last7 = d.series && d.series.views.provenance !== "unavailable" && d.series.views.current.length ? d.series.views.current.slice(-7) : null;
+  const max7 = Math.max(1, ...(last7 ?? []).map((pt) => pt.value ?? 0));
+  // Three things to do: today's one sentence first, then the findings.
+  const todo = [
+    ...(priority ? [{ title: priority.title.replace(/\.$/, ""), sub: priority.sub, href: priority.href, cta: priority.cta }] : []),
+    ...d.intel.actions.map((a) => ({ title: a.title, sub: a.reason, href: a.href, cta: "Open" })),
+  ].slice(0, 3);
 
   // ---- the week ------------------------------------------------------------------
   const week: WeekDay[] | null = useMemo(() => (clock ? buildWeek({ now: clock, published: d.timed, calendar: d.calendar ?? [], plan: d.planWeek ?? null }) : null), [clock, d.timed, d.calendar, d.planWeek]);
@@ -306,11 +254,12 @@ export default function Dashboard({ d }: { d: DashboardData }) {
   const next = () => i++;
 
   return (
-    <div className="dash-stack">
+    <div className="dash-stack dash-hud dark" data-theme="dark">
       <header className="dash-head">
         <div className="dash-hello">
           <span className="dash-date">{clock ? clock.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }) : " "}</span>
-          <h1>{greeting}{d.handle ? <span> @{d.handle}</span> : null}</h1>
+          <h1>{greeting}</h1>
+          {d.handle && <span className="dash-hud-sub">@{d.handle}{weekPosts && weekPosts.length ? ` · ${weekPosts.length} ${weekPosts.length === 1 ? "video" : "videos"} posted this week` : ""}</span>}
         </div>
         <div className="dash-head-actions">
           {!nothingConnected && (
@@ -336,32 +285,29 @@ export default function Dashboard({ d }: { d: DashboardData }) {
       {/* ---- onboarding: a new account's first steps, and the posting streak (lib/perks) ---- */}
       <Momentum />
 
-      {/* ---- this week's posts: what went out and what each one got. Press one for its breakdown. ---- */}
+      {/* ---- this week's videos: what went out and what each one got. Press one for its breakdown. ---- */}
       <Reveal index={next()}>
         <section className="dash-week" aria-labelledby="dash-week-title">
           <div className="dash-sec">
-            <h2 id="dash-week-title">This week</h2>
-            {weekPosts && weekPosts.length > 0 && (
-              <ul className="dash-week-sum" aria-label="The last 7 days in total">
-                <li><Film aria-hidden /><b>{weekPosts.length}</b> {weekPosts.length === 1 ? "post" : "posts"}</li>
-                <li><Eye aria-hidden /><b>{fmtNum(weekViews)}</b> views</li>
-                <li><Heart aria-hidden /><b>{fmtNum(weekEng)}</b> interactions</li>
-              </ul>
-            )}
+            <h2 id="dash-week-title">This week&apos;s videos</h2>
+            {weekPosts && weekPosts.length > 0 && <span className="dash-sec-hint">Press a video to see what worked and what didn&apos;t</span>}
           </div>
           {!d.live ? (
             <Empty action={<ButtonLink href={d.connectHref} size="sm">Connect Instagram</ButtonLink>}>
-              <b>Your posts show here.</b> Connect Instagram to see each post with its views and interactions.
+              <b>Your videos show here.</b> Connect Instagram to see each one with its views and engagement.
             </Empty>
           ) : !weekPosts ? (
-            <div className="dash-week-row" aria-busy="true">{Array.from({ length: 4 }, (_, k) => <Skeleton key={k} variant="block" className="dash-week-skel" />)}</div>
+            <div className="dash-hud-grid" aria-busy="true">{Array.from({ length: 4 }, (_, k) => <Skeleton key={k} variant="block" className="dash-week-skel" />)}</div>
           ) : weekPosts.length ? (
-            <ul className="dash-week-row">
+            <ul className="dash-hud-grid">
               {weekPosts.map((p) => {
                 const tag = standout(p);
+                const seen = p.reach ?? p.views;
+                const rate = seen ? p.engagements / seen : null;
+                const pct = rate != null ? `${(rate * 100).toFixed(1)}%` : null;
                 return (
                   <li key={p.id}>
-                    <button type="button" className="dash-week-card dash-lift" onClick={() => setOpen(p)} aria-label={`${p.title}: ${p.views != null ? `${fmtNum(p.views)} views, ` : ""}${fmtNum(p.engagements)} interactions${tag ? `, ${tag.word.toLowerCase()}` : ""}. Open the breakdown`}>
+                    <button type="button" className={`dash-hud-card dash-lift${tag ? ` is-${tag.tone}` : ""}`} onClick={() => setOpen(p)} aria-label={`${p.title}: ${p.views != null ? `${fmtNum(p.views)} views, ` : ""}${pct ? `${pct} engagement` : `${fmtNum(p.engagements)} interactions`}${tag ? `, ${tag.word.toLowerCase()}` : ""}. Open the breakdown`}>
                       <span className="dash-week-cover">
                         {p.thumb ? (
                           // eslint-disable-next-line @next/next/no-img-element
@@ -372,9 +318,16 @@ export default function Dashboard({ d }: { d: DashboardData }) {
                         {tag && <span className={`dash-week-tag is-${tag.tone}`}>{tag.word}</span>}
                         <span className="dash-week-day">{new Date(p.published).toLocaleDateString("en-US", { weekday: "short" })}</span>
                       </span>
-                      <span className="dash-week-num"><b>{p.views != null ? fmtNum(p.views) : DASH}</b><small>views</small></span>
-                      <Bar share={p.engagements / weekMaxEng} tone={tag?.tone === "bad" ? "muted" : "data"} />
-                      <span className="dash-week-eng"><Heart aria-hidden />{fmtNum(p.engagements)}{p.multiplier != null && <i>{p.multiplier.toFixed(1)}x</i>}</span>
+                      <span className="dash-hud-title">{p.title}</span>
+                      <span className="dash-hud-row">
+                        <span className="dash-week-num"><b>{p.views != null ? fmtNum(p.views) : fmtNum(p.engagements)}</b><small>{p.views != null ? "views" : "interactions"}</small></span>
+                        {rate != null && pct && (
+                          <span className="dash-hud-rate" aria-hidden>
+                            <Ring share={Math.min(1, rate / 0.1)} size={40} stroke={5} tone={tag?.tone === "bad" ? "low" : "good"} label="" />
+                            <b>{pct}</b>
+                          </span>
+                        )}
+                      </span>
                     </button>
                   </li>
                 );
@@ -382,7 +335,7 @@ export default function Dashboard({ d }: { d: DashboardData }) {
             </ul>
           ) : (
             <Empty action={<ButtonLink href="/create" size="sm">Create a post</ButtonLink>}>
-              <b>Nothing posted in the last 7 days.</b> Each post you publish shows here with its views and interactions.
+              <b>Nothing posted in the last 7 days.</b> Each video you publish shows here with its views and engagement.
             </Empty>
           )}
         </section>
@@ -398,118 +351,153 @@ export default function Dashboard({ d }: { d: DashboardData }) {
         </Reveal>
       )}
 
-      {/* ---- analytics: the numbers, the chart and the best posts ---- */}
+      {/* ---- at a glance: four rings, then the two charts, then the best post ---- */}
       <div className="dash-sec">
-        <h2>Analytics</h2>
-        {!nothingConnected && <Link href="/analytics" className="s-link">Full analytics</Link>}
+        <h2>At a glance</h2>
+        <span className="dash-sec-hint">{d.rangeLabel}{!nothingConnected && <> · <Link href="/analytics" className="s-link">Full analytics</Link></>}</span>
       </div>
 
-      {/* ---- stat cards -------------------------------------------------------------- */}
       <Reveal index={next()} className="dash-stats">
         {d.kpis
           ? d.kpis.slice(0, STAT_COUNT).map((k) => {
               const m = KPI_METRIC[k.id];
               const selectable = Boolean(m && d.series && d.series[m].provenance !== "unavailable");
-              const Icon = KPI_ICON[k.id] ?? Eye;
-              const spark = k.status === "ok" ? sparkFor(k.id) : null;
+              const ok = k.status === "ok";
+              const share = !ok ? 0 : k.deltaPct != null ? Math.min(1, Math.max(0.04, (1 + k.deltaPct / 100) / 2)) : 0.5;
               const body = (
                 <>
-                  <span className="dash-stat-label"><Icon aria-hidden /> {k.label}</span>
-                  <span className="dash-stat-row">
-                    <b className="dash-stat-value">{k.status === "unavailable" || k.raw == null ? (k.status === "unavailable" ? DASH : k.value) : <CountUp value={k.raw} format={kpiFormat(k)} />}</b>
-                    {spark && <Spark values={spark.values} kind={spark.kind} />}
-                  </span>
-                  <span className="dash-stat-foot">
-                    {k.deltaText && k.status === "ok" ? (
-                      <span className={`dash-stat-delta${k.positive === false ? " is-bad" : k.positive ? " is-good" : ""}`}>
-                        {k.positive === false ? <ArrowDownRight aria-hidden /> : k.positive ? <ArrowUpRight aria-hidden /> : null}
-                        {k.deltaText}
-                      </span>
-                    ) : <small>{k.note}</small>}
-                  </span>
+                  <Ring share={share} size={132} stroke={10} tone={!ok ? "none" : k.positive === false ? "low" : k.positive ? "good" : "ok"} label={`${k.label}: ${k.value}${k.deltaText && ok ? `, ${k.deltaText}` : ""}`}>
+                    <b>{k.status === "unavailable" || k.raw == null ? (k.status === "unavailable" ? DASH : k.value) : <CountUp value={k.raw} format={kpiFormat(k)} />}</b>
+                    <small className={ok && k.positive === false ? "is-bad" : ok && k.positive ? "is-good" : undefined}>{k.deltaText && ok ? k.deltaText.replace(/ vs\..*$/, "") : k.status === "collecting" ? "collecting" : ""}</small>
+                  </Ring>
+                  <span className="dash-hud-label">{k.label}</span>
                 </>
               );
               return selectable ? (
-                <button key={k.id} type="button" className={`dash-stat dash-lift${metric === m ? " is-on" : ""}`} aria-pressed={metric === m} onClick={() => pickMetric(m as Metric)}>{body}</button>
+                <button key={k.id} type="button" className={`dash-hud-ring dash-lift${metric === m ? " is-on" : ""}`} aria-pressed={metric === m} onClick={() => pickMetric(m as Metric)}>{body}</button>
               ) : (
-                <div key={k.id} className="dash-stat dash-lift">{body}</div>
+                <div key={k.id} className="dash-hud-ring dash-lift">{body}</div>
               );
             })
           : summaryTiles(connected)}
       </Reveal>
 
-      {/* ---- chart beside the best posts ------------------------------------------------ */}
-      <Reveal index={next()} className={`dash-main${d.live ? "" : " is-single"}`}>
-        {series && d.series ? (
-          <Card className="dash-lift">
-            <CardHeader title={`${series.label} by day`} period={d.rangeLabel} />
-            <OverviewChart series={series} showPrevious={false} height={216} compact still={chartStill} />
-            {d.live && insights.length > 0 ? (
-              <Details label="What stands out" openLabel="Less">
-                <p className="dash-note">{series.note}</p>
-                <InsightList insights={insights.slice(0, 3)} posts={d.posts} compact />
-              </Details>
-            ) : (
-              <p className="dash-note">{series.note}</p>
-            )}
-          </Card>
-        ) : (
-          <Card className="dash-lift">
-            <CardHeader title="Views by day" period={d.rangeLabel} />
-            <Empty>
-              <b>No daily series yet.</b> {nothingConnected ? "Connect Instagram to see views by day." : "Appears once SOCIA has synced Instagram's daily numbers."}
-            </Empty>
-          </Card>
-        )}
-
-        {d.live && (
-          <Card className="dash-lift">
-            <CardHeader title="Best posts" period={d.rangeLabel} actions={<Link href="/analytics#content" className="s-link">All</Link>} />
-            {d.top.length ? (
-              <ul className="dash-top">
-                {d.top.slice(0, 4).map((p) => (
-                  <li key={p.id}>
-                    <button type="button" className="dash-top-item" onClick={() => setOpen(p)} aria-label={`${p.title}: ${p.views != null ? `${fmtNum(p.views)} views` : `${fmtNum(p.engagements)} interactions`}${p.multiplier != null ? `, ${p.multiplier.toFixed(1)} times your median` : ""}`}>
-                      <span className="dash-top-media">
-                        {p.thumb ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={p.thumb} alt="" width={64} height={64} loading="lazy" />
-                        ) : (
-                          <Film aria-hidden />
-                        )}
-                        <span className="dash-top-plat"><PlatformMark platform={p.platform as Platform} brand /></span>
-                      </span>
-                      <span className="dash-top-num"><b>{p.views != null ? fmtNum(p.views) : fmtNum(p.engagements)}</b><small>{p.views != null ? "views" : "interactions"}</small></span>
-                      {p.multiplier != null && <span className="dash-top-mult">{p.multiplier.toFixed(1)}x</span>}
-                    </button>
+      <Reveal index={next()} className="dash-duo">
+        <Card className="dash-lift">
+          <CardHeader title="Views by day" period="Last 7 days" />
+          {last7 ? (
+            <ol className="dash-hud-days" aria-label="Views by day, last 7 days">
+              {last7.map((pt) => {
+                const v = pt.value ?? 0;
+                return (
+                  <li key={pt.day} className={v === max7 && max7 > 1 ? "is-top" : undefined} role="img" aria-label={`${new Date(`${pt.day}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" })}: ${fmtNum(v)} views`}>
+                    <small aria-hidden>{fmtNum(v)}</small>
+                    <span className="dash-hud-daybar" aria-hidden><i style={{ height: `${Math.max(2, (v / max7) * 100)}%` }} /></span>
+                    <small aria-hidden>{new Date(`${pt.day}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "narrow", timeZone: "UTC" })}</small>
                   </li>
-                ))}
-              </ul>
-            ) : (
-              <Empty>
-                <b>No posts in this range.</b> Your best posts appear here, ranked by views.
-              </Empty>
-            )}
-          </Card>
-        )}
+                );
+              })}
+            </ol>
+          ) : (
+            <Empty>
+              <b>No daily views yet.</b> {nothingConnected ? "Connect Instagram to see views by day." : "Appears once SOCIA has synced Instagram's daily numbers."}
+            </Empty>
+          )}
+        </Card>
+        <Card className="dash-lift">
+          <CardHeader title="Performance over time" period={series ? `${series.label}, ${d.rangeLabel.toLowerCase()}` : d.rangeLabel} />
+          {series && d.series ? (
+            <>
+              <OverviewChart series={series} showPrevious={false} height={200} compact still={chartStill} />
+              {d.live && insights.length > 0 && (
+                <Details label="What stands out" openLabel="Less">
+                  <InsightList insights={insights.slice(0, 3)} posts={d.posts} compact />
+                </Details>
+              )}
+            </>
+          ) : (
+            <Empty>
+              <b>No series yet.</b> It fills in as SOCIA syncs your daily numbers.
+            </Empty>
+          )}
+        </Card>
       </Reveal>
 
-      {/* ---- what to do next: today's one sentence, then the next three actions ---- */}
+      {d.live && d.top.length > 0 && (
+        <Reveal index={next()} className="dash-duo">
+          <button type="button" className="dash-hud-best dash-lift" onClick={() => setOpen(d.top[0])} aria-label={`Best post: ${d.top[0].title}. Open the breakdown`}>
+            <span className="dash-hud-best-media">
+              {d.top[0].thumb ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={d.top[0].thumb} alt="" loading="lazy" />
+              ) : (
+                <Film aria-hidden />
+              )}
+            </span>
+            <span className="dash-hud-best-body">
+              <span className="dash-hud-label">Best post</span>
+              <b>{d.top[0].title}</b>
+              <span className="dash-hud-best-nums">
+                {d.top[0].views != null && <span><b>{fmtNum(d.top[0].views)}</b> views</span>}
+                {d.top[0].likes != null && <span><b>{fmtNum(d.top[0].likes)}</b> likes</span>}
+                {d.top[0].saves != null && <span><b>{fmtNum(d.top[0].saves)}</b> saves</span>}
+              </span>
+            </span>
+          </button>
+          <Card className="dash-lift">
+            <CardHeader title="Next best" period={d.rangeLabel} actions={<Link href="/analytics#content" className="s-link">All</Link>} />
+            <ul className="dash-top">
+              {d.top.slice(1, 5).map((p) => (
+                <li key={p.id}>
+                  <button type="button" className="dash-top-item" onClick={() => setOpen(p)} aria-label={`${p.title}: ${p.views != null ? `${fmtNum(p.views)} views` : `${fmtNum(p.engagements)} interactions`}. Open the breakdown`}>
+                    <span className="dash-top-media">
+                      {p.thumb ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={p.thumb} alt="" width={64} height={64} loading="lazy" />
+                      ) : (
+                        <Film aria-hidden />
+                      )}
+                    </span>
+                    <span className="dash-top-num"><b>{p.views != null ? fmtNum(p.views) : fmtNum(p.engagements)}</b><small>{p.views != null ? "views" : "interactions"}</small></span>
+                    {p.multiplier != null && <span className="dash-top-mult">{p.multiplier.toFixed(1)}x</span>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </Reveal>
+      )}
+
+      {/* ---- what to do next: three things, most useful first ---- */}
+      <div className="dash-sec">
+        <h2>What to do next</h2>
+        <span className="dash-sec-hint">Three things, most useful first</span>
+      </div>
       <Reveal index={next()}>
-        <Card className="dash-lift">
-          <CardHeader title="What to do next" period="From your own posts" />
-          {priority && (
-            <div className="dash-next-lead">
-              <p><b>{priority.title}</b> {priority.sub}</p>
-              <ButtonLink href={priority.href} variant="primary" size="sm">{priority.cta} <ArrowRight aria-hidden /></ButtonLink>
-            </div>
-          )}
-          {(d.intel.actions.length > 0 || !priority) && <ActionChips actions={d.intel.actions} />}
+        {todo.length ? (
+          <ol className="dash-hud-todo">
+            {todo.map((t, k) => {
+              const Icon = TODO_ICON[k % TODO_ICON.length];
+              return (
+                <li key={`${t.href}-${k}`} className="dash-lift">
+                  <span className="dash-hud-todo-head"><i className={`is-${k}`} aria-hidden><Icon /></i><b>{t.title}</b></span>
+                  <p>{t.sub}</p>
+                  <ButtonLink href={t.href} size="sm" variant={k === 0 ? "primary" : undefined}>{t.cta}</ButtonLink>
+                </li>
+              );
+            })}
+          </ol>
+        ) : (
+          <Empty>
+            <b>Nothing to act on yet.</b> Actions appear once SOCIA has findings from your posts.
+          </Empty>
+        )}
+        {!nothingConnected && (
           <Details label="Details" openLabel="Less">
             <BriefingLines b={d.intel.briefing} />
-            {!nothingConnected && <div className="dash-nested"><TodayCard {...d.today} view={todayView} /></div>}
+            <div className="dash-nested"><TodayCard {...d.today} view={todayView} /></div>
           </Details>
-        </Card>
+        )}
       </Reveal>
 
       {/* ---- more from your account: closed until opened -------------------------------- */}

@@ -283,3 +283,377 @@
     grid-auto-columns: 132px;
   }
 }
+
+/* ==== the Dashboard as one dark instrument panel (Umar's sketch, 2026-11-20).
+   The wrapper carries data-theme="dark", so every token below is the dark one
+   whatever the app's appearance is. ==== */
+.dash-hud {
+  padding: var(--sp-6);
+  border-radius: var(--r-panel);
+  background: var(--ground);
+  color: var(--ink);
+  gap: var(--sp-6);
+}
+.dash-hud .dash-hello h1 {
+  font-size: var(--fs-display);
+  line-height: var(--lh-display);
+}
+.dash-hud-sub,
+.dash-sec-hint {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.dash-hud-label {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-weight: var(--fw-medium);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* ---- video cards ---- */
+.dash-hud-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: var(--sp-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dash-hud-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dash-hud-card.is-good {
+  border-color: var(--positive);
+}
+.dash-hud-card.is-bad {
+  border-color: var(--negative);
+}
+.dash-hud-card:focus-visible,
+.dash-hud-ring:focus-visible,
+.dash-hud-best:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.dash-hud-card .dash-week-cover {
+  aspect-ratio: 9 / 13;
+  border-radius: var(--r-card);
+}
+.dash-hud-title {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.dash-hud-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.dash-hud-row .dash-week-num {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+}
+.dash-hud-row .dash-week-num b {
+  font-size: var(--fs-figure);
+  line-height: var(--lh-figure);
+}
+.dash-hud-rate {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--ink);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- four rings ---- */
+.dash-hud-ring {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+  padding: var(--sp-5) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+button.dash-hud-ring {
+  cursor: pointer;
+}
+.dash-hud-ring.is-on {
+  border-color: var(--accent);
+}
+.dash-hud-ring .dash-ring-body b {
+  font-size: var(--fs-figure);
+  line-height: var(--lh-figure);
+}
+.dash-hud-ring .dash-ring-body small.is-good {
+  color: var(--positive-ink);
+}
+.dash-hud-ring .dash-ring-body small.is-bad {
+  color: var(--negative-ink);
+}
+
+/* ---- views by day ---- */
+.dash-hud-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--sp-2);
+  height: 200px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dash-hud-days li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+.dash-hud-days small {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-variant-numeric: tabular-nums;
+}
+.dash-hud-daybar {
+  display: flex;
+  align-items: flex-end;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+}
+.dash-hud-daybar i {
+  display: block;
+  width: 100%;
+  border-radius: var(--r-control) var(--r-control) 0 0;
+  background: var(--border-strong);
+}
+.dash-hud-days li.is-top .dash-hud-daybar i {
+  background: var(--chart-series);
+}
+.dash-hud-days li.is-top small {
+  color: var(--ink);
+}
+
+/* ---- best post ---- */
+.dash-hud-best {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  min-width: 0;
+  padding: var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dash-hud-best-media {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 96px;
+  aspect-ratio: 9 / 13;
+  border-radius: var(--r-card);
+  background: var(--surface-hover);
+  color: var(--ink-3);
+  overflow: hidden;
+}
+.dash-hud-best-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.dash-hud-best-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.dash-hud-best-body > b {
+  font-size: var(--fs-lead);
+  line-height: var(--lh-lead);
+  font-weight: var(--fw-semibold);
+}
+.dash-hud-best-nums {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-4);
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.dash-hud-best-nums b {
+  color: var(--ink);
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- three things to do ---- */
+.dash-hud-todo {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dash-hud-todo li {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-5);
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+}
+.dash-hud-todo-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.dash-hud-todo-head i {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--control-h-lg);
+  height: var(--control-h-lg);
+  border-radius: var(--r-card);
+  background: var(--surface-hover);
+  color: var(--accent);
+}
+.dash-hud-todo-head i.is-0 {
+  color: var(--positive);
+}
+.dash-hud-todo-head i.is-1 {
+  color: var(--warning);
+}
+.dash-hud-todo-head svg {
+  width: 20px;
+  height: 20px;
+}
+.dash-hud-todo-head b {
+  color: var(--ink);
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: var(--fw-semibold);
+}
+.dash-hud-todo p {
+  flex: 1;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+@media (max-width: 960px) {
+  .dash-hud-todo {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .dash-hud {
+    padding: var(--sp-3);
+  }
+  .dash-hud-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sp-2);
+  }
+  .dash-hud-best-media {
+    width: 72px;
+  }
+}
+
+/* The app's alias tokens are declared once on :root, so inside a scoped dark
+   panel they would keep their light values. Declared again here they read the
+   dark ones (same list as app/styles/tokens.css). */
+.dash-hud {
+  --background: var(--ground);
+  --surface-elevated: var(--surface);
+  --surface-muted: var(--surface-raised);
+  --text-primary: var(--ink);
+  --text-secondary: var(--ink-2);
+  --text-muted: var(--ink-3);
+  --text-disabled: var(--ink-disabled);
+  --primary: var(--action);
+  --primary-hover: var(--action-hover);
+  --primary-text: var(--accent-ink);
+  --primary-subtle: var(--accent-subtle);
+  --primary-rgb: var(--shadow-rgb);
+  --on-primary: var(--on-action);
+  --accent-strong: var(--accent-hover);
+  --accent-soft: var(--accent-subtle);
+  --amber: var(--warning);
+  --success: var(--positive);
+  --success-text: var(--positive-ink);
+  --success-subtle: var(--positive-bg);
+  --warning-text: var(--warning-ink);
+  --warning-subtle: var(--warning-bg);
+  --danger: var(--negative);
+  --danger-text: var(--negative-ink);
+  --danger-subtle: var(--negative-bg);
+  --info: var(--accent);
+  --info-text: var(--accent-ink);
+  --info-subtle: var(--accent-subtle);
+  --info-rgb: var(--accent-rgb);
+  --panel-dark: var(--inverse-surface);
+  --panel-dark-text: var(--inverse-text);
+  --ivory: var(--ground);
+  --silver: var(--border);
+  --cobalt: var(--accent);
+  --sky: var(--accent-ink);
+  --charcoal: var(--ink);
+  --slate: var(--ink-2);
+  --line: var(--border);
+  --good: var(--positive);
+  --warn: var(--warning);
+  --card: var(--surface);
+  --foreground: var(--ink);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary-foreground: var(--on-action);
+  --secondary: var(--surface-raised);
+  --secondary-foreground: var(--ink);
+  --muted: var(--surface-raised);
+  --muted-foreground: var(--ink-2);
+  --shadcn-accent: var(--surface-raised);
+  --accent-foreground: var(--ink);
+  --destructive: var(--negative);
+  --input: var(--border-strong);
+  --ring: var(--accent);
+  --chart-1: var(--chart-series);
+  --chart-2: var(--chart-series-2);
+  --chart-3: var(--chart-series-3);
+  --chart-4: var(--positive);
+  --chart-5: var(--warning);
+}
