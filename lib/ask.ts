@@ -8,7 +8,7 @@
 import type { AskInstagram, AskRatedVideo } from "./assistant/askExtras";
 import type { ResearchExample } from "./research/examples";
 import type { IntentKind } from "./research/intent";
-import { CREATIVE_STYLES, type CreativeDirection, type CreativeStyle } from "./research/direction";
+import type { CreativeDirection, CreativeStyle } from "./research/direction";
 import type { CreativeBrief, Deliverable } from "./assistant/brief";
 
 export type AskPage = "global" | "dashboard" | "analytics" | "post" | "competitors" | "plan" | "studio";
@@ -293,7 +293,9 @@ export const askAnswerSchema = {
       additionalProperties: false,
       properties: {
         approach: { type: "string" },
-        examples: { type: "array", items: { type: "object", additionalProperties: false, properties: { ref: { type: "string" }, why: { type: "string" }, style: { type: "string", enum: CREATIVE_STYLES.map((s) => s.id) }, techniques: { type: "array", items: { type: "string" } } }, required: ["ref", "why", "style", "techniques"] } },
+        // style stays a plain string: an enum here pushed the compiled grammar over Anthropic's limit and
+        // every Ask request failed (2026-11-20). The prompt lists the style ids; buildResearch keeps only valid ones.
+        examples: { type: "array", items: { type: "object", additionalProperties: false, properties: { ref: { type: "string" }, why: { type: "string" }, style: { type: "string" }, techniques: { type: "array", items: { type: "string" } } }, required: ["ref", "why", "style", "techniques"] } },
         why: { type: "string" },
         test: { type: "string" },
         steps: { type: "array", items: { type: "object", additionalProperties: false, properties: { type: { type: "string", enum: [...RESEARCH_STEPS] }, label: { type: "string" } }, required: ["type", "label"] } },
