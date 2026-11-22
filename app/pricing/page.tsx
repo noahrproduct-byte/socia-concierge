@@ -75,7 +75,7 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
           )}
           {checkout && (
             <p className="pr-fine">
-              Have a promo code from one of our videos? Enter it on the checkout page of a monthly plan.{" "}
+              Have a promo code from one of our videos? Enter it on the checkout page.{" "}
               Prices in USD before tax. Payments are handled by Stripe and sold through Link, which adds sales tax at checkout where it applies; charges show as LINK.COM* on your statement.
             </p>
           )}

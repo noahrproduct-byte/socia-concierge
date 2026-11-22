@@ -85,9 +85,10 @@ export async function POST(req: Request) {
       subscription_data: {
         metadata: { user_id: user.id, plan, interval },
       },
-      // Promotion codes are for monthly plans only (Noah, 2026-11-17): a yearly plan already
-      // carries its own saving, and a "first payment" code would otherwise come off a whole year.
-      allow_promotion_codes: interval === "month",
+      // Promotion codes work on monthly and yearly plans (Umar, 2026-11-21; monthly only
+      // before, Noah 2026-11-17). A percent-off code comes off the whole first payment, so
+      // on a yearly plan that is the year: limit a code in the Stripe Dashboard if it shouldn't.
+      allow_promotion_codes: true,
       managed_payments: { enabled: true },
       success_url: fromOnboarding
         ? `${origin}/onboarding?billing=success&session_id={CHECKOUT_SESSION_ID}`
