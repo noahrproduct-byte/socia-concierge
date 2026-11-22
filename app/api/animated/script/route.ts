@@ -8,6 +8,10 @@ import { scopeToWorkspace } from "@/lib/workspaces";
 import { readSpec, writeAnimatedSpec, type AnimatedSource } from "@/lib/animated/write";
 import { aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/aiStatus";
 import type { Deliverable } from "@/lib/schema";
+import { brandWorkspace } from "@/lib/context";
+import { accountContext } from "@/lib/studioClips/server";
+import { breakDownReference } from "@/lib/studioClips/analysis";
+import { cleanBreakdown, cleanPrompt, referenceBrief, sanitizeReference, shotStats } from "@/lib/studioClips/reference";
 
 export const runtime = "nodejs";
 // Writing a storyboard, the meaning check, and at most one rewrite.
@@ -19,6 +23,9 @@ export const maxDuration = 300;
 // allowance so a daily animated plan fits (given back if writing fails); the person then previews it, edits the words, and renders it
 // in the browser.
 //   POST { planId, index } | { postId } -> { spec }
+//   POST { prompt, reference? } -> { spec, referenceNote }: Animate a video (Content Studio). The person's own
+//     words, and optionally a video to copy, read in the browser (lib/studioClips/reference.ts): SOCIA breaks it
+//     down once and hands the written breakdown back as referenceNote, which a later change sends again.
 //   With { change, current }: the owner's own words for what to change in the version they saw.
 //   A change doesn't count as another animated video; it has its own hourly limit.
 export async function POST(req: Request) {
@@ -28,9 +35,15 @@ export async function POST(req: Request) {
   const ctx = await resolveContext(supabase, user.id);
   if (!can(ctx, "publish")) return NextResponse.json({ error: forbiddenCopy("publish") }, { status: 403 });
   const raw = await req.text();
-  if (raw.length > 40_000) return NextResponse.json({ error: "That request is too long." }, { status: 413 });
-  let b: { planId?: unknown; index?: unknown; postId?: unknown; change?: unknown; current?: unknown } | null = null;
+  // A reference arrives as a few frames, so only a request that carries one may be large.
+  if (raw.length > 4_200_000) return NextResponse.json({ error: "That request is too long." }, { status: 413 });
+  let b: { planId?: unknown; index?: unknown; postId?: unknown; change?: unknown; current?: unknown; prompt?: unknown; reference?: unknown; referenceNote?: unknown } | null = null;
   try { b = JSON.parse(raw); } catch { b = null; }
+  if (b?.reference == null && raw.length > 40_000) return NextResponse.json({ error: "That request is too long." }, { status: 413 });
+  const prompt = cleanPrompt(b?.prompt);
+  const reference = prompt && b?.reference != null ? sanitizeReference(b.reference) : null;
+  if (prompt && b?.reference != null && !reference) return NextResponse.json({ error: "SOCIA couldn't read that video. Try an MP4 under 3 minutes." }, { status: 400 });
+  const givenNote = prompt && typeof b?.referenceNote === "string" ? b.referenceNote.replace(/\s+/g, " ").trim().slice(0, 3000) : "";
   const change = typeof b?.change === "string" ? b.change.replace(/\s+/g, " ").trim().slice(0, 300) : "";
   // The version they saw, only as context for the change, cleaned like any model answer.
   const current = change && b?.current ? readSpec(b.current, JSON.stringify(b.current).slice(0, 20_000)) : null;
@@ -38,13 +51,17 @@ export async function POST(req: Request) {
   const planId = uuid(b?.planId);
   const postId = uuid(b?.postId);
   const index = typeof b?.index === "number" && Number.isInteger(b.index) && b.index >= 0 ? b.index : null;
-  if (!postId && (!planId || index == null)) return NextResponse.json({ error: "Say which post to make." }, { status: 400 });
+  if (!prompt && !postId && (!planId || index == null)) return NextResponse.json({ error: "Say which post to make." }, { status: 400 });
   const limited = change
     ? await perUserLimit(ctx.ownerId, "animated_change", 15, "changes to animated videos")
     : await perUserLimit(ctx.ownerId, "animated_script", 30, "animated videos");
   if (limited) return limited;
   let source: AnimatedSource;
-  if (postId) {
+  let referenceNote = givenNote;
+  if (prompt) {
+    const [first] = prompt.split(/(?<=[.!?])\s+|\n+/);
+    source = { hook: first.trim().slice(0, 200), concept: prompt };
+  } else if (postId) {
     const { data } = await scopeToWorkspace(ctx.client.from("scheduled_posts").select("id, caption, status, media_path").eq("id", postId).eq("user_id", ctx.ownerId), ctx.workspace?.id ?? null).maybeSingle();
     const draft = data as { caption: string | null; status: string; media_path: string | null } | null;
     if (!draft) return NextResponse.json({ error: "That draft no longer exists." }, { status: 404 });
@@ -65,8 +82,20 @@ export async function POST(req: Request) {
   const u = change ? null : await requireUsage(ctx.client, ctx.ownerId, "animated_videos", { feature: "auto_build" });
   if (u?.denied) return u.denied;
   try {
+    // A video to copy: broken down once into its structure, pace and text style, in words.
+    if (reference) {
+      const acct = await accountContext(ctx.client, ctx.ownerId, brandWorkspace(ctx), ctx.workspace?.id ?? null);
+      const { raw: brokenDown } = await withDeadline(breakDownReference(reference, acct), deadlineFor(maxDuration));
+      const breakdown = cleanBreakdown(brokenDown, reference.durationSec);
+      if (!breakdown) {
+        await u?.release();
+        return NextResponse.json({ error: "SOCIA couldn't break that video down. Try a clearer or shorter one." }, { status: 422 });
+      }
+      referenceNote = referenceBrief(breakdown, reference.durationSec, shotStats(reference), reference.cuts).slice(0, 3000);
+    }
+    if (prompt && referenceNote) source = { ...source, direction: `Make it like this reference video, with this account's own subject. Follow its structure, pace and on-screen text style: ${referenceNote}` };
     const spec = await withDeadline(writeAnimatedSpec(ctx, source, change ? { change, current } : {}), deadlineFor(maxDuration));
-    return NextResponse.json({ spec });
+    return NextResponse.json(prompt ? { spec, referenceNote: referenceNote || null } : { spec });
   } catch (e) {
     await u?.release();
     if (e instanceof DeadlineError) {

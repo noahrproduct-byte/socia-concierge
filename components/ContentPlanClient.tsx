@@ -1024,13 +1024,13 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
                         )
                       ) : stage === 1 ? (
                         <>
-                          <Button variant="primary" busy={itemBusy === i} onClick={() => markMade(i, "filmed", "/studio")} title="Marks it filmed and opens the video editor, where you drop in your clips"><Clapperboard size={15} aria-hidden /> I filmed it. Open the editor</Button>
+                          <Button variant="primary" busy={itemBusy === i} onClick={() => markMade(i, "filmed", "/studio?mode=edit")} title="Marks it filmed and opens the video editor, where you drop in your clips"><Clapperboard size={15} aria-hidden /> I filmed it. Open the editor</Button>
                           {planId && <ButtonLink href={`/studio?mode=guide&plan=${planId}&i=${i}`} title="Hooks, script and shot list for this video">Filming guide</ButtonLink>}
                         </>
                       ) : stage === 2 ? (
                         <>
                           <Button variant="primary" busy={itemBusy === i} onClick={() => markMade(i, "edited", createHref(post))} title="Marks it edited and opens the post builder with this hook"><Check size={15} aria-hidden /> It&apos;s edited. Build the post</Button>
-                          <ButtonLink href="/studio">Open the editor</ButtonLink>
+                          <ButtonLink href="/studio?mode=edit">Open the editor</ButtonLink>
                         </>
                       ) : stage === 3 ? (
                         <ButtonLink variant="primary" href={createHref(post)} title="Open the post builder with this hook, add the video and pick a day"><CalendarDays size={15} aria-hidden /> Build the post</ButtonLink>

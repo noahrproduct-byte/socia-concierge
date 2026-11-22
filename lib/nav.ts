@@ -39,10 +39,10 @@ export const NAV: NavEntry[] = [
 ];
 
 /**
- * The dock: the three daily destinations, linked directly from the floating
+ * The dock: the four daily destinations, linked directly from the floating
  * headbar on desktop and from the bottom tab bar on phones (redesign brief,
  * 2026-11-03; order by Noah, 2026-11-05: how it went before what's next):
- * Dashboard (Analytics folded into it, 2026-11-20), Planner and Inbox. Discover, Studio,
+ * Dashboard (Analytics folded into it, 2026-11-20), Planner, Content Studio and Inbox. Discover, Studio,
  * Reports, the weekly roundup and Settings sit one click deeper, in the More
  * panel and the command menu. `also` lists sections that light up the same
  * dock item.
@@ -51,8 +51,13 @@ export const DOCK: { key: string; label: string; also?: string[] }[] = [
   { key: "dashboard", label: "Dashboard", also: ["analytics"] },
   // Planner: the plan, the Calendar and the post builder are one flow (Umar, 2026-11-21).
   { key: "plan", label: "Planner", also: ["calendar", "create"] },
+  // Content Studio holds the AI Clipper and AI Studio too (its tiles), so they light it.
+  { key: "studio", label: "Content Studio", also: ["clipper", "ai-studio"] },
   { key: "comments", label: "Inbox" },
 ];
+
+/** Groups the More panel leaves out: every section in them is one press from the dock (Planner, Content Studio). */
+export const MORE_HIDDEN: NavGroup[] = ["create"];
 
 /** The dock item a section lights up ("calendar" → "plan"), or null when it isn't on the dock. */
 export function dockKeyFor(key: string | null): string | null {

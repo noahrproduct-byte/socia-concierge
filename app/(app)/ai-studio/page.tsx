@@ -5,6 +5,7 @@ import { getEntitlements, canUseFeature } from "@/lib/entitlements";
 import { minPlanWithFeature } from "@/lib/plans";
 import { creditBalance } from "@/lib/credits/ledger";
 import PageHeader from "@/components/PageHeader";
+import StudioMode from "@/components/studio/StudioMode";
 import AiGate from "@/components/ai/AiGate";
 import AiStudioPage from "@/components/ai/AiStudioPage";
 import "../ai/ai.css";
@@ -21,6 +22,7 @@ export default async function AiStudio() {
     return (
       <>
         <PageHeader title="AI Studio" sub="Ideas from your brand, made into AI videos and images." />
+      <StudioMode mode="ai" />
         <AiGate feature="ai_studio" plan={minPlanWithFeature("ai_studio")} currentPlan={ent.plan}
           what="SOCIA writes content ideas from your niche and brand voice; pick one and it becomes a video or image on a curated set of models, with a caption, ready to schedule." />
       </>
@@ -30,6 +32,7 @@ export default async function AiStudio() {
   return (
     <>
       <PageHeader title="AI Studio" sub="Ideas from your brand, made into AI videos and images." />
+      <StudioMode mode="ai" />
       <AiStudioPage initialBalance={balance} canMutate={can(ctx, "publish")} aiReady={Boolean(process.env.ANTHROPIC_API_KEY)} plan={ent.plan} />
     </>
   );

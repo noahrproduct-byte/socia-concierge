@@ -7,6 +7,7 @@ import { creditBalance } from "@/lib/credits/ledger";
 import { sociaClipperReady } from "@/lib/clipper/socia";
 import { clipperProvider } from "@/lib/clipper/vizard";
 import PageHeader from "@/components/PageHeader";
+import StudioMode from "@/components/studio/StudioMode";
 import AiGate from "@/components/ai/AiGate";
 import ClipperPage from "@/components/ai/ClipperPage";
 import ClipperTabs from "@/components/ai/ClipperTabs";
@@ -27,6 +28,7 @@ export default async function Clipper({ searchParams }: { searchParams: Promise<
     return (
       <>
         <PageHeader title="AI Clipper" sub="Turn a long video into short clips with captions." />
+      <StudioMode mode="clipper" />
         <AiGate feature="ai_clipper" plan={minPlanWithFeature("ai_clipper")} currentPlan={ent.plan}
           what="Upload a long video. SOCIA finds the moments that stand on their own and makes them vertical clips with captions, a title, a score and a caption for each, ready to schedule." />
       </>
@@ -36,6 +38,7 @@ export default async function Clipper({ searchParams }: { searchParams: Promise<
   return (
     <>
       <PageHeader title="AI Clipper" sub="Turn a long video, or a live Twitch stream, into short clips." />
+      <StudioMode mode="clipper" />
       <ClipperTabs
         initial={sp.tab === "streams" ? "streams" : "videos"}
         videos={<ClipperPage initialBalance={balance} canMutate={can(ctx, "publish")} sociaReady={sociaClipperReady()} vizardReady={Boolean(clipperProvider()) && ent.plan === "scale"} />}

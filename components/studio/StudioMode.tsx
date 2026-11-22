@@ -1,15 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { Gauge, Music, Scissors } from "lucide-react";
+import { Clapperboard, Gauge, Images, Music, Scissors } from "lucide-react";
+import "./studio-hub.css";
 
-export type StudioModeId = "quick" | "clips" | "edit" | "audio" | "guide";
+export type StudioModeId = "quick" | "clips" | "edit" | "audio" | "guide" | "make" | "animate" | "clipper" | "ai";
 
-// Content Studio: Rate a video you've made, the Video editor (clips, then a
-// prompt or a reference to copy, or your own edit), and Audio: music for a
-// video. Plan a post (the production guide) is opened from a planned post,
-// and a Build project from an old link, so no tab is lit there. Build left
-// the tabs on 2026-11-18 (Noah): the Video editor does its job.
+// Content Studio's five tools, each a tile: the Video editor (which asks
+// whether to animate a video or edit clips), Rate, Audio, the AI Clipper and
+// AI Studio (Umar, 2026-11-21: the Clipper and AI Studio moved in from the
+// More panel). Plan a post (the production guide) is opened from a planned
+// post, and a Build project from an old link, so no tile is lit there.
 // The mode lives in the URL so a refresh keeps it.
 const HINT: Record<StudioModeId, string> = {
   quick: "Rate a video you've made and fix it before it goes out.",
@@ -17,18 +18,37 @@ const HINT: Record<StudioModeId, string> = {
   edit: "Put in clips, then a prompt or a video to copy. Or edit them yourself.",
   audio: "Drop a video and SOCIA adds music made for it from your taste.",
   guide: "Hooks, script and shot list for a planned post, before you film.",
+  make: "Animate a video from a prompt, or edit clips you filmed.",
+  animate: "Say what the video is about, add a video to copy if you have one, and SOCIA animates it.",
+  clipper: "Turn a long video into short clips with captions.",
+  ai: "Ideas from your brand, made into AI videos and images.",
 };
 
+const TILES: { id: StudioModeId; also?: StudioModeId[]; href: string; label: string; sub: string; Icon: typeof Gauge }[] = [
+  { id: "make", also: ["edit", "animate", "clips"], href: "/studio?mode=make", label: "Video editor", sub: "Animate or edit", Icon: Scissors },
+  { id: "quick", href: "/studio", label: "Rate", sub: "Score a video", Icon: Gauge },
+  { id: "audio", href: "/studio?mode=audio", label: "Audio", sub: "Music for a video", Icon: Music },
+  { id: "clipper", href: "/clipper", label: "AI Clipper", sub: "Long video to clips", Icon: Clapperboard },
+  { id: "ai", href: "/ai-studio", label: "AI Studio", sub: "AI videos and images", Icon: Images },
+];
+
 export default function StudioMode({ mode }: { mode: StudioModeId }) {
-  const tab = (id: StudioModeId, href: string, icon: React.ReactNode, label: string) => (
-    <Link href={href} role="tab" aria-selected={mode === id} className={mode === id ? "on" : ""}>{icon} {label}</Link>
-  );
   return (
-    <nav className="st-tabs cb-mode" aria-label="Content Studio">
-      {tab("quick", "/studio", <Gauge size={13} />, "Rate")}
-      {tab("edit", "/studio?mode=edit", <Scissors size={13} />, "Video editor")}
-      {tab("audio", "/studio?mode=audio", <Music size={13} />, "Audio")}
-      <span className="cb-mode-hint">{HINT[mode]}</span>
+    <nav className="stu-hub" aria-label="Content Studio">
+      <ul>
+        {TILES.map(({ id, also, href, label, sub, Icon }) => {
+          const on = mode === id || Boolean(also?.includes(mode));
+          return (
+            <li key={id}>
+              <Link href={href} aria-current={on ? "page" : undefined} className={on ? "on" : undefined}>
+                <i aria-hidden><Icon /></i>
+                <span><b>{label}</b><small>{sub}</small></span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="stu-hub-hint">{HINT[mode]}</p>
     </nav>
   );
 }

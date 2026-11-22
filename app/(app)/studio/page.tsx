@@ -7,6 +7,8 @@ import ContentStudio, { type DraftItem } from "@/components/studio/ContentStudio
 import ClipsStudio from "@/components/studio/ClipsStudio";
 import StudioMode from "@/components/studio/StudioMode";
 import GuideStudio from "@/components/studio/GuideStudio";
+import MakeChoice from "@/components/studio/MakeChoice";
+import AnimateStudio from "@/components/studio/AnimateStudio";
 import { formatConcept, planConcept } from "@/lib/studioGuideLoad";
 import type { GoalId } from "@/lib/studio";
 import { resolveContext, brandWorkspace } from "@/lib/context";
@@ -28,6 +30,10 @@ export default async function StudioPage({ searchParams }: { searchParams: Promi
   if (!user) redirect("/login");
   const { mode, plan, i, format, project } = await searchParams;
   if ((mode === "clips" || mode === "autopost") && !project) redirect("/studio?mode=edit");
+
+  // The Video editor tile asks first: animate a video from a prompt, or edit clips (Umar, 2026-11-21).
+  if (mode === "make") return <MakeChoice modeTabs={<StudioMode mode="make" />} />;
+  if (mode === "animate") return <AnimateStudio viewerId={user.id} modeTabs={<StudioMode mode="animate" />} />;
 
   // Plan a post: the concept from a planned post or a Discover format (read
   // here, never from the address alone), then its production guide.

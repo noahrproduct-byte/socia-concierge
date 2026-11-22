@@ -33,7 +33,7 @@ import {
   Film,
   type LucideIcon,
 } from "lucide-react";
-import { DOCK, HELP, NAV, NAV_GROUPS, activeNavKey, dockKeyFor } from "@/lib/nav";
+import { DOCK, HELP, MORE_HIDDEN, NAV, NAV_GROUPS, activeNavKey, dockKeyFor } from "@/lib/nav";
 
 const ICONS: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard,
@@ -178,7 +178,7 @@ export function SideNav({ counts }: { counts?: Partial<Record<string, number>> }
   const active = activeNavKey(usePathname());
   return (
     <nav className="s-nav" aria-label="Main">
-      {NAV_GROUPS.map((g) => (
+      {NAV_GROUPS.filter((g) => !MORE_HIDDEN.includes(g.key)).map((g) => (
         <div className="s-nav-group" key={g.key}>
           <div className="s-nav-label">{g.label}</div>
           {NAV.filter((n) => n.group === g.key).map((n) => {

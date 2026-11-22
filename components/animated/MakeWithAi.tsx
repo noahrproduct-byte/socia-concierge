@@ -43,11 +43,18 @@ async function post<T>(url: string, body: unknown): Promise<T> {
 }
 
 /** Where the video comes from: a plan post (a new draft is made) or a Calendar draft (the video goes onto it). */
-export type MakeSource = { kind: "plan"; planId: string; index: number; day: string } | { kind: "draft"; postId: string; label: string };
+export type MakeSource =
+  | { kind: "plan"; planId: string; index: number; day: string }
+  | { kind: "draft"; postId: string; label: string }
+  /** Animate a video (Content Studio): the person's own words, and a video to copy as the browser read it. */
+  | { kind: "prompt"; prompt: string; reference: unknown | null; label: string };
 
 export default function MakeWithAi({ open, onOpenChange, source, onAttached }: { open: boolean; onOpenChange: (o: boolean) => void; source: MakeSource; onAttached?: (post: ScheduledPost) => void }) {
-  const ask = source.kind === "plan" ? { planId: source.planId, index: source.index } : { postId: source.postId };
+  // The reference's frames are large: they ride along with the first write only, never in the key.
+  const ask = source.kind === "plan" ? { planId: source.planId, index: source.index } : source.kind === "draft" ? { postId: source.postId } : { prompt: source.prompt };
   const askKey = JSON.stringify(ask);
+  const reference = source.kind === "prompt" ? source.reference : null;
+  const refNote = useRef<string | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: "writing" });
   const [spec, setSpec] = useState<AnimatedSpec | null>(null);
   const abort = useRef<AbortController | null>(null);
@@ -55,12 +62,13 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
   const write = useCallback(async () => {
     setPhase({ kind: "writing" }); setSpec(null);
     try {
-      const r = await post<{ spec: AnimatedSpec }>("/api/animated/script", JSON.parse(askKey));
+      const r = await post<{ spec: AnimatedSpec; referenceNote?: string | null }>("/api/animated/script", { ...JSON.parse(askKey), ...(refNote.current ? { referenceNote: refNote.current } : reference ? { reference } : {}) });
+      if (r.referenceNote) refNote.current = r.referenceNote;
       setSpec(r.spec); setPhase({ kind: "ready" });
     } catch (e) {
       setPhase({ kind: "error", message: (e as Error).message, canRetry: true });
     }
-  }, [askKey]);
+  }, [askKey, reference]);
 
   // Write once when the dialog opens; closing it stops a render in progress.
   const started = useRef(false);
@@ -78,7 +86,7 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
     setChanging(true); setChangeErr(null);
     try {
       // The voiceover stays in this browser; the new version is voiced again when the person asks.
-      const r = await post<{ spec: AnimatedSpec }>("/api/animated/script", { ...JSON.parse(askKey), change: changeText.trim(), current: { ...spec, voice: null } });
+      const r = await post<{ spec: AnimatedSpec }>("/api/animated/script", { ...JSON.parse(askKey), ...(refNote.current ? { referenceNote: refNote.current } : {}), change: changeText.trim(), current: { ...spec, voice: null } });
       setSpec(r.spec); setChangeText("");
     } catch (e) {
       setChangeErr((e as Error).message);
@@ -156,7 +164,7 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
       // The voice the video was really rendered with, kept on the post so its result can count for that voice.
       const voice = spec.board && voiceFits(spec.board, spec.voice) ? { id: spec.voice.voiceId, name: spec.voice.voiceName } : undefined;
       const r = await post<{ href: string; post?: ScheduledPost }>("/api/animated/draft",
-        source.kind === "plan" ? { path, caption, planId: source.planId, planDay: source.day, voice } : { path, postId: source.postId, voice });
+        source.kind === "plan" ? { path, caption, planId: source.planId, planDay: source.day, voice } : source.kind === "prompt" ? { path, caption, voice } : { path, postId: source.postId, voice });
       if (r.post) onAttached?.(r.post);
       setPhase({ kind: "done", href: r.href });
     } catch (e) {
@@ -175,10 +183,12 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
     <Dialog
       open={open}
       onOpenChange={(o) => { if (!busy) onOpenChange(o); }}
-      title={`Make it with AI: ${source.kind === "plan" ? source.day : source.label}`}
+      title={source.kind === "prompt" ? "Animate a video" : `Make it with AI: ${source.kind === "plan" ? source.day : source.label}`}
       width={760}
       className="mwa"
-      description={source.kind === "plan"
+      description={source.kind === "prompt"
+        ? "SOCIA writes an animated video from what you asked for. Check it and edit any line or number, then save it as a draft. Nothing posts until you schedule it."
+        : source.kind === "plan"
         ? "SOCIA writes an animated video from this plan post. Check it and edit any line or number, then save it as a draft. Nothing posts until you schedule it."
         : "SOCIA writes an animated video from this draft's text. Check it and edit any line or number, then add it to the draft. The draft keeps its day, time and caption, and nothing posts until you schedule it."}
       actions={
@@ -187,12 +197,12 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
         ) : (
           <>
             {spec && <Button onClick={() => void write()} disabled={busy || phase.kind === "writing"} title="Counts as another animated video">Write it again</Button>}
-            <Button variant="primary" onClick={() => void save()} disabled={!spec || busy || phase.kind === "writing"} busy={busy}>{source.kind === "plan" ? "Save as draft" : "Add to the draft"}</Button>
+            <Button variant="primary" onClick={() => void save()} disabled={!spec || busy || phase.kind === "writing"} busy={busy}>{source.kind === "draft" ? "Add to the draft" : "Save as draft"}</Button>
           </>
         )
       }
     >
-      {phase.kind === "writing" && <p className="mwa-status" role="status"><Loader2 size={14} className="spin" aria-hidden /> Writing the video from this post.</p>}
+      {phase.kind === "writing" && <p className="mwa-status" role="status"><Loader2 size={14} className="spin" aria-hidden /> {source.kind === "prompt" ? (reference && !refNote.current ? "Watching your reference, then writing the video." : "Writing the video.") : "Writing the video from this post."}</p>}
       {phase.kind === "error" && (
         <div className="mwa-status is-error" role="alert">
           <p>{phase.message}</p>
@@ -200,7 +210,7 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
         </div>
       )}
       {status && <p className="mwa-status" role="status"><Loader2 size={14} className="spin" aria-hidden /> {status}</p>}
-      {phase.kind === "done" && <p className="mwa-status" role="status">{source.kind === "plan" ? "Saved as a draft. Open it to pick a time and schedule it." : "The video is on the draft. Open it to check it and schedule it."}</p>}
+      {phase.kind === "done" && <p className="mwa-status" role="status">{source.kind === "draft" ? "The video is on the draft. Open it to check it and schedule it." : "Saved as a draft. Open it to pick a time and schedule it."}</p>}
       {spec && (
         <div className="mwa-body">
           <div className="mwa-preview">
@@ -292,7 +302,7 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
                 )}
               </Field>
             ))}
-            {source.kind === "plan" && <Field label="Caption" hint="Goes with the post, not on screen.">
+            {source.kind !== "draft" && <Field label="Caption" hint="Goes with the post, not on screen.">
               <Textarea rows={3} maxLength={2200} disabled={busy} value={[spec.caption, spec.hashtags.map((t) => `#${t}`).join(" ")].filter(Boolean).join("\n\n")}
                 onChange={(e) => setSpec((x) => (x ? { ...x, caption: e.target.value, hashtags: [] } : x))} />
             </Field>}
