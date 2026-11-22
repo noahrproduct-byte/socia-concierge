@@ -216,7 +216,10 @@ export default function Dashboard({ d, look = "auto" }: { d: DashboardData; look
   })();
 
   // ---- this week's posts: the last 7 days, newest first ---------------------------
-  const weekPosts = useMemo(() => (clock ? d.posts.filter((p) => clock.getTime() - new Date(p.published).getTime() < 7 * 86400000) : null), [d.posts, clock]);
+  const inWeek = useMemo(() => (clock ? d.posts.filter((p) => clock.getTime() - new Date(p.published).getTime() < 7 * 86400000) : null), [d.posts, clock]);
+  // A quiet week still shows the account's latest posts, however old, newest first.
+  const quietWeek = Boolean(inWeek && !inWeek.length && d.posts.length);
+  const weekPosts = quietWeek ? d.posts.slice(0, 5) : inWeek;
 
   const last7 = d.series && d.series.views.provenance !== "unavailable" && d.series.views.current.length ? d.series.views.current.slice(-7) : null;
   const max7 = Math.max(1, ...(last7 ?? []).map((pt) => pt.value ?? 0));
@@ -260,7 +263,7 @@ export default function Dashboard({ d, look = "auto" }: { d: DashboardData; look
         <div className="dash-hello">
           <span className="dash-date">{clock ? clock.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }) : " "}</span>
           <h1>{greeting}</h1>
-          {d.handle && <span className="dash-hud-sub">@{d.handle}{weekPosts && weekPosts.length ? ` · ${weekPosts.length} ${weekPosts.length === 1 ? "video" : "videos"} posted this week` : ""}</span>}
+          {d.handle && <span className="dash-hud-sub">@{d.handle}{weekPosts && weekPosts.length && !quietWeek ? ` · ${weekPosts.length} ${weekPosts.length === 1 ? "video" : "videos"} posted this week` : ""}</span>}
         </div>
         <div className="dash-head-actions">
           {!nothingConnected && (
@@ -287,8 +290,8 @@ export default function Dashboard({ d, look = "auto" }: { d: DashboardData; look
       <Reveal index={next()}>
         <section className="dash-week" aria-labelledby="dash-week-title">
           <div className="dash-sec">
-            <h2 id="dash-week-title">This week&apos;s videos</h2>
-            {weekPosts && weekPosts.length > 0 && <span className="dash-sec-hint">Press a video to see what worked and what didn&apos;t</span>}
+            <h2 id="dash-week-title">{quietWeek ? "Your latest videos" : "This week\u2019s videos"}</h2>
+            {weekPosts && weekPosts.length > 0 && <span className="dash-sec-hint">{quietWeek ? "Nothing posted in the last 7 days. Press a video to see what worked and what didn\u2019t" : "Press a video to see what worked and what didn\u2019t"}</span>}
           </div>
           {!d.live ? (
             <Empty action={<ButtonLink href={d.connectHref} size="sm">Connect Instagram</ButtonLink>}>
@@ -315,7 +318,7 @@ export default function Dashboard({ d, look = "auto" }: { d: DashboardData; look
                           <Film aria-hidden />
                         )}
                         {tag && <span className={`dash-week-tag is-${tag.tone}`}>{tag.word}</span>}
-                        <span className="dash-week-day">{new Date(p.published).toLocaleDateString("en-US", { weekday: "short" })}</span>
+                        <span className="dash-week-day">{quietWeek ? new Date(p.published).toLocaleDateString("en-US", clock && new Date(p.published).getFullYear() !== clock.getFullYear() ? { month: "short", year: "numeric" } : { month: "short", day: "numeric" }) : new Date(p.published).toLocaleDateString("en-US", { weekday: "short" })}</span>
                       </span>
                       <span className="dash-hud-title">{p.title}</span>
                       <span className="dash-hud-row">
