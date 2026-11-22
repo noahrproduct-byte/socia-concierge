@@ -666,3 +666,71 @@ button.dash-hud-ring {
   -webkit-line-clamp: 2;
   line-clamp: 2;
 }
+
+/* ---- your plan: one row a planned video ---- */
+.dash-plan {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.dash-plan-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dash-plan-rows li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+}
+.dash-plan-dots {
+  flex: none;
+  width: 72px;
+  margin: 0;
+}
+.dash-plan-dots i {
+  flex: 1;
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: var(--border-strong);
+}
+.dash-plan-dots {
+  display: flex;
+  gap: var(--sp-1);
+}
+.dash-plan-dots i.on {
+  background: var(--positive);
+}
+.dash-plan-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 240px;
+  min-width: 0;
+}
+.dash-plan-body b {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.dash-plan-body small {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.dash-plan-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}

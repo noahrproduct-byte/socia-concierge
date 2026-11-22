@@ -42,6 +42,8 @@ import { Bar, CountUp, Details, Reveal, Ring, useMotionOk } from "./motion";
 import YourTasks from "./YourTasks";
 import type { MyTask } from "@/lib/teamWork";
 import { standout } from "@/lib/postVerdicts";
+import type { PlanRow } from "@/lib/planStage";
+import PlanRows from "./PlanRows";
 
 const DASH = String.fromCharCode(0x2014);
 
@@ -91,6 +93,8 @@ export type DashboardData = {
   planWeek?: PlanDayItem[] | null;
   /** Plan posts handed to the viewer to film (lib/teamWorkServer); empty without a team. */
   tasks?: MyTask[];
+  /** The latest plan's videos still on the way, for the "Your plan" rows; null when there are none. */
+  plan?: { id: string; items: unknown[]; rows: PlanRow[] } | null;
 };
 
 type Metric = "views" | "engagement" | "followers";
@@ -345,6 +349,13 @@ export default function Dashboard({ d, look = "auto" }: { d: DashboardData; look
 
       {/* ---- onboarding, under the week's videos: a new account's first steps, and the posting streak (lib/perks) ---- */}
       <Momentum />
+
+      {/* ---- your plan: each planned video until it is posted or dropped ---- */}
+      {d.plan && (
+        <Reveal index={next()}>
+          <PlanRows planId={d.plan.id} items={d.plan.items} rows={d.plan.rows} />
+        </Reveal>
+      )}
 
       {/* The session being filmed today, or the next one (lib/filmingPlan.ts). Nothing when there is none. */}
       <FilmingSessions where="dashboard" />

@@ -1,5 +1,6 @@
 import { loadPlanOutcome } from "@/lib/planOutcomesLoad";
 import { redirect } from "next/navigation";
+import { planStage, type PlanRow } from "@/lib/planStage";
 import { getViewer } from "@/lib/supabase/server";
 import { resolveContext, brandWorkspace } from "@/lib/context";
 import { myTasks } from "@/lib/teamWorkServer";
@@ -256,12 +257,23 @@ export default async function DashboardPage({
   const brand = profile?.brand_detail ?? null;
   const focus = buildFocus(latestPlan);
   // What became of the latest plan: posted, measured against the median, skipped.
-  if (focus && latestPlan) {
+  // Its videos still on the way (not turned down, not yet posted) are the Dashboard's "Your plan" rows.
+  let planRows: PlanRow[] = [];
+  if (latestPlan) {
+    let states: (string | null)[] = [];
     try {
       const outcome = await loadPlanOutcome(ctx.client, ctx.ownerId, wsId, latestPlan, now);
-      focus.outcomeLine = outcome.summary.line;
+      if (focus) focus.outcomeLine = outcome.summary.line;
+      states = outcome.items.map((it) => it?.state ?? null);
     } catch {
-      focus.outcomeLine = null;
+      if (focus) focus.outcomeLine = null;
+    }
+    if (now.getTime() - Date.parse(latestPlan.created_at) < 14 * DAY_MS && Array.isArray(latestPlan.data?.weeklyPlan)) {
+      planRows = latestPlan.data.weeklyPlan
+        .map((it, index) => ({ index, title: it.title ?? it.hook ?? it.concept, day: it.day.replace(/\s*\(.*\)$/, ""), stage: planStage(it, states[index]), animated: Boolean(it.animated), off: it.decision?.status === "rejected" || states[index] === "published" }))
+        .filter((r) => !r.off)
+        .map(({ off: _off, ...r }) => r)
+        .slice(0, 6);
     }
   }
 
@@ -371,6 +383,7 @@ export default async function DashboardPage({
     calendar,
     planWeek,
     tasks: mine.tasks,
+    plan: latestPlan && planRows.length ? { id: latestPlan.id, items: latestPlan.data.weeklyPlan, rows: planRows } : null,
     intel: {
       briefing,
       works,

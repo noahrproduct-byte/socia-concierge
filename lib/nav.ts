@@ -23,7 +23,7 @@ export const NAV: NavEntry[] = [
   // Discover: competitors, trending accounts and Reels in the niche.
   { href: "/discover", label: "Discover", key: "discover", group: "intelligence" },
   // Plan: the weekly Content Plan, with the Calendar under it.
-  { href: "/plan", label: "Content Plan", key: "plan", group: "plan" },
+  { href: "/plan", label: "Planner", key: "plan", group: "plan" },
   { href: "/plan/calendar", label: "Calendar", key: "calendar", group: "plan" },
   // The multi-platform composer.
   { href: "/create", label: "Create post", key: "create", group: "create" },
@@ -39,18 +39,18 @@ export const NAV: NavEntry[] = [
 ];
 
 /**
- * The dock: the four daily destinations, linked directly from the floating
+ * The dock: the three daily destinations, linked directly from the floating
  * headbar on desktop and from the bottom tab bar on phones (redesign brief,
  * 2026-11-03; order by Noah, 2026-11-05: how it went before what's next):
- * Dashboard (Analytics folded into it, 2026-11-20), Plan, Create and Inbox. Discover, Studio,
+ * Dashboard (Analytics folded into it, 2026-11-20), Planner and Inbox. Discover, Studio,
  * Reports, the weekly roundup and Settings sit one click deeper, in the More
  * panel and the command menu. `also` lists sections that light up the same
  * dock item.
  */
 export const DOCK: { key: string; label: string; also?: string[] }[] = [
   { key: "dashboard", label: "Dashboard", also: ["analytics"] },
-  { key: "plan", label: "Plan", also: ["calendar"] },
-  { key: "create", label: "Create" },
+  // Planner: the plan, the Calendar and the post builder are one flow (Umar, 2026-11-21).
+  { key: "plan", label: "Planner", also: ["calendar", "create"] },
   { key: "comments", label: "Inbox" },
 ];
 

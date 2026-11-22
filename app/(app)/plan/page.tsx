@@ -13,7 +13,7 @@ import { startingMix } from "@/lib/planMixLoad";
 import { planCompetitors } from "@/lib/planEvidence";
 import type { BrandDetail } from "@/lib/profile";
 
-export const metadata = { title: "Content Plan | SOCIA" };
+export const metadata = { title: "Planner | SOCIA" };
 
 const engOf = (m: IgMediaItem) => (m.like_count ?? 0) + (m.comments_count ?? 0);
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);

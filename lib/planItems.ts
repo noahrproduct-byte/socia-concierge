@@ -3,7 +3,7 @@
 // names none). Older saved plans lack the newer fields; readers treat them
 // as optional. Pure.
 
-import type { Deliverable, EvidenceSplit, PlanBeat, PlanDecision } from "./schema";
+import type { Deliverable, EvidenceSplit, PlanBeat, PlanDecision, PlanMade } from "./schema";
 import type { OwnPostRef } from "./planEvidenceFormat";
 import { sanitizeGuide } from "./studioGuide";
 import { isExperimentId } from "./strategy";
@@ -160,6 +160,13 @@ export function normalizePlanItem(p: PlanItem): PlanItem {
 const CORE: Record<string, number> = { day: 32, concept: 1200, hook: 400, format: 200, rationale: 800, evidence: 800, predictedPerformance: 200 };
 
 /** Plan days sent back by the browser (an edit, a decision, an added idea): known fields only, each bounded, at most 28 (7 filmed, up to 14 animated, ideas the person added); anything else is dropped. */
+/** The person's "filmed" or "edited" mark, kept only in its exact shape. */
+function cleanMade(v: unknown): PlanMade | null {
+  const m = v as Partial<PlanMade> | null;
+  if (!m || typeof m !== "object" || (m.step !== "filmed" && m.step !== "edited")) return null;
+  return { step: m.step, at: typeof m.at === "string" && !Number.isNaN(Date.parse(m.at)) ? m.at : new Date().toISOString() };
+}
+
 export function sanitizePlanItems(items: unknown[]): PlanItem[] {
   return items.slice(0, 28).flatMap((raw) => {
     if (!raw || typeof raw !== "object") return [];
@@ -169,6 +176,7 @@ export function sanitizePlanItems(items: unknown[]): PlanItem[] {
     const item = normalizePlanItem({ ...core, title: r.title as string, purpose: r.purpose as string, audience: r.audience as string, platform: r.platform as string, direction: r.direction as string, production: r.production as string, successMetric: r.successMetric as string, cta: r.cta as string, editing: r.editing as string, evidenceSplit: r.evidenceSplit as PlanItem["evidenceSplit"], ownPosts: r.ownPosts as PlanItem["ownPosts"], beats: r.beats as PlanItem["beats"], experiment: r.experiment as string, maker: r.maker as PlanItem["maker"], ref: r.ref as PlanItem["ref"], animated: r.animated as boolean, slot: r.slot as PlanItem["slot"] });
     const decision = cleanDecision(r.decision);
     const guide = sanitizeGuide(r.guide, new Date());
-    return [{ ...item, ...(isItemId(r.id) ? { id: r.id } : {}), ...(r.source === "own" ? { source: "own" as const } : {}), ...(decision ? { decision } : {}), ...(guide ? { guide } : {}) }];
+    const made = cleanMade(r.made);
+    return [{ ...item, ...(isItemId(r.id) ? { id: r.id } : {}), ...(r.source === "own" ? { source: "own" as const } : {}), ...(decision ? { decision } : {}), ...(guide ? { guide } : {}), ...(made ? { made } : {}) }];
   });
 }

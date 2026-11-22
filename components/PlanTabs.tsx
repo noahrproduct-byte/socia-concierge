@@ -9,8 +9,9 @@ import { usePathname } from "next/navigation";
 
 const TABS = [
   { href: "/plan/strategy", label: "Strategy" },
-  { href: "/plan", label: "Content Plan" },
+  { href: "/plan", label: "Planner" },
   { href: "/plan/calendar", label: "Calendar" },
+  { href: "/create", label: "Build a post" },
 ];
 
 export default function PlanTabs() {

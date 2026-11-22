@@ -73,6 +73,8 @@ export type Deliverable = {
     source?: "socia" | "own";
     /** The person's call on the idea, and why when they turned it down. Not part of the model's schema. */
     decision?: PlanDecision;
+    /** How far the person says they have got with making it (lib/planStage.ts). Not part of the model's schema. */
+    made?: PlanMade;
     /** Studio's production guide for this post, once written (lib/studioGuide.ts). Not part of the model's schema. */
     guide?: ProductionGuide;
   }[];
@@ -95,6 +97,9 @@ export type PlanBeat = { label: string; from: number; to: number; show: string; 
  * to stand on, and "experiment" when the post is a test.
  */
 export type EvidenceSplit = { observed: string[]; reading: string; expect: string; basis: "data" | "thin" | "experiment" };
+
+/** The person's own word that a planned video is filmed, or filmed and edited. */
+export type PlanMade = { step: "filmed" | "edited"; at: string };
 
 export type PlanDecision = { status: "approved" | "rejected"; at: string; reasons?: string[]; note?: string | null };
 

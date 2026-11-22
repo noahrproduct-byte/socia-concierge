@@ -55,7 +55,8 @@ import { pricingHref, PLANS, minPlanWithFeature } from "@/lib/plans";
 import PlanNotice, { UsageLine } from "@/components/PlanNotice";
 import { Button, ButtonLink, IconButton, ReelRefNote } from "@/components/system";
 import { DecisionTag, ItemDialog, RejectDialog, RejectedNote } from "@/components/plan/PlanItemControls";
-import { Storyboard, WeekStrip, beatsLength, builtOn, type StripItem } from "@/components/plan/PostFocus";
+import { PlanTrack, Storyboard, WeekStrip, beatsLength, builtOn, type StripItem } from "@/components/plan/PostFocus";
+import { planStage, postBuilderHref } from "@/lib/planStage";
 import { animatedHour, weekdayOf } from "@/lib/animated/day";
 
 // Loaded on demand: the video preview and renderer are large and only needed once someone presses Make it with AI.
@@ -136,14 +137,19 @@ function MiniAvatar({ c }: { c: PlanCompetitor }) {
   return <span>{letter}</span>;
 }
 
-export default function ContentPlanClient({ context, canSchedule = true }: { context: PlanContext; canSchedule?: boolean }) {
+/** The plan left open, so leaving the page and coming back shows it again. */
+const OPEN_KEY = "socia.plan.open";
+const focusKey = (planId: string) => `socia.plan.focus.${planId}`;
+
+/** `initial` opens with a plan already on screen (the dev lab's fixture). */
+export default function ContentPlanClient({ context, canSchedule = true, initial = null }: { context: PlanContext; canSchedule?: boolean; initial?: { data: Deliverable; id: string | null } | null }) {
   const [form, setForm] = useState<GenerateInput>(context.prefill);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [planError, setPlanError] = useState<PlanError | null>(null);
   // Known only after a generate response; before that nothing is rendered.
   const [usage, setUsage] = useState<UsageSnapshot | null>(null);
-  const [result, setResult] = useState<{ data: Deliverable; id: string | null } | null>(null);
+  const [result, setResult] = useState<{ data: Deliverable; id: string | null } | null>(initial);
   const [history, setHistory] = useState<SavedPlan[]>([]);
   const [outcomes, setOutcomes] = useState<PlanOutcomeSummary[]>([]);
   // This week's mix, starting from the last plan's (lib/planMix.ts).
@@ -154,6 +160,12 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
   const [skip, setSkip] = useState<Set<string>>(new Set());
   // Each step of the build as the server reports it (lib/planProgress.ts).
   const [build, setBuild] = useState<BuildState>(newBuild);
+  // With a plan open the settings step aside; "New plan" brings them back.
+  const [setup, setSetup] = useState(false);
+  useEffect(() => {
+    if (!result?.id) return;
+    try { localStorage.setItem(OPEN_KEY, result.id); } catch { /* storage may be off */ }
+  }, [result?.id]);
 
   // Deep links ("Add to Content Plan" from Dashboard / Analytics insights and
   // content drawers) arrive as ?note= and show as a note on the form, which
@@ -173,7 +185,15 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
   useEffect(() => {
     fetch("/api/plans")
       .then((r) => (r.ok ? r.json() : { plans: [] }))
-      .then((j) => { setHistory(j.plans ?? []); setOutcomes(Array.isArray(j.outcomes) ? j.outcomes : []); })
+      .then((j) => {
+        const plans: SavedPlan[] = j.plans ?? [];
+        setHistory(plans); setOutcomes(Array.isArray(j.outcomes) ? j.outcomes : []);
+        // Coming back to the page shows the plan that was open (or the newest one), not an empty stage.
+        let want: string | null = null;
+        try { want = localStorage.getItem(OPEN_KEY); } catch { /* storage may be off */ }
+        const open = plans.find((p) => p.id === want) ?? plans[0];
+        if (open) setResult((r) => r ?? { data: open.data, id: open.id });
+      })
       .catch(() => {});
   }, []);
 
@@ -271,11 +291,11 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
   }
 
   return (
-    <div className="cpl">
+    <div className={`cpl${result && !loading && !setup ? " pl-solo" : ""}`}>
       {/* header */}
       <PageHeader
-        title="Content Plan"
-        sub={"SOCIA builds a weekly plan from your posts and your competitors' Reels. Choose how many posts, then generate."}
+        title="Planner"
+        sub="Plan it, film it, edit it, post it."
         status={
           context.connected ? (
             <span className="ov-status">
@@ -291,6 +311,13 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
         }
       />
 
+      {result && !loading && (
+        <div className="pl-bar">
+          <button type="button" className="ov-btn ghost small" aria-expanded={setup} onClick={() => setSetup((v) => !v)}>
+            {setup ? "Hide plan settings" : "New plan and settings"}
+          </button>
+        </div>
+      )}
       <div className="cpl-grid">
         {/* configuration */}
         <section className="cpl-form">
@@ -630,6 +657,15 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
   const [animatingWeek, setAnimatingWeek] = useState(false);
   // The post shown in full (its index in the saved plan); the first of the week until one is chosen.
   const [focus, setFocus] = useState(-1);
+  // The video left open in this plan is the one shown on the way back.
+  useEffect(() => {
+    if (!planId) return;
+    try { const v = Number(localStorage.getItem(focusKey(planId))); if (Number.isInteger(v) && v >= 0) setFocus(v); } catch { /* storage may be off */ }
+  }, [planId]);
+  const pickFocus = (i: number) => {
+    setFocus(i);
+    if (planId) { try { localStorage.setItem(focusKey(planId), String(i)); } catch { /* storage may be off */ } }
+  };
   const persist = async (weeklyPlan: Deliverable["weeklyPlan"], ok: string): Promise<boolean> => {
     onUpdate({ ...data, weeklyPlan });
     if (!planId) { setSaveNote("Changed on screen. Generate or open a saved plan to keep changes."); return false; }
@@ -643,26 +679,6 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
   const withItem = (i: number, patch: Partial<Deliverable["weeklyPlan"][number]>) => data.weeklyPlan.map((d, j) => (j === i ? { ...d, ...patch } : d));
   // The week a plan is put on: this one until Wednesday, the next one from Thursday (the same rule as "Schedule this week").
   const planWeekStart = (now: Date) => new Date(mondayOf(now).getTime() + (now.getDay() === 0 || now.getDay() >= 4 ? 7 : 0) * DAY_MS);
-  const approve = async (i: number) => {
-    const item = data.weeklyPlan[i];
-    setItemBusy(i);
-    try {
-      const now = new Date();
-      const { drafts } = draftsFromPlan([item], planWeekStart(now), (wd) => suggestedHour(aud, (wd + 6) % 7));
-      const draft = drafts[0];
-      if (!draft || new Date(draft.scheduled_at).getTime() <= now.getTime()) {
-        setSaveNote(`${item.day} has already passed this week. Edit it to another day, then approve.`);
-        return;
-      }
-      const res = await fetch("/api/schedule", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items: [{ ...draft, plan_id: planId }] }) });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) { setSaveNote(j.error ?? "Couldn't put it on the Calendar."); return; }
-      setOutcomeTick((t) => t + 1);
-      await persist(withItem(i, { decision: { status: "approved", at: now.toISOString() } }), `${item.day} approved: it's on the Calendar as a draft. Nothing publishes until you schedule it with media.`);
-    } catch {
-      setSaveNote(`${item.day} couldn't be put on the Calendar. Check your connection and try again.`);
-    } finally { setItemBusy(null); }
-  };
   const reject = async (i: number, reasons: string[], note: string | null, replace: boolean) => {
     const item = data.weeklyPlan[i];
     setRejecting(null);
@@ -689,6 +705,12 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
       await persist(withItem(target, { ...d, ...(changed ? { direction: undefined, production: undefined } : {}) }), `${d.day} saved.`);
     }
   };
+  // The person's own word that a video is filmed or edited, saved on the plan; then on to the next place.
+  const markMade = async (i: number, step: "filmed" | "edited", go: string) => {
+    setItemBusy(i);
+    try { await persist(withItem(i, { made: { step, at: new Date().toISOString() } }), `${data.weeklyPlan[i].day} marked ${step}.`); } finally { setItemBusy(null); }
+    window.location.assign(go);
+  };
   const onCalendar = (i: number) => (itemOutcome(i)?.state ?? "unscheduled") !== "unscheduled";
 
   // The hour a post goes out on its weekday: the audience's best hour; an animated post a few hours either side of it.
@@ -702,14 +724,7 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
   };
   // One plan item into Create Post: the hook as the first line, the concept
   // under it, both as the plan wrote them. planId only when the plan is saved.
-  const createHref = (post: { day: string; concept: string; hook: string }): string => {
-    const q = new URLSearchParams();
-    q.set("caption", `${post.hook.trim()}\n\n${post.concept.trim()}`);
-    if (planId) q.set("planId", planId);
-    q.set("planDay", post.day);
-    q.set("from", "plan");
-    return `/create?${q.toString()}`;
-  };
+  const createHref = (post: { day: string; concept: string; hook: string }): string => postBuilderHref(planId, post);
   const ev = data.evidenceUsed;
   // Shown Monday first; actions keep each post's index in the saved plan.
   const weekIdx = useMemo(() => (data.weeklyPlan ?? []).map((_, i) => i).sort((a, b) => weekOrder(data.weeklyPlan[a].day) - weekOrder(data.weeklyPlan[b].day) || a - b), [data.weeklyPlan]);
@@ -817,38 +832,14 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
     <div className="cpl-r">
       <div className="cpl-rhead">
         <div>
-          <h1>Your next {data.weeklyPlan?.length ?? 0} post{data.weeklyPlan?.length === 1 ? "" : "s"}</h1>
+          <h1>This week: {data.weeklyPlan?.length ?? 0} video{data.weeklyPlan?.length === 1 ? "" : "s"}</h1>
           <div className="cpl-rsub">
             {[data.clientHandle, data.niche, data.platform].filter(Boolean).join(", ")}
           </div>
         </div>
       </div>
 
-      <div className="cpl-evidence" title="What this plan was built from">
-        <Database size={12} />
-        {ev ? (
-          <>
-            <span>Built from</span>
-            <b>{ev.posts > 0 ? `${ev.posts} of your posts` : "no account posts"}</b>
-            <b>{ev.competitors > 0 ? `${ev.competitors} competitor${ev.competitors === 1 ? "" : "s"}` : "no competitors on file"}</b>
-            <b>{ev.winning > 0 ? `${ev.winning} winning videos` : "no winning content"}</b>
-            <b>{ev.windows ? "your audience windows" : "no timing data"}</b>
-            {ev.outcomes != null && ev.outcomes > 0 && <b>{`what became of ${ev.outcomes} planned post${ev.outcomes === 1 ? "" : "s"}`}</b>}
-            {ev.trends != null && ev.trends > 0 && <b>{`trends from ${ev.trends} recent niche Reel${ev.trends === 1 ? "" : "s"}`}</b>}
-          </>
-        ) : (
-          <span>Built from the brief you typed. No account data was attached to this plan.</span>
-        )}
-      </div>
-
       <Tabs value={section} onValueChange={(v) => setSection(v as PlanSectionId)}>
-        <TabList className="cpl-tabs" aria-label="Plan sections">
-          {PLAN_SECTIONS.map((t) => (
-            <Tab key={t.id} value={t.id}>
-              {t.label}
-            </Tab>
-          ))}
-        </TabList>
         {/* Every panel stays mounted (hidden when not chosen) so Export as PDF prints the whole plan. */}
         <TabPanel value="overview" keepMounted className="cpl-panel">
           <OverviewSection data={data} onCalendar={outcome?.summary.onCalendar ?? null} onOpen={setSection} />
@@ -868,7 +859,6 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
       {data.weeklyPlan?.length > 0 && (
         <section className="cpl-rsec">
           <div className="cpl-rsec-head">
-            <h3>Monday to Sunday</h3>
             <button type="button" className="ov-btn ghost small" onClick={() => setAsk({ q: null, day: null })}><Sparkles size={12} /> Ask SOCIA about this plan</button>
             <Button
               variant="primary"
@@ -886,13 +876,6 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
               </Button>
             )}
           </div>
-          <p className="cpl-approve-note">
-            {pendingDays === 0
-              ? "Every day is decided. Approved days are on the Calendar as drafts."
-              : canSchedule
-                ? `Approving puts ${pendingDays === 1 ? "the 1 waiting day" : `all ${pendingDays} waiting days`} on the Calendar as drafts at your audience's hour. Nothing publishes until you add media and schedule it.`
-                : `Approving saves ${pendingDays === 1 ? "the 1 waiting day" : `all ${pendingDays} waiting days`} to the Calendar as drafts. Publishing needs ${PLANS[minPlanWithFeature("scheduling")].name}.`}
-          </p>
           {sched.planError && <PlanNotice error={sched.planError} compact />}
           {sched.msg && (
             <p className={`cpl-sched-msg${sched.ok ? " ok" : ""}`}>
@@ -935,6 +918,8 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
             const when = timeFor(post);
             const length = beatsLength(post.beats);
             const basis = builtOn(post.ref);
+            const calState = itemOutcome(i)?.state ?? null;
+            const stage = planStage(post, calState);
             const stripItems: StripItem[] = weekIdx.map((k) => {
               const it = data.weeklyPlan[k];
               return {
@@ -944,11 +929,12 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
                 title: it.title ?? it.hook,
                 animated: Boolean(it.animated),
                 state: it.decision?.status === "rejected" ? "rejected" : it.decision?.status === "approved" ? "approved" : onCalendar(k) ? "calendar" : null,
+                stage: planStage(it, itemOutcome(k)?.state),
               };
             });
             return (
               <>
-                <WeekStrip items={stripItems} selected={i} onSelect={setFocus} />
+                <WeekStrip items={stripItems} selected={i} onSelect={pickFocus} />
                 <article className={`pf-card${applied === post.day ? " applied" : ""}${post.decision?.status === "rejected" ? " pi-rejected" : ""}`} aria-label={`${post.day}: ${post.title ?? post.hook}`}>
                   <div className="pf-chips">
                     <span className="pf-pill"><CalendarDays size={14} aria-hidden /> {weekdayOf(post.day)}{when ? `, ${when}` : ""}{when && !aud.enough ? " (default)" : ""}</span>
@@ -959,8 +945,8 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
                       ? <a className="pf-basis" href={post.ref.url} target="_blank" rel="noopener noreferrer" title="Open the Reel this is built on. Its numbers are another account's result, not a prediction">{basis}</a>
                       : <span className="pf-basis" title="From the numbers SOCIA read for that Reel; another account's result, not a prediction">{basis}</span>)}
                   </div>
-                  {post.title && <h2 className="pf-title">{post.title}</h2>}
-                  <p className="pf-concept">{post.concept}</p>
+                  {post.decision?.status !== "rejected" && <PlanTrack stage={stage} />}
+                  <h2 className="pf-title">{post.title ?? post.hook}</h2>
                   {post.hook.trim() && (
                     <div className="pf-hook"><b>Hook</b><span>{post.hook}</span></div>
                   )}
@@ -970,6 +956,16 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
                     <p className="pf-note">Animated, no filming: SOCIA writes it as a comparison, a counter or words on screen and makes it in this browser. Make it to see every scene before it&apos;s saved.</p>
                   ) : null}
 
+                  {(post.audience || post.cta || post.successMetric) && (
+                    <dl className="pl-facts">
+                      {post.audience && <div><dt>For</dt><dd>{post.audience}</dd></div>}
+                      {post.cta && <div><dt>The ask</dt><dd>{post.cta}</dd></div>}
+                      {post.successMetric && <div><dt>Goal</dt><dd>{post.successMetric}</dd></div>}
+                    </dl>
+                  )}
+                  <details className="pl-more">
+                    <summary>Why SOCIA picked this</summary>
+                    <p className="pf-concept">{post.concept}</p>
                   <Tabs defaultValue="overview" key={i}>
                     <TabList className="pf-tabs" aria-label="About this post">
                       <Tab value="overview">Overview</Tab>
@@ -1016,6 +1012,8 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
                     </TabPanel>
                   </Tabs>
 
+                  </details>
+
                   <RejectedNote item={post} />
                   {planId && team.state && post.decision?.status !== "rejected" && <PlanTaskRow planId={planId} item={post} state={team.state} reload={team.reload} />}
                   <div className="pf-actions">
@@ -1024,30 +1022,35 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
                         planId && !onCalendar(i) && (
                           <Button variant="primary" onClick={() => setMaking(i)} title="SOCIA writes this post as an animated video you can edit, then saves it as a draft"><Film size={15} aria-hidden /> Make the video</Button>
                         )
+                      ) : stage === 1 ? (
+                        <>
+                          <Button variant="primary" busy={itemBusy === i} onClick={() => markMade(i, "filmed", "/studio")} title="Marks it filmed and opens the video editor, where you drop in your clips"><Clapperboard size={15} aria-hidden /> I filmed it. Open the editor</Button>
+                          {planId && <ButtonLink href={`/studio?mode=guide&plan=${planId}&i=${i}`} title="Hooks, script and shot list for this video">Filming guide</ButtonLink>}
+                        </>
+                      ) : stage === 2 ? (
+                        <>
+                          <Button variant="primary" busy={itemBusy === i} onClick={() => markMade(i, "edited", createHref(post))} title="Marks it edited and opens the post builder with this hook"><Check size={15} aria-hidden /> It&apos;s edited. Build the post</Button>
+                          <ButtonLink href="/studio">Open the editor</ButtonLink>
+                        </>
+                      ) : stage === 3 ? (
+                        <ButtonLink variant="primary" href={createHref(post)} title="Open the post builder with this hook, add the video and pick a day"><CalendarDays size={15} aria-hidden /> Build the post</ButtonLink>
                       ) : (
-                        <ButtonLink variant="primary" href={planId ? `/studio?mode=guide&plan=${planId}&i=${i}` : createHref(post)} title={planId ? "Hooks, script and shot list, then film and edit it in Studio" : "Open Create Post with this hook and concept"}>
-                          <Clapperboard size={15} aria-hidden /> Create the Reel
-                        </ButtonLink>
+                        <ButtonLink href="/plan/calendar"><CalendarDays size={15} aria-hidden /> On your Calendar</ButtonLink>
                       )
                     )}
-                    {!post.decision && (
+                    {!post.decision && stage < 4 && (
                       <>
-                        <Button onClick={() => setEditing(i)}><PenSquare size={14} aria-hidden /> Edit idea</Button>
-                        {!post.animated && (
-                          <Button onClick={() => approve(i)} busy={itemBusy === i} disabled={!planId || onCalendar(i)} title={!planId ? "Open a saved plan to approve." : onCalendar(i) ? "Already on the Calendar." : "Put it on the Calendar as a draft at your audience's hour"}>
-                            <Check size={14} aria-hidden /> Approve
-                          </Button>
-                        )}
-                        <Button variant="ghost" onClick={() => setRejecting(i)}><X size={14} aria-hidden /> Turn down</Button>
+                        <Button onClick={() => setEditing(i)}><PenSquare size={14} aria-hidden /> Change the idea</Button>
+                        <Button variant="ghost" onClick={() => setRejecting(i)}><X size={14} aria-hidden /> Not doing this one</Button>
                       </>
                     )}
                     {post.decision?.status === "rejected" && <Button variant="ghost" onClick={() => undo(i)} busy={itemBusy === i}><Undo2 size={14} aria-hidden /> Undo</Button>}
                     {post.decision?.status === "approved" && <span className="pi-hint">On the <Link href="/plan/calendar" className="s-link">Calendar</Link> as a draft.</span>}
                     <span className="pf-actions-end">
                       <button type="button" className="ov-link" title={`Ask SOCIA to rework ${post.day}`} onClick={() => setAsk({ q: `Give me a stronger idea for ${post.day}, keeping it easy to make.`, day: post.day })}><Sparkles size={11} /> Improve</button>
-                      <IconButton label="Previous post" size="sm" variant="ghost" disabled={pos <= 0} onClick={() => setFocus(weekIdx[pos - 1])}><ChevronLeft size={16} aria-hidden /></IconButton>
+                      <IconButton label="Previous post" size="sm" variant="ghost" disabled={pos <= 0} onClick={() => pickFocus(weekIdx[pos - 1])}><ChevronLeft size={16} aria-hidden /></IconButton>
                       <span className="pf-count">{pos + 1} of {weekIdx.length}</span>
-                      <IconButton label="Next post" size="sm" variant="ghost" disabled={pos >= weekIdx.length - 1} onClick={() => setFocus(weekIdx[pos + 1])}><ChevronRight size={16} aria-hidden /></IconButton>
+                      <IconButton label="Next post" size="sm" variant="ghost" disabled={pos >= weekIdx.length - 1} onClick={() => pickFocus(weekIdx[pos + 1])}><ChevronRight size={16} aria-hidden /></IconButton>
                     </span>
                   </div>
                 </article>
@@ -1076,6 +1079,33 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
       )}
       {!data.weeklyPlan?.length && <p className="cpl-sec-empty">This plan has no posts for the week.</p>}
         </TabPanel>
+        <details className="pl-more">
+          <summary>More about this plan</summary>
+        <TabList className="cpl-tabs" aria-label="Plan sections">
+          {PLAN_SECTIONS.map((t) => (
+            <Tab key={t.id} value={t.id}>
+              {t.label}
+            </Tab>
+          ))}
+        </TabList>
+          <div className="cpl-evidence" title="What this plan was built from">
+        <Database size={12} />
+        {ev ? (
+          <>
+            <span>Built from</span>
+            <b>{ev.posts > 0 ? `${ev.posts} of your posts` : "no account posts"}</b>
+            <b>{ev.competitors > 0 ? `${ev.competitors} competitor${ev.competitors === 1 ? "" : "s"}` : "no competitors on file"}</b>
+            <b>{ev.winning > 0 ? `${ev.winning} winning videos` : "no winning content"}</b>
+            <b>{ev.windows ? "your audience windows" : "no timing data"}</b>
+            {ev.outcomes != null && ev.outcomes > 0 && <b>{`what became of ${ev.outcomes} planned post${ev.outcomes === 1 ? "" : "s"}`}</b>}
+            {ev.trends != null && ev.trends > 0 && <b>{`trends from ${ev.trends} recent niche Reel${ev.trends === 1 ? "" : "s"}`}</b>}
+          </>
+        ) : (
+          <span>Built from the brief you typed. No account data was attached to this plan.</span>
+        )}
+      </div>
+
+        </details>
       </Tabs>
 
       {ask && (
