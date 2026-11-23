@@ -23,10 +23,16 @@ const data = {
   clientHandle: "waslmediaco", niche: "Business", platform: "Instagram", headline: "", auditSummary: "", strengths: [], problems: [], topFixes: [], competitorInsights: [],
   weeklyPlan: [
     // A made-up example Reel (lab only) and what to copy from it; the second post has none, so its direction stands in.
-    item("Tuesday", "Over 2 million views for one pizza spot", "Reels don't cost you money. Being invisible does.", {
+    { ...item("Tuesday", "Three ways to plan next week", "Three ways to get next week's Reels planned, and what each one really costs.", {
+      beats: [
+        { label: "The hook", from: 0, to: 3, show: "Selfie at chest height, walking from the doorway to your desk, face in frame from the first frame.", say: "Three ways to get next week's Reels planned, and what each one really costs." },
+        { label: "Agency and freelancer", from: 3, to: 13, show: "Screen recording of a real agency price page, then a real freelancer listing, with the price circled on screen.", say: "Option one, an agency. That's the monthly price, before a single post goes up. Option two, a freelancer. Cheaper, but you're still briefing them every week." },
+        { label: "SOCIA builds it", from: 13, to: 25, show: "Screen recording of SOCIA reading your Instagram and producing the week's plan, sped up.", say: "Option three, SOCIA. It reads your Instagram, learns your niche and plans the week. Here's mine, being built right now." },
+        { label: "The ending", from: 25, to: 30, show: "Back on your face at the desk, phone propped at eye level, laptop showing the finished plan behind you.", say: "Comment PLAN and I'll send you the link to plan yours." },
+      ],
       filmRef: { url: "https://www.instagram.com/reel/EXAMPLE/", platform: "instagram", account: "@studio.example", title: "Nobody films small shops right", views: 412000, likes: null, comments: null, multiplier: 9.4, basis: "views", structure: "Contrarian hook" },
       filmLike: "Phone at chest height, you walking toward it in one take, then a hard cut to the screen recording; same plain wall behind you and window light from the side.",
-    }),
+    }), id: "lab-item-0001" }, // The lab plan is never saved, so it shows no Draw button.
     item("Saturday", "Fifty days of silence", "He stayed silent for fifty days.", { made: { step: "filmed", at: new Date().toISOString() }, direction: "Close on your face, phone on a stack of books at eye level, one take; cut to the shop door opening for the ending." }),
   ],
 } as unknown as Deliverable;

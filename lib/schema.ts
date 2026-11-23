@@ -93,7 +93,12 @@ export type Deliverable = {
 import type { ProductionGuide } from "./studioGuide";
 
 /** One timed beat of a planned video: "The problem", 0 to 7 seconds, what is on screen, and the words said or written. */
-export type PlanBeat = { label: string; from: number; to: number; show: string; say?: string };
+/**
+ * One timed shot of a planned video. `frameJob` and `frame` are set only by "Draw the storyboard"
+ * (lib/storyboardDraw.ts): the image job while it draws, then the stored drawing's path in the owner's
+ * ai-media folder (turned into a link on the server, never used as one directly).
+ */
+export type PlanBeat = { label: string; from: number; to: number; show: string; say?: string; frameJob?: string; frame?: string };
 
 /**
  * A planned post's evidence in three kinds that are never mixed. `observed`

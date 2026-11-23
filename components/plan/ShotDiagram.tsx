@@ -1,8 +1,21 @@
-// A drawing of the kind of camera move a storyboard beat describes (lib/shotMove.ts):
-// a phone frame, a figure or a screen, and an arrow for the move. It shows the
-// move, never the actual scene, and is hidden from screen readers: the beat's
-// own words say what happens.
+// A drawing of a storyboard beat: the kind of camera move it describes (lib/shotMove.ts), a phone frame,
+// a figure or a screen and an arrow for the move, and, along the bottom of the frame, what is in the shot
+// and any amount the beat states (lib/shotProps.ts), so each idea's frames look like that idea. Read only from
+// the beat's own words; hidden from screen readers, since those words say what happens.
+import {
+  AppWindow, Banknote, BookOpen, CakeSlice, CalendarDays, Camera, Car, ChartColumn, Clock, Coffee, DoorOpen, Dumbbell,
+  Flame, House, LampDesk, LayoutGrid, Laptop, MessageCircle, Mic, Pizza, Scissors, ScrollText, Shirt, Smartphone, Store,
+  Tag, Users, UtensilsCrossed, type LucideIcon,
+} from "lucide-react";
 import type { ShotMove } from "@/lib/shotMove";
+import type { ShotProp } from "@/lib/shotProps";
+
+const PROP_ICON: Record<ShotProp, LucideIcon> = {
+  laptop: Laptop, phone: Smartphone, desk: LampDesk, door: DoorOpen, calendar: CalendarDays, price: Tag, chart: ChartColumn,
+  feed: LayoutGrid, pizza: Pizza, coffee: Coffee, food: UtensilsCrossed, oven: Flame, gym: Dumbbell, car: Car, store: Store,
+  menu: ScrollText, money: Banknote, camera: Camera, mic: Mic, book: BookOpen, clothes: Shirt, hair: Scissors, people: Users,
+  app: AppWindow, message: MessageCircle, clock: Clock, cake: CakeSlice, home: House,
+};
 
 const Person = ({ x, y, s = 1, faint = false }: { x: number; y: number; s?: number; faint?: boolean }) => (
   <g className={faint ? "sd-faint" : "sd-ink"}>
@@ -26,11 +39,20 @@ const ART: Record<ShotMove, React.ReactNode> = {
   still: (<><Person x={60} y={62} s={1.1} /><Corners /></>),
 };
 
-export default function ShotDiagram({ move }: { move: ShotMove }) {
+export default function ShotDiagram({ move, props = [], amount = null }: { move: ShotMove; props?: ShotProp[]; amount?: string | null }) {
+  const has = props.length > 0 || Boolean(amount);
   return (
-    <svg className="sd" viewBox="0 0 120 176" aria-hidden focusable="false">
-      <rect className="sd-phone" x={14} y={6} width={92} height={164} rx={12} />
-      {ART[move]}
-    </svg>
+    <span className={`sd-wrap${has ? " has-props" : ""}`} aria-hidden>
+      <svg className="sd" viewBox="0 0 120 176" focusable="false">
+        <rect className="sd-phone" x={14} y={6} width={92} height={164} rx={12} />
+        {ART[move]}
+      </svg>
+      {has && (
+        <span className="sd-props">
+          {props.map((p) => { const Icon = PROP_ICON[p]; return <Icon key={p} size={22} strokeWidth={1.8} />; })}
+          {amount && <b className="sd-amount">{amount}</b>}
+        </span>
+      )}
+    </span>
   );
 }

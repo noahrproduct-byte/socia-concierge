@@ -8,6 +8,7 @@ import type { OwnPostRef } from "./planEvidenceFormat";
 import { sanitizeGuide } from "./studioGuide";
 import { isExperimentId } from "./strategy";
 import { sanitizeRef } from "./trendSignals";
+import { isFrameJob, isFramePath } from "./storyboardDraw";
 
 export type PlanItem = Deliverable["weeklyPlan"][number];
 
@@ -81,7 +82,7 @@ export function cleanBeats(v: unknown): PlanBeat[] | undefined {
     const to = Math.max(0, Math.min(180, Math.round(Number(b.to))));
     if (!label || !show || !Number.isFinite(from) || !Number.isFinite(to) || to <= from) continue;
     if (out.length && from < out[out.length - 1].from) continue;
-    out.push({ label, from, to, show, ...(say ? { say } : {}) });
+    out.push({ label, from, to, show, ...(say ? { say } : {}), ...(isFrameJob(b.frameJob) ? { frameJob: b.frameJob } : {}), ...(isFramePath(b.frame) ? { frame: b.frame } : {}) });
   }
   return out.length >= 2 ? out : undefined;
 }
@@ -176,7 +177,7 @@ export function sanitizePlanItems(items: unknown[]): PlanItem[] {
     const r = raw as Record<string, unknown>;
     const core = Object.fromEntries(Object.entries(CORE).map(([k, n]) => [k, typeof r[k] === "string" ? (r[k] as string).slice(0, n) : ""])) as Pick<PlanItem, "day" | "concept" | "hook" | "format" | "rationale" | "evidence" | "predictedPerformance">;
     if (!core.day || !core.concept) return [];
-    const item = normalizePlanItem({ ...core, title: r.title as string, purpose: r.purpose as string, audience: r.audience as string, platform: r.platform as string, direction: r.direction as string, production: r.production as string, successMetric: r.successMetric as string, cta: r.cta as string, editing: r.editing as string, evidenceSplit: r.evidenceSplit as PlanItem["evidenceSplit"], ownPosts: r.ownPosts as PlanItem["ownPosts"], beats: r.beats as PlanItem["beats"], experiment: r.experiment as string, maker: r.maker as PlanItem["maker"], ref: r.ref as PlanItem["ref"], animated: r.animated as boolean, slot: r.slot as PlanItem["slot"] });
+    const item = normalizePlanItem({ ...core, title: r.title as string, purpose: r.purpose as string, audience: r.audience as string, platform: r.platform as string, direction: r.direction as string, production: r.production as string, successMetric: r.successMetric as string, cta: r.cta as string, editing: r.editing as string, evidenceSplit: r.evidenceSplit as PlanItem["evidenceSplit"], ownPosts: r.ownPosts as PlanItem["ownPosts"], beats: r.beats as PlanItem["beats"], experiment: r.experiment as string, maker: r.maker as PlanItem["maker"], ref: r.ref as PlanItem["ref"], filmRef: r.filmRef as PlanItem["filmRef"], filmLike: r.filmLike as string, animated: r.animated as boolean, slot: r.slot as PlanItem["slot"] });
     const decision = cleanDecision(r.decision);
     const guide = sanitizeGuide(r.guide, new Date());
     const made = cleanMade(r.made);

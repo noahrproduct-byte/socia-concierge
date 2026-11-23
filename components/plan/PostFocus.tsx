@@ -10,6 +10,7 @@ import Link from "next/link";
 import type { PlanBeat } from "@/lib/schema";
 import { refResult, type ReelRef } from "@/lib/trendSignals";
 import { MOVE_LABEL, shotMove } from "@/lib/shotMove";
+import { shotProps, statedAmount } from "@/lib/shotProps";
 import { PLAN_STEPS, type PlanStage } from "@/lib/planStage";
 import ShotDiagram from "./ShotDiagram";
 import "./plan-flow.css";
@@ -61,8 +62,14 @@ export function WeekStrip({ items, selected, onSelect }: { items: StripItem[]; s
 
 const sec = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
-/** The post's timed beats as a row of cards, each with a drawing of its camera move (the kind of move, not the scene). */
-export function Storyboard({ beats }: { beats: PlanBeat[] }) {
+/** A shot's picture when "Draw the storyboard" has run (components/plan/DrawStoryboard.tsx): a link to the drawing, or still drawing. */
+export type ShotFrame = { url: string | null; drawing: boolean };
+
+/**
+ * The post's timed beats as a row of cards, each with a drawing of its camera move and what's in the shot
+ * (the kind of move and the things named, not the scene), or the AI-drawn still once one has been drawn.
+ */
+export function Storyboard({ beats, frames }: { beats: PlanBeat[]; frames?: (ShotFrame | null)[] }) {
   const end = beats.length ? beats[beats.length - 1].to : 0;
   return (
     <>
@@ -81,7 +88,12 @@ export function Storyboard({ beats }: { beats: PlanBeat[] }) {
                 <span className="pf-beat-n">{String(k + 1).padStart(2, "0")}</span>
                 <span className="pf-beat-time">{sec(b.from)} to {sec(b.to)}</span>
               </span>
-              <ShotDiagram move={move} />
+              {frames?.[k]?.url
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img className="pl-frame" src={frames[k]!.url!} alt={`AI drawing of shot ${k + 1}: ${b.show}`} />
+                : frames?.[k]?.drawing
+                  ? <span className="pl-frame pl-frame-wait" role="status">Drawing this shot</span>
+                  : <ShotDiagram move={move} props={shotProps(b.show)} amount={statedAmount(`${b.show} ${b.say}`)} />}
               <span className="pl-beat-name"><span className="pl-move">{MOVE_LABEL[move]}</span><b>{b.label}</b></span>
               <p>{b.show}</p>
               {b.say && <p className="pf-beat-say"><span className="sr-only">Said: </span>&ldquo;{b.say}&rdquo;</p>}
