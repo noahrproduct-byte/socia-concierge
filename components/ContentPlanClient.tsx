@@ -56,6 +56,7 @@ import PlanNotice, { UsageLine } from "@/components/PlanNotice";
 import { Button, ButtonLink, IconButton, ReelRefNote } from "@/components/system";
 import { DecisionTag, ItemDialog, RejectDialog, RejectedNote } from "@/components/plan/PlanItemControls";
 import DrawStoryboard from "@/components/plan/DrawStoryboard";
+import { cleanIdeas, MAX_IDEAS_TEXT } from "@/lib/planIdeas";
 import { FilmExample, PlanTrack, WeekStrip, beatsLength, builtOn, type StripItem } from "@/components/plan/PostFocus";
 import { planStage, postBuilderHref } from "@/lib/planStage";
 import { animatedHour, weekdayOf } from "@/lib/animated/day";
@@ -285,6 +286,12 @@ export default function ContentPlanClient({ context, canSchedule = true, initial
   const onFile = context.evidence;
   const competitorsUsed = competitors.filter((c) => !skip.has(c.handle)).length;
   const total = mix.onCamera + mix.animated;
+  // The person's own ideas fill this week's on-camera posts first (lib/planIdeas.ts).
+  const ideaCount = cleanIdeas(form.ideas).length;
+  const ideasNote = !ideaCount ? null
+    : mix.onCamera === 0 ? "Your ideas go into on-camera posts. Add on-camera posts above to use them."
+    : ideaCount > mix.onCamera ? `This week has ${mix.onCamera} on-camera post${mix.onCamera === 1 ? "" : "s"}, so the first ${mix.onCamera} idea${mix.onCamera === 1 ? " is" : "s are"} used. Add posts above to fit more.`
+    : `${ideaCount} of this week's ${mix.onCamera} on-camera post${mix.onCamera === 1 ? "" : "s"} will be your idea${ideaCount === 1 ? "" : "s"}.`;
   // An animated-led account turns on-camera videos on and off as a whole.
   function toggleOnCamera(on: boolean) {
     setAddOnCamera(on);
@@ -375,6 +382,21 @@ export default function ContentPlanClient({ context, canSchedule = true, initial
               addOnCamera={addOnCamera}
               onAddOnCamera={toggleOnCamera}
             />
+          </div>
+
+          <div className="cpl-side">
+            <h3><label htmlFor="cpl-ideas">Your ideas</label></h3>
+            <p className="cpl-ideas-help" id="cpl-ideas-help">Videos you want to make this week, one per line. Each one becomes a post, and SOCIA plans the rest around them.</p>
+            <textarea
+              id="cpl-ideas"
+              rows={3}
+              aria-describedby="cpl-ideas-help"
+              placeholder={"e.g. Behind the scenes of our Saturday rush\nHow we make the dough"}
+              value={form.ideas ?? ""}
+              maxLength={MAX_IDEAS_TEXT}
+              onChange={(e) => set("ideas", e.target.value)}
+            />
+            {ideasNote && <small className="cpl-auto" role="status">{ideasNote}</small>}
           </div>
 
           <div className="cpl-side">
@@ -898,6 +920,11 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
             </p>
           )}
           {saveNote && <p className="cpl-sched-msg ok">{saveNote}</p>}
+          {data.ideasLeft?.length ? (
+            <p className="cpl-sched-msg">
+              Not in this plan: {data.ideasLeft.map((t) => `"${t}"`).join(", ")}. {data.ideasLeft.length === 1 ? "It didn't" : "They didn't"} fit this week&apos;s posts. Add {data.ideasLeft.length === 1 ? "it" : "them"} with Add your own idea, or type {data.ideasLeft.length === 1 ? "it" : "them"} in again for next week&apos;s plan.
+            </p>
+          ) : null}
           {outcome && outcome.summary.onCalendar > 0 && (
             <div className="cpl-outcome" role="status">
               <span><b>{outcome.summary.published} of {outcome.summary.total}</b> posted</span>

@@ -8,6 +8,7 @@ import { shortVideoName } from "./planPlatform";
 import { FILMING_DIRECTION_RULE, placeLines } from "./place";
 import { MADE_LABEL } from "./intel/reelReadCore";
 import { knowledgeLines, sanitizeKnowledge } from "./brandKnowledge";
+import { cleanIdeas, ideasBlock } from "./planIdeas";
 
 /** Renders the user's saved brand & strategist settings as prompt context.
  *  Returns "" when nothing is set, so callers can append unconditionally. */
@@ -62,6 +63,7 @@ Rules:
 - Every weeklyPlan item has an experiment field: the id of the running experiment it tests (from the strategy), or an empty string.
 - Every weeklyPlan item also carries: title (a working title, at most 8 words); purpose (which strategy pillar or priority it serves, or the goal when there is no strategy); audience (who it is for, in a few words); platform (one connected platform: Instagram, Facebook, YouTube or TikTok; the primary platform when unsure); direction (for a filmed post, where to film and what the camera does, shot by shot, in one to three sentences that follow the filming directions rule below; look and pacing come after); production (what it takes to make: people, gear and roughly how long, within the resources given; never more equipment, editing skill or help than they said they have); successMetric (the one number that says whether it worked, and only one SOCIA measures: on Instagram and Facebook "Interactions against your median" (likes, comments, saves and shares together), on YouTube "Views against your median"; name it that way and add a target only when the evidence supports one, for example "Interactions against your median: aim for 1.5x, your best Reels did 2x"). beats: the video as 3 or 4 timed beats in order, for a storyboard: label (2 to 4 words, like "The problem", "The fix", "The result", "The ending"), from and to (whole seconds; the first starts at 0, each starts where the last ended, the whole length fits the format), show (one sentence: what is on screen, following the filming directions rule for a filmed post), and say (the actual words spoken or written in that beat, in the account's voice: a script the person can read out, not a description of one; "" for a beat with no words).
 - Every weeklyPlan item also has: cta (the one action the post asks the viewer to take, written as the viewer would read it, tied to the goal: for a business the customer action, otherwise follow, save or comment; never more than one), and editing (one or two sentences on how to cut it: the length of the opening shot, where to cut, captions on screen, pacing; within the editing skill the person said they have, and "No editing: one take" when they don't edit).
+- Every weeklyPlan item has fromIdea: the number of the person's own idea it makes, from the list of videos they want to make, or 0 for an idea of yours.
 - Every weeklyPlan item has ownRefs: the ids of the account's own posts it draws on (for example ["P3", "P7"]), [] when none; only ids listed under the account's recent posts.
 - Every weeklyPlan item has evidenceSplit, the evidence in its three kinds: observed (one to three lines, each restating numbers from the evidence and naming the id it comes from in brackets, for example "[P3] Your kitchen Reel had 412 interactions, 2.3x your median" or "[R2] @cafe_x's menu POV Reel reached 48,000 views, 6x their usual"; no line without an id; [] when nothing in the evidence supports the post), reading (one or two sentences: what you take from those facts and why the post should work, written as your interpretation), expect (one short sentence: what you expect, framed as a guess, against the account's own median, never another account's number), and basis ("data" when observed lines support the post, "thin" when there is too little of the account's own data to stand on, "experiment" when the post is a test). When the account has fewer than five of its own posts, or nothing in the evidence supports a post, use "thin" or "experiment", say in reading what is missing, and write the post as a test with a clear hypothesis and the number that will judge it.
 - Every competitorInsights item has basis: "measured" when it rests on numbers listed for that account in the evidence, "general" when it is a pattern from general knowledge. A "general" insight names no real account: its competitor field says "General pattern in this niche".
@@ -83,6 +85,10 @@ export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null
 
   const brandBlock = brandContext(brand);
   if (brandBlock) parts.push(brandBlock);
+
+  // The videos the person typed on the Planner: each one is a post of the week (lib/planIdeas.ts).
+  const ideas = ideasBlock(cleanIdeas(input.ideas), input.onCamera);
+  if (ideas) parts.push(ideas);
 
   // The Growth Strategy (lib/strategy.ts): the week is built from it.
   const strategy = strategyLines(brand?.strategy);
