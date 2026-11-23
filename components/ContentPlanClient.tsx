@@ -951,7 +951,7 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
                     <div className="pf-hook"><b>Hook</b><span>{post.hook}</span></div>
                   )}
                   {/* A filmed post shows a Reel to film from before its beats. */}
-                  {!post.animated && <FilmExample r={post.ref} filmLike={post.filmLike} direction={post.direction} />}
+                  {!post.animated && <FilmExample r={post.filmRef} filmLike={post.filmRef ? post.filmLike : undefined} direction={post.direction} />}
                   {post.beats?.length ? (
                     <Storyboard beats={post.beats} />
                   ) : post.animated ? (

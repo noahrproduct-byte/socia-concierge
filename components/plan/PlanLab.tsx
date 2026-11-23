@@ -24,7 +24,7 @@ const data = {
   weeklyPlan: [
     // A made-up example Reel (lab only) and what to copy from it; the second post has none, so its direction stands in.
     item("Tuesday", "Over 2 million views for one pizza spot", "Reels don't cost you money. Being invisible does.", {
-      ref: { url: "https://www.instagram.com/reel/EXAMPLE/", platform: "instagram", account: "@studio.example", title: "Nobody films small shops right", views: 412000, likes: null, comments: null, multiplier: 9.4, basis: "views", structure: "Contrarian hook" },
+      filmRef: { url: "https://www.instagram.com/reel/EXAMPLE/", platform: "instagram", account: "@studio.example", title: "Nobody films small shops right", views: 412000, likes: null, comments: null, multiplier: 9.4, basis: "views", structure: "Contrarian hook" },
       filmLike: "Phone at chest height, you walking toward it in one take, then a hard cut to the screen recording; same plain wall behind you and window light from the side.",
     }),
     item("Saturday", "Fifty days of silence", "He stayed silent for fifty days.", { made: { step: "filmed", at: new Date().toISOString() }, direction: "Close on your face, phone on a stack of books at eye level, one take; cut to the shop door opening for the ending." }),

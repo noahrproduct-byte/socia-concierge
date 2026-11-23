@@ -3,6 +3,7 @@
 // competitors it tracks or discovered, and the winning content it found. The
 // model reasons over these facts; it is told to cite nothing else.
 
+import { STYLE_LABEL, sanitizeMemory, styleKey, type Style } from "./discoverStyle";
 import type { IgMediaItem, IgSnapshot } from "./instagramSync";
 import { engagementOf, median, postsPerWeek } from "./metrics";
 import type { EvidenceUsed } from "./schema";
@@ -46,6 +47,8 @@ export type Evidence = {
   trendsBlock: string;
   /** The niche's Reels that took off, each with the id a post cites (lib/trendSignals.ts provenEvidence), and the Reels behind those ids. */
   provenBlock?: string;
+  /** How each listed Reel's account makes its videos (null when SOCIA hasn't read it), by the Reel's id. */
+  provenStyles?: Record<string, Style | null>;
   proven?: ProvenReel[];
   /** The account's own posts behind the P# ids in postsBlock, so a post's cited ids can be turned into links. */
   ownPosts?: OwnPostRef[];
@@ -444,7 +447,7 @@ export async function planCompetitors(supabase: Supa, userId: string, workspaceI
 
 /** Everything the strategist may cite, read from the user's own rows. Each
  *  source is best-effort: a missing table simply contributes nothing. */
-export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnapshot | null, workspaceId?: string | null, opts: { outcomes?: PlanOutcome[]; strategy?: GrowthStrategy | null; location?: string | null; skip?: string[]; timeZone?: string | null; now?: Date; brandWorkspaceId?: string | null } = {}): Promise<Evidence> {
+export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnapshot | null, workspaceId?: string | null, opts: { outcomes?: PlanOutcome[]; strategy?: GrowthStrategy | null; location?: string | null; skip?: string[]; timeZone?: string | null; now?: Date; brandWorkspaceId?: string | null; discover?: unknown } = {}): Promise<Evidence> {
   // Competitors the person unticked on the form, and accounts they removed on Discover, are left out of this plan entirely.
   const skip = new Set((opts.skip ?? []).map(handleKey).filter(Boolean));
   try {
@@ -529,6 +532,15 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
   const outcomesBlock_ = outcomesBlock(opts.outcomes ?? []);
   const outcomeItems = (opts.outcomes ?? []).filter((o) => o.summary.onCalendar > 0).slice(0, 2).reduce((n, o) => n + o.items.length, 0);
   const trackedKeys = new Set(tracked.map((t) => handleKey(t.handle)));
+  // How each Reel's account makes its videos, from the brand's Discover reads (lib/discoverStyle.ts): a
+  // filmed post's example to film from has to be made the same way (2026-11-23: an animated Reel was shown
+  // as the example for a talking-to-camera post).
+  const styles = sanitizeMemory(opts.discover).accounts;
+  const styleOfReel = (r: ProvenReel): Style | null => {
+    const h = (r.accountHandle ?? "").replace(/^@/, "").toLowerCase();
+    const s = h ? styles[styleKey(r.platform, h)]?.style : undefined;
+    return s && s !== "mixed" ? s : null;
+  };
 
   return {
     postsBlock,
@@ -540,7 +552,8 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
     experimentsBlock: experimentsEvidence(await experimentResults(supabase, userId, workspaceId ?? null, opts.strategy).catch(() => [])),
     trendsBlock: trendsBlock_,
     // Each Reel says whether it's from one of the competitors on Discover or another account in the niche.
-    provenBlock: provenEvidence(proven, (r) => trackedKeys.has(handleKey(r.accountHandle ?? r.accountName))),
+    provenBlock: provenEvidence(proven, (r) => trackedKeys.has(handleKey(r.accountHandle ?? r.accountName)), (r) => { const s = styleOfReel(r); return s ? STYLE_LABEL[s] : null; }),
+    provenStyles: Object.fromEntries(proven.map((r) => [r.id, styleOfReel(r)])),
     proven,
     ownPosts: postsBlock ? ownPostRefs(media) : [],
     calendarBlock: calendar,

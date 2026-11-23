@@ -59,6 +59,10 @@ export type Deliverable = {
     experiment?: string;
     /** For a filmed post: what to copy from its example Reel when filming (framing, camera, setting, pacing), never its words. Plans before 2026-11-23 lack it. */
     filmLike?: string;
+    /** The id of the listed Reel to film from ("R5"), as the model wrote it; replaced by `filmRef`. Can differ from `reference` (the idea). */
+    filmReference?: string;
+    /** The Reel to film from: made the same way as this post is filmed, never animated or slides. Set by SOCIA from `filmReference`. */
+    filmRef?: import("./trendSignals").ReelRef;
     /** The id of the niche Reel the model built this post on ("R2"), as it wrote it; replaced by `ref` when the plan is saved. */
     reference?: string;
     /** The niche Reel this post is built on, with the numbers SOCIA read for it (lib/trendSignals.ts ReelRef). Set by SOCIA from `reference`, never by the model. */
@@ -191,6 +195,7 @@ export const deliverableSchema = {
           },
           maker: { type: "string", enum: ["you", "claude"] },
           reference: { type: "string" },
+          filmReference: { type: "string" },
           filmLike: { type: "string" },
           cta: { type: "string" },
           editing: { type: "string" },
@@ -210,6 +215,7 @@ export const deliverableSchema = {
         required: [
           "maker",
           "reference",
+          "filmReference",
           "filmLike",
           "cta",
           "editing",

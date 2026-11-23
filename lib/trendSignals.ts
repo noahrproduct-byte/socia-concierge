@@ -384,6 +384,19 @@ export function pickRef(id: unknown, list: ProvenReel[]): ReelRef | null {
   return hit ? refOf(hit) : null;
 }
 
+/**
+ * The Reel a filmed post is filmed from: the one the model cited, only when its account makes videos a person
+ * films (talking, screen recording, footage, a skit), never animation or slides, and never one whose way of
+ * making was never read (2026-11-23: an animated Reel was shown as the example for a talking-to-camera post). Pure.
+ */
+export function pickFilmRef(id: unknown, list: ProvenReel[], styles: Record<string, string | null | undefined>): ReelRef | null {
+  if (typeof id !== "string" || !id.trim()) return null;
+  const key = id.trim().toUpperCase();
+  const style = styles[key];
+  if (!style || style === "animated" || style === "slides") return null;
+  return pickRef(key, list);
+}
+
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null);
 
 /** A stored reference read back, bounded; null when it isn't one. */
@@ -426,7 +439,7 @@ export function refLine(r: ReelRef): string {
  * Each line carries the id to cite. Other accounts' results, never a
  * prediction, and their wording is never reused.
  */
-export function provenEvidence(list: ProvenReel[], isCompetitor?: (r: ProvenReel) => boolean): string {
+export function provenEvidence(list: ProvenReel[], isCompetitor?: (r: ProvenReel) => boolean, madeOf?: (r: ProvenReel) => string | null): string {
   const proven = list.filter((r) => r.proven);
   if (!proven.length) return "";
   const lines = [
@@ -441,6 +454,8 @@ export function provenEvidence(list: ProvenReel[], isCompetitor?: (r: ProvenReel
       r.structures.length ? `hook structure: ${r.structures.join(", ")}` : null,
       r.topics.length ? `topic: ${r.topics.join(", ")}` : null,
       r.track ? `track record ${r.track.score}/100` : null,
+      // How its account's videos are made (Discover's read of its covers): what a filming example must match.
+      madeOf?.(r) ? `made: ${madeOf(r)}` : null,
     ];
     lines.push(`- ${bits.filter(Boolean).join(" | ")}`);
   }
