@@ -60,7 +60,9 @@ export async function generatePlanData(input: GenerateInput, brand: BrandDetail 
   // sending it in the request body.
   const params = {
     model: MODEL,
-    max_tokens: 16000,
+    // A week of posts, each with beats and filming directions, plus the thinking, ran past 16,000 and came
+    // back cut off ("Could not parse the model's response", 2026-11-23). Streamed below, so this much is allowed.
+    max_tokens: 32000,
     system: SYSTEM,
     output_config: { format: { type: "json_schema", schema: deliverableSchema }, ...effortFor(MODEL) },
     messages: [{ role: "user", content: buildUserPrompt(input, brand, evidence) }],
@@ -87,11 +89,14 @@ export async function generatePlanData(input: GenerateInput, brand: BrandDetail 
     if (started === 0) onProgress({ type: "step", step: "fit", state: "done" });
     onProgress({ type: "step", step: "posts", state: "done" });
   } else {
+    // Streamed as well: a non-streamed call this large is refused by the SDK.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    res = await anthropic.messages.create(params as any);
+    res = await anthropic.messages.stream(params as any).finalMessage();
   }
   recordAiUsage(ownerId, "content_plan", res);
   if (res.stop_reason === "refusal") throw new PlanGenerationError("refusal", "The model declined this request. Try rephrasing the brief.");
+  // Said as what it is, never as "couldn't parse": the plan ran out of room before it was finished.
+  if (res.stop_reason === "max_tokens") throw new PlanGenerationError("parse", "The plan was too long to finish this time. Try again, or ask for fewer posts this week.");
   const textBlock = res.content.find((b) => b.type === "text");
   const text = textBlock && "text" in textBlock ? textBlock.text : "";
   if (!text) throw new PlanGenerationError("empty", "Empty response from the model. Try again.");

@@ -15,6 +15,21 @@ export const RETRY_MAX_TOKENS = 32_000;
  * through this client is therefore asked once more with 2.5x the room when
  * that happens. The returned usage adds both calls, so cost records stay true.
  */
+/**
+ * Text with no half emoji left in it. Text cut with .slice() can end on half of a character pair (an emoji
+ * in a caption), and the API then rejects the whole request as invalid JSON ("unexpected end of hex
+ * escape", a Monday plan, 2026-11-23). Every string sent is made whole here. Pure.
+ */
+export function wellFormed<T>(v: T): T {
+  if (typeof v === "string") {
+    const s = v as string & { toWellFormed?: () => string };
+    return (typeof s.toWellFormed === "function" ? s.toWellFormed() : s.replace(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g, "\ufffd")) as T;
+  }
+  if (Array.isArray(v)) return v.map(wellFormed) as T;
+  if (v && typeof v === "object") return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, wellFormed(x)])) as T;
+  return v;
+}
+
 export function retryOnMaxTokens(client: Anthropic): void {
   const messages = client.messages;
   const raw = messages.create.bind(messages);
@@ -23,8 +38,9 @@ export function retryOnMaxTokens(client: Anthropic): void {
   // it (an async wrapper turned it into a plain Promise and broke Ask SOCIA).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (messages as any).create = (params: any, options?: any) => {
-    if (params?.stream) return raw(params, options);
-    return retried(params, options);
+    const clean = params ? { ...params, system: wellFormed(params.system), messages: wellFormed(params.messages) } : params;
+    if (clean?.stream) return raw(clean, options);
+    return retried(clean, options);
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const retried = async (params: any, options?: any) => {
@@ -35,8 +51,14 @@ export function retryOnMaxTokens(client: Anthropic): void {
     if (res?.stop_reason !== "max_tokens" || !budget || budget >= RETRY_MAX_TOKENS) return first;
     const more = Math.min(RETRY_MAX_TOKENS, Math.round(budget * 2.5));
     console.warn(`[anthropic] answer cut off at ${budget} tokens (${params.model}); asking again with ${more}`);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const second = (await raw({ ...params, max_tokens: more }, options)) as any;
+    // Streamed: the SDK refuses a non-streamed call this large ("Streaming is required for operations that
+    // may take longer than 10 minutes"), which is how every retried Monday plan failed.
+    const again = { ...params, max_tokens: more };
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const second = (typeof messages.stream === "function"
+      ? await messages.stream(again as any, options).finalMessage()
+      : await raw(again, options)) as any;
+    /* eslint-enable @typescript-eslint/no-explicit-any */
     const sum = (k: string) => (Number(res.usage?.[k]) || 0) + (Number(second.usage?.[k]) || 0);
     if (second?.usage) second.usage = { ...second.usage, input_tokens: sum("input_tokens"), output_tokens: sum("output_tokens") };
     return second;
