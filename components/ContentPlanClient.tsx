@@ -55,7 +55,7 @@ import { pricingHref, PLANS, minPlanWithFeature } from "@/lib/plans";
 import PlanNotice, { UsageLine } from "@/components/PlanNotice";
 import { Button, ButtonLink, IconButton, ReelRefNote } from "@/components/system";
 import { DecisionTag, ItemDialog, RejectDialog, RejectedNote } from "@/components/plan/PlanItemControls";
-import { PlanTrack, Storyboard, WeekStrip, beatsLength, builtOn, type StripItem } from "@/components/plan/PostFocus";
+import { FilmExample, PlanTrack, Storyboard, WeekStrip, beatsLength, builtOn, type StripItem } from "@/components/plan/PostFocus";
 import { planStage, postBuilderHref } from "@/lib/planStage";
 import { animatedHour, weekdayOf } from "@/lib/animated/day";
 
@@ -950,6 +950,8 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
                   {post.hook.trim() && (
                     <div className="pf-hook"><b>Hook</b><span>{post.hook}</span></div>
                   )}
+                  {/* A filmed post shows a Reel to film from before its beats. */}
+                  {!post.animated && <FilmExample r={post.ref} filmLike={post.filmLike} direction={post.direction} />}
                   {post.beats?.length ? (
                     <Storyboard beats={post.beats} />
                   ) : post.animated ? (

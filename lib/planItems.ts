@@ -141,6 +141,7 @@ export function normalizePlanItem(p: PlanItem): PlanItem {
     audience: clip(p.audience, 160),
     platform: platformName(p.platform) ?? undefined,
     direction: clip(p.direction, 400),
+    filmLike: clip(p.filmLike, 300),
     production: clip(p.production, 300),
     beats: cleanBeats(p.beats),
     successMetric: clip(p.successMetric, 160),

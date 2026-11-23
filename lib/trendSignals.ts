@@ -361,6 +361,8 @@ export type ReelRef = {
   basis: TrendingReel["basis"];
   /** The hook structure of its opening line, when it has one SOCIA recognises. */
   structure: string | null;
+  /** Its cover, for the "example to film from" on a plan post (a platform link that can expire; hidden when it fails). */
+  thumb?: string | null;
   /** How Reels like it did in the niche, as a counted score with its parts; absent when the niche's trends weren't read. */
   track?: TrackRecord;
 };
@@ -370,6 +372,7 @@ export function refOf(r: ProvenReel): ReelRef {
     url: r.url, platform: r.platform, account: accountLabel(r), title: r.line ?? (r.title ? r.title.slice(0, 120) : null),
     views: r.views, likes: r.likes, comments: r.comments, multiplier: r.multiplier != null ? Math.round(r.multiplier * 10) / 10 : null,
     basis: r.basis, structure: r.structures[0] ?? null,
+    ...(r.thumb && /^https:\/\//.test(r.thumb) ? { thumb: r.thumb.slice(0, 1000) } : {}),
     ...(r.track ? { track: r.track } : {}),
   };
 }
@@ -395,6 +398,7 @@ export function sanitizeRef(v: unknown): ReelRef | null {
   return {
     url: o.url, platform, account, title: s(o.title, 160), views: num(o.views), likes: num(o.likes), comments: num(o.comments),
     multiplier: num(o.multiplier), basis: o.basis === "likes and comments" ? "likes and comments" : "views", structure: s(o.structure, 40),
+    ...(typeof o.thumb === "string" && /^https:\/\/[^\s"'<>]+$/.test(o.thumb) && o.thumb.length <= 1000 ? { thumb: o.thumb } : {}),
     ...(sanitizeTrack(o.track) ? { track: sanitizeTrack(o.track)! } : {}),
   };
 }
