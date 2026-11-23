@@ -153,7 +153,7 @@ export function FilmExample({ r, filmLike, direction }: { r?: ReelRef | null; fi
         </a>
       )}
       {how && <p className="pf-example-how">{filmLike ? <><b>Copy:</b> {filmLike}</> : how}</p>}
-      {!r && <p className="pf-example-none">No example Reel was found for this post. <Link href="/discover" className="s-link">Find one on Discover</Link></p>}
+      {!r && <p className="pf-example-none">None of the Reels SOCIA read was filmed this way, so there&apos;s no example to show yet. <Link href="/discover" className="s-link">Add accounts that film like this on Discover</Link></p>}
     </section>
   );
 }

@@ -4,7 +4,7 @@
 // checks happen in the callers; this only produces and stores the plan.
 import { cleanEvidenceSplit, normalizePlanItem, withItemIds } from "./planItems";
 import { planHeadline } from "./planHeadline";
-import { pickRef } from "./trendSignals";
+import { pickFilmRef, pickRef } from "./trendSignals";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { anthropic, MODEL, effortFor } from "./anthropic";
 import { recordAiUsage } from "./aiUsage";
@@ -113,7 +113,10 @@ export async function generatePlanData(input: GenerateInput, brand: BrandDetail 
     const ownPosts = Array.isArray(cited) ? own.filter((o) => cited.some((c) => typeof c === "string" && c.trim().toUpperCase() === o.id)).slice(0, 4) : [];
     const { ownRefs: _drop, ...rest } = p as typeof p & { ownRefs?: unknown };
     void _drop;
-    return normalizePlanItem({ ...rest, ref: pickRef(p.reference, proven) ?? undefined, ownPosts: ownPosts.length ? ownPosts : undefined, evidenceSplit: cleanEvidenceSplit(p.evidenceSplit, known) });
+    // The Reel to film from must be made the way a person films (talking, screen, footage, a skit): an animated
+    // or slides Reel is never a filming example, whatever the model picked (2026-11-23).
+    const filmRef = p.animated ? null : pickFilmRef((p as { filmReference?: unknown }).filmReference, proven, evidence?.provenStyles ?? {});
+    return normalizePlanItem({ ...rest, ref: pickRef(p.reference, proven) ?? undefined, filmRef: filmRef ?? undefined, filmLike: filmRef ? p.filmLike : undefined, ownPosts: ownPosts.length ? ownPosts : undefined, evidenceSplit: cleanEvidenceSplit(p.evidenceSplit, known) });
   }));
   // A competitor insight that names an account SOCIA never read is general knowledge: it says so, and names no one.
   data.competitorInsights = (data.competitorInsights ?? []).map((c) => (c.basis === "general" || !evidence?.competitorsBlock ? { ...c, basis: "general" as const } : { ...c, basis: "measured" as const }));

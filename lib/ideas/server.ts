@@ -43,7 +43,7 @@ export async function writeIdeas(ctx: Ctx, args: { styles: IdeaStyle[]; about: s
   const wsId = ctx.workspace?.id ?? null;
   const profile = await getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null);
   const snap = await getIgSnapshot(ctx.client, ctx.ownerId, wsId).catch(() => null);
-  const evidence = await loadEvidence(ctx.client, ctx.ownerId, snap, await competitorScopeId(ctx.client, ctx.workspace?.id).catch(() => null), { strategy: profile?.brand_detail?.strategy ?? null, location: profile?.brand_detail?.location ?? null }).catch(() => null);
+  const evidence = await loadEvidence(ctx.client, ctx.ownerId, snap, await competitorScopeId(ctx.client, ctx.workspace?.id).catch(() => null), { strategy: profile?.brand_detail?.strategy ?? null, location: profile?.brand_detail?.location ?? null, discover: (profile?.brand_detail as { discover?: unknown } | null | undefined)?.discover }).catch(() => null);
   const styles = args.styles.length ? args.styles : IDEA_STYLES.map((s) => s.id);
   const brand = [
     `Account: ${profile?.niche ?? "niche not set"}${profile?.brand_detail?.location ? `, ${profile.brand_detail.location}` : ""}${profile?.goals ? `; goal: ${profile.goals}` : ""}.`,
