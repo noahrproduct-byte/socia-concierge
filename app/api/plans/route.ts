@@ -1,5 +1,6 @@
 import { loadPlanOutcomes } from "@/lib/planOutcomesLoad";
 import { sanitizePlanItems, withItemIds } from "@/lib/planItems";
+import { keepFrames } from "@/lib/storyboardDraw";
 import { summaryOf, type PlanOutcomeSummary } from "@/lib/planOutcomes";
 import type { Deliverable } from "@/lib/schema";
 import { NextResponse } from "next/server";
@@ -71,7 +72,9 @@ export async function PATCH(req: Request) {
     ctx.workspace?.id,
   ).maybeSingle();
   if (readErr || !cur) return NextResponse.json({ error: "Plan not found." }, { status: 404 });
-  const weeklyPlan = withItemIds(sanitizePlanItems(body.weeklyPlan));
+  // Storyboard drawings finish on the server; a page holding an older copy of the plan doesn't drop them.
+  const stored = ((cur.data as Deliverable | null)?.weeklyPlan ?? []) as Deliverable["weeklyPlan"];
+  const weeklyPlan = keepFrames(withItemIds(sanitizePlanItems(body.weeklyPlan)), stored);
   if (!weeklyPlan.length) return NextResponse.json({ error: "The plan needs at least one day with a concept." }, { status: 400 });
   const data = { ...(cur.data as Record<string, unknown>), weeklyPlan };
   const { data: rows, error } = await scopeToWorkspace(

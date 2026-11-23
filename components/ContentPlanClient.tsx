@@ -55,7 +55,8 @@ import { pricingHref, PLANS, minPlanWithFeature } from "@/lib/plans";
 import PlanNotice, { UsageLine } from "@/components/PlanNotice";
 import { Button, ButtonLink, IconButton, ReelRefNote } from "@/components/system";
 import { DecisionTag, ItemDialog, RejectDialog, RejectedNote } from "@/components/plan/PlanItemControls";
-import { FilmExample, PlanTrack, Storyboard, WeekStrip, beatsLength, builtOn, type StripItem } from "@/components/plan/PostFocus";
+import DrawStoryboard from "@/components/plan/DrawStoryboard";
+import { FilmExample, PlanTrack, WeekStrip, beatsLength, builtOn, type StripItem } from "@/components/plan/PostFocus";
 import { planStage, postBuilderHref } from "@/lib/planStage";
 import { animatedHour, weekdayOf } from "@/lib/animated/day";
 
@@ -953,7 +954,7 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
                   {/* A filmed post shows a Reel to film from before its beats. */}
                   {!post.animated && <FilmExample r={post.filmRef} filmLike={post.filmRef ? post.filmLike : undefined} direction={post.direction} />}
                   {post.beats?.length ? (
-                    <Storyboard beats={post.beats} />
+                    <DrawStoryboard beats={post.beats} planId={planId} itemId={post.id} niche={data.niche} canDraw={canSchedule} />
                   ) : post.animated ? (
                     <p className="pf-note">Animated, no filming: SOCIA writes it as a comparison, a counter or words on screen and makes it in this browser. Make it to see every scene before it&apos;s saved.</p>
                   ) : null}
