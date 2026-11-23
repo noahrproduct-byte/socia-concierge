@@ -56,6 +56,7 @@ export async function POST(req: Request) {
     recentPosts: { value: input.recentPosts, max: 10_000, label: "Recent posts" },
     competitors: { value: input.competitors, max: 4_000, label: "Competitors" },
     goal: { value: input.goal, max: 1_500, label: "The goal" },
+    ideas: { value: input.ideas, max: 3_000, label: "Your ideas" },
     audienceWindows: { value: input.audienceWindows, max: 3_000, label: "Audience timing" },
   });
   if (long) return tooLongResponse(long.label, long.max);

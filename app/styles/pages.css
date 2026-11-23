@@ -415,6 +415,9 @@
 .cpl-side { display: flex; flex-direction: column; gap: var(--sp-2); padding-block: var(--sp-4); border-bottom: 1px solid var(--border); }
 .cpl-side:first-child { padding-top: 0; }
 .cpl-side h3 { margin: 0; font-size: var(--fs-section); line-height: var(--lh-section); font-weight: var(--fw-semibold); color: var(--ink); }
+.cpl-side h3 label { font: inherit; color: inherit; margin: 0; }
+.cpl-ideas-help { margin: 0; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+.cpl-form #cpl-ideas { min-height: 88px; resize: vertical; }
 .cpl-acct { display: flex; align-items: center; gap: var(--sp-3); }
 .cpl-acct-av { flex: none; width: 44px; height: 44px; border-radius: var(--r-pill); object-fit: cover; display: inline-grid; place-items: center; background: var(--surface-raised); border: 1px solid var(--border); font-weight: var(--fw-semibold); color: var(--ink-2); }
 .cpl-acct-id { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; flex: 1; }

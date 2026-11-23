@@ -9,6 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { anthropic, MODEL, effortFor } from "./anthropic";
 import { recordAiUsage } from "./aiUsage";
 import { SYSTEM, buildUserPrompt } from "./prompt";
+import { cleanIdeas, markIdeaPosts } from "./planIdeas";
 import { deliverableSchema, type Deliverable, type GenerateInput, type SavedPlan } from "./schema";
 import type { BrandDetail } from "./profile";
 import type { Evidence } from "./planEvidence";
@@ -108,7 +109,11 @@ export async function generatePlanData(input: GenerateInput, brand: BrandDetail 
   // The account's own posts the model cited (P#) become their links and numbers; the ids it may cite are the ones it was shown.
   const own = evidence?.ownPosts ?? [];
   const known = new Set([...own.map((o) => o.id), ...proven.map((r) => r.id)]);
-  data.weeklyPlan = withItemIds((data.weeklyPlan ?? []).map((p) => {
+  // Posts made from the person's own ideas are marked as theirs; an idea no post was made from is kept to say so.
+  const ideas = cleanIdeas(input.ideas);
+  const marked = markIdeaPosts((data.weeklyPlan ?? []) as (Deliverable["weeklyPlan"][number] & { fromIdea?: unknown })[], ideas);
+  data.ideasLeft = marked.left.length ? marked.left : undefined;
+  data.weeklyPlan = withItemIds((marked.items as Deliverable["weeklyPlan"]).map((p) => {
     const cited = (p as { ownRefs?: unknown }).ownRefs;
     const ownPosts = Array.isArray(cited) ? own.filter((o) => cited.some((c) => typeof c === "string" && c.trim().toUpperCase() === o.id)).slice(0, 4) : [];
     const { ownRefs: _drop, ...rest } = p as typeof p & { ownRefs?: unknown };

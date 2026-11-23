@@ -9,6 +9,8 @@ export type Deliverable = {
   /** Older plans carry a model-written 0-100 score. It was never measured, so nothing shows it. */
   healthScore?: number;
   headline: string; // one-line diagnosis
+  /** The person's own ideas (lib/planIdeas.ts) that no post of this plan was made from. Set by SOCIA, not the model. */
+  ideasLeft?: string[];
   auditSummary: string; // 2-4 sentence plain-English read
   strengths: string[];
   problems: { issue: string; evidence: string; impact: string }[];
@@ -205,6 +207,7 @@ export const deliverableSchema = {
           cta: { type: "string" },
           editing: { type: "string" },
           ownRefs: { type: "array", items: { type: "string" } },
+          fromIdea: { type: "integer" },
           evidenceSplit: {
             type: "object",
             additionalProperties: false,
@@ -225,6 +228,7 @@ export const deliverableSchema = {
           "cta",
           "editing",
           "ownRefs",
+          "fromIdea",
           "evidenceSplit",
           "day",
           "concept",
@@ -269,6 +273,8 @@ export type GenerateInput = {
   recentPosts: string;
   competitors: string;
   goal: string;
+  /** The person's own video ideas for this week, one per line (lib/planIdeas.ts). Optional. */
+  ideas?: string;
   /** Audience timing, computed in the browser (viewer's time zone) from the
    *  account's own posts. Optional; empty when there isn't enough data. */
   audienceWindows?: string;
