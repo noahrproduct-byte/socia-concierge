@@ -67,3 +67,33 @@ describe("a streaming call", () => {
     expect(msg.content[0]).toMatchObject({ type: "text", text: "hi" });
   });
 });
+
+describe("the retry with more room", () => {
+  it("is streamed, since the SDK refuses a non-streamed call that large", async () => {
+    const create = vi.fn().mockResolvedValue(reply("max_tokens", 16000));
+    const finalMessage = vi.fn().mockResolvedValue(reply("end_turn", 20000));
+    const stream = vi.fn().mockReturnValue({ finalMessage });
+    const c = { messages: { create, stream } } as unknown as Anthropic;
+    retryOnMaxTokens(c);
+    const res = await c.messages.create({ model: "m", max_tokens: 16000, messages: [] } as never);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect((stream.mock.calls[0][0] as { max_tokens: number }).max_tokens).toBe(RETRY_MAX_TOKENS);
+    expect((res as unknown as { stop_reason: string }).stop_reason).toBe("end_turn");
+  });
+});
+
+describe("text with half an emoji", () => {
+  it("is made whole before it is sent, everywhere in the request", async () => {
+    const { wellFormed } = await import("./anthropic");
+    const cut = "Great pizza 🍕".slice(0, -1); // ends on half of the emoji
+    expect(JSON.stringify(cut)).toContain("\\ud83c");
+    const clean = wellFormed({ messages: [{ role: "user", content: [{ type: "text", text: cut }] }] });
+    expect(JSON.stringify(clean)).not.toMatch(/\\ud8[0-3]/);
+    expect(wellFormed("Great pizza 🍕")).toBe("Great pizza 🍕");
+    const create = vi.fn().mockResolvedValue(reply("end_turn"));
+    await fakeClient(create).messages.create({ model: "m", max_tokens: 100, system: cut, messages: [{ role: "user", content: cut }] } as never);
+    const sent = create.mock.calls[0][0] as { system: string; messages: { content: string }[] };
+    expect(sent.system.endsWith("�")).toBe(true);
+    expect(sent.messages[0].content.endsWith("�")).toBe(true);
+  });
+});
