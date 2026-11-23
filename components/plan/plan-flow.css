@@ -270,3 +270,17 @@
     min-width: var(--sp-2);
   }
 }
+
+/* "Film it like this" (PostFocus FilmExample): the Reel to film from, before a filmed post's beats. Tokens only. */
+.pf-example { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); border: 1px solid var(--border); border-radius: var(--r-card); background: var(--surface-raised); min-width: 0; }
+.pf-example-h { margin: 0; font-size: var(--fs-body); font-weight: var(--fw-semibold); color: var(--ink); }
+.pf-example-reel { display: flex; gap: var(--sp-3); align-items: flex-start; color: inherit; text-decoration: none; min-width: 0; }
+.pf-example-reel:hover .pf-example-meta b { text-decoration: underline; }
+.pf-example-reel:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: var(--r-card); }
+.pf-example-reel img { flex: none; width: 72px; aspect-ratio: 9 / 16; max-width: 100%; object-fit: cover; border-radius: var(--r-card); background: var(--border); }
+.pf-example-meta { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+.pf-example-meta b { color: var(--ink); font-size: var(--fs-body); }
+.pf-example-meta span { overflow-wrap: anywhere; }
+.pf-example-meta small { display: inline-flex; align-items: center; gap: var(--sp-1); color: var(--ink-2); }
+.pf-example-how, .pf-example-none { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink-2); overflow-wrap: anywhere; }
+.pf-example-how b { color: var(--ink); }

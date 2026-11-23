@@ -5,9 +5,10 @@
 // between posts, then the chosen post's timed beats. Pure presentation; the
 // Content Plan report (components/ContentPlanClient.tsx) owns the data and
 // the actions.
-import { Check, Film, Video, X } from "lucide-react";
+import { Check, ExternalLink, Film, Video, X } from "lucide-react";
+import Link from "next/link";
 import type { PlanBeat } from "@/lib/schema";
-import type { ReelRef } from "@/lib/trendSignals";
+import { refResult, type ReelRef } from "@/lib/trendSignals";
 import { MOVE_LABEL, shotMove } from "@/lib/shotMove";
 import { PLAN_STEPS, type PlanStage } from "@/lib/planStage";
 import ShotDiagram from "./ShotDiagram";
@@ -120,4 +121,39 @@ export function builtOn(ref?: ReelRef | null): string | null {
   if (!ref) return null;
   const who = ref.account?.trim() || "another account";
   return `Built on ${who}'s Reel${ref.track ? `, track record ${ref.track.score}/100` : ""}`;
+}
+
+const PLATFORM: Record<string, string> = { instagram: "Instagram", youtube: "YouTube", tiktok: "TikTok", facebook: "Facebook" };
+
+/**
+ * For a post the person films: a real Reel to look at before filming, and what to copy from it (Noah,
+ * 2026-11-23: "first it gives an example of what the video should look like, so the user has a reference of
+ * how they can film the video"). The Reel is the one the plan is built on; without one, the post's own
+ * direction stands in and Discover is where to find one.
+ */
+export function FilmExample({ r, filmLike, direction }: { r?: ReelRef | null; filmLike?: string; direction?: string }) {
+  const how = (filmLike || direction || "").trim();
+  if (!r && !how) return null;
+  const platform = r ? PLATFORM[r.platform] ?? r.platform : "";
+  const result = r ? refResult(r) : "";
+  return (
+    <section className="pf-example" aria-label="Example to film from">
+      <h3 className="pf-example-h">Film it like this</h3>
+      {r && (
+        <a className="pf-example-reel" href={r.url} target="_blank" rel="noopener noreferrer" title="Opens the example Reel. Its numbers are another account's result, not a prediction">
+          {r.thumb && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={r.thumb} alt="" loading="lazy" referrerPolicy="no-referrer" onError={(e) => { e.currentTarget.hidden = true; }} />
+          )}
+          <span className="pf-example-meta">
+            <b>{r.account}</b>
+            {r.title && <span>&ldquo;{r.title}&rdquo;</span>}
+            <small>{[result, `Watch it on ${platform}`].filter(Boolean).join(", ")} <ExternalLink size={11} aria-hidden /></small>
+          </span>
+        </a>
+      )}
+      {how && <p className="pf-example-how">{filmLike ? <><b>Copy:</b> {filmLike}</> : how}</p>}
+      {!r && <p className="pf-example-none">No example Reel was found for this post. <Link href="/discover" className="s-link">Find one on Discover</Link></p>}
+    </section>
+  );
 }

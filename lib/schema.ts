@@ -57,6 +57,8 @@ export type Deliverable = {
     evidenceSplit?: EvidenceSplit;
     /** The running experiment this post tests (its id in the Growth Strategy), when it tests one. */
     experiment?: string;
+    /** For a filmed post: what to copy from its example Reel when filming (framing, camera, setting, pacing), never its words. Plans before 2026-11-23 lack it. */
+    filmLike?: string;
     /** The id of the niche Reel the model built this post on ("R2"), as it wrote it; replaced by `ref` when the plan is saved. */
     reference?: string;
     /** The niche Reel this post is built on, with the numbers SOCIA read for it (lib/trendSignals.ts ReelRef). Set by SOCIA from `reference`, never by the model. */
@@ -189,6 +191,7 @@ export const deliverableSchema = {
           },
           maker: { type: "string", enum: ["you", "claude"] },
           reference: { type: "string" },
+          filmLike: { type: "string" },
           cta: { type: "string" },
           editing: { type: "string" },
           ownRefs: { type: "array", items: { type: "string" } },
@@ -207,6 +210,7 @@ export const deliverableSchema = {
         required: [
           "maker",
           "reference",
+          "filmLike",
           "cta",
           "editing",
           "ownRefs",
