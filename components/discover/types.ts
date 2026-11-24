@@ -1,6 +1,7 @@
 import type { CompetitorRow } from "@/lib/competitorIntel";
 import type { ProvenReel, Tracked } from "@/components/competitors/types";
 import type { Platform } from "@/lib/discoverStyle";
+import type { FeedReel } from "@/lib/discoverFeed";
 
 /** An account on Discover: a competitor the person tracks, or one SOCIA suggests. */
 export type DiscoverAccount = CompetitorRow & {
@@ -40,6 +41,14 @@ export type DiscoverData = {
   nicheReels: ProvenReel[];
   /** Viral Reels made the way the brand's own are (its ownStyle), any topic: to copy the style, not the subject. */
   styleReels: ProvenReel[];
+  /** Recommended for you (lib/discoverFeed.ts): every relevant Reel above in one ranked feed, each with its source. */
+  recommended: FeedReel[];
+  /** The first page of Trending: viral Reels from any industry SOCIA has read, never one already recommended. */
+  trending: FeedReel[];
+  /** Where the next page of Trending starts (app/api/discover/trending), or null when there is no more. */
+  trendingNext: number | null;
+  /** Reels with a saved adaptation for the business as it is now (their keys): reopening one is free. */
+  adapted: string[];
   /** "Reels to copy" accounts: the ones the person added, then the ones SOCIA found from them. */
   copyFrom: DiscoverAccount[];
   reelsRead: { reels: number; accounts: number };

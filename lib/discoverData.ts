@@ -28,6 +28,11 @@ import { fitOf, reelKey, reelVerdictOf, tooSmallToSuggest, mainPlatform, sameSty
 import { readStyleMemory } from "@/lib/discoverStyleLoad";
 import { STYLE_SOURCES_READ, SUGGESTIONS_READ } from "@/lib/discoverRead";
 import { signRefUrl } from "@/lib/studioClips/refToken";
+import { feedPage, mergeFeed, withRelated, type FeedReel, type FeedSource } from "@/lib/discoverFeed";
+import { trendingFor, trendingPool } from "@/lib/discoverTrending";
+import { adaptedKeys } from "@/lib/discoverAdaptServer";
+import type { BrandDetail } from "@/lib/profile";
+import type { ProvenReel } from "@/lib/trendSignals";
 import { isPlatformMediaUrl } from "@/lib/fetchGuard";
 
 
@@ -40,10 +45,12 @@ import { isPlatformMediaUrl } from "@/lib/fetchGuard";
 // and never waits on Instagram.
 
 const SUGGESTIONS_SHOWN = 24;
-/** Niche Reels under the competitors': a few, so the competitors' stay the most. */
-const NICHE_REELS = 12;
-/** Viral Reels in the brand's own style, any topic. */
-const STYLE_REELS = 12;
+/** Niche Reels (Recommended for you draws on all three lists). */
+const NICHE_REELS = 30;
+/** Viral Reels from businesses like the brand anywhere, or in its own style. */
+const STYLE_REELS = 30;
+/** The competitors' viral Reels. */
+const COMPETITOR_REELS = 30;
 
 /** Everything the Discover page shows, for the viewer's active Brand Workspace. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -260,7 +267,7 @@ export async function loadDiscoverData(supabase: SupabaseClient<any, any, any>, 
   // Creators also count a Reel that broke out for its account (lib/trendSignals.ts isViralFor); businesses keep 15K.
   const viral = (r: { views: number | null; multiplier?: number | null }) => isViralFor(!brandIs.business, r);
   // Only Reels past VIRAL_MIN_VIEWS show; the best of those first, never filled with weaker ones.
-  const reelsToCopy = withMake(provenReels(ordered.filter(viral), { max: 12, perAccount: 3, fill: true }));
+  const reelsToCopy = withMake(provenReels(ordered.filter(viral), { max: COMPETITOR_REELS, perAccount: 3, fill: true }));
 
   // A few from the niche under them (Noah: "most of the reels should be from the competitors, but there should also be some from just like niches"):
   // the suggested accounts SOCIA read, and Reels its niche research found, never a competitor's or the brand's own.
@@ -313,14 +320,27 @@ export async function loadDiscoverData(supabase: SupabaseClient<any, any, any>, 
   };
   const styleAll = dedupeReels(rankTrendingReels(copyPool.map((r) => ({ platform: r.platform, name: r.name, handle: r.handle, avatar: r.avatar, posts: r.posts })), [], now));
   const sameLook = new Set(copyPool.filter((a) => a.sameStyle).map((a) => a.handle.toLowerCase()));
-  const styleReels = provenReels(copyable(styleAll).filter(viral), { max: 40, perAccount: 3, fill: true })
+  const styleReels = provenReels(copyable(styleAll).filter(viral), { max: 60, perAccount: 3, fill: true })
     .sort((a, b) => Number(sameLook.has((b.accountHandle ?? "").toLowerCase())) - Number(sameLook.has((a.accountHandle ?? "").toLowerCase())) || (reach(b) ?? -1) - (reach(a) ?? -1))
     .slice(0, STYLE_REELS)
     .map((r, i) => ({ ...r, id: `S${i + 1}` }));
 
   const ownStale = Boolean(snap?.media?.length) && styleStale(memory.own, now) && !triedRecently(memory, "own", now);
   // "Make a video like this": a Reel whose file official data gives is offered as the reference, its link signed for this viewer.
-  const withRef = (list: typeof reelsToCopy) => list.map((r) => { const t = r.video && isPlatformMediaUrl(r.video) ? signRefUrl(user.id, r.video) : null; return t ? { ...r, refToken: t } : r; });
+  const withRef = <T extends ProvenReel>(list: T[]): T[] => list.map((r) => { const t = r.video && isPlatformMediaUrl(r.video) ? signRefUrl(user.id, r.video) : null; return t ? { ...r, refToken: t } : r; });
+  // ---- the two feeds (lib/discoverFeed.ts): every relevant Reel in one ranked list, then trending ones from any industry
+  const copyHandles = new Set([...copyList, ...copyFoundList].map((h) => h.toLowerCase()));
+  const tag = (list: ProvenReel[], source: FeedSource): FeedReel[] => list.map((r) => ({ ...r, source }));
+  const styleSource = (r: ProvenReel): FeedSource => (copyHandles.has((r.accountHandle ?? "").toLowerCase()) ? "copy" : viralFrom === "kind" ? "similar" : "style");
+  // The same pool and filters the Trending route pages through, so its pages line up with this first one.
+  const pool = trendingFor(await trendingPool(now), { mine });
+  const recommendedAll = withRelated(
+    mergeFeed([tag(reelsToCopy, "competitor"), tag(nicheReels, "niche"), withMake(styleReels).map((r) => ({ ...r, source: styleSource(r) }))], now),
+    pool, profile?.niche ?? null, now,
+  );
+  const recommendedKeys = new Set(recommendedAll.map((r) => reelKey(r.url) ?? r.url));
+  const trendingFirst = feedPage(trendingFor(pool, { skip: recommendedKeys }), 0);
+
   const data: DiscoverData = {
     now: now.toISOString(),
     igEnabled: igRes.enabled, igReason: igRes.enabled ? null : (igRes.reason ?? null), ytConfigured: ytConfigured(),
@@ -329,6 +349,10 @@ export async function loadDiscoverData(supabase: SupabaseClient<any, any, any>, 
     reelsToCopy: withRef(reelsToCopy),
     nicheReels: withRef(nicheReels),
     styleReels: withRef(withMake(styleReels)),
+    recommended: withRef(recommendedAll),
+    trending: withRef(trendingFirst.reels),
+    trendingNext: trendingFirst.next,
+    adapted: await adaptedKeys(ctx, (profile?.brand_detail ?? null) as BrandDetail | null, profile?.niche ?? null, profile?.brand_name ?? null).catch(() => []),
     copyFrom: [...copyAccounts, ...foundAccounts],
     reelsRead: { reels: allReels.length, accounts: new Set(allReels.map((r) => (r.accountHandle ?? r.accountName).toLowerCase())).size },
     needsRead: igRes.enabled && (ownStale || [...competitors, ...suggestions, ...styleAccounts, ...copyAccounts, ...foundAccounts].some((a) => a.reading) || judged.some((a) => a.posts.length > 0 && fitFor(a) == null && !tooSmallToSuggest(a.audience.value))
