@@ -219,7 +219,15 @@ export default function Dashboard({ d, look = "auto" }: { d: DashboardData; look
     };
   })();
 
-  // ---- this week's posts: the last 7 days, newest first ---------------------------
+  // ---- the last 7 days of posts, newest first ---------------------------
+  // A post from this calendar week (from Monday) shows its weekday; one from last week shows its date, so last
+  // Tuesday's post is never read as today's.
+  const weekLabel = (iso: string, now: Date | null) => {
+    const at = new Date(iso);
+    if (!now) return at.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
+    return at >= monday ? at.toLocaleDateString("en-US", { weekday: "short" }) : at.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
   const inWeek = useMemo(() => (clock ? d.posts.filter((p) => clock.getTime() - new Date(p.published).getTime() < 7 * 86400000) : null), [d.posts, clock]);
   // A quiet week still shows the account's latest posts, however old, newest first.
   const quietWeek = Boolean(inWeek && !inWeek.length && d.posts.length);
@@ -227,6 +235,7 @@ export default function Dashboard({ d, look = "auto" }: { d: DashboardData; look
 
   const last7 = d.series && d.series.views.provenance !== "unavailable" && d.series.views.current.length ? d.series.views.current.slice(-7) : null;
   const max7 = Math.max(1, ...(last7 ?? []).map((pt) => pt.value ?? 0));
+  const byPost = d.series?.views.provenance === "publish_totals";
   // Three things to do: today's one sentence first, then the findings.
   const todo = [
     ...(priority ? [{ title: priority.title.replace(/\.$/, ""), sub: priority.sub, href: priority.href, cta: priority.cta }] : []),
@@ -267,7 +276,7 @@ export default function Dashboard({ d, look = "auto" }: { d: DashboardData; look
         <div className="dash-hello">
           <span className="dash-date">{clock ? clock.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }) : " "}</span>
           <h1>{greeting}</h1>
-          {d.handle && <span className="dash-hud-sub">@{d.handle}{weekPosts && weekPosts.length && !quietWeek ? ` · ${weekPosts.length} ${weekPosts.length === 1 ? "video" : "videos"} posted this week` : ""}</span>}
+          {d.handle && <span className="dash-hud-sub">@{d.handle}{weekPosts && weekPosts.length && !quietWeek ? ` · ${weekPosts.length} ${weekPosts.length === 1 ? "video" : "videos"} in the last 7 days` : ""}</span>}
         </div>
         <div className="dash-head-actions">
           {!nothingConnected && (
@@ -294,7 +303,7 @@ export default function Dashboard({ d, look = "auto" }: { d: DashboardData; look
       <Reveal index={next()}>
         <section className="dash-week" aria-labelledby="dash-week-title">
           <div className="dash-sec">
-            <h2 id="dash-week-title">{quietWeek ? "Your latest videos" : "This week\u2019s videos"}</h2>
+            <h2 id="dash-week-title">{quietWeek ? "Your latest videos" : "Your last 7 days"}</h2>
             {weekPosts && weekPosts.length > 0 && <span className="dash-sec-hint">{quietWeek ? "Nothing posted in the last 7 days. Press a video to see what worked and what didn\u2019t" : "Press a video to see what worked and what didn\u2019t"}</span>}
           </div>
           {!d.live ? (
@@ -322,7 +331,7 @@ export default function Dashboard({ d, look = "auto" }: { d: DashboardData; look
                           <Film aria-hidden />
                         )}
                         {tag && <span className={`dash-week-tag is-${tag.tone}`}>{tag.word}</span>}
-                        <span className="dash-week-day">{quietWeek ? new Date(p.published).toLocaleDateString("en-US", clock && new Date(p.published).getFullYear() !== clock.getFullYear() ? { month: "short", year: "numeric" } : { month: "short", day: "numeric" }) : new Date(p.published).toLocaleDateString("en-US", { weekday: "short" })}</span>
+                        <span className="dash-week-day">{quietWeek ? new Date(p.published).toLocaleDateString("en-US", clock && new Date(p.published).getFullYear() !== clock.getFullYear() ? { month: "short", year: "numeric" } : { month: "short", day: "numeric" }) : weekLabel(p.published, clock)}</span>
                       </span>
                       <span className="dash-hud-title">{p.title}</span>
                       <span className="dash-hud-row">
@@ -400,14 +409,16 @@ export default function Dashboard({ d, look = "auto" }: { d: DashboardData; look
 
       <Reveal index={next()} className="dash-duo">
         <Card className="dash-lift">
-          <CardHeader title="Views by day" period="Last 7 days" />
+          {/* Instagram's own daily views when it serves them; otherwise each post's views on the day it went out, and a day with no post shows a dash, never 0. */}
+          <CardHeader title={byPost ? "Views by day posted" : "Views by day"} period="Last 7 days" />
           {last7 ? (
-            <ol className="dash-hud-days" aria-label="Views by day, last 7 days">
+            <ol className="dash-hud-days" aria-label={byPost ? "Each post's views on the day it went out, last 7 days" : "Views by day, last 7 days"}>
               {last7.map((pt) => {
                 const v = pt.value ?? 0;
+                const weekday = new Date(`${pt.day}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" });
                 return (
-                  <li key={pt.day} className={v === max7 && max7 > 1 ? "is-top" : undefined} role="img" aria-label={`${new Date(`${pt.day}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" })}: ${fmtNum(v)} views`}>
-                    <small aria-hidden>{fmtNum(v)}</small>
+                  <li key={pt.day} className={v === max7 && max7 > 1 ? "is-top" : undefined} role="img" aria-label={pt.value == null ? `${weekday}: ${byPost ? "no post" : "no number from Instagram"}` : `${weekday}: ${fmtNum(v)} views`}>
+                    <small aria-hidden>{pt.value == null ? "\u2013" : fmtNum(v)}</small>
                     <span className="dash-hud-daybar" aria-hidden><i style={{ height: `${Math.max(2, (v / max7) * 100)}%` }} /></span>
                     <small aria-hidden>{new Date(`${pt.day}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "narrow", timeZone: "UTC" })}</small>
                   </li>

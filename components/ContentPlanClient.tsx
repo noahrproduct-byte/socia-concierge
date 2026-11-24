@@ -66,7 +66,7 @@ import { animatedHour, weekdayOf } from "@/lib/animated/day";
 const MakeWithAi = dynamic(() => import("@/components/animated/MakeWithAi"), { ssr: false });
 const WeekAnimator = dynamic(() => import("@/components/animated/WeekAnimator"), { ssr: false });
 import { PlanTaskRow, usePlanTasks } from "@/components/plan/PlanTasks";
-import { reasonLabel } from "@/lib/planItems";
+import { reasonLabel, wholeSentences } from "@/lib/planItems";
 import { Tabs, TabList, Tab, TabPanel } from "@/components/system";
 import type { GrowthStrategy } from "@/lib/strategy";
 import PlanMixControls, { type MixValue } from "@/components/plan/PlanMixControls";
@@ -981,7 +981,7 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
                     {!post.animated && (
                       <TabPanel value="guide" className="pf-panel">
                         <dl className="pf-facts">
-                          {post.direction && (<><dt>Direction</dt><dd>{post.direction}</dd></>)}
+                          {post.direction && (<><dt>Direction</dt><dd>{wholeSentences(post.direction)}</dd></>)}
                           {post.production ? (<><dt>To make it</dt><dd>{post.production}</dd></>) : formatLabel(post.format) !== post.format.trim() && (<><dt>Production</dt><dd>{post.format}</dd></>)}
                           {post.editing && (<><dt>Editing</dt><dd>{post.editing}</dd></>)}
                         </dl>

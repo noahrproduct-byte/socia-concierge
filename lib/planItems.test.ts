@@ -141,3 +141,21 @@ describe("the plan prompt", () => {
     expect(p).toContain('basis of "thin" or "experiment"');
   });
 });
+
+describe("plan text is never cut mid-word", () => {
+  it("cuts at the last whole sentence, or a word with an ellipsis", async () => {
+    const { cutClean, wholeSentences } = await import("./planItems");
+    const text = "Shot 1: stand at the cut table. Shot 2: slide right to the regular pie. Keep the phone moving slowly and the cut sound loud.";
+    expect(cutClean(text, 200)).toBe(text);
+    expect(cutClean(text, 100)).toBe("Shot 1: stand at the cut table. Shot 2: slide right to the regular pie.");
+    expect(cutClean("one two three four five six seven", 20)).toBe("one two three four…");
+    // Saved before this fix, cut mid-word at 400: shown up to its last whole sentence.
+    expect(wholeSentences("Shot 1: close on the pie. Shot 2: lift a slice. Keep the phone moving slowly and th")).toBe("Shot 1: close on the pie. Shot 2: lift a slice.");
+    expect(wholeSentences("Ends well.")).toBe("Ends well.");
+    expect(wholeSentences("no sentence end at all here")).toBe("no sentence end at all here");
+  });
+  it("keeps a long filming direction whole when it fits", () => {
+    const long = `${"Hold the phone at chest height. ".repeat(20)}`.trim();
+    expect(normalizePlanItem({ day: "Monday", concept: "c", hook: "h", format: "Reel", rationale: "r", evidence: "e", predictedPerformance: "p", direction: long } as never).direction).toBe(long);
+  });
+});

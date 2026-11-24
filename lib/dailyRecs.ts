@@ -22,6 +22,9 @@ export type TodayPost = {
   title: string;
   hasMedia: boolean;
   image: boolean;
+  /** For a post with several destinations: where it did go out, and where it failed (lib/publishing). */
+  wentOutOn?: string[];
+  failedOn?: string[];
 };
 
 export type TodayPlan = { id: string; createdAt: string; items: { day: string; concept: string; format: string }[] };
@@ -150,6 +153,9 @@ function windowsAhead(best: Window[], now: Date, tz: string, days: number): Open
   return out.sort((a, b) => a.start - b.start);
 }
 
+/** "Instagram", "Instagram and YouTube", "Instagram, Facebook and YouTube". */
+const listOf = (xs: string[]) => (xs.length <= 1 ? xs[0] ?? "" : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+
 const lift = (w: Window) => `${Math.round((w.rel - 1) * 100)}%`;
 const sample = (w: Window) => `median of ${plural(w.n, "post")}${w.confidence === "early" ? ", an early signal" : ""}`;
 
@@ -163,10 +169,15 @@ export function dailyRecommendations(f: TodayFacts, now: Date, tz: string): Toda
   const failed = live.filter((p) => p.status === "failed" && ms(p.at) >= nowMs - FAILED_DAYS * DAY).sort((a, b) => ms(b.at) - ms(a.at));
   if (failed.length) {
     const more = failed.length > 1 ? ` ${plural(failed.length - 1, "other post")} also failed.` : "";
+    const first = failed[0];
+    // A post that went out on one platform and failed on another is said as that, never as "didn't publish".
+    const partly = Boolean(first.wentOutOn?.length && first.failedOn?.length);
     recs.push({
       kind: "failed", tone: "urgent",
-      title: failed.length === 1 ? "A post didn't publish" : `${failed.length} posts didn't publish`,
-      detail: `${quote(failed[0].title)} was due ${whenPhrase(failed[0].at, now, tz)}.${more} Open it on the Calendar to see what went wrong and try again.`,
+      title: partly ? `A post didn't go out on ${listOf(first.failedOn!)}` : failed.length === 1 ? "A post didn't publish" : `${failed.length} posts didn't publish`,
+      detail: partly
+        ? `${quote(first.title)} went out on ${listOf(first.wentOutOn!)} ${whenPhrase(first.at, now, tz)}, but not on ${listOf(first.failedOn!)}.${more} Open it on the Calendar to see why and try that platform again.`
+        : `${quote(first.title)} was due ${whenPhrase(first.at, now, tz)}.${more} Open it on the Calendar to see what went wrong and try again.`,
       href: "/plan/calendar", cta: "Review",
     });
   }
