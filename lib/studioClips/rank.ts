@@ -90,7 +90,7 @@ export function whyPost(o: Opportunity): string {
   const e = o.evidence;
   const bits = [`${e.usableSec}s of usable footage across ${e.clips} clip${e.clips === 1 ? "" : "s"}`];
   if (e.hasOpener) bits.unshift(o.opener?.why ? `it opens on ${o.opener.why.replace(/\.$/, "")}` : "it has a strong opening");
-  bits.push(`${e.distinctMoments} distinct moment${e.distinctMoments === 1 ? "" : "s"}`);
+  bits.push(e.distinctMoments === 1 ? "one unbroken take" : `${e.distinctMoments} distinct moments`);
   if (e.hasSpeech) bits.push("speech to caption");
   const s = `${o.strength === "strong" ? "A strong post because" : "Possible because"} ${bits.join(", ").replace(/, ([^,]*)$/, " and $1")}.`;
   return s;
