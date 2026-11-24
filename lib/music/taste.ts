@@ -6,7 +6,17 @@ export type Soundtrack = {
   trackId: string; name: string; path: string; musicVolume: number; originalVolume: number;
   /** Lower the music while someone is speaking and bring it up between (lib/studioClips/musicDuck.ts). Absent = one level throughout. */
   duck?: boolean;
+  /** Where in the sound this video's music starts, seconds (lib/music/bestPart.ts). Absent = from the start. */
+  startSec?: number;
 };
+
+/** The longest a playlist sound can be (lib/music/tracks.ts MAX_TRACK_SEC), so the furthest a start can be. */
+const MAX_START_SEC = 180;
+/** A saved start: seconds into the sound, rounded to a tenth; 0 or nonsense leaves it out. */
+export function startOf(v: unknown): number | undefined {
+  if (typeof v !== "number" || !Number.isFinite(v) || v <= 0) return undefined;
+  return Math.round(Math.min(MAX_START_SEC, v) * 10) / 10;
+}
 
 const level = (x: unknown, d: number) => (typeof x === "number" && Number.isFinite(x) ? Math.round(Math.min(1, Math.max(0, x)) * 100) / 100 : d);
 
@@ -20,7 +30,7 @@ export function sanitizeSoundtrack(v: unknown, current: Soundtrack | null | unde
   if (typeof o.trackId !== "string") return null;
   const t = current && current.trackId === o.trackId ? { name: current.name, path: current.path } : resolve(o.trackId);
   if (!t) return null;
-  return { trackId: o.trackId, name: t.name, path: t.path, musicVolume: level(o.musicVolume, 0.6), originalVolume: level(o.originalVolume, 1), ...(o.duck === true ? { duck: true } : {}) };
+  return { trackId: o.trackId, name: t.name, path: t.path, musicVolume: level(o.musicVolume, 0.6), originalVolume: level(o.originalVolume, 1), ...(o.duck === true ? { duck: true } : {}), ...(startOf(o.startSec) ? { startSec: startOf(o.startSec) } : {}) };
 }
 
 /** Levels for a track as it is first added: low under real speech, otherwise the music leads and the room sits under it. */

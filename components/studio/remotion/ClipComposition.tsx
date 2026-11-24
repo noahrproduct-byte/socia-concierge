@@ -923,6 +923,8 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
         <Sequence from={0} durationInFrames={tl.durationFrames} name="soundtrack">
           <Audio
             src={musicUrl!}
+            // This video's part of the sound (Soundtrack.startSec): it plays from there.
+            trimBefore={music.startSec ? Math.round(music.startSec * fps) : undefined}
             volume={(f) => music.musicVolume * Math.min(spoken.length ? duckLevel(f / fps, spoken) : 1, underVoiceover(f / fps)) * Math.min(1, f / MUSIC_FADE_IN, (tl.durationFrames - f) / MUSIC_FADE_OUT)}
           />
         </Sequence>

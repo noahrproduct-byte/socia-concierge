@@ -18,8 +18,10 @@ import { STUDIO_BUCKET, fmtClock, type Edl } from "@/lib/studioClips/types";
 import type { Soundtrack } from "@/lib/music/taste";
 import type { Track } from "@/lib/music/tracks";
 import { DUCK } from "@/lib/studioClips/musicDuck";
+import { analysisOfTrack, type TrackAnalysis } from "@/lib/studioClips/beatClient";
+import { NO_CHOICE_SLACK_SEC, bestParts, clampStart, latestStart, type PartPick } from "@/lib/music/bestPart";
 
-const MAX_SEC = 180, MIN_SEC = 2, DEFAULT_SEC = 30;
+const MAX_SEC = 180, MIN_SEC = 2;
 const BARS = 480;
 const MAX_FILE_MB = 600;
 
@@ -120,7 +122,7 @@ async function decodeFile(file: File, ctx: AudioContext, note: (s: string) => vo
   }
 }
 
-export default function MusicBox({ buildId, edl, canEdit, fixture, speechPct = 0, onSoundtrack, onLevels, onDuck, onTrackUrl }: {
+export default function MusicBox({ buildId, edl, canEdit, fixture, speechPct = 0, onSoundtrack, onLevels, onDuck, onTrackUrl, onStart, videoSec = 0, trackUrl = null }: {
   buildId: string;
   edl: Edl;
   canEdit: boolean;
@@ -135,6 +137,12 @@ export default function MusicBox({ buildId, edl, canEdit, fixture, speechPct = 0
   onDuck: (on: boolean) => void;
   /** a playable link for the track now in the cut */
   onTrackUrl: (trackId: string, url: string) => void;
+  /** the person chose where in the sound this video's music starts, seconds (saved with the cut) */
+  onStart?: (sec: number) => void;
+  /** how long the video is, seconds */
+  videoSec?: number;
+  /** a playable link to the sound in the cut */
+  trackUrl?: string | null;
 }) {
   const st = edl.soundtrack ?? null;
   const supabase = useMemo(() => createClient(), []);
@@ -143,7 +151,7 @@ export default function MusicBox({ buildId, edl, canEdit, fixture, speechPct = 0
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [loaded, setLoaded] = useState<Loaded | null>(null);
-  const [sel, setSel] = useState<{ from: number; to: number }>({ from: 0, to: DEFAULT_SEC });
+  const [sel, setSel] = useState<{ from: number; to: number }>({ from: 0, to: MAX_SEC });
   const [name, setName] = useState("");
   const [playing, setPlaying] = useState(false);
   const [playhead, setPlayhead] = useState<number | null>(null);
@@ -195,7 +203,8 @@ export default function MusicBox({ buildId, edl, canEdit, fixture, speechPct = 0
       const buffer = await decodeFile(file, audioCtx(), (note) => setPhase({ kind: "reading", note }));
       if (buffer.duration < MIN_SEC) { setError(`That sound is ${buffer.duration.toFixed(1)} s long; it needs at least ${MIN_SEC} s.`); setPhase({ kind: "idle" }); return; }
       setLoaded({ name: file.name, buffer, peaks: peaksOf(buffer), top: loudest(buffer) });
-      setSel({ from: 0, to: Math.min(buffer.duration, DEFAULT_SEC) });
+      // The whole sound, up to MAX_SEC: each video then picks which stretch of it plays (SongPart below).
+      setSel({ from: 0, to: Math.min(buffer.duration, MAX_SEC) });
       setName(file.name.replace(/\.[a-z0-9]+$/i, "").replace(/[_-]+/g, " ").trim().slice(0, 80) || "Untitled sound");
       setPhase({ kind: "idle" });
     } catch (e) {
@@ -381,7 +390,7 @@ export default function MusicBox({ buildId, edl, canEdit, fixture, speechPct = 0
         <div className="sd-trim">
           <div className="sd-trim-head">
             <b>{loaded.name}</b>
-            <small>{fmtClock(loaded.buffer.duration)} long. Drag across the top wave to choose a part (up to {fmtClock(MAX_SEC)}), then trim it on the close-up.</small>
+            <small>{fmtClock(loaded.buffer.duration)} long. {loaded.buffer.duration > MAX_SEC ? `The first ${fmtClock(MAX_SEC)} is chosen, the most a playlist sound can hold. Drag across the top wave to keep another part.` : "All of it is chosen. Drag across the top wave to keep only a part."} Each video then picks which stretch of it plays.</small>
             <button type="button" className="sd-iconbtn" aria-label="Put this sound away" onClick={() => { stop(); setLoaded(null); }}><X size={14} /></button>
           </div>
           <canvas ref={canvas} className="sd-wave sd-wave-all" onPointerDown={onDown(0, loaded.buffer.duration)} onPointerMove={onMove(0, loaded.buffer.duration)} onPointerUp={onUp} onPointerCancel={onUp} aria-label="The whole sound; drag to choose a part" />
@@ -404,7 +413,7 @@ export default function MusicBox({ buildId, edl, canEdit, fixture, speechPct = 0
 
       {listErr ? <p className="cbm-bad"><AlertTriangle size={11} /> {listErr}</p>
         : tracks == null ? <p className="cbm-muted"><Loader2 size={12} className="spin" /> Reading your playlist…</p>
-        : tracks.length === 0 ? <p className="cbm-muted">Nothing saved yet. Drop a sound above, choose the part you want, and it stays here for every video.</p>
+        : tracks.length === 0 ? <p className="cbm-muted">Nothing saved yet. Drop a sound above and it stays here for every video. Each video picks its own part of it.</p>
         : (
           <ol className="cbm-list">
             {tracks.map((t) => {
@@ -435,6 +444,7 @@ export default function MusicBox({ buildId, edl, canEdit, fixture, speechPct = 0
       {st && (
         <div className="cbm-mix">
           <b>Mix: {st.name}</b>
+          <SongPart key={st.trackId} url={trackUrl} name={st.name} startSec={st.startSec ?? 0} videoSec={videoSec} savedSec={tracks?.find((t) => t.id === st.trackId)?.durationSec ?? null} canEdit={canEdit && Boolean(onStart)} onStart={(sec) => onStart?.(sec)} />
           <label><span>Music</span><input type="range" min={0} max={100} step={5} value={Math.round(st.musicVolume * 100)} disabled={!canEdit} onChange={(e) => onLevels(Number(e.target.value) / 100, st.originalVolume)} /><em>{Math.round(st.musicVolume * 100)}%</em></label>
           <label><span>Original sound</span><input type="range" min={0} max={100} step={5} value={Math.round(st.originalVolume * 100)} disabled={!canEdit} onChange={(e) => onLevels(st.musicVolume, Number(e.target.value) / 100)} /><em>{Math.round(st.originalVolume * 100)}%</em></label>
           {speechPct > 0 ? (
@@ -448,5 +458,132 @@ export default function MusicBox({ buildId, edl, canEdit, fixture, speechPct = 0
       )}
       {error && <p className="cbb-err" role="alert"><AlertTriangle size={12} /> {error}</p>}
     </section>
+  );
+}
+
+/**
+ * Which stretch of the sound plays under this video: the whole sound drawn
+ * from its own levels, this video's stretch marked on it. Drag or use the
+ * slider to move it, listen to it, or let SOCIA pick the strongest stretch
+ * from what it measures (lib/music/bestPart.ts).
+ */
+function SongPart({ url, name, startSec, videoSec, savedSec, canEdit, onStart }: { url: string | null; name: string; startSec: number; videoSec: number; savedSec: number | null; canEdit: boolean; onStart: (sec: number) => void }) {
+  const [a, setA] = useState<TrackAnalysis | null | "reading">("reading");
+  const [moving, setMoving] = useState<number | null>(null);
+  const [picks, setPicks] = useState<{ list: PartPick[]; at: number } | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const audio = useRef<HTMLAudioElement | null>(null);
+  const stopAt = useRef(0);
+
+  useEffect(() => {
+    if (!url) { setA(null); return; }
+    let alive = true;
+    setA("reading");
+    analysisOfTrack(url).then((r) => { if (alive) setA(r); });
+    return () => { alive = false; };
+  }, [url]);
+  useEffect(() => () => { audio.current?.pause(); }, []);
+  // Drawn again whenever the strip changes size (it can mount before the panel has its width).
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const c = canvas.current;
+    if (!c || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setWidth(c.clientWidth));
+    ro.observe(c);
+    return () => ro.disconnect();
+  }, [a]);
+
+  const trackSec = a && a !== "reading" ? a.durationSec : savedSec ?? 0;
+  const len = Math.min(videoSec, trackSec);
+  const start = moving ?? clampStart(startSec, trackSec, videoSec);
+  const choice = trackSec > 0 && videoSec > 0 && trackSec > videoSec + NO_CHOICE_SLACK_SEC;
+  const last = latestStart(trackSec, videoSec);
+
+  // The sound's levels as bars, this video's stretch dark, the rest light.
+  useEffect(() => {
+    const c = canvas.current;
+    if (!c || !a || a === "reading" || !choice) return;
+    const dpr = window.devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
+    if (!w || !h) return;
+    if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+    const g = c.getContext("2d"); if (!g) return;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+    const styles = getComputedStyle(c);
+    const ink = styles.getPropertyValue("--ink").trim() || "#111", muted = styles.getPropertyValue("--border").trim() || "#ccc", accent = styles.getPropertyValue("--accent").trim() || "#2a5bd7";
+    const bars = Math.max(40, Math.floor(w / 3)), per = Math.max(1, Math.floor(a.rms.length / bars));
+    let top = 0; for (let i = 0; i < a.rms.length; i++) if (a.rms[i] > top) top = a.rms[i];
+    const X = (t: number) => (t / trackSec) * w, x0 = X(start), x1 = X(start + len);
+    g.fillStyle = accent; g.globalAlpha = 0.12; g.fillRect(x0, 0, x1 - x0, h); g.globalAlpha = 1;
+    for (let b = 0; b < bars; b++) {
+      let m = 0; for (let i = b * per; i < Math.min(a.rms.length, (b + 1) * per); i += 2) if (a.rms[i] > m) m = a.rms[i];
+      const x = (b / bars) * w, ph = Math.max(2, (m / (top || 1)) * (h - 6)), mid = x + w / bars / 2;
+      g.fillStyle = mid >= x0 && mid <= x1 ? ink : muted;
+      g.fillRect(x + 0.5, (h - ph) / 2, Math.max(1, w / bars - 1), ph);
+    }
+    g.fillStyle = accent; g.fillRect(x0 - 1, 0, 2, h); g.fillRect(x1 - 1, 0, 2, h);
+  }, [a, start, len, trackSec, choice, width]);
+
+  const stop = () => { audio.current?.pause(); setPlaying(false); };
+  const listen = () => {
+    if (!url) return;
+    if (playing) { stop(); return; }
+    if (!audio.current) {
+      const el = new Audio(url);
+      el.ontimeupdate = () => { if (el.currentTime >= stopAt.current) { el.pause(); setPlaying(false); } };
+      el.onended = () => setPlaying(false);
+      audio.current = el;
+    }
+    const el = audio.current;
+    stopAt.current = start + len;
+    el.currentTime = start;
+    void el.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+  };
+  const commit = (sec: number) => { stop(); onStart(clampStart(sec, trackSec, videoSec)); };
+  const pick = () => {
+    if (!a || a === "reading") return;
+    // The first press picks the best; each press after gives the next one SOCIA found.
+    const list = picks?.list ?? bestParts(a.rms, videoSec, a.beat).picks;
+    const at = picks ? (picks.at + 1) % list.length : 0;
+    setPicks({ list, at });
+    commit(list[at].startSec);
+  };
+
+  const secAt = (e: React.PointerEvent<HTMLCanvasElement>) => { const r = e.currentTarget.getBoundingClientRect(); return ((e.clientX - r.left) / r.width) * trackSec; };
+  const reading = a === "reading";
+
+  if (!videoSec) return null;
+  if (!choice) {
+    return trackSec > 0
+      ? <small className="sd-part-note">“{name}” is {fmtClock(trackSec)} and this video is {fmtClock(videoSec)}, so it plays from the start. Save a longer part of the song to choose which stretch plays.</small>
+      : null;
+  }
+  const shown = picks && picks.list[picks.at]?.startSec === start ? picks.list[picks.at] : null;
+  return (
+    <div className="sd-part">
+      <div className="sd-part-head">
+        <span>Part of the song</span>
+        <em>{fmtClock(start)} to {fmtClock(start + len)} of {fmtClock(trackSec)}</em>
+      </div>
+      {reading ? <p className="cbm-muted"><Loader2 size={12} className="spin" /> Reading the sound…</p>
+        : a == null ? <p className="cbm-muted">The sound couldn&apos;t be read in this browser. Use the slider to choose where it starts.</p>
+        : (
+          <canvas
+            ref={canvas}
+            className="sd-wave sd-part-wave"
+            aria-hidden
+            onPointerDown={(e) => { if (!canEdit) return; e.currentTarget.setPointerCapture(e.pointerId); stop(); setMoving(clampStart(secAt(e) - len / 2, trackSec, videoSec)); }}
+            onPointerMove={(e) => { if (moving == null) return; setMoving(clampStart(secAt(e) - len / 2, trackSec, videoSec)); }}
+            onPointerUp={() => { if (moving == null) return; const m = moving; setMoving(null); setPicks(null); commit(m); }}
+            onPointerCancel={() => setMoving(null)}
+          />
+        )}
+      <input className="sd-part-slider" type="range" min={0} max={last} step={0.5} value={start} disabled={!canEdit} aria-label="Where the music starts in the song" aria-valuetext={`Starts at ${fmtClock(start)}`} onChange={(e) => { setPicks(null); commit(Number(e.target.value)); }} />
+      <div className="sd-part-actions">
+        <button type="button" className="ov-btn ghost small" disabled={!url} onClick={listen}>{playing ? <Pause size={12} /> : <Play size={12} />} {playing ? "Stop" : "Listen to this part"}</button>
+        {canEdit && <button type="button" className="ov-btn ghost small" disabled={reading || a == null} onClick={pick}><Music size={12} /> {picks ? "Try another part" : "Pick the best part for me"}</button>}
+      </div>
+      {shown?.reason && <small className="sd-part-why" role="status">{shown.reason}{picks && picks.list.length > 1 ? ` Choice ${picks.at + 1} of ${picks.list.length}.` : ""}</small>}
+    </div>
   );
 }
