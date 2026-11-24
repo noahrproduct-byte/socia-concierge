@@ -11,6 +11,8 @@ export type Deliverable = {
   headline: string; // one-line diagnosis
   /** The person's own ideas (lib/planIdeas.ts) that no post of this plan was made from. Set by SOCIA, not the model. */
   ideasLeft?: string[];
+  /** A plan built one day at a time (lib/planSteps.ts): where each day stands. Absent on plans built in one go. */
+  build?: PlanBuild;
   auditSummary: string; // 2-4 sentence plain-English read
   strengths: string[];
   problems: { issue: string; evidence: string; impact: string }[];
@@ -100,6 +102,43 @@ import type { ProductionGuide } from "./studioGuide";
  * (lib/storyboardDraw.ts): the image job while it draws, then the stored drawing's path in the owner's
  * ai-media folder (turned into a link on the server, never used as one directly).
  */
+/** A day's short idea, before its full post is written (lib/planSteps.ts). */
+export type IdeaCard = { title: string; pillar: string; description: string; format: string; template?: "compare" | "counter" | "words"; /** Animated days only: the first line a viewer reads. */ hook?: string; fromIdea?: number };
+
+/** One day of a plan built one day at a time. `key` is the day its post is saved under ("Monday", "Monday (animated)"). */
+export type BuildSlot = {
+  key: string;
+  /** 0 Monday to 6 Sunday. */
+  weekday: number;
+  kind: "filmed" | "animated";
+  slot?: 1 | 2;
+  /** waiting: no idea yet; reviewing: the person decides; writing: accepted, its full post is being written; done; failed: the post couldn't be written. */
+  state: "waiting" | "reviewing" | "writing" | "done" | "failed";
+  idea?: IdeaCard;
+  /** Ideas shown for this day before the current one. */
+  earlier: IdeaCard[];
+  /** "Try another idea" used for this day. */
+  tries: number;
+  /** Attempts at writing the full post. */
+  writes?: number;
+  /** The weeklyPlan item written for it. */
+  itemId?: string;
+  error?: string;
+};
+
+export type PlanBuild = {
+  v: 1;
+  /** Goes up by one with every save, so two saves at once never overwrite each other (lib/planStepsServer.ts). */
+  rev: number;
+  status: "building" | "done";
+  startedAt: string;
+  /** The form as it was when the plan started, so every step reads the same brief. */
+  input: GenerateInput;
+  slots: BuildSlot[];
+  /** The week-level read (headline, audit, fixes, competitors), written once every day is approved. */
+  audit?: "writing" | "done" | "failed";
+};
+
 export type PlanBeat = { label: string; from: number; to: number; show: string; say?: string; frameJob?: string; frame?: string };
 
 /**

@@ -71,7 +71,12 @@ Rules:
 - A "claude" post is made entirely on a computer, with no filming and no footage of the person: only the kinds listed under "Videos their Claude may make" (animated graphics and animated text when none are listed). Its format is Reel, or Carousel for a photo slideshow. Its direction says, concretely, what is on screen scene by scene and the text that appears; its production says "Made by your Claude:" and the kind of video, with no gear or filming. Its evidence and rationale follow the same rules as every other post.
 - ${FILMING_DIRECTION_RULE}`;
 
-export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null, evidence?: Evidence | null): string {
+/**
+ * The plan prompt. With `context: true` it is only what every step of a plan built one day at a time shares
+ * (lib/planSteps.ts): the account, its evidence and settings, without the week's post count, the person's
+ * ideas or the task, which each step adds after it, so this part can be cached between steps.
+ */
+export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null, evidence?: Evidence | null, opts: { context?: boolean } = {}): string {
   const parts: string[] = [];
   parts.push(`# My account`);
   parts.push(`Account / handle: ${input.clientHandle || "(not given)"}`);
@@ -87,7 +92,7 @@ export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null
   if (brandBlock) parts.push(brandBlock);
 
   // The videos the person typed on the Planner: each one is a post of the week (lib/planIdeas.ts).
-  const ideas = ideasBlock(cleanIdeas(input.ideas), input.onCamera);
+  const ideas = opts.context ? "" : ideasBlock(cleanIdeas(input.ideas), input.onCamera);
   if (ideas) parts.push(ideas);
 
   // The Growth Strategy (lib/strategy.ts): the week is built from it.
@@ -209,6 +214,8 @@ Every post the person films (not an animated one) gets an example to film from (
       `Use this. Keep and build on what beat the median (same format and hook structure, a new angle). Change what fell short: a different format, hook or topic, and say what you changed. A planned post that was never made is a signal about effort, not about the idea: re-propose it at most once, simplified so it is easier to film, and only if it still fits the goal. For every post in the new plan whose idea follows from a previous result, say so in its evidence field (for example "Follows last week's Friday Reel, which did 2.1× the median").`,
     );
   }
+
+  if (opts.context) return parts.join("\n");
 
   // The number of filmed posts the person chose (or their last plan's, lib/planMix.ts) beats every general rule above.
   if (input.onCamera != null) {

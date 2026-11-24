@@ -56,6 +56,7 @@ import PlanNotice, { UsageLine } from "@/components/PlanNotice";
 import { Button, ButtonLink, IconButton, ReelRefNote } from "@/components/system";
 import { DecisionTag, ItemDialog, RejectDialog, RejectedNote } from "@/components/plan/PlanItemControls";
 import DrawStoryboard from "@/components/plan/DrawStoryboard";
+import StepPlan, { stillBuilding } from "@/components/plan/StepPlan";
 import { cleanIdeas, MAX_IDEAS_TEXT } from "@/lib/planIdeas";
 import { FilmExample, PlanTrack, WeekStrip, beatsLength, builtOn, type StripItem } from "@/components/plan/PostFocus";
 import { planStage, postBuilderHref } from "@/lib/planStage";
@@ -70,8 +71,6 @@ import { Tabs, TabList, Tab, TabPanel } from "@/components/system";
 import type { GrowthStrategy } from "@/lib/strategy";
 import PlanMixControls, { type MixValue } from "@/components/plan/PlanMixControls";
 import PlanCompetitors from "@/components/plan/PlanCompetitors";
-import PlanBuilding, { newBuild, type BuildState } from "@/components/plan/PlanBuilding";
-import { typicalSeconds, type PlanEvent } from "@/lib/planProgress";
 import type { PlanCompetitor } from "@/lib/planEvidence";
 import type { PlanMix } from "@/lib/planMix";
 import { AuditSection, CompetitorSection, OverviewSection, PLAN_SECTIONS, StrategySection, formatLabel, weekOrder, type PlanSectionId } from "@/components/plan/PlanSections";
@@ -160,8 +159,6 @@ export default function ContentPlanClient({ context, canSchedule = true, initial
   // The competitors this plan builds on; unticked ones are left out of this plan only.
   const [competitors, setCompetitors] = useState<PlanCompetitor[]>(context.competitors);
   const [skip, setSkip] = useState<Set<string>>(new Set());
-  // Each step of the build as the server reports it (lib/planProgress.ts).
-  const [build, setBuild] = useState<BuildState>(newBuild);
   // With a plan open the settings step aside; "New plan" brings them back.
   const [setup, setSetup] = useState(false);
   useEffect(() => {
@@ -215,69 +212,31 @@ export default function ContentPlanClient({ context, canSchedule = true, initial
     );
   }
 
-  function onEvent(e: PlanEvent) {
-    setBuild((b) => {
-      if (e.type === "step") return { ...b, live: true, steps: { ...b.steps, [e.step]: e.state } };
-      if (e.type === "found") return { ...b, live: true, found: { competitors: e.competitors, reels: e.reels, posts: e.posts } };
-      if (e.type === "posts") return { ...b, live: true, posts: { started: e.started, total: e.total, firstAt: b.posts?.firstAt ?? Date.now() } };
-      return b;
-    });
-  }
-
-  function finish(json: { data?: unknown; saved?: unknown; usage?: unknown }) {
-    if (json.usage) setUsage(json.usage as UsageSnapshot);
-    setResult({ data: json.data as Deliverable, id: (json.saved as SavedPlan | null)?.id ?? null });
-    if (json.saved) setHistory((h) => [json.saved as SavedPlan, ...h]);
-  }
-
+  // A plan is built one day at a time (lib/planSteps.ts): starting it writes only the first day's idea.
   async function generate() {
     setLoading(true);
     setError(null);
     setPlanError(null);
     setResult(null);
-    setBuild(newBuild());
     try {
-      const res = await fetch("/api/generate", {
+      const res = await fetch("/api/plan/steps", {
         method: "POST",
-        // Asks the server to report each step as it happens.
-        headers: { "Content-Type": "application/json", "x-plan-progress": "1" },
+        headers: { "Content-Type": "application/json" },
         // Timing is computed here, in the viewer's time zone, from real posts.
-        body: JSON.stringify({ ...form, ...mix, skipCompetitors: [...skip], audienceWindows: audienceWindowsText(context.posts) }),
+        body: JSON.stringify({ action: "start", ...form, ...mix, skipCompetitors: [...skip], audienceWindows: audienceWindowsText(context.posts) }),
       });
-      if (res.ok && res.body && (res.headers.get("content-type") ?? "").includes("ndjson")) {
-        const reader = res.body.getReader();
-        const dec = new TextDecoder();
-        let buf = "";
-        let ended = false;
-        for (;;) {
-          const { value, done } = await reader.read();
-          buf += dec.decode(value ?? new Uint8Array(), { stream: !done });
-          let nl;
-          while ((nl = buf.indexOf("\n")) >= 0) {
-            const line = buf.slice(0, nl).trim();
-            buf = buf.slice(nl + 1);
-            if (!line) continue;
-            const e = JSON.parse(line) as PlanEvent;
-            if (e.type === "done") { finish(e as { data?: unknown; saved?: unknown; usage?: unknown }); ended = true; }
-            else if (e.type === "error") {
-              ended = true;
-              if (isPlanError(e.body)) setPlanError(e.body);
-              else throw new Error((e.body as { error?: string } | null)?.error || "The plan couldn't be built. Try again in a minute.");
-            } else onEvent(e);
-          }
-          if (done) break;
-        }
-        if (!ended) throw new Error("The connection closed before the plan was ready. Check Recent plans, then try again.");
-        return;
-      }
-      const json = await res.json();
+      const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (isPlanError(json)) { setPlanError(json); return; }
-        throw new Error(json.error || "The plan couldn't be built just now. It didn't use up a plan. Try again.");
+        throw new Error((json as { error?: string }).error || "The plan couldn't be started just now. It didn't use up a plan. Try again.");
       }
-      finish(json);
+      const saved = (json as { plan: SavedPlan }).plan;
+      if ((json as { usage?: unknown }).usage) setUsage((json as { usage: UsageSnapshot }).usage);
+      setResult({ data: saved.data, id: saved.id });
+      setHistory((h) => [saved, ...h]);
+      setSetup(false);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "The plan couldn't be built just now. Try again.");
+      setError(e instanceof Error ? e.message : "The plan couldn't be started just now. Try again.");
     } finally {
       setLoading(false);
     }
@@ -455,7 +414,7 @@ export default function ContentPlanClient({ context, canSchedule = true, initial
           <button className="cpl-generate" onClick={generate} disabled={loading} type="button">
             {loading ? (
               <>
-                <span className="cpl-btn-spin" aria-hidden /> Building your plan…
+                <span className="cpl-btn-spin" aria-hidden /> Starting your plan…
               </>
             ) : (
               <>
@@ -481,7 +440,7 @@ export default function ContentPlanClient({ context, canSchedule = true, initial
                   }}
                 >
                   <b>{h.client_handle || h.niche || "Untitled plan"}</b>
-                  <small>{new Date(h.created_at).toLocaleDateString()}</small>
+                  <small>{new Date(h.created_at).toLocaleDateString()}{stillBuilding(h.data) ? ", in progress" : ""}</small>
                   {outcomes.find((o) => o.planId === h.id)?.line && (
                     <span className="cpl-recent-outcome">{outcomes.find((o) => o.planId === h.id)!.line}</span>
                   )}
@@ -494,7 +453,12 @@ export default function ContentPlanClient({ context, canSchedule = true, initial
         {/* plan stage */}
         <section className="cpl-stage">
           {loading ? (
-            <PlanBuilding build={build} onCamera={mix.onCamera} animated={mix.animated} typical={typicalSeconds(history.map((h) => h.data?.buildSeconds))} />
+            <div className="sp-start" role="status"><span className="cpl-btn-spin" aria-hidden /> Writing the first day&apos;s idea</div>
+          ) : result?.id && stillBuilding(result.data) ? (
+            <StepPlan planId={result.id} data={result.data} onChange={(data) => {
+              setResult((r) => (r && r.id === result.id ? { ...r, data } : r));
+              setHistory((h) => h.map((p) => (p.id === result.id ? { ...p, data } : p)));
+            }} />
           ) : result ? (
             <Report data={result.data} planId={result.id} posts={context.posts} canSchedule={canSchedule} strategy={context.strategy} goal={context.profile.goal} animatedOn={Boolean(context.animatedOn) || result.data.weeklyPlan.some((p) => p.animated)} onUpdate={(data) => setResult((r) => (r ? { ...r, data } : r))} />
           ) : (
@@ -504,8 +468,8 @@ export default function ContentPlanClient({ context, canSchedule = true, initial
               </div>
               <h2>Your plan appears here.</h2>
               <p>
-                Hit Generate and you&apos;ll get a plan of {total} {total === 1 ? "post" : "posts"} with score, timing,
-                hooks, content ideas, and more.
+                Generate a plan of {total} {total === 1 ? "post" : "posts"} one day at a time: SOCIA suggests each day&apos;s
+                video, and you keep it, ask for another or change it before the next.
               </p>
 
               <div className="cpl-caps">

@@ -1,18 +1,12 @@
 import { NextResponse } from "next/server";
 import { firstTooLong, tooLongResponse } from "@/lib/inputLimits";
-import { getProfile } from "@/lib/profile";
 import type { GenerateInput } from "@/lib/schema";
 import { generatePlan, PlanGenerationError } from "@/lib/planGenerate";
 import { DeadlineError, TOOK_TOO_LONG, deadlineFor, withDeadline } from "@/lib/deadline";
 import { createClient } from "@/lib/supabase/server";
-import { getIgSnapshot } from "@/lib/instagramSync";
-import { loadEvidence, type Evidence } from "@/lib/planEvidence";
 import { requireUsage } from "@/lib/planGuard";
-import { resolveContext, brandWorkspace } from "@/lib/context";
-import { competitorScopeId } from "@/lib/workspaces";
-import { recentPlanOutcomes } from "@/lib/planOutcomesLoad";
-import { resolveMix } from "@/lib/planMix";
-import { startingMix } from "@/lib/planMixLoad";
+import { resolveContext } from "@/lib/context";
+import { loadPlanContext, planMixFor } from "@/lib/planContext";
 import type { PlanEvent } from "@/lib/planProgress";
 
 export const runtime = "nodejs";
@@ -68,17 +62,12 @@ export async function POST(req: Request) {
     );
   }
 
-  // Competitors unticked on the form: handles only, a bounded list.
-  const skip = Array.isArray(input.skipCompetitors)
-    ? input.skipCompetitors.filter((h): h is string => typeof h === "string" && h.length > 0 && h.length <= 80).slice(0, 60)
-    : [];
-
   // The plan is built step by step; the page asks to hear each step as it
   // happens (lib/planProgress.ts) with this header, and gets one JSON object
   // a line. Without it the answer is a single JSON response, as before.
   const live = req.headers.get("x-plan-progress") === "1";
   if (!live) {
-    const r = await build(ctx, input, skip, () => {});
+    const r = await build(ctx, input, () => {});
     return NextResponse.json(r.body, { status: r.status });
   }
   const enc = new TextEncoder();
@@ -88,7 +77,7 @@ export async function POST(req: Request) {
         try { controller.enqueue(enc.encode(JSON.stringify(e) + "\n")); } catch { /* the page went away */ }
       };
       try {
-        const r = await build(ctx, input, skip, send);
+        const r = await build(ctx, input, send);
         send(r.status === 200 ? { type: "done", ...(r.body as { data: unknown; saved: unknown; usage: unknown }) } : { type: "error", status: r.status, body: r.body });
       } catch (err) {
         send({ type: "error", status: 500, body: { error: err instanceof Error ? err.message : "Unexpected error generating the plan." } });
@@ -103,38 +92,18 @@ export async function POST(req: Request) {
 type Built = { status: number; body: unknown };
 
 /** Everything after the request checks: read the evidence, count the use, build and save the plan. */
-async function build(ctx: Awaited<ReturnType<typeof resolveContext>>, input: GenerateInput, skip: string[], send: (e: PlanEvent) => void): Promise<Built> {
+async function build(ctx: Awaited<ReturnType<typeof resolveContext>>, input: GenerateInput, send: (e: PlanEvent) => void): Promise<Built> {
   // The user's saved brand & strategist settings sharpen the plan, and the
   // evidence SOCIA already holds (posts, competitors, winning content) is what
   // the strategist reasons over. All best-effort: generation still works with
   // the typed brief alone, and the plan records what it was built from.
   send({ type: "step", step: "ideas", state: "active" });
-  let brand = null;
-  let evidence: Evidence | null = null;
-  try {
-    brand = (await getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)))?.brand_detail ?? null;
-    const snap = await getIgSnapshot(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null).catch(() => null);
-    // The last two plans and what became of them, so the strategist learns
-    // from what was posted, skipped, and how each post did.
-    const outcomes = await recentPlanOutcomes(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null).catch(() => []);
-    evidence = await loadEvidence(ctx.client, ctx.ownerId, snap, await competitorScopeId(ctx.client, ctx.workspace?.id), { outcomes, strategy: brand?.strategy ?? null, location: brand?.location ?? null, skip, brandWorkspaceId: ctx.workspace?.id ?? null, timeZone: brand?.timezone ?? null, discover: (brand as { discover?: unknown } | null)?.discover });
-    evidence.used.windows = Boolean(input.audienceWindows?.trim());
-  } catch {
-    // generation still works without settings or evidence
-  }
+  const { brand, evidence } = await loadPlanContext(ctx, input);
   send({ type: "found", competitors: evidence?.used.competitors ?? 0, reels: evidence?.proven?.length ?? 0, posts: evidence?.used.posts ?? 0 });
   send({ type: "step", step: "ideas", state: "done" });
 
-  // How many filmed and animated posts: what the form sent, made safe, with the
-  // brand's last plan as the fallback (lib/planMix.ts). No animated posts on a
-  // plan without animated videos.
-  try {
-    const start = await startingMix(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, brand);
-    const mix = resolveMix({ onCamera: input.onCamera, animated: input.animated }, start.mix, start.animatedAllowed);
-    input = { ...input, onCamera: mix.onCamera, animated: mix.animated };
-  } catch {
-    input = { ...input, onCamera: undefined, animated: undefined };
-  }
+  // How many filmed and animated posts (lib/planContext.ts planMixFor).
+  input = await planMixFor(ctx, input, brand);
 
   // Weekly plans are a Starter feature, and each one counts against the
   // period's allowance. Counted right before the model is called, and given
