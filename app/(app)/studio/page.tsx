@@ -26,10 +26,10 @@ export const metadata = { title: "Content Studio | SOCIA" };
 // (?mode=guide) is opened from a planned post. Build (?mode=clips) is no
 // longer a tab: a link to one of its projects still opens it, so nothing made
 // there is stranded; without a project the link lands in the Video editor.
-export default async function StudioPage({ searchParams }: { searchParams: Promise<{ mode?: string; project?: string; plan?: string; i?: string; format?: string }> }) {
+export default async function StudioPage({ searchParams }: { searchParams: Promise<{ mode?: string; project?: string; plan?: string; i?: string; format?: string; brief?: string; about?: string }> }) {
   const { supabase, user } = await getViewer();
   if (!user) redirect("/login");
-  const { mode, plan, i, format, project } = await searchParams;
+  const { mode, plan, i, format, project, brief, about } = await searchParams;
   if ((mode === "clips" || mode === "autopost") && !project) redirect("/studio?mode=edit");
 
   // The Video editor tile asks first: animate a video from a prompt, or edit clips (Umar, 2026-11-21).
@@ -57,11 +57,13 @@ export default async function StudioPage({ searchParams }: { searchParams: Promi
   if (mode === "clips" || mode === "autopost" || mode === "edit" || mode === "audio") {
     const variant = mode === "edit" ? "edit" : mode === "audio" ? "audio" : "build";
     // A planned post opened in the editor (Dashboard "Yes, open the editor", the Planner): its plan becomes the prompt.
-    let fromPlan: { title: string; day: string; prompt: string } | null = null;
+    let fromPlan: { title: string; day: string; prompt: string; from?: "post" } | null = null;
     if (variant === "edit" && plan && i != null && /^\d{1,2}$/.test(i)) {
       const post = await planPost(await resolveContext(supabase, user.id), plan, Number(i)).catch(() => null);
       if (post) fromPlan = { title: planPostTitle(post), day: post.day, prompt: editorBrief(post) };
     }
+    // A published post's diagnosis (lib/postDiagnosis.ts, "Make a better opening"): its brief, as written there.
+    if (variant === "edit" && !fromPlan && brief?.trim()) fromPlan = { title: (about ?? "").trim().slice(0, 80) || "your post", day: "", prompt: brief.trim().slice(0, 1500), from: "post" };
     return (
       <Suspense fallback={null}>
         <ClipsStudio key={variant} viewerId={user.id} modeTabs={<StudioMode mode={variant === "build" ? "clips" : variant} />} variant={variant} fromPlan={fromPlan} />

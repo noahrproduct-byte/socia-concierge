@@ -56,7 +56,7 @@ const errCopy = (e: unknown): string => {
 export default function ClipsStudio({ viewerId, modeTabs, variant = "build", fromPlan = null }: {
   viewerId: string; modeTabs?: ReactNode;
   /** A planned post opened in the editor: its plan, written as the prompt (lib/planEditorBrief.ts). */
-  fromPlan?: { title: string; day: string; prompt: string } | null;
+  fromPlan?: { title: string; day: string; prompt: string; from?: "post" } | null;
   /** build: SOCIA understands the clips as soon as they're in and leads with Make and schedule. edit: the person's videos, and new footage opens straight in the editor. audio: a video dropped here opens on Music, with a track added from the brand's taste. */
   variant?: "build" | "edit" | "audio";
 }) {
@@ -583,7 +583,9 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build", fro
       {quickScreen && (
         <div className="cb-editor cb-editor-quick">
           {fromPlan && !quick && (
-            <p className="qe-from-plan" role="status"><b>From your plan: {fromPlan.title}</b> ({fromPlan.day}). Its shots, opening line and ending are in How do you want it below. Drop your clips and SOCIA cuts them to it; change the words first if you filmed it differently.</p>
+            fromPlan.from === "post"
+              ? <p className="qe-from-plan" role="status"><b>A new version of {fromPlan.title}</b>. What to change, from how that post did, is in How do you want it below. Drop your clips and SOCIA cuts them to it.</p>
+              : <p className="qe-from-plan" role="status"><b>From your plan: {fromPlan.title}</b> ({fromPlan.day}). Its shots, opening line and ending are in How do you want it below. Drop your clips and SOCIA cuts them to it; change the words first if you filmed it differently.</p>
           )}
           <QuickEdit
             key={quick?.id ?? "drop"}

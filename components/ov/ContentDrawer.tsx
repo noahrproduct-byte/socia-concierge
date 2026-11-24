@@ -12,6 +12,7 @@ import { trialLine } from "@/lib/publishing/trial";
 import DeleteOnPlatform, { useDeleteInfo, type DeleteInfo } from "@/components/DeleteOnPlatform";
 import { deletedLine } from "@/lib/platformDelete/types";
 import { postVerdicts, standout } from "@/lib/postVerdicts";
+import { postDiagnosis } from "@/lib/postDiagnosis";
 import "@/app/(app)/dashboard/dashboard-week.css";
 
 type MediaDeleteAnswer = { canDelete: boolean; target: DeleteInfo };
@@ -56,6 +57,7 @@ export default function ContentDrawer({ post, posts, baseline, medianViews, onCl
   const verdicts = p && posts ? postVerdicts(p, posts) : null;
   const tag = p ? standout(p) : null;
   const w = p ? why(p, baseline, medianViews) : null;
+  const dx = p && posts && posts.length > 3 ? postDiagnosis(p, posts) : null;
   // A post this account posted can be deleted from its platform here: an
   // Instagram post or Reel, a Facebook Page post, a YouTube video or Short (a
   // collab post another account posted cannot). Asked only while open.
@@ -108,14 +110,27 @@ export default function ContentDrawer({ post, posts, baseline, medianViews, onCl
               <p>Read from this post&apos;s totals. Instagram does not share where in a video people stop watching.</p>
             </section>
           )}
-          <section className="ov-why">
-            <h3>Why this worked</h3>
-            <div className="ov-why-block"><small>Observed data</small><ul>{w.observed.map((o) => <li key={o}>{o}</li>)}</ul></div>
-            <div className="ov-why-block ai"><small>Possible explanation</small><p>{w.interpretation}</p></div>
-            <div className="ov-why-block rec"><small>Recommendation</small><p>{w.recommendation}</p></div>
-          </section>
+          {dx ? (
+            // With other posts to compare against: the one thing to change next, and the button that starts it (lib/postDiagnosis.ts).
+            <section className="ov-why" aria-labelledby="ov-dx-h">
+              <h3 id="ov-dx-h">{dx.heading}</h3>
+              <p className="ov-dx-title"><b>{dx.title}</b></p>
+              {dx.evidence.length > 0 && <div className="ov-why-block"><small>What the numbers show</small><ul>{dx.evidence.map((o) => <li key={o}>{o}</li>)}</ul></div>}
+              <div className="ov-why-block rec"><small>What to change</small><p>{dx.fix}</p></div>
+              {dx.action && (dx.action.kind === "editor"
+                ? <Link className="ov-btn primary" href={`/studio?mode=edit&about=${encodeURIComponent(p.title.slice(0, 80))}&brief=${encodeURIComponent(dx.action.prompt)}`}><Sparkles size={13} /> {dx.action.label}</Link>
+                : <button type="button" className="ov-btn primary" onClick={() => askSocia({ question: dx.action!.prompt, autoSend: true, context: { page: "post", postId: p.id }, contextLabel: `Post: ${p.title.slice(0, 40)}` })}><Sparkles size={13} /> {dx.action.label}</button>)}
+            </section>
+          ) : (
+            <section className="ov-why">
+              <h3>Why this worked</h3>
+              <div className="ov-why-block"><small>Observed data</small><ul>{w.observed.map((o) => <li key={o}>{o}</li>)}</ul></div>
+              <div className="ov-why-block ai"><small>Possible explanation</small><p>{w.interpretation}</p></div>
+              <div className="ov-why-block rec"><small>Recommendation</small><p>{w.recommendation}</p></div>
+            </section>
+          )}
           <div className="ov-detail-actions">
-            <button type="button" className="ov-btn primary" onClick={() => askSocia({ context: { page: "post", postId: p.id }, contextLabel: `Post: ${p.title.slice(0, 40)}` })}><Sparkles size={13} /> Ask SOCIA about this post</button>
+            <button type="button" className={`ov-btn ${dx?.action ? "ghost" : "primary"}`} onClick={() => askSocia({ context: { page: "post", postId: p.id }, contextLabel: `Post: ${p.title.slice(0, 40)}` })}><Sparkles size={13} /> Ask SOCIA about this post</button>
             {p.permalink && !deletedAt && <a href={p.permalink} target="_blank" rel="noreferrer" className="ov-btn ghost"><ExternalLink size={13} /> View original</a>}
             <Link href={`/plan/calendar?compose=1&caption=${encodeURIComponent(p.title)}`} className="ov-btn ghost"><CalendarPlus size={13} /> Create variation</Link>
             <Link href={`/plan?note=${encodeURIComponent(`Build on "${p.title.slice(0, 60)}" (${p.multiplier != null ? `${p.multiplier.toFixed(1)}× my median` : `${p.engagements} engagements`}).`)}`} className="ov-btn ghost"><Sparkles size={13} /> Add idea to Content Plan</Link>

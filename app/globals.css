@@ -9488,6 +9488,9 @@ html.theme-switching, html.theme-switching body, html.theme-switching * {
 .ov-why-block p { font-size: 13px; line-height: 1.55; color: var(--text-primary); }
 .ov-why-block.ai { border-left-color: var(--primary); }
 .ov-why-block.rec { border-left-color: var(--success); }
+/* The diagnosis's one finding (lib/postDiagnosis.ts), then its evidence and the button that starts the fix. */
+.ov-dx-title { margin: 0 0 10px; font-size: 15px; line-height: 1.4; color: var(--text-primary); }
+.ov-why > .ov-btn { margin-top: 2px; }
 .ov-evidence { margin: 14px 0; }
 .ov-evidence > small { display: block; font-size: 10.5px; font-weight: 750; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
 .ov-evidence-row { display: flex; align-items: center; gap: 10px; padding: 6px; border-radius: 8px; text-decoration: none; color: var(--text-primary); }
