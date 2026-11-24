@@ -17,13 +17,13 @@ import { ExternalLink, Loader2, Plus, Search, Trash2, Users, X } from "lucide-re
 import PageHeader from "@/components/PageHeader";
 import PlanNotice from "@/components/PlanNotice";
 import AddCompetitor from "@/components/competitors/AddCompetitor";
-import { ReelsToCopy } from "@/components/competitors/TrendingNiche";
 import { fmtN } from "@/components/competitors/shared";
 import { fmtRate } from "@/lib/metrics";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import { PLATFORM_WORD } from "@/lib/discoverStyle";
 import type { DiscoverAccount, DiscoverData } from "./types";
 import CopyFrom from "./CopyFrom";
+import ReelFeed from "./ReelFeed";
 
 const GATE_WORD: Record<string, string> = {
   not_business: "Not a Business or Creator account, so Instagram shares nothing about it.",
@@ -190,7 +190,7 @@ export default function DiscoverPage({ d }: { d: DiscoverData }) {
     <div className="cx cx2 dsc">
       <PageHeader
         title="Discover"
-        sub="Your competitors, the Reels of theirs worth copying, and accounts like them to track next."
+        sub="Reels worth making your own version of, the accounts you learn from, and more like them."
         status={reading ? <span className="ov-status"><Loader2 size={12} className="cx-spin" aria-hidden /> Reading your competitors on Instagram</span> : undefined}
         actions={
           <>
@@ -208,6 +208,14 @@ export default function DiscoverPage({ d }: { d: DiscoverData }) {
         </div>
       )}
       {readError && <div className="dsc-note" role="status">{readError}</div>}
+
+      <ReelFeed
+        recommended={d.recommended} trending={d.trending} trendingNext={d.trendingNext} adapted={d.adapted}
+        now={d.now} nicheAccess={d.nicheAccess} nicheUpgrade={d.nicheUpgrade}
+        emptyWhy={d.igEnabled || d.ytConfigured
+          ? d.competitors.length ? "None of the Reels SOCIA has read went viral in the last 30 days yet. Track more accounts, or wait for SOCIA to finish reading them." : "Track a few competitors above and SOCIA fills this with their best Reels and others like them."
+          : "Link a Facebook Page to your Instagram so SOCIA can read Reels."}
+      />
 
       <section className="ov-card cx2-card" aria-labelledby="dsc-comp">
         <div className="cx2-card-head">
@@ -250,7 +258,6 @@ export default function DiscoverPage({ d }: { d: DiscoverData }) {
 
       <CopyFrom accounts={d.copyFrom} limit={d.limit} onChanged={startRead} />
 
-      <ReelsToCopy d={{ nicheAccess: d.nicheAccess, nicheUpgrade: d.nicheUpgrade, now: d.now, reelsToCopy: d.reelsToCopy, nicheReels: d.nicheReels, styleReels: d.styleReels, ownStyle: d.ownStyle, viralFrom: d.viralFrom, viralWho: d.viralWho, reelsRead: d.reelsRead, ytConfigured: d.ytConfigured, ig: { enabled: d.igEnabled } }} />
 
       <section ref={sugRef} className="ov-card cx2-card" aria-labelledby="dsc-sug">
         <div className="cx2-card-head">
