@@ -478,7 +478,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
               <h2>What you get back</h2>
               <ul>
                 <li><b>A creative readiness score you can read</b><span>Hook, structure, pacing, clarity, visuals, caption readability, audio, call to action and goal fit, each with its evidence and a fix. Nothing unmeasurable is scored.</span></li>
-                <li><b>Predicted views, marked low confidence</b><span>A rough guide that places the video within your own Reels' range. SOCIA checks it against the real result once you post; no one can put a number on a breakout.</span></li>
+                <li><b>Predicted views, marked low confidence</b><span>A rough guide that places the video within your own Reels&apos; range. SOCIA checks it against the real result once you post; no one can put a number on a breakout.</span></li>
                 <li><b>What to fix first, and why</b><span>Up to five changes in priority order, each with the evidence behind it, and a timeline where you click a moment and the video jumps there.</span></li>
                 <li><b>Hook Lab, captions, CTAs, cuts</b><span>Ready-to-use lines in your voice; you choose, nothing is overwritten.</span></li>
                 <li><b>Compared with your winners</b><span>{connected ? `Against the cover frames and captions of your top posts (${postsSynced} synced).` : "Connect Instagram to compare against your own top posts."}</span></li>
