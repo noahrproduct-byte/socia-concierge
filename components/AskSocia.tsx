@@ -136,6 +136,8 @@ function AnswerView({ a, onProposal, applied, setApplied, onPlaceScanned, onAddC
         <div className="ask-next">
           {nextSteps(a).map((t) => <button key={t} type="button" className="ov-btn ghost small" onClick={() => onAsk(t)}>{t}</button>)}
           <a className="ov-btn ghost small" href={`/plan?note=${encodeURIComponent(`${a.draft.title}: ${a.draft.body.slice(0, 300)}`)}`}>Add to Content Plan</a>
+          {/* The script as written here goes to the editor as its brief, without being written again (or charged again). */}
+          {isFilmedScript(a.draft) && <a className="ov-btn ghost small" href={`/studio?mode=edit&about=${encodeURIComponent(a.draft.title.slice(0, 80))}&brief=${encodeURIComponent(a.draft.body.slice(0, 1500))}`}>Open in the editor</a>}
         </div>
       )}
       {onAddClips && isFilmedScript(a.draft) && (

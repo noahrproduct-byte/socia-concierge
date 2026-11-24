@@ -58,6 +58,7 @@ import { DecisionTag, ItemDialog, RejectDialog, RejectedNote } from "@/component
 import DrawStoryboard from "@/components/plan/DrawStoryboard";
 import StepPlan, { stillBuilding } from "@/components/plan/StepPlan";
 import { cleanIdeas, MAX_IDEAS_TEXT } from "@/lib/planIdeas";
+import ContentIdeas from "@/components/plan/ContentIdeas";
 import { FilmExample, PlanTrack, WeekStrip, beatsLength, builtOn, type StripItem } from "@/components/plan/PostFocus";
 import { planStage, postBuilderHref } from "@/lib/planStage";
 import { animatedHour, weekdayOf } from "@/lib/animated/day";
@@ -454,6 +455,8 @@ export default function ContentPlanClient({ context, canSchedule = true, initial
 
         {/* plan stage */}
         <section className="cpl-stage">
+          {/* One video at a time, above the week (components/plan/ContentIdeas.tsx). */}
+          <ContentIdeas />
           {loading ? (
             <div className="sp-start" role="status"><span className="cpl-btn-spin" aria-hidden /> Writing the first day&apos;s idea</div>
           ) : result?.id && stillBuilding(result.data) ? (
