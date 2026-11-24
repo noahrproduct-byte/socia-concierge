@@ -38,7 +38,7 @@ import { timeline } from "@/lib/studioClips/timeline";
 import { speechShare, speechSpans } from "@/lib/studioClips/musicDuck";
 import { autoLook, wantsAutoLook } from "@/lib/studioClips/autoLook";
 import type { ClipMeasure } from "@/lib/studioClips/measure";
-import { alignToBeats } from "@/lib/studioClips/beats";
+import { alignToBeats, beatFromStart } from "@/lib/studioClips/beats";
 import { beatOfTrack } from "@/lib/studioClips/beatClient";
 import { clipsForEdl } from "@/lib/studioClips/clientClips";
 import type { Beat } from "@/lib/audio/features";
@@ -383,14 +383,17 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   useEffect(() => { if (data?.voice) setVoiceUrls((u) => ({ ...data.voice, ...u })); }, [data?.voice]);
   const voiceOn = Boolean(edl?.voiceover?.on && edl.voiceover.lines.some((l) => l.path && voiceUrls[l.path]));
   // The track's beat, measured here from the track itself (lib/studioClips/beat.ts); none when it can't be heard.
-  const [beat, setBeat] = useState<(Beat & { trackId: string }) | null>(null);
+  const [trackBeat, setTrackBeat] = useState<(Beat & { trackId: string }) | null>(null);
   useEffect(() => {
     const id = edl?.soundtrack?.trackId;
-    if (!id || !musicUrl) { setBeat(null); return; }
+    if (!id || !musicUrl) { setTrackBeat(null); return; }
     let alive = true;
-    beatOfTrack(musicUrl).then((b) => { if (alive) setBeat(b ? { ...b, trackId: id } : null); });
+    beatOfTrack(musicUrl).then((b) => { if (alive) setTrackBeat(b ? { ...b, trackId: id } : null); });
     return () => { alive = false; };
   }, [edl?.soundtrack?.trackId, musicUrl]);
+  // The beat as this video hears it: its music starts at its own part of the track (Soundtrack.startSec).
+  const musicStart = edl?.soundtrack?.startSec ?? 0;
+  const beat = useMemo(() => (trackBeat ? beatFromStart(trackBeat, musicStart) : null), [trackBeat, musicStart]);
   // What a viewer would notice, checked again after every change (lib/studioClips/cutCheck.ts).
   const check = useMemo(() => (edl ? checkCut(edl, clipsForEdl(sources)) : null), [edl, sources]);
   // The pacing score, held down while the check has found something.
@@ -408,11 +411,15 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   }, [sources]);
   // Once per track chosen in this session: the cuts land on its beat (one undo step).
   const snappedFor = useRef<string | null>(null);
+  // Choosing another part of the track moves its beat, so the cuts land on it again once the choice settles
+  // (a slider drag is one snap, not one per step).
   useEffect(() => {
-    if (!beat || !data?.canEdit || snappedFor.current === beat.trackId) return;
-    snappedFor.current = beat.trackId;
-    snapToBeat(beat);
-  }, [beat, data?.canEdit, snapToBeat]);
+    const key = beat ? `${beat.trackId}@${musicStart}` : null;
+    if (!beat || !key || !data?.canEdit || snappedFor.current === key) return;
+    const first = !snappedFor.current?.startsWith(`${beat.trackId}@`);
+    const t = window.setTimeout(() => { snappedFor.current = key; snapToBeat(beat); }, first ? 0 : 700);
+    return () => window.clearTimeout(t);
+  }, [beat, musicStart, data?.canEdit, snapToBeat]);
   // Background noise reduced in this browser, per clip (lib/studioClips/cleanSound.ts); the preview and the export play it.
   const [cleanAudio, setCleanAudio] = useState<Record<string, string>>({});
   const [cleaning, setCleaning] = useState<{ done: number; total: number } | null>(null);
@@ -1444,6 +1451,9 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                 onSoundtrack={(st) => setEdl((e) => { if (!e) return e; if (st) return { ...e, soundtrack: st }; const { soundtrack: _drop, ...rest } = e; void _drop; return rest; })}
                 onLevels={(musicVolume, originalVolume) => { setEdl((e) => (e?.soundtrack ? { ...e, soundtrack: { ...e.soundtrack, musicVolume, originalVolume } } : e)); setDirty(true); }}
                 onDuck={(on) => { setEdl((e) => { if (!e?.soundtrack) return e; const { duck: _old, ...st } = e.soundtrack; void _old; return { ...e, soundtrack: on ? { ...st, duck: true } : st }; }); setDirty(true); }}
+                onStart={(sec) => { setEdl((e) => { if (!e?.soundtrack) return e; const { startSec: _old, ...st } = e.soundtrack; void _old; return { ...e, soundtrack: sec > 0 ? { ...st, startSec: Math.round(sec * 10) / 10 } : st }; }); setDirty(true); }}
+                videoSec={tl?.durationSec ?? 0}
+                trackUrl={musicUrl}
                 speechPct={speechPct}
               />
               <AudioPanel canEdit={data.canEdit && !busy} current={edl.music} onUse={(line) => commit({ ...edl, music: line })} />

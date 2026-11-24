@@ -27,7 +27,10 @@ import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import { fileLabel } from "@/lib/publishing/postLabel";
 import { cutSpeaks, startLevels } from "@/lib/music/taste";
 import type { Track } from "@/lib/music/tracks";
-import { beatOfTrack } from "@/lib/studioClips/beatClient";
+import { analysisOfTrack, beatOfTrack } from "@/lib/studioClips/beatClient";
+import { bestParts } from "@/lib/music/bestPart";
+import { beatFromStart } from "@/lib/studioClips/beats";
+import { timeline } from "@/lib/studioClips/timeline";
 import { AUTO_IMPROVE_TIMEOUT_MS } from "@/lib/studioClips/enhancePrompt";
 import { useSpeech } from "./useSpeech";
 import { SCENE_FX, isSceneFx, type SceneFxId } from "@/lib/studioClips/sceneFx";
@@ -333,8 +336,13 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
           music = { ...(music ?? {}), [st.trackId]: j.url };
           musicName = st.name;
           musicIn.current = st.trackId;
-          beat = await beatOfTrack(j.url);
-          musicNotes.push(beat ? `Music: ${st.name}${speaks ? ", low under the talking" : ""}.` : `Music: ${st.name}${speaks ? ", low under the talking" : ""}. It has no steady beat SOCIA could measure, so the cuts were not moved onto it.`);
+          // The strongest stretch of the sound for a video this long plays under it (lib/music/bestPart.ts).
+          const sound = await analysisOfTrack(j.url);
+          const part = sound ? bestParts(sound.rms, timeline(start).durationSec, sound.beat).picks[0] : null;
+          if (part && part.startSec > 0) start = { ...start, soundtrack: { ...st, startSec: part.startSec } };
+          beat = sound?.beat ? beatFromStart(sound.beat, part?.startSec) : null;
+          const partNote = part?.reason ? ` ${part.reason} Choose another part in the editor, under Sound.` : "";
+          musicNotes.push(beat ? `Music: ${st.name}${speaks ? ", low under the talking" : ""}.${partNote}` : `Music: ${st.name}${speaks ? ", low under the talking" : ""}.${partNote} It has no steady beat SOCIA could measure, so the cuts were not moved onto it.`);
         } else {
           musicNotes.push(`The music couldn't be put in (${typeof j?.error === "string" ? j.error.replace(/\.$/, "") : "SOCIA couldn't be reached"}), so this video has none. Add it in the editor, under Sound.`);
         }

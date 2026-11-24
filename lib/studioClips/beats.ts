@@ -21,6 +21,13 @@ export const beatMove = (bpm: number): number => (bpm > 0 ? Math.min(PACING.beat
 /** How close to a beat counts as on it: a quarter of a beat, never more than PACING.beatToleranceSec. */
 export const beatTolerance = (bpm: number): number => (bpm > 0 ? Math.min(PACING.beatToleranceSec, 60 / bpm / 4) : PACING.beatToleranceSec);
 
+/** A track's beat as the cut hears it when its music starts `startSec` into the track (Soundtrack.startSec). */
+export function beatFromStart<B extends Beat>(beat: B, startSec: number | undefined): B {
+  const period = 60 / beat.bpm;
+  if (!startSec || !(period > 0)) return beat;
+  return { ...beat, offsetSec: r3((((beat.offsetSec - startSec) % period) + period) % period) };
+}
+
 /** The beat nearest to `t` on the grid. */
 export function nearestBeat(t: number, beat: Beat): number {
   const period = 60 / beat.bpm;

@@ -1,14 +1,17 @@
 "use client";
-// The beat of the cut's soundtrack, measured in this browser from the track
-// itself (lib/audio/features.ts): tempo and where the first beat falls. A
-// track that has no steady beat answers null. Measured once per track URL
-// in this tab; nothing is uploaded.
+// The beat and levels of the cut's soundtrack, measured in this browser from
+// the track itself (lib/audio/features.ts): tempo and where the first beat
+// falls (null when the track has no steady beat), plus its level every
+// 10 ms, which draws the track and finds its best part (lib/music/bestPart.ts).
+// Measured once per track URL in this tab; nothing is uploaded.
 import { decodeToMono16k } from "@/lib/audio/decode";
-import { beatOf, type Beat } from "@/lib/audio/features";
+import { beatOf, frameLevels, type Beat } from "@/lib/audio/features";
 
-const cache = new Map<string, Promise<Beat | null>>();
+export type TrackAnalysis = { beat: Beat | null; rms: Float32Array; durationSec: number };
 
-export function beatOfTrack(url: string): Promise<Beat | null> {
+const cache = new Map<string, Promise<TrackAnalysis | null>>();
+
+export function analysisOfTrack(url: string): Promise<TrackAnalysis | null> {
   const key = url.split("?")[0];
   if (!cache.has(key)) {
     cache.set(key, (async () => {
@@ -16,11 +19,16 @@ export function beatOfTrack(url: string): Promise<Beat | null> {
         const res = await fetch(url);
         if (!res.ok) return null;
         const dec = await decodeToMono16k(await res.blob());
-        return dec ? beatOf(dec.pcm, dec.rate) : null;
+        if (!dec) return null;
+        return { beat: beatOf(dec.pcm, dec.rate), rms: frameLevels(dec.pcm, dec.rate).rms, durationSec: dec.pcm.length / dec.rate };
       } catch {
         return null;
       }
     })());
   }
   return cache.get(key)!;
+}
+
+export function beatOfTrack(url: string): Promise<Beat | null> {
+  return analysisOfTrack(url).then((a) => a?.beat ?? null);
 }

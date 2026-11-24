@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { alignToBeats, cutPoint, nearestBeat } from "./beats";
+import { alignToBeats, beatFromStart, cutPoint, nearestBeat } from "./beats";
 import type { ClipForEdl } from "./edl";
 import type { Edl, EdlSegment } from "./types";
 import { timeline } from "./timeline";
@@ -53,5 +53,16 @@ describe("cuts on the beat", () => {
     const one = edl([seg("s1", "a", 0, 2)]);
     expect(alignToBeats(one, clips, { bpm: 120, offsetSec: 0 }).edl).toBe(one);
     expect(alignToBeats(edl([seg("s1", "a", 0, 2.2), seg("s2", "b", 0, 2)]), clips, { bpm: 0, offsetSec: 0 }).moved).toBe(0);
+  });
+});
+
+describe("beatFromStart", () => {
+  it("moves the beat grid by where the music starts in the track", () => {
+    const b = { bpm: 120, offsetSec: 0.2 };
+    expect(beatFromStart(b, 0)).toBe(b);
+    expect(beatFromStart(b, undefined)).toBe(b);
+    expect(beatFromStart(b, 10.1).offsetSec).toBeCloseTo(0.1, 3);
+    expect(beatFromStart(b, 10.3).offsetSec).toBeCloseTo(0.4, 3);
+    expect(beatFromStart({ ...b, trackId: "t" }, 1).trackId).toBe("t");
   });
 });

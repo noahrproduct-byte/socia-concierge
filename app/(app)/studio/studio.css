@@ -1782,3 +1782,12 @@
 .sd-scene-head > small { color: var(--ink-3); }
 .sd-scene-head > button:last-child { margin-left: auto; }
 .sd-logo-thumb { width: var(--sp-10, var(--sp-8)); height: var(--sp-10, var(--sp-8)); object-fit: contain; border-radius: var(--r-control); background: var(--ink-3); }
+
+/* This video's part of the sound (MusicBox SongPart) */
+.sd-part { display: flex; flex-direction: column; gap: var(--sp-2); padding-block: var(--sp-2); }
+.sd-part-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-2); font-size: var(--fs-meta); color: var(--text-secondary); }
+.sd-part-head span { color: var(--text-primary); font-weight: var(--fw-semibold); }
+.sd-part-wave { height: 48px; cursor: grab; }
+.sd-part-slider { display: block; width: 100%; accent-color: var(--accent); }
+.sd-part-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.sd-part-why, .sd-part-note { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--text-secondary); }
