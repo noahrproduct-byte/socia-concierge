@@ -190,3 +190,8 @@
   --qe-red: #ff7a7a;
 }
 
+/* A planned post opened in the editor (ClipsStudio fromPlan): which post the prompt below comes from. */
+.qe-from-plan { margin: 0 0 12px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text-secondary); font-size: 13px; line-height: 19px; }
+.qe-from-plan b { color: var(--text-primary); }
+/* A long prompt (a planned post's brief) shows most of itself instead of three lines. */
+.qe-prompt-box textarea.is-long { min-height: 200px; }

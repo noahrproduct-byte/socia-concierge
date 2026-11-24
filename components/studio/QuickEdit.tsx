@@ -92,7 +92,7 @@ function Count({ value }: { value: number }) {
 }
 const usable = (l: LocalClip) => l.phase === "done" && !!l.clip && (l.clip.status === "uploaded" || l.clip.status === "ready");
 
-export default function QuickEdit({ locals, uploading, projectId, canTranscribe, canPicture, drag, onPick, understand, onOpenEditor, onReset, onFull, onPromptChange, onUsePrompt }: {
+export default function QuickEdit({ locals, uploading, projectId, canTranscribe, canPicture, drag, onPick, understand, onOpenEditor, onReset, onFull, planPrompt: given, onPromptChange, onUsePrompt }: {
   /** the dropped clips as ClipsStudio tracks them (their measuring and upload); empty before anything is dropped */
   locals: LocalClip[];
   /** clips are still being measured or uploaded */
@@ -114,6 +114,8 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
   onFull: () => void;
   /** The words handed up to the screen above for the full editor (set only when the person asks to go there; the one-drop edit keeps its own). */
   prompt?: string;
+  /** A planned post opened in the editor: its brief (lib/planEditorBrief.ts) starts the box instead of the last words typed. */
+  planPrompt?: string;
   onPromptChange?: (text: string) => void;
   /** Go on to the full editor with the prompt, before any clips are dropped. */
   onUsePrompt?: () => void;
@@ -150,7 +152,11 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
   }), []);
   // Read before the first paint of this screen, so the run that starts when the clips land has it.
   const promptRef = useRef("");
-  if (typeof window !== "undefined" && !promptRef.current && !prompt) { try { promptRef.current = window.sessionStorage.getItem(PROMPT_KEY)?.slice(0, PROMPT_MAX) ?? ""; } catch { /* none */ } }
+  if (typeof window !== "undefined" && !promptRef.current && !prompt) {
+    // A planned post opened here starts the box with its brief; otherwise the words typed last in this tab.
+    if (given?.trim()) promptRef.current = given.trim().slice(0, PROMPT_MAX);
+    else { try { promptRef.current = window.sessionStorage.getItem(PROMPT_KEY)?.slice(0, PROMPT_MAX) ?? ""; } catch { /* none */ } }
+  }
   useEffect(() => { if (promptRef.current) setPromptState(promptRef.current); }, []);
   const spokenFrom = useRef("");
   const speech = useSpeech((words) => setPrompt((spokenFrom.current ? `${spokenFrom.current} ${words}` : words).slice(0, PROMPT_MAX)));
@@ -472,7 +478,7 @@ export default function QuickEdit({ locals, uploading, projectId, canTranscribe,
       <div className="qe-prompt">
         <label htmlFor={`${idPrefix}-prompt`}>How do you want it? <span>Optional</span></label>
         <div className="qe-prompt-box">
-          <textarea id={`${idPrefix}-prompt`} rows={3} maxLength={PROMPT_MAX} value={prompt} disabled={disabled} placeholder="Say it like you would to an editor: make it fast, when he says the warehouse in Egypt show a warehouse and a map of Egypt, put the captions low, end with our address." onChange={(e) => setPrompt(e.target.value)} />
+          <textarea id={`${idPrefix}-prompt`} rows={3} className={prompt.length > 240 ? "is-long" : undefined} maxLength={PROMPT_MAX} value={prompt} disabled={disabled} placeholder="Say it like you would to an editor: make it fast, when he says the warehouse in Egypt show a warehouse and a map of Egypt, put the captions low, end with our address." onChange={(e) => setPrompt(e.target.value)} />
           <MicButton supported={speech.supported} listening={speech.listening} disabled={disabled} onToggle={toggleMic} size="large" labelIdle="Say how you want it" />
         </div>
         <small>{speech.listening ? "Listening. Press the button again when you're done talking." : "Type it or press the microphone and talk. SOCIA cuts to it and draws the pictures you ask for."}</small>

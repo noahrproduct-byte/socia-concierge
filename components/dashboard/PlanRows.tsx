@@ -52,7 +52,7 @@ export default function PlanRows({ planId, items, rows }: { planId: string; item
                 {r.animated && r.stage < 4 ? (
                   <ButtonLink href="/plan" variant="primary" size="sm">Make the video</ButtonLink>
                 ) : r.stage === 1 ? (
-                  <Button variant="primary" size="sm" busy={busy === r.index} onClick={() => made(r, "filmed", "/studio?mode=edit")}>Yes, open the editor</Button>
+                  <Button variant="primary" size="sm" busy={busy === r.index} onClick={() => made(r, "filmed", `/studio?mode=edit&plan=${encodeURIComponent(planId)}&i=${r.index}`)}>Yes, open the editor</Button>
                 ) : r.stage === 2 ? (
                   <Button variant="primary" size="sm" busy={busy === r.index} onClick={() => made(r, "edited", postBuilderHref(planId, item))}>It&apos;s edited. Build the post</Button>
                 ) : r.stage === 3 ? (

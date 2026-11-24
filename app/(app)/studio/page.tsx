@@ -9,7 +9,8 @@ import StudioMode from "@/components/studio/StudioMode";
 import GuideStudio from "@/components/studio/GuideStudio";
 import MakeChoice from "@/components/studio/MakeChoice";
 import AnimateStudio from "@/components/studio/AnimateStudio";
-import { formatConcept, planConcept } from "@/lib/studioGuideLoad";
+import { formatConcept, planConcept, planPost } from "@/lib/studioGuideLoad";
+import { editorBrief, planPostTitle } from "@/lib/planEditorBrief";
 import type { GoalId } from "@/lib/studio";
 import { resolveContext, brandWorkspace } from "@/lib/context";
 import { scopeToWorkspace } from "@/lib/workspaces";
@@ -55,9 +56,15 @@ export default async function StudioPage({ searchParams }: { searchParams: Promi
   // Build (raw clips → videos → schedule; "Clips to posts" lives inside it now), Edit and Audio.
   if (mode === "clips" || mode === "autopost" || mode === "edit" || mode === "audio") {
     const variant = mode === "edit" ? "edit" : mode === "audio" ? "audio" : "build";
+    // A planned post opened in the editor (Dashboard "Yes, open the editor", the Planner): its plan becomes the prompt.
+    let fromPlan: { title: string; day: string; prompt: string } | null = null;
+    if (variant === "edit" && plan && i != null && /^\d{1,2}$/.test(i)) {
+      const post = await planPost(await resolveContext(supabase, user.id), plan, Number(i)).catch(() => null);
+      if (post) fromPlan = { title: planPostTitle(post), day: post.day, prompt: editorBrief(post) };
+    }
     return (
       <Suspense fallback={null}>
-        <ClipsStudio key={variant} viewerId={user.id} modeTabs={<StudioMode mode={variant === "build" ? "clips" : variant} />} variant={variant} />
+        <ClipsStudio key={variant} viewerId={user.id} modeTabs={<StudioMode mode={variant === "build" ? "clips" : variant} />} variant={variant} fromPlan={fromPlan} />
       </Suspense>
     );
   }
