@@ -19,8 +19,10 @@ export type ProposedGroup = {
 export const YIELD_RULES = {
   /** a post needs at least this much non-weak footage */
   minUsableSec: 8,
-  /** and at least this many separate moments */
+  /** and at least this many separate moments … */
   minMoments: 2,
+  /** … unless it is one unbroken take this long with someone talking in it, or rated strong (a recitation, a talking head, a one-take skit) */
+  oneTakeSec: 8,
   /** "strong" needs this much footage … */
   strongUsableSec: 15,
   /** … this many moments, and an opener */
@@ -52,6 +54,13 @@ function usable(ref: Range, card: ClipCard | null): boolean {
   const touched = card.moments.filter((m) => overlap(ref, m) > 0);
   if (!touched.length) return true;
   return touched.some((m) => m.strength !== "weak");
+}
+
+/** A single take holds a post on its own when someone speaks in it or the clip's card rates part of it strong. */
+function carriesItself(m: MomentRef, card: ClipCard | null): boolean {
+  if (!card) return false;
+  if (card.speech.present) return true;
+  return card.moments.some((c) => c.strength === "strong" && overlap(m, c) > 0);
 }
 
 function clampRef(ref: MomentRef, clip: ClipForYield): Range | null {
@@ -102,7 +111,10 @@ export function validateYield(groups: ProposedGroup[], clips: ClipForYield[], no
       rejected.push({ title, reason: `Only ${sec(usableSec)} of usable footage${shared} (a post needs at least ${YIELD_RULES.minUsableSec}s).` });
       continue;
     }
-    if (distinctMoments < YIELD_RULES.minMoments) { rejected.push({ title, reason: "One moment only — not enough variety for a post." }); continue; }
+    // One moment is a post when it is a whole take that carries itself: someone talking through it, or a moment
+    // the clip's card rates strong. A single short stretch of b-roll still needs a second moment.
+    const oneTake = distinctMoments === 1 && usableSec >= YIELD_RULES.oneTakeSec && carriesItself(merged[0], byId.get(merged[0].clipId)!.card);
+    if (distinctMoments < YIELD_RULES.minMoments && !oneTake) { rejected.push({ title, reason: "Only one moment, with nobody talking in it. A post needs a second moment, or one take where someone speaks." }); continue; }
 
     // Opener: a real range in one of this post's clips, backed by the clip's card.
     let opener: Opportunity["opener"] = null;
@@ -149,7 +161,7 @@ export function evidenceLine(o: Opportunity): string {
   const e = o.evidence;
   const parts = [`${e.clips} clip${e.clips === 1 ? "" : "s"}`, `${e.usableSec} sec usable footage`];
   if (e.hasOpener) parts.push("strong opening");
-  parts.push(`${e.distinctMoments} distinct moment${e.distinctMoments === 1 ? "" : "s"}`);
+  parts.push(e.distinctMoments === 1 ? "one unbroken take" : `${e.distinctMoments} distinct moments`);
   if (e.hasSpeech) parts.push("speech");
   return parts.join(" · ");
 }
