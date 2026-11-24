@@ -36,7 +36,7 @@ import { captionlessLabels } from "@/lib/publishing/postLabelLoad";
 import { coverOf, type CalendarItem, type Competitors, type PlanDayItem } from "@/lib/overviewVisual";
 import { listTracked } from "@/lib/trackedCompetitors";
 import { competitorScopeId } from "@/lib/workspaces";
-import { loadCachedNicheRead } from "@/lib/trendSignalsLoad";
+import { nicheReadFor } from "@/lib/intel/profileLoad";
 import { anglesGap, nicheToTry, worksByAngle } from "@/lib/intel/angles";
 import { locationTokens } from "@/lib/competitorPatterns";
 import { isOwnAccount, ownAccounts } from "@/lib/ownAccounts";
@@ -126,7 +126,7 @@ export default async function DashboardPage({
   // The niche's hooks and topics for "What's working", from reads SOCIA already stored (no platform call).
   const brandLocation = profile?.brand_detail?.location ?? null;
   const nicheP = canUseFeature(ent, "niche_intelligence")
-    ? competitorScopeId(ctx.client, wsId ?? undefined).then((cwid) => loadCachedNicheRead(ctx.client, ctx.ownerId, cwid, { location: brandLocation })).catch(() => null)
+    ? competitorScopeId(ctx.client, wsId ?? undefined).then((cwid) => nicheReadFor(ctx.client, ctx.ownerId, cwid, { need: "saved", location: brandLocation })).catch(() => null)
     : Promise.resolve(null);
   // Daily recommendations (Growth+): the two reads only the Today card needs
   // start now, alongside the platform reads.

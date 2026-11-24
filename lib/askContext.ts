@@ -24,11 +24,11 @@ import { experimentResults } from "./experimentsLoad";
 import { experimentsEvidence } from "./experiments";
 import { FORMATS_PRODUCER, formatsEvidence } from "./nicheFormats";
 import { listTracked } from "./trackedCompetitors";
-import { nicheVetted } from "./discovery";
 import type { SavedPlan } from "./schema";
 import { planHeadline } from "./planHeadline";
 import type { SourcePlan } from "./research/intent";
 import { readinessLines, readinessOf, readinessThresholds } from "./starter/readiness";
+import { intelFor } from "./intel/profileLoad";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
@@ -204,9 +204,11 @@ export async function buildAskEvidence(supabase: Supa, userId: string, ctx: AskC
     let tracked: { platform: string; handle: string }[] = [];
     let winning: { platform: string; account_name: string | null; title: string | null; views: number | null; likes: number | null; comments: number | null; multiplier: number | null; trend_tags: string[] | null; why_recommended: string | null; published_at: string | null }[] = [];
     const cwid = await competitorScopeId(supabase, workspaceId);
-    try { const { data } = await scopeToWorkspace(supabase.from("discovered_accounts").select("platform, platform_account_id, handle, display_name, followers, location, category, classification, relevance_score, data_source, relevance_reasons").eq("user_id", userId), cwid).order("relevance_score", { ascending: false, nullsFirst: false }).limit(40); accounts = (data ?? []).filter(nicheVetted).slice(0, 12); } catch { /* none */ }
+    // The discovered accounts and posts from the brand's intelligence profile (lib/intel/profileLoad.ts).
+    const intel = await intelFor({ client: supabase, ownerId: userId, scopeId: cwid }, { need: "saved", location: profile?.brand_detail?.location ?? null }).catch(() => null);
+    accounts = (intel?.accounts ?? []).slice(0, 12) as typeof accounts;
     try { tracked = await listTracked<{ platform: string; handle: string }>(supabase, userId, "platform, handle", { limit: 20, workspaceId: cwid }); } catch { /* none */ }
-    try { const { data } = await scopeToWorkspace(supabase.from("discovered_content").select("platform, account_name, title, views, likes, comments, multiplier, trend_tags, why_recommended, published_at, data_source, relevance_reasons").eq("user_id", userId), cwid).order("multiplier", { ascending: false, nullsFirst: false }).limit(80); winning = (data ?? []).filter(nicheVetted).slice(0, 30); } catch { /* none */ }
+    winning = (intel?.content ?? []).slice(0, 30) as typeof winning;
     // The numbers SOCIA last read from Instagram for these accounts (the same saved reads Discover shows).
     const igSnaps = await loadIgSnaps(supabase, userId, [...tracked, ...accounts].filter((x) => x.platform === "instagram" && x.handle).map((x) => x.handle!));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
