@@ -21,10 +21,33 @@ import type { TodayBreakout, TodayFacts, TodayPost, TodayStudio } from "./dailyR
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
 
-export function todayPosts(scheduled: ScheduledPost[]): TodayPost[] {
+/** Where each of a post's destinations went (lib/publishing): published and failed platforms by post id. */
+export type DestinationOutcomes = Map<string, { wentOutOn: string[]; failedOn: string[] }>;
+
+const PLATFORM_LABEL: Record<string, string> = { instagram: "Instagram", facebook: "Facebook", youtube: "YouTube", tiktok: "TikTok" };
+
+/** The published and failed destinations of the given posts, for saying which platform a post failed on. */
+export async function destinationOutcomes(client: Supa, ownerId: string, postIds: string[]): Promise<DestinationOutcomes> {
+  const out: DestinationOutcomes = new Map();
+  if (!postIds.length) return out;
+  try {
+    const { data } = await client.from("post_destinations").select("post_id, platform, status").eq("user_id", ownerId).in("post_id", postIds.slice(0, 50));
+    for (const r of (data ?? []) as { post_id: string; platform: string; status: string }[]) {
+      const o = out.get(r.post_id) ?? { wentOutOn: [], failedOn: [] };
+      const name = PLATFORM_LABEL[r.platform] ?? r.platform;
+      if (r.status === "published") o.wentOutOn.push(name);
+      else if (r.status === "failed") o.failedOn.push(name);
+      out.set(r.post_id, o);
+    }
+  } catch { /* unread: the post is said as failed, as before */ }
+  return out;
+}
+
+export function todayPosts(scheduled: ScheduledPost[], outcomes?: DestinationOutcomes): TodayPost[] {
   return scheduled
     .filter((p) => p.status !== "cancelled")
     .map((p) => ({
+      ...(outcomes?.get(p.id) ?? {}),
       id: p.id, at: p.scheduled_at, status: p.status, planId: p.plan_id, planDay: p.plan_day,
       title: displayTitle(p.caption ?? "") === "(no caption)" ? "Untitled post" : displayTitle(p.caption ?? ""),
       hasMedia: Boolean(p.media_url || p.media_path), image: p.media_type === "IMAGE",
@@ -106,13 +129,15 @@ export function todayFacts(input: {
   comments: TodayFacts["comments"];
   studio: TodayStudio | null;
   now: number;
+  /** where failed posts did and didn't go out (destinationOutcomes) */
+  outcomes?: DestinationOutcomes;
 }): TodayFacts {
   const timed = input.igMedia
     ? input.igMedia.filter((m) => m.timestamp).map((m) => ({ id: m.id ?? m.timestamp!, t: m.timestamp!, e: interactionsTotal(m), format: formatOf(m) }))
     : null;
   return {
     plan: input.plan ? { id: input.plan.id, createdAt: input.plan.created_at, items: (input.plan.data.weeklyPlan ?? []).map((it) => ({ day: it.day, concept: it.concept, format: it.format })) } : null,
-    posts: todayPosts(input.scheduled),
+    posts: todayPosts(input.scheduled, input.outcomes),
     timed,
     comments: input.comments,
     breakout: pickBreakout({ ig: input.igMedia, fb: input.fbPosts, tt: input.ttVideos }, input.now),

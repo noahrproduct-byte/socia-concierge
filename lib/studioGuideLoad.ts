@@ -29,6 +29,12 @@ async function readPlan(ctx: Ctx, planId: string): Promise<PlanRow | null> {
   return (data as PlanRow | null) ?? null;
 }
 
+/** One planned post as the plan holds it, when the plan is this brand's. */
+export async function planPost(ctx: Ctx, planId: string, index: number): Promise<Deliverable["weeklyPlan"][number] | null> {
+  const plan = await readPlan(ctx, planId).catch(() => null);
+  return plan?.data?.weeklyPlan?.[index] ?? null;
+}
+
 /** A planned post as a concept, with its guide when one was written. */
 export async function planConcept(ctx: Ctx, planId: string, index: number): Promise<{ concept: StudioConcept; guide: ProductionGuide | null } | null> {
   const plan = await readPlan(ctx, planId).catch(() => null);

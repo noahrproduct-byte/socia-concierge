@@ -6,6 +6,7 @@
 // can't show, and the recommended action with what it will teach. Owners
 // and Admins (onChange set) can dismiss it or mark it resolved.
 
+import { markCut } from "@/lib/cutClean";
 import { useState } from "react";
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
@@ -83,7 +84,7 @@ export default function FindingCard({ f, onChange }: { f: StoredInsight; onChang
       {f.recommendation && (
         <section className="fc-sec fc-rec">
           <h4>What to do</h4>
-          <p><b>{f.recommendation.action}</b></p>
+          <p><b>{markCut(f.recommendation.action, 200)}</b></p>
           <p className="fc-sub">Why: {f.recommendation.why}</p>
           {f.recommendation.learning && <p className="fc-sub">What it will show: {f.recommendation.learning}</p>}
         </section>

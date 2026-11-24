@@ -14,6 +14,7 @@ import type { CalPost } from "./audience";
 import type { Deliverable } from "./schema";
 import type { ScheduledPost } from "./scheduling";
 import { planHeadline } from "./planHeadline";
+import { localDay } from "./postingStreak";
 
 export const DAY_MS = 86400000;
 
@@ -189,6 +190,8 @@ export function buildSeries(
   daily: DailySnapshot[],
   days: number,
   now = new Date(),
+  /** The brand's time zone: a post counts on the day it went out where the brand is (8 PM Monday in Chicago is Monday, not Tuesday). UTC when absent. */
+  tz?: string | null,
 ): Series {
   const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
   const curDays = dayList(end, days);
@@ -197,7 +200,7 @@ export function buildSeries(
   const byPublishDay = new Map<string, IgMediaItem[]>();
   for (const m of media) {
     if (!m.timestamp) continue;
-    const k = utcDay(m.timestamp);
+    const k = (tz ? localDay(m.timestamp, tz) : null) ?? utcDay(m.timestamp);
     byPublishDay.set(k, [...(byPublishDay.get(k) ?? []), m]);
   }
   const ids = (ms: IgMediaItem[]) => ms.map((m) => m.id ?? "").filter(Boolean);
@@ -644,13 +647,16 @@ export function buildInsights(input: {
     const a = median(sorted.slice(0, 5).map(eng))!, b = median(sorted.slice(5, 10).map(eng))!;
     if (b > 0 && Math.abs(a / b - 1) >= 0.25) {
       const up = a > b;
+      // The strongest of the five before, named, so "re-run it" points at a real post.
+      const best = [...sorted.slice(5, 10)].sort((x, y) => eng(y) - eng(x))[0];
+      const bestName = best ? `${formatOf(best).toLowerCase()} "${displayTitle(best.caption ?? "").slice(0, 40)}" (${Math.round(eng(best))} interactions)` : null;
       out.push({
         id: "trend", kind: "trend", tone: up ? "up" : "down", tag: up ? "Recent lift" : "Recent decline", action: { label: "See posts", tab: "content" },
         title: up ? `Your last 5 posts earned ${fmtMult(a / b)} the median interactions of the 5 before` : `Your last 5 posts earned ${Math.round((1 - a / b) * 100)}% fewer median interactions than the 5 before`,
         body: `Median ${Math.round(a)} vs ${Math.round(b)} interactions per post.`,
         observed: [`Last 5 posts: median ${Math.round(a)}`, `Previous 5: median ${Math.round(b)}`],
         interpretation: up ? "The last five did better, but the data doesn't show why. Keep the mix steady and change one thing at a time to find out." : "The last five did worse, but the data doesn't show why. Compare their hooks and formats with the five before changing more.",
-        recommendation: up ? "Keep the current format mix for another week and measure again." : "Re-run the best-performing format from the earlier group this week.",
+        recommendation: up ? "Keep the current format mix for another week and measure again." : bestName ? `Make one post this week the way you made your ${bestName}, the best of the 5 before.` : "Make one post this week the way you made the best of the 5 posts before.",
         postIds: sorted.slice(0, 5).map((m) => m.id ?? ""),
         planNote: up ? "Recent posts trending up; keep the mix." : "Recent posts trending down; revisit the earlier winning format.",
       });

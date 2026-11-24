@@ -45,9 +45,12 @@ export function platformName(v: string | null | undefined): string | null {
   return hit ? PLATFORMS[hit] : null;
 }
 
+export { cutClean, wholeSentences } from "./cutClean";
+import { cutClean } from "./cutClean";
+
 const clip = (s: unknown, n: number): string | undefined => {
   if (typeof s !== "string") return undefined;
-  const t = s.trim().replace(/\u2014/g, ",").slice(0, n);
+  const t = cutClean(s.trim().replace(/\u2014/g, ","), n);
   return t || undefined;
 };
 
@@ -141,15 +144,15 @@ export function normalizePlanItem(p: PlanItem): PlanItem {
     purpose: clip(p.purpose, 200),
     audience: clip(p.audience, 160),
     platform: platformName(p.platform) ?? undefined,
-    direction: clip(p.direction, 400),
-    filmLike: clip(p.filmLike, 300),
+    direction: clip(p.direction, 900),
+    filmLike: clip(p.filmLike, 600),
     filmReference: undefined,
     filmRef: sanitizeRef(p.filmRef) ?? undefined,
-    production: clip(p.production, 300),
+    production: clip(p.production, 600),
     beats: cleanBeats(p.beats),
     successMetric: clip(p.successMetric, 160),
     cta: clip(p.cta, 200),
-    editing: clip(p.editing, 300),
+    editing: clip(p.editing, 600),
     evidenceSplit: cleanEvidenceSplit(p.evidenceSplit),
     ownPosts: Array.isArray(p.ownPosts) ? p.ownPosts.map(sanitizeOwnPost).filter((x): x is OwnPostRef => x != null).slice(0, 4) : undefined,
     experiment: isExperimentId(p.experiment) ? p.experiment : undefined,

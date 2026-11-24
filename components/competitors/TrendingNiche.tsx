@@ -201,7 +201,12 @@ export function does(r: ProvenReel): string[] {
 
 /** How to make your own version, from what the Reel does. */
 export function recipe(r: ProvenReel): string {
-  const open = HOOK_HOW[r.structures[0] ?? ""] ?? "Open on the moment itself, with no setup line.";
+  // Without a named hook, the Reel's own opening line (or caption) says what to borrow, so no two cards read the same.
+  const own = (t: string | null | undefined) => (t ? t.replace(/\s+/g, " ").trim().slice(0, 70) : "");
+  const open = HOOK_HOW[r.structures[0] ?? ""]
+    ?? (own(r.line) ? `Open the way it does, "${own(r.line)}", said your own way.`
+      : own(r.title) ? `Borrow its idea, "${own(r.title)}", and show it at your place.`
+      : "Open on the moment itself, with no setup line.");
   return `${open} Film it as a ${r.format} with your own subject, footage and words.`;
 }
 

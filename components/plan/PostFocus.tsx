@@ -12,6 +12,7 @@ import { refResult, type ReelRef } from "@/lib/trendSignals";
 import { MOVE_LABEL, shotMove } from "@/lib/shotMove";
 import { shotProps, statedAmount } from "@/lib/shotProps";
 import { PLAN_STEPS, type PlanStage } from "@/lib/planStage";
+import { wholeSentences } from "@/lib/planItems";
 import ShotDiagram from "./ShotDiagram";
 import "./plan-flow.css";
 
@@ -144,7 +145,7 @@ const PLATFORM: Record<string, string> = { instagram: "Instagram", youtube: "You
  * direction stands in and Discover is where to find one.
  */
 export function FilmExample({ r, filmLike, direction }: { r?: ReelRef | null; filmLike?: string; direction?: string }) {
-  const how = (filmLike || direction || "").trim();
+  const how = wholeSentences(filmLike || direction || "");
   if (!r && !how) return null;
   const platform = r ? PLATFORM[r.platform] ?? r.platform : "";
   const result = r ? refResult(r) : "";
@@ -164,7 +165,7 @@ export function FilmExample({ r, filmLike, direction }: { r?: ReelRef | null; fi
           </span>
         </a>
       )}
-      {how && <p className="pf-example-how">{filmLike ? <><b>Copy:</b> {filmLike}</> : how}</p>}
+      {how && <p className="pf-example-how">{filmLike ? <><b>Copy:</b> {how}</> : how}</p>}
       {!r && <p className="pf-example-none">None of the Reels SOCIA read was filmed this way, so there&apos;s no example to show yet. <Link href="/discover" className="s-link">Add accounts that film like this on Discover</Link></p>}
     </section>
   );

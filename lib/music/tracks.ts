@@ -10,6 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { STUDIO_BUCKET } from "@/lib/studioClips/types";
 import { signUrls, storageClient } from "@/lib/studioClips/storage";
 import { scopeToWorkspace } from "@/lib/workspaces";
+import { soundName } from "./soundName";
 
 type Supa = SupabaseClient;
 
@@ -172,5 +173,5 @@ export async function deleteTrack(client: Supa, ownerId: string, wsId: string | 
 }
 
 export function toTrack(r: TrackRow, url: string | null): Track {
-  return { id: r.id, name: r.name, sourceName: r.source_name, durationSec: r.duration_s, createdAt: r.created_at, lastUsedAt: r.last_used_at, url };
+  return { id: r.id, name: soundName(r.name), sourceName: r.source_name, durationSec: r.duration_s, createdAt: r.created_at, lastUsedAt: r.last_used_at, url };
 }

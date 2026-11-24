@@ -17,6 +17,7 @@ import { loadFfmpeg } from "@/lib/videoCompress";
 import { STUDIO_BUCKET, fmtClock, type Edl } from "@/lib/studioClips/types";
 import type { Soundtrack } from "@/lib/music/taste";
 import type { Track } from "@/lib/music/tracks";
+import { soundName } from "@/lib/music/soundName";
 import { DUCK } from "@/lib/studioClips/musicDuck";
 import { analysisOfTrack, type TrackAnalysis } from "@/lib/studioClips/beatClient";
 import { NO_CHOICE_SLACK_SEC, bestParts, clampStart, latestStart, type PartPick } from "@/lib/music/bestPart";
@@ -205,7 +206,7 @@ export default function MusicBox({ buildId, edl, canEdit, fixture, speechPct = 0
       setLoaded({ name: file.name, buffer, peaks: peaksOf(buffer), top: loudest(buffer) });
       // The whole sound, up to MAX_SEC: each video then picks which stretch of it plays (SongPart below).
       setSel({ from: 0, to: Math.min(buffer.duration, MAX_SEC) });
-      setName(file.name.replace(/\.[a-z0-9]+$/i, "").replace(/[_-]+/g, " ").trim().slice(0, 80) || "Untitled sound");
+      setName(soundName(file.name).slice(0, 80) || "Untitled sound");
       setPhase({ kind: "idle" });
     } catch (e) {
       setError((e as Error).message || "Couldn't read that file.");
@@ -424,7 +425,7 @@ export default function MusicBox({ buildId, edl, canEdit, fixture, speechPct = 0
                     {renaming?.id === t.id
                       ? <input type="text" className="sd-rename" value={renaming.name} autoFocus maxLength={80} onChange={(e) => setRenaming({ id: t.id, name: e.target.value })} onBlur={() => void rename()} onKeyDown={(e) => { if (e.key === "Enter") void rename(); if (e.key === "Escape") setRenaming(null); }} aria-label="Sound name" />
                       : <b>{t.name}</b>}
-                    <small>{fmtClock(t.durationSec)}{t.sourceName ? ` · from ${t.sourceName}` : ""}</small>
+                    <small>{fmtClock(t.durationSec)}{t.sourceName && soundName(t.sourceName) !== t.name ? ` · from ${soundName(t.sourceName)}` : ""}</small>
                     {t.url && <audio ref={(el) => { audioEls.current[t.id] = el; }} src={t.url} preload="none" onEnded={() => setListening((l) => (l === t.id ? null : l))} onPause={() => setListening((l) => (l === t.id ? null : l))} />}
                   </div>
                   <div className="sd-track-actions">

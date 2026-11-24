@@ -10,6 +10,7 @@
 // Pure: types, validation and confidence rules. Producers live in
 // lib/intel/producers.ts; storage in lib/intel/insightStore.ts.
 
+import { cutClean } from "@/lib/cutClean";
 import type { GoalPlatform } from "../growth";
 
 export type InsightCategory = "performance" | "content" | "diagnostic" | "niche" | "goal";
@@ -60,7 +61,7 @@ export function confidenceFor(n: number, opts: { stale?: boolean } = {}): number
 
 export const confidenceWord = (c: number) => (c >= 75 ? "Strong pattern" : c >= 55 ? "Signal" : "Early lead");
 
-const s = (v: unknown, n: number) => (typeof v === "string" ? v.trim().slice(0, n) : "");
+const s = (v: unknown, n: number) => (typeof v === "string" ? cutClean(v.trim(), n) : "");
 
 /** A draft checked before it is stored: bounded text, known kinds, confidence 0-100, at least a title and an observation. */
 export function cleanDraft(d: InsightDraft): InsightDraft | null {
@@ -76,6 +77,6 @@ export function cleanDraft(d: InsightDraft): InsightDraft | null {
     explanations: d.explanations.filter((e) => e.type === "interpretation" || e.type === "hypothesis").slice(0, 5).map((e) => ({ type: e.type, text: s(e.text, 400) })),
     confidence: Math.max(0, Math.min(100, Math.round(d.confidence))),
     limitations: d.limitations.map((l) => s(l, 300)).filter(Boolean).slice(0, 5),
-    recommendation: d.recommendation ? { action: s(d.recommendation.action, 200), why: s(d.recommendation.why, 400), learning: s(d.recommendation.learning, 300), href: d.recommendation.href } : null,
+    recommendation: d.recommendation ? { action: s(d.recommendation.action, 400), why: s(d.recommendation.why, 400), learning: s(d.recommendation.learning, 300), href: d.recommendation.href } : null,
   };
 }

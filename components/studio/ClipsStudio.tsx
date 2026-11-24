@@ -53,8 +53,10 @@ const errCopy = (e: unknown): string => {
   return m.replace(/^Upload failed: /, "");
 };
 
-export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
+export default function ClipsStudio({ viewerId, modeTabs, variant = "build", fromPlan = null }: {
   viewerId: string; modeTabs?: ReactNode;
+  /** A planned post opened in the editor: its plan, written as the prompt (lib/planEditorBrief.ts). */
+  fromPlan?: { title: string; day: string; prompt: string } | null;
   /** build: SOCIA understands the clips as soon as they're in and leads with Make and schedule. edit: the person's videos, and new footage opens straight in the editor. audio: a video dropped here opens on Music, with a track added from the brand's taste. */
   variant?: "build" | "edit" | "audio";
 }) {
@@ -549,7 +551,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
     <div className={`st-drop cb-drop${compact ? " compact" : ""}${drag ? " drag" : ""}`} role="button" tabIndex={0} onClick={() => input.current?.click()} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.current?.click(); } }}>
       <span className="st-drop-ico"><Upload size={compact ? 16 : 22} /></span>
       <b>{drag ? "Drop them" : compact ? "Drop more clips, or click to browse" : audio ? "Drop a video to add music, or click to browse" : editing ? "Drop your clips here, or click to browse" : "Drop your raw clips here, or click to browse"}</b>
-      {!compact && <p>MP4 or MOV{audio ? ". SOCIA listens to it, makes a track for it from your taste and puts it in." : editing ? ", one video or many clips." : ", the raw footage from your phone."} SOCIA measures each clip on your device, keeps a few frames and the sound for analysis, and keeps the footage privately until you delete it, so you can post it again or use it in a new video.</p>}
+      {!compact && <p>MP4 or MOV{audio ? ". SOCIA listens to it and puts in a song from your playlist that fits your taste." : editing ? ", one video or many clips." : ", the raw footage from your phone."} SOCIA measures each clip on your device, keeps a few frames and the sound for analysis, and keeps the footage privately until you delete it, so you can post it again or use it in a new video.</p>}
       {limits && <small className="cb-limits">Up to {limits.clipsPerProject} clips · {limits.footageMinutes} minutes · {limits.uploadMb} MB per project</small>}
     </div>
   );
@@ -558,7 +560,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
     <div className="st cb" onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={(e) => { e.preventDefault(); setDrag(false); if (e.dataTransfer.files?.length && view !== "understanding") incoming(e.dataTransfer.files); }}>
       <PageHeader
         title="Content Studio"
-        sub={audio ? "Drop a video. SOCIA adds music made for it from your taste, and you can hear the others and pick one." : editing ? "Put in your clips, then write what you want or add a video to copy. SOCIA cuts it, and you finish it in the editor." : "Drop your raw clips. SOCIA finds the posts in them, makes the videos and schedules them after you check the list."}
+        sub={audio ? "Drop a video. SOCIA puts in a song from your playlist that fits your taste, and you can hear the others and pick one." : editing ? "Put in your clips, then write what you want or add a video to copy. SOCIA cuts it, and you finish it in the editor." : "Drop your raw clips. SOCIA finds the posts in them, makes the videos and schedules them after you check the list."}
         status={meta ? <span className="ov-status"><i className={meta.transcription ? "live" : ""} />{meta.transcription ? "Speech is transcribed with timestamps" : "No transcription service configured. Clips are understood from frames and measured sound"}</span> : null}
         actions={
           <>
@@ -580,6 +582,9 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
 
       {quickScreen && (
         <div className="cb-editor cb-editor-quick">
+          {fromPlan && !quick && (
+            <p className="qe-from-plan" role="status"><b>From your plan: {fromPlan.title}</b> ({fromPlan.day}). Its shots, opening line and ending are in How do you want it below. Drop your clips and SOCIA cuts them to it; change the words first if you filmed it differently.</p>
+          )}
           <QuickEdit
             key={quick?.id ?? "drop"}
             locals={quickLocals}
@@ -594,6 +599,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
             onReset={backToStart}
             onFull={() => setFull(true)}
             prompt={quickPrompt}
+            planPrompt={fromPlan?.prompt}
             onPromptChange={setQuickPrompt}
             onUsePrompt={() => openWithPrompt([])}
           />
@@ -643,7 +649,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
         <div className="st-grid empty">
           <div className="st-preview">
             <StudioEmpty art="music" title="Add music to a video" action={<button type="button" className="ov-btn primary" onClick={() => input.current?.click()}><Upload size={14} /> Upload a video</button>}>
-              Drop a finished video, MP4 or MOV. SOCIA listens to it, makes a track for it from your taste and puts it in; you can hear the others and pick one instead.
+              Drop a finished video, MP4 or MOV. SOCIA listens to it and puts in a song from your playlist that fits your taste; you can hear the others and pick one instead.
             </StudioEmpty>
           </div>
           <div className="st-work">
@@ -651,9 +657,9 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
               <h2>What happens</h2>
               <ul>
                 <li><b>1 · Drop a video</b><span>It&apos;s measured on this device and kept privately until you delete it.</span></li>
-                <li><b>2 · SOCIA picks the music</b><span>From your taste: how your best posts sound, whether music or your own sound has done better, and the tracks you chose before. Lower under speech.</span></li>
+                <li><b>2 · SOCIA picks the music</b><span>A song from your playlist, chosen by your taste: how your best posts sound, whether music or your own sound has done better, and the tracks you chose before. Lower under speech.</span></li>
                 <li><b>3 · Hear the others</b><span>The rest of the playlist is there to listen to and pick instead, with levels for the music and the video&apos;s own sound.</span></li>
-                <li><b>4 · Make it and post it</b><span>Make the video with the music in, then schedule it. Each track counts as a music track on your plan.</span></li>
+                <li><b>4 · Make it and post it</b><span>Make the video with the music in, then schedule it.</span></li>
               </ul>
             </div>
           </div>
@@ -676,7 +682,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
                 <li><b>3 · Make the videos</b><span>Pick the ideas, post each clip on its own, or describe a video or give a reference to copy. SOCIA makes each one and writes its caption.</span></li>
                 <li><b>4 · Check, then schedule</b><span>See every video with its day, time and caption, change anything, then schedule them all with one click. Or tell Ask SOCIA when to post them.</span></li>
               </ul>
-              <p className="ov-source">No invented scores. Picture and sound fixes appear only where the measurements support them. From Starter, music made from your taste goes in on its own; you can pick another or take it out.</p>
+              <p className="ov-source">No invented scores. Picture and sound fixes appear only where the measurements support them. From Starter, a song from your playlist goes in on its own, chosen by your taste; you can pick another or take it out.</p>
             </div>
             <LearnCard />
             <ProjectList projects={projects} onOpen={(id) => void openProject(id)} onDelete={(id) => void deleteProject(id)} busy={uploading} />

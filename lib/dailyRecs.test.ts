@@ -226,3 +226,17 @@ describe("loaders", () => {
     expect(pickBreakout({ ig: media.slice(0, 3) }, NOW.getTime())).toBeNull();
   });
 });
+
+describe("a post that went out on one platform and failed on another", () => {
+  it("says where it went out and where it didn't", async () => {
+    const { dailyRecommendations } = await import("./dailyRecs");
+    const now = new Date("2026-11-24T21:00:00Z");
+    const post = { id: "p1", at: "2026-11-24T02:10:00Z", status: "failed" as const, planId: null, planDay: null, title: "Straight from the oven to the box.", hasMedia: true, image: false };
+    const facts = { plan: null, timed: null, comments: null, breakout: null, studio: null };
+    const partly = dailyRecommendations({ ...facts, posts: [{ ...post, wentOutOn: ["Instagram"], failedOn: ["YouTube"] }] } as never, now, "America/Chicago").recs.find((r) => r.kind === "failed")!;
+    expect(partly.title).toBe("A post didn't go out on YouTube");
+    expect(partly.detail).toMatch(/went out on Instagram .* but not on YouTube\./);
+    const whole = dailyRecommendations({ ...facts, posts: [post] } as never, now, "America/Chicago").recs.find((r) => r.kind === "failed")!;
+    expect(whole.title).toBe("A post didn't publish");
+  });
+});

@@ -11852,14 +11852,15 @@ p.cbm-muted { display: block; }
 /* ==== Discover (components/discover/DiscoverPage.tsx): competitors, Reels to copy, suggestions ==== */
 .dsc { display: flex; flex-direction: column; gap: 16px; }
 .dsc-note { padding: 12px 14px; border-radius: 12px; background: var(--surface-muted); border: 1px solid var(--border); color: var(--text-primary); font-size: 14px; line-height: 1.5; }
-.dsc-accts { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.dsc-accts { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
 .dsc-acct { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); min-width: 0; }
 .dsc-acct-top { display: flex; align-items: flex-start; gap: 10px; }
 .dsc-avatar { flex: none; width: 44px; height: 44px; border-radius: 50%; object-fit: cover; background: var(--surface-muted); }
 .dsc-avatar.is-letter { display: grid; place-items: center; color: var(--text-secondary); font-weight: 700; font-size: 16px; }
 .dsc-acct-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.dsc-acct-name b { color: var(--text-primary); font-size: 15px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dsc-acct-name a { color: var(--text-secondary); font-size: 13px; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The name wraps rather than cut to "Nashv…": it is how the person tells the accounts apart. */
+.dsc-acct-name b { color: var(--text-primary); font-size: 15px; line-height: 1.3; overflow-wrap: anywhere; }
+.dsc-acct-name a { color: var(--text-secondary); font-size: 13px; text-decoration: none; overflow-wrap: anywhere; }
 .dsc-acct-name a:hover { color: var(--text-primary); }
 .dsc-acct-stats { margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .dsc-acct-stats div { display: flex; flex-direction: column; gap: 2px; }

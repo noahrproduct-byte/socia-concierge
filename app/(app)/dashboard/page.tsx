@@ -25,7 +25,7 @@ import {
 } from "@/lib/overview";
 import { getEntitlements, maxHistoryDays, canUseFeature } from "@/lib/entitlements";
 import { minPlanWithFeature, pricingHref, PLANS } from "@/lib/plans";
-import { loadWaitingComments, loadStudioNext, todayFacts } from "@/lib/dailyRecsLoad";
+import { destinationOutcomes, loadWaitingComments, loadStudioNext, todayFacts } from "@/lib/dailyRecsLoad";
 import { loadRepurpose } from "@/lib/repurposeLoad";
 import type { Candidate } from "@/lib/repurpose";
 import type { TodayCardProps } from "@/components/TodayCard";
@@ -207,7 +207,8 @@ export default async function DashboardPage({
   const latestPlan = planRow ? { id: planRow.id, data: planRow.data, created_at: planRow.created_at } : null;
 
   // The Today card: the facts for Growth and up, an upgrade line below that.
-  const [[waiting, studioNext], repurpose, mine] = await Promise.all([todayExtrasP, repurposeP, tasksP]);
+  const failedIds = scheduled.filter((p) => p.status === "failed").map((p) => p.id);
+  const [[waiting, studioNext], repurpose, mine, outcomes] = await Promise.all([todayExtrasP, repurposeP, tasksP, recsOn ? destinationOutcomes(ctx.client, ctx.ownerId, failedIds) : Promise.resolve(undefined)]);
   const lockedPlan = minPlanWithFeature("daily_recommendations");
   const today: TodayCardProps = recsOn
     ? {
@@ -216,7 +217,7 @@ export default async function DashboardPage({
           igMedia: live ? snap!.media ?? [] : null,
           fbPosts: fbConnected ? fb!.posts : null,
           ttVideos: ttConnected && Array.isArray(ttRow!.videos) ? (ttRow!.videos as TtVideo[]) : null,
-          comments: waiting, studio: studioNext, now: now.getTime(),
+          comments: waiting, studio: studioNext, now: now.getTime(), outcomes,
         }),
       }
     : { locked: { planName: PLANS[lockedPlan].name, href: pricingHref(lockedPlan) } };
@@ -241,10 +242,12 @@ export default async function DashboardPage({
     medianViews = median(posts.map((p) => p.views).filter((v): v is number => v != null));
     const kpisAll = buildKpis({ media, daily: dailyRows, followers: snap!.followers_count ?? null, days });
     kpis = (["views", "reach", "engagement_rate", "followers", "posts"] as const).map((id) => kpisAll.find((k) => k.id === id)!);
+    // Posts count on the day they went out where the brand is: its own time zone, else the owner's.
+    const tz = profile?.brand_detail?.timezone ?? (ctx.workspace ? (await getProfile(ctx.client, ctx.ownerId, null).catch(() => null))?.brand_detail?.timezone : null) ?? null;
     series = {
-      views: buildSeries("views", media, dailyRows, days),
-      engagement: buildSeries("engagement", media, dailyRows, days),
-      followers: buildSeries("followers", media, dailyRows, days),
+      views: buildSeries("views", media, dailyRows, days, new Date(), tz),
+      engagement: buildSeries("engagement", media, dailyRows, days, new Date(), tz),
+      followers: buildSeries("followers", media, dailyRows, days, new Date(), tz),
     };
     const brand = profile?.brand_detail ?? null;
     insights = buildInsights({ media, baseline, location: brand?.location ?? null, handle: snap!.username ?? null });

@@ -9,7 +9,8 @@ import StudioMode from "@/components/studio/StudioMode";
 import GuideStudio from "@/components/studio/GuideStudio";
 import MakeChoice from "@/components/studio/MakeChoice";
 import AnimateStudio from "@/components/studio/AnimateStudio";
-import { formatConcept, planConcept } from "@/lib/studioGuideLoad";
+import { formatConcept, planConcept, planPost } from "@/lib/studioGuideLoad";
+import { editorBrief, planPostTitle } from "@/lib/planEditorBrief";
 import type { GoalId } from "@/lib/studio";
 import { resolveContext, brandWorkspace } from "@/lib/context";
 import { scopeToWorkspace } from "@/lib/workspaces";
@@ -20,7 +21,7 @@ export const metadata = { title: "Content Studio | SOCIA" };
 // better before it goes live. Video editor (?mode=edit):
 // put in clips, then a prompt and/or a reference video to copy, or edit
 // them yourself; every video made and every clip kept are below. Audio: drop a video
-// and SOCIA adds music made for it. The mode is in the URL (?mode=clips,
+// and SOCIA puts in a song from the playlist. The mode is in the URL (?mode=clips,
 // ?mode=edit, ?mode=audio) so a refresh keeps it; Plan a post
 // (?mode=guide) is opened from a planned post. Build (?mode=clips) is no
 // longer a tab: a link to one of its projects still opens it, so nothing made
@@ -55,9 +56,15 @@ export default async function StudioPage({ searchParams }: { searchParams: Promi
   // Build (raw clips → videos → schedule; "Clips to posts" lives inside it now), Edit and Audio.
   if (mode === "clips" || mode === "autopost" || mode === "edit" || mode === "audio") {
     const variant = mode === "edit" ? "edit" : mode === "audio" ? "audio" : "build";
+    // A planned post opened in the editor (Dashboard "Yes, open the editor", the Planner): its plan becomes the prompt.
+    let fromPlan: { title: string; day: string; prompt: string } | null = null;
+    if (variant === "edit" && plan && i != null && /^\d{1,2}$/.test(i)) {
+      const post = await planPost(await resolveContext(supabase, user.id), plan, Number(i)).catch(() => null);
+      if (post) fromPlan = { title: planPostTitle(post), day: post.day, prompt: editorBrief(post) };
+    }
     return (
       <Suspense fallback={null}>
-        <ClipsStudio key={variant} viewerId={user.id} modeTabs={<StudioMode mode={variant === "build" ? "clips" : variant} />} variant={variant} />
+        <ClipsStudio key={variant} viewerId={user.id} modeTabs={<StudioMode mode={variant === "build" ? "clips" : variant} />} variant={variant} fromPlan={fromPlan} />
       </Suspense>
     );
   }
