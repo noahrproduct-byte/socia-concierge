@@ -1,6 +1,7 @@
 import { after } from "next/server";
 import { trackEvent } from "./events";
 import { addSpend, claudeMicros, musicMicros, transcriptionMicros, voiceMicros } from "./aiSpend";
+import { addJobSpend, currentJob } from "./jobBudget";
 
 // What each AI call actually cost, from the response's own usage numbers, so
 // plan allowances can be set from real data instead of estimates. One
@@ -38,6 +39,8 @@ export function usageProps(feature: AiFeature, res: unknown): Record<string, unk
 }
 
 function write(ownerId: string | null | undefined, props: Record<string, unknown>, micros = 0): void {
+  // Inside an automatic job the cost also counts toward the jobs' daily ceiling (lib/jobBudget.ts).
+  if (currentJob()) void addJobSpend(micros);
   if (!ownerId) return;
   // The cost also goes into the owner's month (lib/aiSpend.ts), which every
   // later AI action checks against the plan's ceiling.

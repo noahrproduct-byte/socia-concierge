@@ -2,6 +2,7 @@ import { NextResponse, after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { runDailyInsights } from "@/lib/intel/dailyRun";
 import { isCronRequest } from "@/lib/cronAuth";
+import { budgetedJob } from "@/lib/jobBudget";
 
 export const runtime = "nodejs";
 // The run continues after the response is sent (next/server `after`), up to
@@ -18,10 +19,10 @@ async function run(req: Request) {
 
   const now = new Date();
   if (new URL(req.url).searchParams.get("sync") === "1") {
-    return NextResponse.json(await runDailyInsights(svc, now, 240_000));
+    return NextResponse.json(await budgetedJob("daily insights", () => runDailyInsights(svc, now, 240_000), now));
   }
   after(async () => {
-    const result = await runDailyInsights(svc, now, 240_000).catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
+    const result = await budgetedJob("daily insights", () => runDailyInsights(svc, now, 240_000), now).catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
     console.log("[intel-refresh]", JSON.stringify(result));
   });
   return NextResponse.json({ started: true }, { status: 202 });

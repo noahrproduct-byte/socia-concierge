@@ -37,7 +37,7 @@ export const providerAlarmFingerprint = (p: PaidProvider, now: Date) => `provide
 export const adminEmails = (raw = process.env.ADMIN_EMAILS ?? ""): string[] =>
   raw.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
 
-const lastTry = new Map<PaidProvider, number>();
+const lastTry = new Map<string, number>();
 const WAIT_MS = 10 * 60 * 1000;
 
 let adminIds: { ids: string[]; at: number } | null = null;
@@ -60,31 +60,42 @@ async function adminUserIds(svc: SupabaseClient<any, any, any>): Promise<string[
 }
 
 /**
- * Tell the admins that `provider` refused work for lack of balance. Returns
- * at once; the alert is written in the background. `detail` goes to the server
- * log only (the provider's own words, which hold no secret).
+ * Tell the admins about something only they can fix, with an alert in their bell that links to the spend
+ * page. Returns at once; the alert is written in the background. One alert per fingerprint (put the date in
+ * it for once a day), and each server instance waits ten minutes between tries of the same one. `detail`
+ * goes to the server log only.
  */
-export function raiseProviderAlarm(provider: PaidProvider, detail?: string, now = new Date()): void {
-  const prev = lastTry.get(provider);
+export function raiseAdminAlarm(a: { fingerprint: string; platform: string; title: string; body: string; detail?: string; now?: Date }): void {
+  const now = a.now ?? new Date();
+  const prev = lastTry.get(a.fingerprint);
   if (prev != null && now.getTime() - prev < WAIT_MS) return;
-  lastTry.set(provider, now.getTime());
-  console.error(`[provider] ${provider} balance empty${detail ? `: ${detail.replace(/\s+/g, " ").slice(0, 200)}` : ""}`);
+  lastTry.set(a.fingerprint, now.getTime());
+  console.error(`[alarm] ${a.title}${a.detail ? `: ${a.detail.replace(/\s+/g, " ").slice(0, 200)}` : ""}`);
   void (async () => {
     try {
       const svc = createServiceClient();
       if (!svc) return;
       const ids = await adminUserIds(svc);
-      const copy = PROVIDER_ALARM_COPY[provider];
       for (const userId of ids) {
         await recordAlerts(svc, { userId, workspaceId: null }, [{
-          type: "provider", platform: provider, fingerprint: providerAlarmFingerprint(provider, now), severity: "warning",
-          title: copy.title, body: copy.body, evidence: { provider, at: now.toISOString() }, entityRef: "/admin/spend",
+          type: "provider", platform: a.platform, fingerprint: a.fingerprint, severity: "warning",
+          title: a.title, body: a.body, evidence: { platform: a.platform, at: now.toISOString() }, entityRef: "/admin/spend",
         }]);
       }
     } catch (e) {
-      console.error("[provider] alarm not recorded:", (e as Error)?.message ?? e);
+      console.error("[alarm] not recorded:", (e as Error)?.message ?? e);
     }
   })();
+}
+
+/**
+ * Tell the admins that `provider` refused work for lack of balance. Returns
+ * at once; the alert is written in the background. `detail` goes to the server
+ * log only (the provider's own words, which hold no secret).
+ */
+export function raiseProviderAlarm(provider: PaidProvider, detail?: string, now = new Date()): void {
+  const copy = PROVIDER_ALARM_COPY[provider];
+  raiseAdminAlarm({ fingerprint: providerAlarmFingerprint(provider, now), platform: provider, title: copy.title, body: copy.body, detail: `${provider} balance empty${detail ? `: ${detail}` : ""}`, now });
 }
 
 /**
