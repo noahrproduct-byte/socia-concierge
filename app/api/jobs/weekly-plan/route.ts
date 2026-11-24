@@ -2,6 +2,7 @@ import { NextResponse, after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { runWeeklyPlans } from "@/lib/weeklyPlanJob";
 import { isCronRequest } from "@/lib/cronAuth";
+import { runAsJob } from "@/lib/jobBudget";
 
 export const runtime = "nodejs";
 // A plan takes one to three minutes per owner; the run continues after the
@@ -24,11 +25,11 @@ async function run(req: Request) {
   const force = url.searchParams.get("force") === "1";
   const now = new Date();
   if (url.searchParams.get("sync") === "1") {
-    const result = await runWeeklyPlans(svc, now, 280_000, force);
+    const result = await runAsJob("weekly plans", () => runWeeklyPlans(svc, now, 280_000, force));
     return NextResponse.json(result);
   }
   after(async () => {
-    const result = await runWeeklyPlans(svc, now, 280_000, force).catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
+    const result = await runAsJob("weekly plans", () => runWeeklyPlans(svc, now, 280_000, force)).catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
     console.log("[weekly-plan]", JSON.stringify(result));
   });
   return NextResponse.json({ started: true, force }, { status: 202 });

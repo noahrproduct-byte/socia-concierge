@@ -2,6 +2,7 @@ import { NextResponse, after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { runAutoReplies } from "@/lib/commentAuto";
 import { isCronRequest } from "@/lib/cronAuth";
+import { budgetedJob } from "@/lib/jobBudget";
 
 export const runtime = "nodejs";
 // The run continues after the response is sent (next/server `after`), up to
@@ -16,9 +17,9 @@ async function run(req: Request) {
   const svc = createServiceClient();
   if (!svc) return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY is not set." }, { status: 503 });
   const now = new Date();
-  if (new URL(req.url).searchParams.get("sync") === "1") return NextResponse.json(await runAutoReplies(svc, now, 240_000));
+  if (new URL(req.url).searchParams.get("sync") === "1") return NextResponse.json(await budgetedJob("automatic replies", () => runAutoReplies(svc, now, 240_000), now));
   after(async () => {
-    const result = await runAutoReplies(svc, now, 240_000).catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
+    const result = await budgetedJob("automatic replies", () => runAutoReplies(svc, now, 240_000), now).catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
     console.log("[comment-auto]", JSON.stringify(result));
   });
   return NextResponse.json({ started: true }, { status: 202 });

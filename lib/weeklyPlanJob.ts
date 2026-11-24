@@ -13,6 +13,9 @@
 // plan made since the Thursday before. Everything else is skipped and
 // counted, never guessed. The plan after onboarding (lib/initialPlan.ts) uses
 // the same inputs.
+import { jobBudgetSpent } from "./jobBudget";
+import { raiseAdminAlarm } from "./providerAlarm";
+import { rateHit } from "./oauth/runtime";
 import { allRows } from "./supabase/allRows";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getActiveWorkspace, competitorScopeId, type Workspace } from "./workspaces";
@@ -40,13 +43,15 @@ export const MIN_POSTS = 5;
 /** Local hour on Sunday the plan is due; a missed run catches up until Monday at MONDAY_CUTOFF. */
 export const SUNDAY_HOUR = 18;
 export const MONDAY_CUTOFF = 12;
+/** Automatic plan tries per account per day (UTC). A plan that builds is never tried again that week. */
+export const PLAN_TRIES_PER_DAY = 2;
 const DAY_MS = 86400000;
 
 export type WeeklyPlanRun = {
   owners: number;
   due: number;
   generated: number;
-  skipped: Record<"not_due" | "not_entitled" | "already_this_week" | "no_account" | "too_few_posts" | "no_credit" | "over_budget" | "out_of_time", number>;
+  skipped: Record<"not_due" | "not_entitled" | "already_this_week" | "no_account" | "too_few_posts" | "no_credit" | "over_budget" | "out_of_time" | "gave_up" | "job_budget", number>;
   errors: number;
 };
 
@@ -164,6 +169,25 @@ async function owners(svc: Supa): Promise<string[]> {
   }
 }
 
+/**
+ * Whether the job may try one more automatic plan for this account today: at most PLAN_TRIES_PER_DAY a day
+ * (UTC), counted as each try starts. Past that, or when the count can't be kept, it stops and the admins
+ * hear which account gave up (once a day).
+ */
+export async function planTryAllowed(ownerId: string, now: Date): Promise<boolean> {
+  const tried = await rateHit(`weekly-plan-try:${ownerId}`, 86_400, PLAN_TRIES_PER_DAY);
+  if (tried === "ok") return true;
+  raiseAdminAlarm({
+    fingerprint: `weekly-plan-gave-up:${ownerId}:${now.toISOString().slice(0, 10)}`,
+    platform: "jobs",
+    title: "A weekly plan kept failing",
+    body: `SOCIA tried to build an automatic weekly plan for one account ${PLAN_TRIES_PER_DAY} times today and it failed each time, so it stopped trying until tomorrow. The account can still make a plan by hand. The reason is in the server log under [weekly-plan] with the account id ${ownerId}.`,
+    detail: tried === "limited" ? `weekly plan for ${ownerId} gave up after ${PLAN_TRIES_PER_DAY} tries` : `weekly plan tries for ${ownerId} couldn't be counted`,
+    now,
+  });
+  return false;
+}
+
 /** Build and store one owner's plan if it is due (or `force`). Returns a skip reason, "generated", or throws. */
 export async function generateWeeklyPlanFor(svc: Supa, ownerId: string, now: Date, force = false): Promise<keyof WeeklyPlanRun["skipped"] | "generated"> {
   const ws = await getActiveWorkspace(svc, ownerId);
@@ -184,6 +208,11 @@ export async function generateWeeklyPlanFor(svc: Supa, ownerId: string, now: Dat
 
   const inputs = await planInputsFor(svc, ownerId, ws, snap);
   if (!inputs) return "no_account";
+
+  // Every automatic job together stays under today's AI ceiling (lib/jobBudget.ts).
+  if (await jobBudgetSpent("weekly plans", now)) return "job_budget";
+  // A plan that fails is never left to be tried every 15 minutes all night (2026-11-23).
+  if (!force && !(await planTryAllowed(ownerId, now))) return "gave_up";
 
   // Paid exactly as a plan made by hand is (requireUsage): the plan's credit
   // price from the owner's balance, or the plan allowance before the credit
@@ -210,7 +239,7 @@ export async function generateWeeklyPlanFor(svc: Supa, ownerId: string, now: Dat
 
 /** One cron call: every owner whose Sunday plan is due now. `force` builds for everyone eligible, on any day (manual trigger). */
 export async function runWeeklyPlans(svc: Supa, now: Date = new Date(), budgetMs = 280_000, force = false): Promise<WeeklyPlanRun> {
-  const run: WeeklyPlanRun = { owners: 0, due: 0, generated: 0, skipped: { not_due: 0, not_entitled: 0, already_this_week: 0, no_account: 0, too_few_posts: 0, no_credit: 0, over_budget: 0, out_of_time: 0 }, errors: 0 };
+  const run: WeeklyPlanRun = { owners: 0, due: 0, generated: 0, skipped: { not_due: 0, not_entitled: 0, already_this_week: 0, no_account: 0, too_few_posts: 0, no_credit: 0, over_budget: 0, out_of_time: 0, gave_up: 0, job_budget: 0 }, errors: 0 };
   const deadline = Date.now() + budgetMs;
   const ids = await owners(svc);
   run.owners = ids.length;

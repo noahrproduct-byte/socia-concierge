@@ -1,6 +1,7 @@
 import { NextResponse, after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isCronRequest } from "@/lib/cronAuth";
+import { budgetedJob } from "@/lib/jobBudget";
 import { closeStale, duePlaybooks, refreshBrand, runSlice, waitingJobs } from "@/lib/nicheScan/run";
 
 export const runtime = "nodejs";
@@ -23,7 +24,8 @@ async function run(req: Request) {
     try {
       if (!one) {
         await closeStale(svc, now);
-        for (const b of await duePlaybooks(svc, now, 2)) await refreshBrand(svc, b);
+        // The weekly playbook refresh is SOCIA's own job; scans a person started run as they did.
+        await budgetedJob("niche scan refresh", async () => { for (const b of await duePlaybooks(svc, now, 2)) await refreshBrand(svc, b); }, now);
       }
       const ids = one ? [one] : await waitingJobs(svc, now, 3);
       for (const id of ids) {
