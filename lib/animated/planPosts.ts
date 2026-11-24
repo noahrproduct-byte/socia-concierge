@@ -32,7 +32,7 @@ const SCHEMA = {
   },
 } as const;
 
-const SYSTEM = `You add animated posts to a brand's week of social media posts. An animated post is a short vertical video SOCIA draws in code, with no footage, no people and no photos, in one of three templates:
+export const ANIMATED_SYSTEM = `You add animated posts to a brand's week of social media posts. An animated post is a short vertical video SOCIA draws in code, with no footage, no people and no photos, in one of three templates:
 - compare: 2 to 4 options side by side whose numbers count up on one measure (three grind sizes and their shot times; two routes and their minutes).
 - counter: one number counting up in rounds that grow (one coffee a day for a week, a month, a year).
 - words: an opening line, a few points or a list, and an ending.
@@ -94,7 +94,7 @@ export async function writeAnimatedPosts(opts: { brand: BrandDetail | null; bran
   const wanted = slots ? slots.map((s) => `${WEEK[s.weekday]}${s.slot}`) : WEEK.flatMap((d) => (perDay === 2 ? [`${d}1`, `${d}2`] : [`${d}1`]));
   const call = async (ask: string, only: Set<string>): Promise<PlanItem[]> => {
     const res = await anthropic.messages.create({
-      model: MODEL, max_tokens: 6000, system: SYSTEM,
+      model: MODEL, max_tokens: 6000, system: ANIMATED_SYSTEM,
       output_config: { format: { type: "json_schema", schema: SCHEMA }, ...effortFor(MODEL, "low") },
       messages: [{ role: "user", content: `# Brand\n${opts.brandLine}\n\n# This week's filmed posts\n${filmed || "(none)"}\n\n${ask}` }],
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

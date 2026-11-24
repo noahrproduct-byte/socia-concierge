@@ -30,7 +30,7 @@ import { recentPlanOutcomes } from "./planOutcomesLoad";
 import { generatePlan } from "./planGenerate";
 import { placePlanOnEmptyWeek } from "./planAutoPlace";
 import { alertsEnabled, recordAlerts } from "./alerts";
-import { planReadyAlert } from "./alertDetectors";
+import { planReadyAlert, planReminderAlert } from "./alertDetectors";
 import type { GenerateInput } from "./schema";
 import { startingMix } from "./planMixLoad";
 import { primaryPlatform } from "./planPlatform";
@@ -51,6 +51,8 @@ export type WeeklyPlanRun = {
   owners: number;
   due: number;
   generated: number;
+  /** Owners sent the Sunday reminder to plan their week (plans are built by hand now). */
+  reminded: number;
   skipped: Record<"not_due" | "not_entitled" | "already_this_week" | "no_account" | "too_few_posts" | "no_credit" | "over_budget" | "out_of_time" | "gave_up" | "job_budget", number>;
   errors: number;
 };
@@ -237,9 +239,29 @@ export async function generateWeeklyPlanFor(svc: Supa, ownerId: string, now: Dat
   }
 }
 
+/**
+ * Sunday's reminder instead of an automatic plan (Noah, 2026-11-23: plans are built one day at a time by the
+ * person, so SOCIA never writes a plan nobody asked for). An owner whose plan would have been due gets one
+ * bell alert a week, which costs no AI. Returns "reminded" or the skip reason.
+ */
+export async function remindWeeklyPlanFor(svc: Supa, ownerId: string, now: Date): Promise<"reminded" | "not_due" | "already_this_week" | "not_entitled"> {
+  const ws = await getActiveWorkspace(svc, ownerId);
+  const wsId = ws?.id ?? null;
+  const [tz, last] = await Promise.all([ownerTimeZone(svc, ownerId), lastPlanAt(svc, ownerId, wsId)]);
+  if (last === "unreadable") return "already_this_week";
+  if (!sundayPlanDue(now, tz, last)) return "not_due";
+  const ent = await getEntitlements(svc, ownerId);
+  if (!canUseFeature(ent, "content_plan")) return "not_entitled";
+  if (await alertsEnabled(svc)) {
+    const weekLabel = comingWeekLabel(now, tz);
+    await recordAlerts(svc, { userId: ownerId, workspaceId: wsId }, [planReminderAlert({ weekLabel, weekKey: `${now.getUTCFullYear()}-${weekLabel}` })]);
+  }
+  return "reminded";
+}
+
 /** One cron call: every owner whose Sunday plan is due now. `force` builds for everyone eligible, on any day (manual trigger). */
 export async function runWeeklyPlans(svc: Supa, now: Date = new Date(), budgetMs = 280_000, force = false): Promise<WeeklyPlanRun> {
-  const run: WeeklyPlanRun = { owners: 0, due: 0, generated: 0, skipped: { not_due: 0, not_entitled: 0, already_this_week: 0, no_account: 0, too_few_posts: 0, no_credit: 0, over_budget: 0, out_of_time: 0, gave_up: 0, job_budget: 0 }, errors: 0 };
+  const run: WeeklyPlanRun = { owners: 0, due: 0, generated: 0, skipped: { not_due: 0, not_entitled: 0, already_this_week: 0, no_account: 0, too_few_posts: 0, no_credit: 0, over_budget: 0, out_of_time: 0, gave_up: 0, job_budget: 0 }, reminded: 0, errors: 0 };
   const deadline = Date.now() + budgetMs;
   const ids = await owners(svc);
   run.owners = ids.length;
@@ -248,6 +270,14 @@ export async function runWeeklyPlans(svc: Supa, now: Date = new Date(), budgetMs
     // (the next call, 15 minutes on, picks up where this one stopped).
     if (Date.now() > deadline - 180_000) { run.skipped.out_of_time++; continue; }
     try {
+      // Plans aren't built automatically any more (only by hand, or ?force=1 for an admin): the due owners get a reminder.
+      if (!force) {
+        const r = await remindWeeklyPlanFor(svc, ownerId, now);
+        if (r !== "not_due") run.due++;
+        if (r === "reminded") run.reminded++;
+        else run.skipped[r]++;
+        continue;
+      }
       const r = await generateWeeklyPlanFor(svc, ownerId, now, force);
       if (r !== "not_due") run.due++;
       if (r === "generated") run.generated++;

@@ -373,6 +373,20 @@ export function planReadyAlert(plan: { id: string; headline: string; posts: numb
   };
 }
 
+/** Sunday's nudge to plan the coming week (the weekly plan isn't built automatically any more: the person builds it one day at a time). No AI. */
+export function planReminderAlert(week: { weekLabel: string; weekKey: string }): AlertCandidate {
+  return {
+    type: "plan_ready",
+    platform: "socia",
+    fingerprint: `plan_reminder:${week.weekKey}`,
+    severity: "info",
+    title: `Plan your videos for the week of ${week.weekLabel}`,
+    body: "Open the Planner and build next week one day at a time: SOCIA suggests each day's video, you keep it, ask for another or change it.",
+    evidence: { week: week.weekKey },
+    entityRef: "/plan",
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Cross-platform: the same post, measured on each platform it went to.
 // ---------------------------------------------------------------------------

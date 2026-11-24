@@ -10,8 +10,9 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 // Sunday plan job (supabase/weekly-plan-cron.sql, every 15 minutes Sunday to
-// Tuesday UTC): builds the plans due now, at 6 PM Sunday in each owner's time
-// zone (lib/weeklyPlanJob.ts). Answers at once and does the work in the
+// Tuesday UTC): since 2026-11-23 it reminds owners whose plan is due, at 6 PM
+// Sunday in their time zone, to plan the week (plans are built one day at a
+// time by the person); ?force=1 still builds full plans (lib/weeklyPlanJob.ts). Answers at once and does the work in the
 // background, so the caller's short timeout does not matter. ?force=1 builds
 // for everyone eligible regardless of the day (manual trigger); ?sync=1 waits
 // for the result.
@@ -19,10 +20,10 @@ async function run(req: Request) {
   if (!isCronRequest(req)) return NextResponse.json({ error: "Not authorized." }, { status: 401 });
   const svc = createServiceClient();
   if (!svc) return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY is not set." }, { status: 503 });
-  if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: "ANTHROPIC_API_KEY is not set." }, { status: 503 });
-
   const url = new URL(req.url);
   const force = url.searchParams.get("force") === "1";
+  // Only a forced run builds plans (the Sunday run sends reminders, no AI).
+  if (force && !process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: "ANTHROPIC_API_KEY is not set." }, { status: 503 });
   const now = new Date();
   if (url.searchParams.get("sync") === "1") {
     const result = await runAsJob("weekly plans", () => runWeeklyPlans(svc, now, 280_000, force));
