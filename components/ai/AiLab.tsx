@@ -58,7 +58,22 @@ function mock(url: string, init?: RequestInit): Response | null {
   if (u === "/api/studio-ai/jobs" && (!init?.method || init.method === "GET")) return json({ jobs: genJobs, balance: 5550 });
   const gj = /^\/api\/studio-ai\/jobs\/([^/?]+)/.exec(u);
   if (gj) return json({ job: genJobs.find((j) => j.id === gj[1]) ?? genJobs[0], outputs: gj[1] === "g1" ? gens : [] });
-  if (u === "/api/studio-ai/ideas") return json({ ideas });
+  if (u === "/api/studio-ai/ideas") {
+    const goal = (JSON.parse(String(init?.body ?? "{}")) as { goal?: string }).goal;
+    const withWhy = ideas.map((i, n) => ({ ...i, why: "Lab fixture: why this idea serves the goal.", ...(goal === "trending" && n === 0 ? { ref: { url: "https://www.instagram.com/reel/lab/", account: "@lab.account", result: "1.2M views" } } : {}) }));
+    return json({ ideas: withWhy, used: goal === "best" ? "Your 5 best posts on Instagram" : goal === "trending" ? "4 Reels that took off in your niche" : null, missing: null });
+  }
+  // The creative brief for a picked idea (lab fixture).
+  if (u === "/api/studio-ai/brief") return json({ brief: {
+    concept: "The calm before opening, for people who only see the room full.", hook: "the quiet before the first order",
+    openingShot: "Close on a ceramic cup on the counter as steam starts to rise", buildUp: "Slide along the counter past the grinder and the pastry case in morning light",
+    payoff: "The door opens and the first customer walks in", cta: "Comment the first thing you order here", durationSec: 12, kind: "text_to_video",
+    onScreenText: ["the quiet before the first order", "7:58 am"], script: "",
+    checklist: ["A clean counter", "One cup of your best drink, steaming", "The front door unlocked, lights on"],
+    shots: [{ shot: "Steam rising from the cup", seconds: 3, how: "Phone at counter height, close on the cup, hold still." }, { shot: "Along the counter", seconds: 5, how: "Walk slowly from the grinder to the pastry case, phone at chest height." }, { shot: "The door opens", seconds: 4, how: "From behind the counter, frame the door; start recording as it opens." }],
+    prompt: "Close on a ceramic cup on a wooden cafe counter as steam rises. Then the camera slides along the counter past a grinder and a pastry case in soft morning light. Then the front door opens. Vertical 9:16, natural light, smooth handheld camera, realistic motion, no text or logos in the frame.",
+    caption: "Before anyone walks in, there is this.",
+  } });
   // Lab-only prices per second (rough public rates with SOCIA's margin), so the price and "enough for" lines show.
   if (u === "/api/studio-ai/quote") {
     const b = JSON.parse(String(init?.body ?? "{}")) as { kind?: string; modelId?: string; durationSec?: number };
