@@ -425,7 +425,7 @@ export default function MusicBox({ buildId, edl, canEdit, fixture, speechPct = 0
                     {renaming?.id === t.id
                       ? <input type="text" className="sd-rename" value={renaming.name} autoFocus maxLength={80} onChange={(e) => setRenaming({ id: t.id, name: e.target.value })} onBlur={() => void rename()} onKeyDown={(e) => { if (e.key === "Enter") void rename(); if (e.key === "Escape") setRenaming(null); }} aria-label="Sound name" />
                       : <b>{t.name}</b>}
-                    <small>{fmtClock(t.durationSec)}{t.sourceName ? ` · from ${t.sourceName}` : ""}</small>
+                    <small>{fmtClock(t.durationSec)}{t.sourceName && soundName(t.sourceName) !== t.name ? ` · from ${soundName(t.sourceName)}` : ""}</small>
                     {t.url && <audio ref={(el) => { audioEls.current[t.id] = el; }} src={t.url} preload="none" onEnded={() => setListening((l) => (l === t.id ? null : l))} onPause={() => setListening((l) => (l === t.id ? null : l))} />}
                   </div>
                   <div className="sd-track-actions">
