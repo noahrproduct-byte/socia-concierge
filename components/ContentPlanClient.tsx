@@ -460,7 +460,7 @@ export default function ContentPlanClient({ context, canSchedule = true, initial
               setHistory((h) => h.map((p) => (p.id === result.id ? { ...p, data } : p)));
             }} />
           ) : result ? (
-            <Report data={result.data} planId={result.id} posts={context.posts} canSchedule={canSchedule} strategy={context.strategy} goal={context.profile.goal} animatedOn={Boolean(context.animatedOn) || result.data.weeklyPlan.some((p) => p.animated)} onUpdate={(data) => setResult((r) => (r ? { ...r, data } : r))} />
+            <Report data={result.data} planId={result.id} createdAt={history.find((h) => h.id === result.id)?.created_at ?? null} posts={context.posts} canSchedule={canSchedule} strategy={context.strategy} goal={context.profile.goal} animatedOn={Boolean(context.animatedOn) || result.data.weeklyPlan.some((p) => p.animated)} onUpdate={(data) => setResult((r) => (r ? { ...r, data } : r))} />
           ) : (
             <div className="cpl-empty">
               <div className="cpl-empty-ico">
@@ -609,7 +609,7 @@ function OutcomeTags({ o }: { o: ItemOutcome | null }) {
   );
 }
 
-function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn = false, onUpdate }: { data: Deliverable; planId: string | null; posts: CalPost[]; canSchedule: boolean; strategy: GrowthStrategy | null; goal: string | null; animatedOn?: boolean; onUpdate: (d: Deliverable) => void }) {
+function Report({ data, planId, createdAt = null, posts, canSchedule, strategy, goal, animatedOn = false, onUpdate }: { data: Deliverable; planId: string | null; createdAt?: string | null; posts: CalPost[]; canSchedule: boolean; strategy: GrowthStrategy | null; goal: string | null; animatedOn?: boolean; onUpdate: (d: Deliverable) => void }) {
   const [section, setSection] = useState<PlanSectionId>("week");
   const team = usePlanTasks(planId);
   // Times are SOCIA's, from the audience data, never the model's guess. The
@@ -665,6 +665,14 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
   };
   const withItem = (i: number, patch: Partial<Deliverable["weeklyPlan"][number]>) => data.weeklyPlan.map((d, j) => (j === i ? { ...d, ...patch } : d));
   // The week a plan is put on: this one until Wednesday, the next one from Thursday (the same rule as "Schedule this week").
+  // The week a plan was made for (made Thursday to Sunday, it is the next week's), said by date once that week is over.
+  const oldWeek = (() => {
+    if (!createdAt) return null;
+    const made = new Date(createdAt);
+    if (Number.isNaN(made.getTime())) return null;
+    const forWeek = new Date(mondayOf(made).getTime() + (made.getDay() === 0 || made.getDay() >= 4 ? 7 : 0) * DAY_MS);
+    return forWeek.getTime() < mondayOf(new Date()).getTime() ? forWeek.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : null;
+  })();
   const planWeekStart = (now: Date) => new Date(mondayOf(now).getTime() + (now.getDay() === 0 || now.getDay() >= 4 ? 7 : 0) * DAY_MS);
   const reject = async (i: number, reasons: string[], note: string | null, replace: boolean) => {
     const item = data.weeklyPlan[i];
@@ -819,10 +827,11 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
     <div className="cpl-r">
       <div className="cpl-rhead">
         <div>
-          <h1>This week: {data.weeklyPlan?.length ?? 0} video{data.weeklyPlan?.length === 1 ? "" : "s"}</h1>
+          <h1>{oldWeek ? `Week of ${oldWeek}` : "This week"}: {data.weeklyPlan?.length ?? 0} video{data.weeklyPlan?.length === 1 ? "" : "s"}</h1>
           <div className="cpl-rsub">
             {[data.clientHandle, data.niche, data.platform].filter(Boolean).join(", ")}
           </div>
+          {oldWeek && <p className="cpl-rsub" role="status">This plan was for the week of {oldWeek}. Make this week&apos;s with New plan and settings.</p>}
         </div>
       </div>
 
