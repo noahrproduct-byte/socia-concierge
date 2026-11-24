@@ -31,6 +31,9 @@ import { signRefUrl } from "@/lib/studioClips/refToken";
 import { feedPage, mergeFeed, withRelated, type FeedReel, type FeedSource } from "@/lib/discoverFeed";
 import { trendingFor, trendingPool } from "@/lib/discoverTrending";
 import { adaptedKeys } from "@/lib/discoverAdaptServer";
+import { trendFitOf } from "@/lib/discoverIntel";
+import { rankTrending, toJudge } from "@/lib/trendFit";
+import { openAutoSlots, qualifies } from "@/lib/competitorTopUp";
 import type { BrandDetail } from "@/lib/profile";
 import type { ProvenReel } from "@/lib/trendSignals";
 import { isPlatformMediaUrl } from "@/lib/fetchGuard";
@@ -339,7 +342,25 @@ export async function loadDiscoverData(supabase: SupabaseClient<any, any, any>, 
     pool, profile?.niche ?? null, now,
   );
   const recommendedKeys = new Set(recommendedAll.map((r) => reelKey(r.url) ?? r.url));
-  const trendingFirst = feedPage(trendingFor(pool, { skip: recommendedKeys }), 0);
+  // Trending in the order of what this business could adapt (lib/trendFit.ts), judged in the background read.
+  const fitIn = trendFitOf((profile?.brand_detail ?? null) as BrandDetail | null, profile?.niche ?? null, profile?.brand_name ?? null);
+  const trendRanked = rankTrending(trendingFor(pool, { skip: recommendedKeys }), fitIn.business, fitIn.store, fitIn.profile, now);
+  const trendingFirst = feedPage(trendRanked.reels, 0);
+  const trendNeedsJudging = toJudge(trendingFor(pool, { skip: recommendedKeys }), fitIn.business, fitIn.store, fitIn.profile, now, 6).length >= 6;
+  // SOCIA adds accounts next to the person's own (lib/competitorTopUp.ts): read again when a place is open and a
+  // suggestion could fill it. The read adds it; nothing here changes the roster.
+  const autoNow = tracked.filter((t) => t.added_by === "socia").length;
+  const autoOpen = openAutoSlots(tracked.length - autoNow, autoNow, limit) > 0
+    && suggestions.some((a) => {
+      const vids = a.posts.filter((p) => p.format === "Reel" || p.format === "Short");
+      const views = vids.map((p) => p.views).filter((v): v is number => v != null);
+      return qualifies({
+        handle: a.handle, name: a.name, fit: fitFor(a), followers: a.audience.value ?? null, medianViews: views.length >= 3 ? median(views) : null,
+        engagement: a.engagement.value ?? null, postsPerWeek: a.cadence.value ?? null,
+        recentReels: vids.filter((p) => !p.publishedAt || Date.parse(p.publishedAt) >= now.getTime() - 60 * 86_400_000).length,
+        breakouts: 0, sameStyle: a.sameStyle, app: brandIs.app,
+      });
+    });
 
   const data: DiscoverData = {
     now: now.toISOString(),
@@ -355,7 +376,7 @@ export async function loadDiscoverData(supabase: SupabaseClient<any, any, any>, 
     adapted: await adaptedKeys(ctx, (profile?.brand_detail ?? null) as BrandDetail | null, profile?.niche ?? null, profile?.brand_name ?? null).catch(() => []),
     copyFrom: [...copyAccounts, ...foundAccounts],
     reelsRead: { reels: allReels.length, accounts: new Set(allReels.map((r) => (r.accountHandle ?? r.accountName).toLowerCase())).size },
-    needsRead: igRes.enabled && (ownStale || [...competitors, ...suggestions, ...styleAccounts, ...copyAccounts, ...foundAccounts].some((a) => a.reading) || judged.some((a) => a.posts.length > 0 && fitFor(a) == null && !tooSmallToSuggest(a.audience.value))
+    needsRead: igRes.enabled && (ownStale || trendNeedsJudging || autoOpen || [...competitors, ...suggestions, ...styleAccounts, ...copyAccounts, ...foundAccounts].some((a) => a.reading) || judged.some((a) => a.posts.length > 0 && fitFor(a) == null && !tooSmallToSuggest(a.audience.value))
       || [...reelsToCopy, ...nicheReels, ...styleReels].some((r) => reelKey(r.url) != null && !verdictFor(r.url))),
     lastRun: runAt,
     niche: profile?.niche ?? null,
