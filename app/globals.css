@@ -12047,3 +12047,24 @@ p.cbm-muted { display: block; }
 .sd-ask-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .sd-ask-chip { padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text-primary); font: inherit; font-size: 12px; cursor: pointer; }
 .sd-ask-chip:disabled { opacity: 0.5; cursor: default; }
+
+/* Content ideas above the weekly plan (components/plan/ContentIdeas.tsx): one video at a time. */
+.cpl-ideasx { display: flex; flex-direction: column; gap: var(--sp-3); margin-bottom: var(--sp-5); padding: var(--sp-4); border: 1px solid var(--border); border-radius: var(--r-card); background: var(--surface); }
+.cpl-ideasx-head h2 { margin: 0; font-size: 16px; line-height: 22px; font-weight: 700; color: var(--text-primary); }
+.cpl-ideasx-head p { margin: 2px 0 0; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--text-secondary); }
+.cpl-ideasx-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--sp-2); }
+.cpl-ideasx-choice { display: flex; align-items: flex-start; gap: var(--sp-2); padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-card); background: transparent; color: var(--text-primary); text-align: left; font: inherit; cursor: pointer; }
+.cpl-ideasx-choice:hover { border-color: var(--border-strong); }
+.cpl-ideasx-choice.is-on { border-color: var(--text-primary); }
+.cpl-ideasx-choice:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.cpl-ideasx-choice svg { flex: none; margin-top: 2px; }
+.cpl-ideasx-choice span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cpl-ideasx-choice b { font-size: var(--fs-body); line-height: var(--lh-body); }
+.cpl-ideasx-choice small { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--text-secondary); }
+.cpl-ideasx-form { display: flex; flex-direction: column; gap: var(--sp-2); }
+.cpl-ideasx-form label { font-size: var(--fs-body); font-weight: 600; color: var(--text-primary); }
+.cpl-ideasx-form label span { margin-left: 6px; font-size: var(--fs-meta); font-weight: 500; color: var(--text-muted); }
+.cpl-ideasx-form textarea { width: 100%; min-height: 72px; padding: var(--sp-2) var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-card); background: var(--bg, var(--surface)); color: var(--text-primary); font: inherit; font-size: var(--fs-body); line-height: var(--lh-body); resize: vertical; }
+.cpl-ideasx-form textarea:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.cpl-ideasx-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); }
+.cpl-ideasx-row small, .cpl-ideasx-note { flex: 1; min-width: 200px; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--text-muted); }
