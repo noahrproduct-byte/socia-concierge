@@ -159,3 +159,12 @@ describe("plan text is never cut mid-word", () => {
     expect(normalizePlanItem({ day: "Monday", concept: "c", hook: "h", format: "Reel", rationale: "r", evidence: "e", predictedPerformance: "p", direction: long } as never).direction).toBe(long);
   });
 });
+
+describe("markCut", () => {
+  it("tidies text stored cut at its cap, and leaves whole text alone", async () => {
+    const { markCut } = await import("./cutClean");
+    expect(markCut("then give a verd" + " word".repeat(40), 40)).toMatch(/…$/);
+    expect(markCut("Short and whole.", 200)).toBe("Short and whole.");
+    expect(markCut("ends without a stop but is short", 200)).toBe("ends without a stop but is short");
+  });
+});
