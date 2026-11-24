@@ -172,11 +172,13 @@ export default function ContentPlanClient({ context, canSchedule = true, initial
   // the person can remove before anything is generated.
   useEffect(() => {
     try {
-      const note = new URLSearchParams(window.location.search).get("note");
-      if (note) {
-        setForm((f) => ({ ...f, recentPosts: f.recentPosts ? `${f.recentPosts}\n${note}` : note }));
-        window.history.replaceState(null, "", "/plan");
-      }
+      const q = new URLSearchParams(window.location.search);
+      const note = q.get("note");
+      if (note) setForm((f) => ({ ...f, recentPosts: f.recentPosts ? `${f.recentPosts}\n${note}` : note }));
+      // "Add to my plan" from Discover: the idea goes in Your ideas, so the next plan makes it one of the week's posts.
+      const idea = q.get("idea")?.replace(/\s+/g, " ").trim().slice(0, 300);
+      if (idea) { setForm((f) => ({ ...f, ideas: f.ideas?.trim() ? `${f.ideas.trim()}\n${idea}` : idea })); setSetup(true); }
+      if (note || idea) window.history.replaceState(null, "", "/plan");
     } catch {
       /* no-op */
     }
