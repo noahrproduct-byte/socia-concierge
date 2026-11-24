@@ -5,6 +5,7 @@ import { signUrls } from "@/lib/studioClips/storage";
 import { scopeToWorkspace } from "@/lib/workspaces";
 import { loadTrack, touchTrack } from "@/lib/music/tracks";
 import { sanitizeSoundtrack } from "@/lib/music/taste";
+import { soundName } from "@/lib/music/soundName";
 import { errorResponse } from "@/lib/dbError";
 
 export const runtime = "nodejs";
@@ -28,7 +29,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (!row?.edl) return NextResponse.json({ error: "That cut does not exist." }, { status: 404 });
     const track = await loadTrack(ctx.client, ctx.ownerId, wsId, trackId);
     if (!track?.ready) return NextResponse.json({ error: "That sound isn't in your playlist." }, { status: 404 });
-    const soundtrack = sanitizeSoundtrack({ trackId, musicVolume: body?.musicVolume, originalVolume: body?.originalVolume, duck: body?.duck }, null, () => ({ name: track.name, path: track.path }));
+    const soundtrack = sanitizeSoundtrack({ trackId, musicVolume: body?.musicVolume, originalVolume: body?.originalVolume, duck: body?.duck }, null, () => ({ name: soundName(track.name), path: track.path }));
     if (!soundtrack) return NextResponse.json({ error: "That sound can't be used." }, { status: 400 });
     const edl = { ...row.edl, soundtrack };
     const { error } = await scopeToWorkspace(ctx.client.from("studio_builds").update({ edl, updated_at: new Date().toISOString() }).eq("id", id).eq("user_id", ctx.ownerId), wsId);

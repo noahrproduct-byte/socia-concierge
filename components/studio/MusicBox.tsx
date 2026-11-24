@@ -17,6 +17,7 @@ import { loadFfmpeg } from "@/lib/videoCompress";
 import { STUDIO_BUCKET, fmtClock, type Edl } from "@/lib/studioClips/types";
 import type { Soundtrack } from "@/lib/music/taste";
 import type { Track } from "@/lib/music/tracks";
+import { soundName } from "@/lib/music/soundName";
 import { DUCK } from "@/lib/studioClips/musicDuck";
 import { analysisOfTrack, type TrackAnalysis } from "@/lib/studioClips/beatClient";
 import { NO_CHOICE_SLACK_SEC, bestParts, clampStart, latestStart, type PartPick } from "@/lib/music/bestPart";
@@ -205,7 +206,7 @@ export default function MusicBox({ buildId, edl, canEdit, fixture, speechPct = 0
       setLoaded({ name: file.name, buffer, peaks: peaksOf(buffer), top: loudest(buffer) });
       // The whole sound, up to MAX_SEC: each video then picks which stretch of it plays (SongPart below).
       setSel({ from: 0, to: Math.min(buffer.duration, MAX_SEC) });
-      setName(file.name.replace(/\.[a-z0-9]+$/i, "").replace(/[_-]+/g, " ").trim().slice(0, 80) || "Untitled sound");
+      setName(soundName(file.name).slice(0, 80) || "Untitled sound");
       setPhase({ kind: "idle" });
     } catch (e) {
       setError((e as Error).message || "Couldn't read that file.");
