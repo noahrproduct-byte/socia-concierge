@@ -20,7 +20,7 @@ export const metadata = { title: "Content Studio | SOCIA" };
 // better before it goes live. Video editor (?mode=edit):
 // put in clips, then a prompt and/or a reference video to copy, or edit
 // them yourself; every video made and every clip kept are below. Audio: drop a video
-// and SOCIA adds music made for it. The mode is in the URL (?mode=clips,
+// and SOCIA puts in a song from the playlist. The mode is in the URL (?mode=clips,
 // ?mode=edit, ?mode=audio) so a refresh keeps it; Plan a post
 // (?mode=guide) is opened from a planned post. Build (?mode=clips) is no
 // longer a tab: a link to one of its projects still opens it, so nothing made

@@ -16,7 +16,7 @@ const HINT: Record<StudioModeId, string> = {
   quick: "Rate a video you've made and fix it before it goes out.",
   clips: "A project from your clips: the videos SOCIA found in them, ready to check and schedule.",
   edit: "Put in clips, then a prompt or a video to copy. Or edit them yourself.",
-  audio: "Drop a video and SOCIA adds music made for it from your taste.",
+  audio: "Drop a video and SOCIA puts in a song from your playlist that fits your taste.",
   guide: "Hooks, script and shot list for a planned post, before you film.",
   make: "Animate a video from a prompt, or edit clips you filmed.",
   animate: "Say what the video is about, add a video to copy if you have one, and SOCIA animates it.",

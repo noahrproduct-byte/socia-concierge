@@ -538,7 +538,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
                 <>
                   {source.kind === "video" && source.file && (
                     <div className="ov-card cb-manual">
-                      <div><b><Music size={14} /> Add music to this video</b><small>SOCIA makes a track for it from your taste and puts it in. Hear the others and pick one, then make the video and post it.</small></div>
+                      <div><b><Music size={14} /> Add music to this video</b><small>SOCIA puts in a song from your playlist that fits your taste. Hear the others and pick one, then make the video and post it.</small></div>
                       <button type="button" className="ov-btn primary small" onClick={() => { handFiles("audio", [source.file!]); router.push("/studio?mode=audio"); }}>Add music</button>
                     </div>
                   )}
