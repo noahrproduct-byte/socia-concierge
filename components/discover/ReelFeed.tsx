@@ -15,6 +15,7 @@ import { FEED_BADGE, FEED_PAGE, type FeedReel } from "@/lib/discoverFeed";
 import { ADAPTATIONS_PER_REEL, adaptationText, type Adaptation } from "@/lib/discoverAdapt";
 import { reelKey } from "@/lib/discoverStyle";
 import { handFiles } from "@/lib/studioClips/handoff";
+import { servedVideoOf, sourceOfReel } from "@/lib/studioClips/referenceSource";
 import { PLATFORM, ago, brief, makeLikeReel, metricLine } from "@/components/competitors/TrendingNiche";
 import "./reel-feed.css";
 
@@ -147,9 +148,11 @@ export default function ReelFeed({ recommended, trending: firstTrending, trendin
     if (!versions[k]?.length) void adapt(r, false);
   };
 
+  // Make this video: the adaptation is the brief, and the original Reel goes with it as the reference (its pace,
+  // shots and text style), fetched by the editor through SOCIA; the person's own clips make the video.
   const make = (r: FeedReel, a: Adaptation) => {
-    const reference = r.refToken && r.video ? { url: `/api/studio/reference/media?url=${encodeURIComponent(r.video)}&token=${r.refToken}`, name: `${r.accountHandle ? `@${r.accountHandle}` : r.accountName} ${r.format}.mp4` } : undefined;
-    handFiles("edit", [], { prompt: `${adaptationText(a, r)}\n\nCut it from my clips with the pacing and length above.`, ...(reference ? { reference } : {}) });
+    const reference = { url: servedVideoOf(r), name: `${r.accountHandle ? `@${r.accountHandle}` : r.accountName} ${r.format}.mp4`, reel: sourceOfReel(r) };
+    handFiles("edit", [], { prompt: `${adaptationText(a, r)}\n\nCut it from my clips with the pacing and length above; follow the reference's pace and text style, never its footage.`, reference });
     router.push("/studio?mode=edit");
   };
 

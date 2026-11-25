@@ -734,3 +734,17 @@ a.pf-basis:hover { text-decoration: underline; }
 .cancel-reasons input { margin: 0; accent-color: var(--ink); }
 .cancel-note { margin: 0 0 var(--sp-2); font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink-2); }
 .cancel-err { margin: var(--sp-2) 0 0; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--danger-text); }
+
+/* Video editor, Reference video: a Reel from Discover or a pasted link (BriefPanel.tsx), with its status and actions. */
+.cbr-src { display: flex; gap: var(--sp-3); align-items: flex-start; padding: var(--sp-2); border: 1px solid var(--border); border-radius: var(--r-card); background: var(--surface); min-width: 0; }
+.cbr-src-thumb { flex: none; display: grid; place-items: center; width: 56px; aspect-ratio: 9 / 16; max-width: 100%; object-fit: cover; border-radius: var(--r-control); background: var(--surface-hover); color: var(--ink-3); }
+.cbr-src-text { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; flex: 1; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+.cbr-src-text b { color: var(--ink); font-size: var(--fs-body); line-height: var(--lh-body); overflow-wrap: anywhere; }
+.cbr-src-text > span:not(.cbr-src-actions) { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.cbr-src-text small { display: inline-flex; align-items: center; gap: var(--sp-1); color: var(--ink-2); font-weight: var(--fw-medium); }
+.cbr-src-actions { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+.cbr-paste { margin-top: var(--sp-2); }
+.cbr-paste-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); color: var(--ink-3); }
+.cbr-paste-row input { flex: 1 1 14rem; min-width: 0; }
+.cbr-paste-row .cbr-paste-handle { flex: 0 1 9rem; }
+.cbr-preview { display: block; width: 100%; max-width: 220px; aspect-ratio: 9 / 16; margin-top: var(--sp-2); border-radius: var(--r-card); background: var(--surface-hover); }
