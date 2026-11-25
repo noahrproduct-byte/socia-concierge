@@ -21,6 +21,8 @@ import type { TtVideo } from "./tiktokAuth";
 import { STRATEGY_SYSTEM, factLines, normalizeStrategy, strategySchema, type GrowthStrategy, type StrategyFacts } from "./strategy";
 import { readinessOf, readinessThresholds } from "./starter/readiness";
 import { admiredHandles, nicheObservations } from "./starter/load";
+import { opportunitiesFor } from "./intel/opportunitiesLoad";
+import { opportunitiesEvidence } from "./intel/opportunities";
 
 export async function readStrategy(ctx: Ctx): Promise<GrowthStrategy | null> {
   const s = (await currentDetail(ctx).catch(() => ({}) as BrandDetail)).strategy;
@@ -82,6 +84,7 @@ export async function strategyFacts(ctx: Ctx): Promise<{ facts: StrategyFacts; g
       readiness,
       nicheSeen: niche,
       admired,
+      opportunities: opportunitiesEvidence(await opportunitiesFor(ctx).catch(() => [])),
     },
     goalLine: primaryIdx >= 0 ? goalLines[primaryIdx] : null,
   };

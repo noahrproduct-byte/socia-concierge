@@ -29,6 +29,8 @@ import { planHeadline } from "./planHeadline";
 import type { SourcePlan } from "./research/intent";
 import { readinessLines, readinessOf, readinessThresholds } from "./starter/readiness";
 import { intelFor } from "./intel/profileLoad";
+import { opportunitiesFrom } from "./intel/opportunitiesLoad";
+import { opportunitiesEvidence } from "./intel/opportunities";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
@@ -227,6 +229,14 @@ export async function buildAskEvidence(supabase: Supa, userId: string, ctx: AskC
         ...selectedIgLines(igSnaps, [sel?.handle, ctx.competitorId, ctx.competitorName]),
         theirs.length ? `Their analysed content:\n${theirs.slice(0, 8).map((w) => `- "${w.title ?? "(untitled)"}" · views ${n(w.views)}, likes ${n(w.likes)}, comments ${n(w.comments)}${w.multiplier != null ? `, ${Number(w.multiplier).toFixed(1)}× their median` : ""}${w.trend_tags?.length ? ` · features: ${w.trend_tags.join(", ")}` : ""}${w.why_recommended ? ` · web-research note: ${w.why_recommended}` : ""}`).join("\n")}` : "No analysed posts stored for this account.");
     }
+  }
+
+  // Growth opportunities (lib/intel/opportunities.ts), from the saved profile and the account's own posts.
+  if (wantFull && (ctx.page === "global" || ctx.page === "dashboard" || ctx.page === "plan" || ctx.page === "analytics")) {
+    const scope = await competitorScopeId(supabase, workspaceId ?? null).catch(() => workspaceId ?? null);
+    const intel = await intelFor({ client: supabase, ownerId: userId, scopeId: scope }, { need: "saved", location: profile?.brand_detail?.location ?? null }).catch(() => null);
+    const ops = opportunitiesEvidence(opportunitiesFrom(intel, acct.media, profile?.brand_detail ?? null, now));
+    if (ops) parts.push(`# Growth opportunities`, ops);
   }
 
   // What the experiments have shown so far (lib/experiments.ts), on the pages where it guides a decision.

@@ -29,7 +29,7 @@ export async function loadPlanContext(ctx: Ctx, input: GenerateInput): Promise<{
     // The last two plans and what became of them, so the strategist learns from what was posted, skipped, and how each post did.
     const outcomes = await recentPlanOutcomes(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null).catch(() => []);
     evidence = await loadEvidence(ctx.client, ctx.ownerId, snap, await competitorScopeId(ctx.client, ctx.workspace?.id), {
-      outcomes, strategy: brand?.strategy ?? null, location: brand?.location ?? null, skip: skipList(input), brandWorkspaceId: ctx.workspace?.id ?? null,
+      outcomes, strategy: brand?.strategy ?? null, location: brand?.location ?? null, skip: skipList(input), brandWorkspaceId: ctx.workspace?.id ?? null, targetPerWeek: brand?.growth?.routine?.post_days ?? null,
       timeZone: brand?.timezone ?? null, discover: (brand as { discover?: unknown } | null)?.discover,
     });
     evidence.used.windows = Boolean(input.audienceWindows?.trim());

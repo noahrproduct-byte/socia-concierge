@@ -18,6 +18,9 @@ import { experimentsEvidence } from "./experiments";
 import type { GrowthStrategy } from "./strategy";
 import type { Deliverable } from "./schema";
 import { intelFor } from "./intel/profileLoad";
+import { opportunitiesFrom } from "./intel/opportunitiesLoad";
+import { opportunitiesEvidence } from "./intel/opportunities";
+import type { BrandDetail } from "./profile";
 import { playbookTextFor } from "./nicheScan/run";
 import { provenEvidence, trendsEvidence, type ProvenReel } from "./trendSignals";
 import { isOwnAccount, ownAccounts } from "./ownAccounts";
@@ -42,6 +45,8 @@ export type Evidence = {
   decisionsBlock: string;
   /** How the strategy's experiments are going: their test posts' results and verdicts. */
   experimentsBlock: string;
+  /** Growth opportunities: what comparable accounts do that works and this one hasn't tried (lib/intel/opportunities.ts). */
+  opportunitiesBlock?: string;
   /** Hook structures, topics and opening lines leading in the niche's recent Reels (lib/trendSignals.ts). */
   trendsBlock: string;
   /** The niche's Reels that took off, each with the id a post cites (lib/trendSignals.ts provenEvidence), and the Reels behind those ids. */
@@ -446,7 +451,7 @@ export async function planCompetitors(supabase: Supa, userId: string, workspaceI
 
 /** Everything the strategist may cite, read from the user's own rows. Each
  *  source is best-effort: a missing table simply contributes nothing. */
-export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnapshot | null, workspaceId?: string | null, opts: { outcomes?: PlanOutcome[]; strategy?: GrowthStrategy | null; location?: string | null; skip?: string[]; timeZone?: string | null; now?: Date; brandWorkspaceId?: string | null; discover?: unknown } = {}): Promise<Evidence> {
+export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnapshot | null, workspaceId?: string | null, opts: { targetPerWeek?: number | null;  outcomes?: PlanOutcome[]; strategy?: GrowthStrategy | null; location?: string | null; skip?: string[]; timeZone?: string | null; now?: Date; brandWorkspaceId?: string | null; discover?: unknown } = {}): Promise<Evidence> {
   // Competitors the person unticked on the form, and accounts they removed on Discover, are left out of this plan entirely.
   const skip = new Set((opts.skip ?? []).map(handleKey).filter(Boolean));
   try {
@@ -536,6 +541,7 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
     playbookBlock: playbook,
     decisionsBlock: decisionsBlock(recentPlans),
     experimentsBlock: experimentsEvidence(await experimentResults(supabase, userId, workspaceId ?? null, opts.strategy).catch(() => [])),
+    opportunitiesBlock: opportunitiesEvidence(opportunitiesFrom(intel, media, { location: opts.location ?? undefined, growth: { routine: { post_days: opts.targetPerWeek ?? undefined } } } as BrandDetail, opts.now ?? new Date())),
     trendsBlock: trendsBlock_,
     // Each Reel says whether it's from one of the competitors on Discover or another account in the niche.
     provenBlock: provenEvidence(proven, (r) => trackedKeys.has(handleKey(r.accountHandle ?? r.accountName)), (r) => { const s = styleOfReel(r); return s ? STYLE_LABEL[s] : null; }),
