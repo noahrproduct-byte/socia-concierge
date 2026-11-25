@@ -40,7 +40,7 @@ const cache = new Map<string, { at: number; v: ResearchExample[] }>();
 export const wantsShort = (i: Pick<ResearchIntent, "format" | "platform">): boolean =>
   !/\b(long|youtube video|full video|podcast|vlog|webinar)\b/i.test(`${i.format} ${i.platform}`);
 
-async function youtubeExamples(query: string, short: boolean, days: number): Promise<ResearchExample[]> {
+export async function youtubeExamples(query: string, short: boolean, days: number): Promise<ResearchExample[]> {
   const key = `${query}|${short}|${days}`;
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.v;

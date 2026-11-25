@@ -12138,3 +12138,58 @@ p.cbm-muted { display: block; }
 .opp-section { display: flex; flex-direction: column; gap: 8px; margin: 0 0 16px; }
 .opp-section h2 { margin: 0; font-size: 15px; font-weight: 650; color: var(--text-primary); }
 .opp-lead { margin: 0; font-size: 13px; color: var(--text-secondary); }
+
+/* Help me make a video (components/plan/VideoWorkspace.tsx): the workspace in place of the weekly plan. */
+.vw { display: flex; flex-direction: column; gap: var(--sp-5); }
+.vw-head { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-2); }
+.vw-head h2 { margin: 0; font-size: 22px; line-height: 28px; font-weight: 700; color: var(--text-primary); }
+.vw-ask { display: flex; flex-direction: column; gap: var(--sp-2); }
+.vw-ask label { font-size: var(--fs-body); font-weight: 600; color: var(--text-primary); }
+.vw-ask textarea, .vw-script { width: 100%; padding: var(--sp-2) var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-card); background: var(--surface); color: var(--text-primary); font: inherit; font-size: var(--fs-body); line-height: var(--lh-body); resize: vertical; }
+.vw-ask textarea:focus-visible, .vw-script:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.vw-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); }
+.vw-row small { flex: 1; min-width: 220px; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--text-muted); }
+.vw-sec { display: flex; flex-direction: column; gap: var(--sp-2); }
+.vw-sec h3 { margin: 0; font-size: 16px; line-height: 22px; font-weight: 700; color: var(--text-primary); }
+.vw-muted { margin: 0; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--text-muted); }
+.vw-refs { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--sp-3); }
+.vw-refs > li { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--r-card); background: var(--surface); overflow: hidden; min-width: 0; }
+.vw-refs > li.on { border-color: var(--text-primary); }
+.vw-ref-cover { position: relative; display: block; aspect-ratio: 16 / 10; background: var(--surface-muted, var(--border)); overflow: hidden; }
+.vw-ref-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.vw-ref-cover span { position: absolute; left: var(--sp-2); bottom: var(--sp-2); padding: 2px 8px; border-radius: 99px; background: rgba(0, 0, 0, 0.62); color: #fff; font-size: var(--fs-meta); }
+.vw-ref-body { display: flex; flex-direction: column; gap: 4px; padding: var(--sp-3); min-width: 0; }
+.vw-ref-body b { font-size: var(--fs-body); color: var(--text-primary); overflow-wrap: anywhere; }
+.vw-ref-body small { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--text-secondary); overflow-wrap: anywhere; }
+.vw-ref-body .vw-cap { color: var(--text-muted); }
+.vw-ref-body p { margin: 4px 0 0; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--text-primary); }
+.vw-ref-body ul { margin: 0; padding-left: 18px; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--text-secondary); }
+.vw-ref-acts { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-2); }
+.vw-dirs { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--sp-3); }
+.vw-dir { display: flex; flex-direction: column; gap: 6px; padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-card); background: var(--surface); color: var(--text-primary); text-align: left; font: inherit; font-size: var(--fs-body); line-height: var(--lh-body); cursor: pointer; }
+.vw-dir.on { border-color: var(--text-primary); box-shadow: 0 0 0 1px var(--text-primary); }
+.vw-dir:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.vw-dir small { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--text-secondary); }
+.vw-dir .vw-why { color: var(--text-muted); }
+.vw-dir-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--sp-2); }
+.vw-dir-top em { font-style: normal; font-size: var(--fs-meta); font-weight: 600; color: var(--success); }
+.vw-plan { display: flex; flex-direction: column; gap: var(--sp-5); padding-top: var(--sp-4); border-top: 1px solid var(--border); }
+.vw-over { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--sp-2) var(--sp-4); margin: 0; }
+.vw-over dt { font-size: var(--fs-meta); color: var(--text-muted); }
+.vw-over dd { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--text-primary); }
+.vw-hook { margin: 0; padding-left: 18px; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--text-primary); }
+.vw-shots { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.vw-shots > li { display: grid; grid-template-columns: 84px 1fr; gap: var(--sp-3); padding: var(--sp-2) 0; border-top: 1px solid var(--border); }
+.vw-shots > li:first-child { border-top: 0; }
+.vw-shots b { font-size: var(--fs-body); line-height: var(--lh-body); color: var(--text-primary); font-weight: 600; }
+.vw-shots small { display: block; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--text-secondary); }
+.vw-time { font-size: var(--fs-meta); font-variant-numeric: tabular-nums; color: var(--text-muted); padding-top: 2px; }
+.vw-more summary { cursor: pointer; font-size: 16px; font-weight: 700; color: var(--text-primary); }
+.vw-more p, .vw-line { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--text-primary); }
+.vw-changes { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.vw-changes small { flex-basis: 100%; }
+.vw-acts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.vw-add { display: inline-flex; gap: var(--sp-2); align-items: center; }
+.vw-add select { height: 36px; padding: 0 var(--sp-2); border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text-primary); font: inherit; }
+.vw-note { margin: 0; font-size: var(--fs-body); color: var(--success); }
+@media (max-width: 560px) { .vw-shots > li { grid-template-columns: 1fr; gap: 2px; } }
