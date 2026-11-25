@@ -31,7 +31,7 @@ import { fileLabel } from "@/lib/publishing/postLabel";
 import type { VideoSummary } from "@/lib/studioClips/videos";
 import LearnCard, { useStudioLearn } from "./LearnCard";
 import StudioEmpty from "./StudioEmpty";
-import QuickEdit, { MANY_LOCKED } from "./QuickEdit";
+import QuickEdit from "./QuickEdit";
 import NicheScanCard from "@/components/NicheScanCard";
 import { SHRINK_ABOVE, UPLOAD_LIMIT_TEXT, needsTranscode, shrinkForUpload } from "@/lib/studioClips/shrink";
 
@@ -101,21 +101,14 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build", fro
   const [startPrompt, setStartPrompt] = useState<string | null>(null);
   // The creative style chosen in Ask SOCIA, for the brief panel's direction defaults.
   const [startStyle, setStartStyle] = useState<import("@/lib/research/direction").CreativeStyle | null>(null);
-  // The prompt typed on the one-drop screen, before any clips.
-  const [quickPrompt, setQuickPrompt] = useState("");
   // A Reel from Discover to read as the reference ("Make a video like this").
   const [startReference, setStartReference] = useState<HandoffReference | null>(null);
-  // Clips and a script sent from Ask SOCIA: the video is made without another click (Noah, 2026-11-18).
-  const [startAuto, setStartAuto] = useState(false);
   // Edit: every video made in this brand (null while loading).
   const [videos, setVideos] = useState<VideoSummary[] | null>(null);
-  // Video editor, first screen: one raw clip dropped is made into a finished video in one go
-  // (components/studio/QuickEdit.tsx). `quick` is that clip while it is being made; `full` is the
-  // person choosing the full editor instead (several clips, a prompt, a video to copy).
-  const [quick, setQuick] = useState<{ id: string; name: string } | null>(null);
-  const [full, setFull] = useState(false);
-  // From the drop until every dropped clip has been registered, measured and uploaded: the one-drop edit waits for it.
-  const [quickBusy, setQuickBusy] = useState(false);
+  // Video editor: one screen for every way in (components/studio/QuickEdit.tsx). `running` is a video being made there,
+  // which holds new footage until it's done; `session` starts the screen afresh after "Edit another".
+  const [running, setRunning] = useState(false);
+  const [session, setSession] = useState(0);
   const projectRef = useRef<StudioProject | null>(null);
   projectRef.current = project;
 
@@ -284,13 +277,12 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build", fro
     }
   }, [supabase]);
 
-  const onFiles = useCallback(async (list: FileList | File[], opts: { quick?: boolean } = {}) => {
+  const onFiles = useCallback(async (list: FileList | File[]) => {
     const files = Array.from(list).filter((f) => f.type.startsWith("video/") || VIDEO_RE.test(f.name));
     if (!files.length) { setNotice("Drop video clips (MP4 or MOV). Photos come in a later step."); return; }
     setPlanError(null);
     const p = await ensureProject();
-    // The one-drop edit has nothing to make without its project: back to the drop, with the reason shown above it.
-    if (!p) { if (opts.quick) setQuick(null); return; }
+    if (!p) return;
     setAdding(true); setOpenOpp(null);
     const entries = files.map((f) => ({ key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, file: f }));
     setLocals((cur) => [...cur, ...entries.map<LocalClip>((e) => ({ key: e.key, name: e.file.name, phase: "reading", progress: 0, stageNote: null, error: null, thumb: null, clip: null, durationSec: null, reused: false }))]);
@@ -311,12 +303,9 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build", fro
     const fresh = await openProject(p.id, true);
     void loadMeta();
     const usable = Boolean(fresh?.clips.some((c) => c.status === "ready" || c.status === "uploaded"));
-    // The one-drop edit's clip was refused before it was kept (a plan limit): back to the drop, the notice says why.
-    if (opts.quick && fresh && !fresh.clips.length) setQuick(null);
     // The person's own edit: the clips' words are transcribed now (lib/studioClips/job.ts), so captions and the
     // themes' hooks work in the editor as they do in Build; the editor picks the words up as they land.
-    // Several clips dropped on the one-drop screen are understood next, and their words are heard as part of that.
-    if ((editing || audio) && fresh && usable && !(opts.quick && files.length > 1)) void fetch(`/api/studio/projects/${p.id}/transcribe`, { method: "POST" }).catch(() => null);
+    if ((editing || audio) && fresh && usable) void fetch(`/api/studio/projects/${p.id}/transcribe`, { method: "POST" }).catch(() => null);
     // Audio: the footage opens straight in the editor, on Music. Text from Rate: on Text, with the lines in.
     if (audio && fresh && usable) setAutoAudio(true);
     else if (editing && overlaysRef.current && fresh && usable) setAutoText(true);
@@ -334,9 +323,8 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build", fro
       if (editing && handed.data.prompt) setStartPrompt(handed.data.prompt);
       if (editing && handed.data.reference) setStartReference(handed.data.reference);
       if (editing && handed.data.style) setStartStyle(handed.data.style);
-      if (editing && handed.data.autoMake && handed.files.length && (handed.data.prompt || handed.data.reference)) setStartAuto(true);
-      // Anything handed over (a prompt, a Reel to copy, clips with text) is for the full editor.
-      if (editing && (handed.data.prompt || handed.data.reference || handed.files.length)) setFull(true);
+      // Everything handed over fills the Video editor's one screen; nothing is made until the person presses Make the video
+      // (Noah, 2026-11-25: no expensive generation starts by itself, Ask SOCIA's "send to the editor" included).
       if (!handed.files.length) return;
       if (editing) { overlaysRef.current = handed.data.layers?.length ? handed.data.layers : null; fixRef.current = handed.data.fix ?? null; }
       void onFiles(handed.files);
@@ -514,38 +502,19 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build", fro
 
   const backToStart = () => {
     setProject(null); setLocals([]); setOpenOpp(null); setBuilding(false); setAdding(false); setCustom(null); setManual(null);
-    setQuick(null); setFull(false);
+    setRunning(false); setSession((n) => n + 1); setStartPrompt(null); setStartReference(null); setStartStyle(null);
     router.replace(`/studio?mode=${modeParam}`, { scroll: false });
     void loadMeta();
     if (editing) void loadVideos();
   };
 
-  // Video editor: the one-drop screen is first (no video open, the full editor not chosen), and stays while its clip is made.
-  const quickScreen = editing && !migration && view !== "custom" && view !== "manual" && (quick != null || (!project && !full));
-  /** Open the full editor with the first screen's prompt filled in, and the clips (if any) added to it. */
-  const openWithPrompt = (files: File[]) => {
-    setStartPrompt(quickPrompt.trim());
-    setQuickPrompt("");
-    setFull(true);
-    if (files.length) void onFiles(files);
-  };
-  /** Files dropped or chosen anywhere on the page: on the one-drop screen the footage is made into a video in one go; anywhere else it joins the video being made. */
+  // Video editor: one screen whatever the way in (a new video, a project in the address, a hand-off), until a cut is open in the editor.
+  const editorScreen = editing && !migration && view !== "custom" && view !== "manual";
+  /** Files dropped or chosen anywhere on the page join the video being set up; while one is being made they wait. */
   const incoming = (list: FileList | File[]) => {
-    if (quick) return;
-    const files = Array.from(list).filter((f) => f.type.startsWith("video/") || VIDEO_RE.test(f.name));
-    // A prompt was written first: the clips go to the full editor with it, not the one-drop edit.
-    if (quickScreen && files.length && quickPrompt.trim()) { openWithPrompt(files); return; }
-    if (quickScreen && files.length > 1 && meta && !meta.autoBuild) { setNotice(MANY_LOCKED); return; }
-    if (quickScreen && files.length) {
-      setQuick({ id: `${Date.now()}`, name: files[0].name });
-      setQuickBusy(true);
-      void onFiles(files, { quick: true }).finally(() => setQuickBusy(false));
-      return;
-    }
+    if (running) { setNotice("Wait for this video to finish, then add more footage."); return; }
     void onFiles(list);
   };
-  // The footage being made, as the uploads track it; before its rows exist it is just being read.
-  const quickLocals: LocalClip[] = quick ? (locals.length ? locals : [{ key: quick.id, name: quick.name, phase: "reading", progress: 0, stageNote: null, error: null, thumb: null, clip: null, durationSec: null, reused: false }]) : [];
 
   const dropZone = (compact: boolean) => (
     <div className={`st-drop cb-drop${compact ? " compact" : ""}${drag ? " drag" : ""}`} role="button" tabIndex={0} onClick={() => input.current?.click()} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.current?.click(); } }}>
@@ -565,14 +534,15 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build", fro
         actions={
           <>
             {(project || custom) && view !== "understanding" && <button type="button" className="ov-btn ghost" onClick={backToStart}><FolderOpen size={14} /> {editing ? "Your videos" : "Projects"}</button>}
-            <button type="button" className="ov-btn primary" disabled={view === "understanding" || quick != null} onClick={() => input.current?.click()}><Upload size={14} /> {audio ? "Upload a video" : "Add clips"}</button>
+            <button type="button" className="ov-btn primary" disabled={view === "understanding" || running} onClick={() => input.current?.click()}><Upload size={14} /> {audio ? "Upload a video" : "Add clips"}</button>
             <input ref={input} type="file" hidden accept="video/mp4,video/quicktime,video/webm,video/*" multiple onChange={(e) => { if (e.target.files) incoming(e.target.files); e.target.value = ""; }} />
           </>
         }
       />
       {modeTabs}
       {/* What goes viral in the niche: the cuts follow it (lib/nicheScan). Only while researching or once there is a playbook. */}
-      {!audio && <NicheScanCard compact />}
+      {/* The Video editor shows a small row of Reels to make the video like instead (components/studio/Inspiration.tsx). */}
+      {!audio && !editing && <NicheScanCard compact />}
 
       {migration && (
         <div className="ov-card st-error cb-notice"><span className="st-error-ico"><AlertTriangle size={16} /></span><div><b>Build from Clips isn&apos;t set up in the database yet</b><p>{migration}</p></div></div>
@@ -580,70 +550,35 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build", fro
       {planError && <div className="ov-card st-error cb-notice"><span className="st-error-ico"><AlertTriangle size={16} /></span><div><PlanNotice error={planError} compact onCta={() => setPlanError(null)} /></div></div>}
       {notice && <div className="cal2-toast cb-toast" role="status">{notice}<button type="button" className="ov-x" aria-label="Dismiss" onClick={() => setNotice(null)}>×</button></div>}
 
-      {quickScreen && (
+      {editorScreen && (
         <div className="cb-editor cb-editor-quick">
-          {fromPlan && !quick && (
+          {fromPlan && (
             fromPlan.from === "post"
-              ? <p className="qe-from-plan" role="status"><b>A new version of {fromPlan.title}</b>. What to change, from how that post did, is in How do you want it below. Drop your clips and SOCIA cuts them to it.</p>
-              : <p className="qe-from-plan" role="status"><b>From your plan: {fromPlan.title}</b> ({fromPlan.day}). Its shots, opening line and ending are in How do you want it below. Drop your clips and SOCIA cuts them to it; change the words first if you filmed it differently.</p>
+              ? <p className="qe-from-plan" role="status"><b>A new version of {fromPlan.title}</b>. What to change, from how that post did, is in the prompt below. Add your clips, read it through and make the video.</p>
+              : <p className="qe-from-plan" role="status"><b>From your plan: {fromPlan.title}</b> ({fromPlan.day}). Its shots, opening line and ending are in the prompt below. Add your clips and change the words first if you filmed it differently.</p>
           )}
           <QuickEdit
-            key={quick?.id ?? "drop"}
-            locals={quickLocals}
-            uploading={uploading || quickBusy}
+            key={session}
+            viewerId={viewerId}
+            locals={locals}
+            uploading={uploading}
             projectId={project?.id ?? null}
+            understood={Boolean(project?.yield && project.status === "ready")}
             canTranscribe={meta ? meta.transcription : null}
             canPicture={meta ? meta.autoBuild : null}
             drag={drag}
             onPick={(files) => incoming(files)}
+            onRemove={(c) => void removeClip(c)}
             understand={ensureUnderstood}
-            onOpenEditor={(id, title) => { setQuick(null); setFull(true); setCustom({ id, title }); }}
+            onOpenEditor={(id, title) => { setRunning(false); setCustom({ id, title }); }}
+            onManual={() => void openManual()}
+            manualBusy={manualBusy}
             onReset={backToStart}
-            onFull={() => setFull(true)}
-            prompt={quickPrompt}
-            planPrompt={fromPlan?.prompt}
-            onPromptChange={setQuickPrompt}
-            onUsePrompt={() => openWithPrompt([])}
+            onRunning={setRunning}
+            handed={{ prompt: startPrompt ?? fromPlan?.prompt ?? null, reference: startReference, style: startStyle, goal: fromPlan ? fromPlan.title : null }}
           />
-          {!quick && <VideoList videos={videos} onOpen={(v) => setCustom({ id: v.id, title: v.title })} />}
-          {!quick && <ClipLibrary onOpenCut={(id, title) => setCustom({ id, title })} onUse={addFromLibrary} useLabel="Add to a new video" />}
-        </div>
-      )}
-
-      {editing && !quickScreen && view !== "custom" && view !== "manual" && !migration && (
-        <div className="cb-editor">
-          <section className="ov-card cbp" aria-labelledby="cb-ed-clips">
-            <div className="cbp-head">
-              <h3 id="cb-ed-clips"><Layers size={15} /> Clips for this video</h3>
-              {readyClips.length > 0 && <span className="cbp-muted">{readyClips.length} clip{readyClips.length === 1 ? "" : "s"} · {fmtMinutes(footageSec)}{uploading ? " · adding more" : ""}</span>}
-            </div>
-            {locals.length > 0 && <ClipGrid clips={locals} onRemove={(c) => void removeClip(c)} busy={uploading || view === "understanding"} />}
-            {view === "understanding" && project ? <UnderstandCard progress={project.progress} clipCount={readyClips.length} /> : locals.length > 0 ? dropZone(true) : (
-              <StudioEmpty art="video" title="Add your first clips" compact action={<button type="button" className="ov-btn primary small" onClick={() => input.current?.click()}><Upload size={13} /> Add clips</button>}>
-                One video or many clips, MP4 or MOV. Then write what you want, add a video to copy, or edit them yourself.
-              </StudioEmpty>
-            )}
-          </section>
-          <BriefPanel
-            projectId={project && readyClips.length ? project.id : null}
-            viewerId={viewerId}
-            canMake={meta ? meta.autoBuild : null}
-            heading="Prompt and reference"
-            initialPrompt={startPrompt}
-            initialStyle={startStyle}
-            initialReference={startReference}
-            autoMake={startAuto && !uploading && busyIds === 0 && readyClips.length > 0}
-            onAutoMade={() => setStartAuto(false)}
-            noClipsNote="Add clips above first, or pick some from Your clips below."
-            beforeMake={ensureUnderstood}
-            onOpen={(id, title) => setCustom({ id, title })}
-          />
-          <div className="ov-card cb-manual">
-            <div><b><Scissors size={14} /> Or edit them yourself</b><small>Cut, arrange, reframe and add text and music to these clips by hand. No AI, nothing counted against your plan.</small></div>
-            <button type="button" className="ov-btn ghost small" disabled={!readyClips.length || uploading || manualBusy} onClick={() => void openManual()}>{manualBusy ? <Loader2 size={13} className="spin" /> : null} Open the editor</button>
-          </div>
-          <VideoList videos={videos} onOpen={(v) => setCustom({ id: v.id, title: v.title })} />
-          <ClipLibrary onOpenCut={(id, title) => setCustom({ id, title })} onUse={addFromLibrary} useLabel="Add to this video" />
+          {!running && <VideoList videos={videos} onOpen={(v) => setCustom({ id: v.id, title: v.title })} />}
+          {!running && <ClipLibrary onOpenCut={(id, title) => setCustom({ id, title })} onUse={addFromLibrary} useLabel={project ? "Add to this video" : "Add to a new video"} />}
         </div>
       )}
 

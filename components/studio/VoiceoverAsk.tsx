@@ -47,7 +47,9 @@ function VoiceCard({ v, on, playing, disabled, onPick, onPlay }: { v: VoiceChoic
   );
 }
 
-export default function VoiceoverAsk({ notes, onNotes, voiceId, onVoice, approved, onApproved, onPending, prompt, disabled }: {
+export default function VoiceoverAsk({ notes, onNotes, voiceId, onVoice, approved, onApproved, onPending, prompt, disabled, mustApprove = false }: {
+  /** the video waits for an approved script (the Video editor's one screen): no "leave it and SOCIA writes it later" */
+  mustApprove?: boolean;
   /** what goes with the video: the script when there is one, else what it should be about */
   notes: string; onNotes: (v: string) => void;
   voiceId: string | null; onVoice: (id: string | null) => void;
@@ -171,7 +173,7 @@ export default function VoiceoverAsk({ notes, onNotes, voiceId, onVoice, approve
             <button type="button" className="ov-btn ghost small" disabled={disabled || Boolean(busy) || !theme.trim()} onClick={() => void run(script ? "again" : null)}>
               {busy === "write" || busy === "again" ? <Loader2 size={13} className="spin" /> : <PenLine size={13} />} {busy === "write" || busy === "again" ? "Writing, looking up your details…" : script ? "Write a new one" : "Write the script"}
             </button>
-            <small className="cbp-muted">{cost} credits. One script for a {seconds}-second video{chosen?.style ? `, for a ${chosen.style.toLowerCase()} voice` : ""}. Facts come from what you wrote, your business details in SOCIA, then your website; SOCIA asks you for anything it can&apos;t find. Or leave it and SOCIA writes it when the video is made.</small>
+            <small className="cbp-muted">{cost} credits. One script for a {seconds}-second video{chosen?.style ? `, for a ${chosen.style.toLowerCase()} voice` : ""}. Facts come from what you wrote, your business details in SOCIA, then your website; SOCIA asks you for anything it can&apos;t find.{mustApprove ? " Read it and approve it before the video is made." : " Or leave it and SOCIA writes it when the video is made."}</small>
           </div>
         </>
       )}

@@ -195,3 +195,109 @@
 .qe-from-plan b { color: var(--text-primary); }
 /* A long prompt (a planned post's brief) shows most of itself instead of three lines. */
 .qe-prompt-box textarea.is-long { min-height: 200px; }
+
+/* ---- The one screen (Noah, 2026-11-25): footage, then one panel in reading order:
+   the prompt, the reference, the creative direction, the voiceover and what it counts. ---- */
+.qe-make { gap: 24px; }
+.qe-make .qe-drop { min-height: 180px; }
+.qe-panel { width: 100%; max-width: 760px; display: flex; flex-direction: column; border: 1px solid var(--qe-line); border-radius: 16px; background: var(--qe-bg); text-align: left; }
+.qe-sec { display: flex; flex-direction: column; gap: 10px; padding: 20px; }
+.qe-sec + .qe-sec { border-top: 1px solid var(--qe-line); }
+.qe-sec > small, .qe-sec .qe-row > small { font-size: 12px; line-height: 16px; color: var(--qe-faint); }
+.qe-sec-title { font-size: 15px; line-height: 22px; font-weight: 650; color: var(--qe-text); }
+.qe-sec-title span { margin-left: 6px; font-size: 12px; font-weight: 500; color: var(--qe-faint); }
+.qe-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.qe-btn.is-small { height: 34px; padding: 0 12px; border-radius: 10px; font-size: 13px; }
+.qe-btn.is-big { height: 48px; padding: 0 22px; font-size: 15px; }
+.qe-input { flex: 1 1 240px; min-width: 0; height: 34px; padding: 0 10px; border: 1px solid var(--qe-line); border-radius: 10px; background: var(--qe-input); color: var(--qe-text); font: inherit; font-size: 14px; }
+.qe-input:focus-visible { outline: 2px solid var(--qe-blue); outline-offset: 1px; }
+.qe-note { color: var(--qe-dim); }
+
+/* the footage once it's in: the clips with their progress, and a way to add more */
+.qe-footage { padding: 16px 20px; gap: 12px; background: var(--qe-panel); }
+.qe-sec-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.qe-sec-head b { font-size: 15px; line-height: 22px; }
+.qe-sec-head span { flex: 1 1 auto; font-size: 13px; color: var(--qe-dim); }
+
+/* the reference, once read: a frame of it, its name and its measured facts */
+.qe-ref-card { display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 8px; border: 1px solid var(--qe-line); border-radius: 12px; background: var(--qe-panel); }
+.qe-ref-card img, .qe-ref-blank { flex: none; width: 40px; height: 56px; border-radius: 8px; object-fit: cover; background: var(--qe-track); display: grid; place-items: center; color: var(--qe-faint); }
+.qe-ref-card > span { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.qe-ref-card b { font-size: 14px; line-height: 20px; overflow-wrap: anywhere; }
+.qe-ref-card small { font-size: 12px; line-height: 16px; color: var(--qe-dim); }
+.qe-lib { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.qe-lib button { width: 100%; display: flex; flex-direction: column; gap: 4px; padding: 0; border: 0; background: none; color: var(--qe-dim); font: inherit; text-align: left; cursor: pointer; }
+.qe-lib img, .qe-lib .qe-ref-blank { width: 100%; height: auto; aspect-ratio: 9 / 16; border-radius: 10px; object-fit: cover; border: 1px solid var(--qe-line); }
+.qe-lib button:hover img { border-color: var(--qe-blue); }
+.qe-lib button:focus-visible { outline: 2px solid var(--qe-blue); outline-offset: 2px; border-radius: 10px; }
+.qe-lib small { font-size: 11.5px; line-height: 15px; overflow-wrap: anywhere; }
+
+/* creative direction: SOCIA's recommendation in a line, every setting behind Customize */
+.qe-dir-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.qe-dir-head > div { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.qe-dir-head small { font-size: 12px; line-height: 16px; color: var(--qe-faint); }
+.qe-dir-sum { margin: 0; font-size: 14px; line-height: 20px; color: var(--qe-text); }
+.qe-settings { display: flex; flex-direction: column; gap: 14px; padding-top: 6px; }
+.qe-settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 18px; }
+.qe-settings .qe-field { grid-template-columns: minmax(0, 1fr); gap: 6px; align-items: start; align-content: start; }
+.qe-settings .qe-field > span i, .qe-set-label i { font-style: normal; font-weight: 500; color: var(--qe-blue); }
+.qe-set { display: flex; flex-direction: column; gap: 6px; }
+.qe-set-label { font-size: 13px; line-height: 18px; font-weight: 600; color: var(--qe-text); }
+.qe-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.qe-chip { height: 32px; padding: 0 12px; border: 1px solid var(--qe-line); border-radius: 99px; background: var(--qe-input); color: var(--qe-text); font: inherit; font-size: 13px; cursor: pointer; }
+.qe-chip:hover { border-color: var(--qe-line-strong); }
+.qe-chip.is-on { border-color: var(--qe-blue); background: var(--qe-hover); color: var(--qe-blue); font-weight: 600; }
+.qe-chip:focus-visible { outline: 2px solid var(--qe-blue); outline-offset: 2px; }
+.qe-settings .qe-fx { margin-top: 0; }
+.qe-settings > .qe-link { align-self: flex-start; font-size: 13px; }
+
+/* the summary: what goes in, and what it counts */
+.qe-sum { background: var(--qe-panel); border-radius: 0 0 16px 16px; }
+.qe-sum-list { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; font-size: 13px; line-height: 19px; }
+.qe-sum-list > div { display: contents; }
+.qe-sum-list dt { color: var(--qe-faint); }
+.qe-sum-list dd { margin: 0; color: var(--qe-text); overflow-wrap: anywhere; }
+.qe-cost { list-style: none; margin: 4px 0 0; padding: 10px 0 0; border-top: 1px solid var(--qe-line); display: flex; flex-direction: column; gap: 4px; font-size: 13px; line-height: 19px; }
+.qe-cost li { display: flex; justify-content: space-between; gap: 12px; color: var(--qe-dim); }
+.qe-cost li b { font-weight: 600; color: var(--qe-text); text-align: right; }
+.qe-cost li.is-total { padding-top: 4px; font-weight: 650; color: var(--qe-text); }
+.qe-make-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; margin-top: 6px; }
+.qe-make-row .qe-link { font-size: 13px; color: var(--qe-dim); }
+.qe-why { color: var(--qe-dim); }
+
+/* inspiration: a few Reels to make it like, small and above everything else */
+.qe-insp { width: 100%; max-width: 760px; display: flex; flex-direction: column; gap: 10px; text-align: left; }
+.qe-insp-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.qe-insp-head h3 { margin: 0; font-size: 14px; line-height: 20px; font-weight: 650; color: var(--qe-text); }
+.qe-insp-head small { font-size: 12px; line-height: 16px; color: var(--qe-faint); }
+.qe-insp ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+.qe-insp li { min-width: 0; display: flex; flex-direction: column; gap: 3px; font-size: 12px; line-height: 16px; }
+.qe-insp li b { font-weight: 600; color: var(--qe-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qe-insp li small { color: var(--qe-faint); }
+.qe-insp li .qe-link { align-self: flex-start; font-size: 12px; text-align: left; color: var(--qe-blue); }
+.qe-insp li .qe-link:disabled { color: var(--qe-faint); text-decoration: none; cursor: default; }
+.qe-insp-cover { position: relative; display: block; width: 100%; aspect-ratio: 4 / 5; padding: 0; border: 1px solid var(--qe-line); border-radius: 12px; overflow: hidden; background: var(--qe-panel); cursor: pointer; }
+.qe-insp li.is-on .qe-insp-cover { border-color: var(--qe-blue); box-shadow: 0 0 0 1px var(--qe-blue); }
+.qe-insp-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.qe-insp-cover:focus-visible { outline: 2px solid var(--qe-blue); outline-offset: 2px; }
+.qe-insp-blank { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; color: var(--qe-faint); }
+.qe-insp-play { position: absolute; right: 8px; bottom: 8px; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 99px; background: rgba(0, 0, 0, 0.55); color: #fff; }
+.qe-insp-modal { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, 0.6); }
+.qe-insp-sheet { position: relative; width: min(380px, 100%); max-height: 100%; display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 16px; background: var(--qe-bg); border: 1px solid var(--qe-line); color: var(--qe-text); }
+.qe-insp-sheet video { width: 100%; max-height: 70vh; aspect-ratio: 9 / 16; border-radius: 12px; background: #000; object-fit: contain; }
+.qe-insp-sheet .ov-x { position: absolute; top: 18px; right: 18px; z-index: 1; }
+.qe-insp-sheet-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 13px; line-height: 18px; color: var(--qe-dim); }
+.qe-insp-sheet-foot > span { flex: 1 1 100%; }
+.qe-insp-sheet-foot a { display: inline-flex; align-items: center; gap: 5px; color: var(--qe-text); }
+
+@media (max-width: 860px) {
+  .qe-insp ul { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; }
+  .qe-insp li { flex: 0 0 104px; scroll-snap-align: start; }
+  .qe-settings-grid { grid-template-columns: minmax(0, 1fr); }
+  .qe-sec { padding: 16px; }
+  .qe-dir-head { flex-direction: column; }
+}
+/* the clips sit small in the footage box, several to a row even on a phone */
+.qe-footage .cb-grid { margin: 0; padding: 0; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.qe-insp, .qe-insp ul { min-width: 0; max-width: 100%; }
+.qe-make { min-width: 0; max-width: 100%; }
