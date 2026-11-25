@@ -73,6 +73,8 @@ export type StrategyFacts = {
   nicheSeen?: string[];
   /** Creators and competitors the person follows on Discover. */
   admired?: string[];
+  /** Growth opportunities as prompt lines (lib/intel/opportunities.ts). */
+  opportunities?: string;
 };
 
 /** The facts as the prompt's evidence, and as the "based on" list shown under the strategy. */
@@ -87,6 +89,7 @@ export function factLines(f: StrategyFacts): { prompt: string; basedOn: string[]
   const starter = f.readiness && f.readiness.stage !== "established";
   if (starter && f.nicheSeen?.length) basedOn.push(`${f.nicheSeen.length} recent Reels from accounts in your niche, with their published numbers`);
   if (starter && f.admired?.length) basedOn.push(`The creators you follow on Discover`);
+  if (f.opportunities) basedOn.push("Growth opportunities from the accounts you learn from");
   if (f.readiness) basedOn.push(f.readiness.stage === "starting" ? "Starter mode: your account is still building its history" : `Your own results count for ${Math.round(f.readiness.ownWeight * 100)}%`);
   const cap = postsCap(f.growth);
   const prompt = [
@@ -100,6 +103,7 @@ export function factLines(f: StrategyFacts): { prompt: string; basedOn: string[]
     f.readiness ? `How much of their own history there is:\n${readinessLines(f.readiness)}` : "",
     starter && f.nicheSeen?.length ? `Observed on other accounts in their niche (those accounts' published numbers, not this account's):\n${f.nicheSeen.map((x) => `- ${x}`).join("\n")}` : "",
     starter && f.admired?.length ? `Creators and competitors they admire: ${f.admired.map((h) => `@${h.replace(/^@/, "")}`).join(", ")}.` : "",
+    f.opportunities ?? "",
   ].filter(Boolean).join("\n\n");
   return { prompt, basedOn };
 }

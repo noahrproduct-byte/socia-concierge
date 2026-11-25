@@ -166,6 +166,12 @@ export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null
     );
   }
 
+  if (evidence?.opportunitiesBlock) {
+    parts.push(`\n# Growth opportunities`);
+    parts.push(evidence.opportunitiesBlock);
+    parts.push(`Where one fits the brand and its resources, build a post on it as a test and say so in that post's evidence (observed on other accounts, expected only as a hypothesis). Never present one as proven for this account.`);
+  }
+
   if (evidence?.experimentsBlock) {
     parts.push(`\n# How the strategy's experiments are going`);
     parts.push(`(Each test post measured against the account's own median once its numbers settle; 3 settled posts are needed for a verdict.)`);

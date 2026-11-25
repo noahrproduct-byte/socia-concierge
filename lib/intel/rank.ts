@@ -38,7 +38,11 @@ export type RankInput = {
 export type BrandFacts = { followers: number | null; servesLocally: boolean };
 
 export type RankPart = "business" | "audience" | "growth" | "performance" | "practical";
-export type Ranked = { key: string; score: number; pinned: boolean; parts: Record<RankPart, number>; reasons: string[] };
+export type Ranked = {
+  key: string; score: number; pinned: boolean; parts: Record<RankPart, number>; reasons: string[];
+  /** the numbers it was ranked on that other features reuse (posting pace for opportunities); absent on older profiles */
+  stats?: { followers: number | null; postsPerWeek: number | null; medianViews: number | null };
+};
 
 export const keyOf = (platform: string, handle: string) => `${platform}:${handle.replace(/^@/, "").toLowerCase()}`;
 
@@ -92,7 +96,7 @@ export function rankOne(a: RankInput, brand: BrandFacts): Ranked {
   const parts = { business, audience: clamp(audience), growth, performance, practical };
   const score = (Object.keys(WEIGHT) as RankPart[]).reduce((s, k) => s + parts[k] * WEIGHT[k], 0);
   if (a.pinned) reasons.unshift("Your priority");
-  return { key: keyOf(a.platform, a.handle), score: Math.round(score * 100) / 100, pinned: a.pinned, parts, reasons: reasons.slice(0, 4) };
+  return { key: keyOf(a.platform, a.handle), score: Math.round(score * 100) / 100, pinned: a.pinned, parts, reasons: reasons.slice(0, 4), stats: { followers: a.followers, postsPerWeek: a.postsPerWeek, medianViews: a.medianViews } };
 }
 
 /** Best first: the person's priority accounts, then by score; ties keep the order given. */

@@ -36,7 +36,8 @@ import { captionlessLabels } from "@/lib/publishing/postLabelLoad";
 import { coverOf, type CalendarItem, type Competitors, type PlanDayItem } from "@/lib/overviewVisual";
 import { listTracked } from "@/lib/trackedCompetitors";
 import { competitorScopeId } from "@/lib/workspaces";
-import { nicheReadFor } from "@/lib/intel/profileLoad";
+import { intelFor } from "@/lib/intel/profileLoad";
+import { opportunitiesFrom } from "@/lib/intel/opportunitiesLoad";
 import { anglesGap, nicheToTry, worksByAngle } from "@/lib/intel/angles";
 import { locationTokens } from "@/lib/competitorPatterns";
 import { isOwnAccount, ownAccounts } from "@/lib/ownAccounts";
@@ -125,8 +126,10 @@ export default async function DashboardPage({
   const igConnected = profile?.account_connected ?? false;
   // The niche's hooks and topics for "What's working", from reads SOCIA already stored (no platform call).
   const brandLocation = profile?.brand_detail?.location ?? null;
+  // The brand's saved intelligence profile (lib/intel/profileLoad.ts): the niche read and the ranked competitors.
+  const profileP = competitorScopeId(ctx.client, wsId ?? undefined).then((cwid) => intelFor({ client: ctx.client, ownerId: ctx.ownerId, scopeId: cwid }, { need: "saved", location: brandLocation })).catch(() => null);
   const nicheP = canUseFeature(ent, "niche_intelligence")
-    ? competitorScopeId(ctx.client, wsId ?? undefined).then((cwid) => nicheReadFor(ctx.client, ctx.ownerId, cwid, { need: "saved", location: brandLocation })).catch(() => null)
+    ? profileP.then((p) => p?.niche ?? null)
     : Promise.resolve(null);
   // Daily recommendations (Growth+): the two reads only the Today card needs
   // start now, alongside the platform reads.
@@ -387,6 +390,8 @@ export default async function DashboardPage({
     planWeek,
     tasks: mine.tasks,
     plan: latestPlan && planRows.length ? { id: latestPlan.id, items: latestPlan.data.weeklyPlan, rows: planRows } : null,
+    // Growth opportunities: the saved profile against the account's own posts, in code (no platform call, no model).
+    opportunities: opportunitiesFrom(await profileP, media, profile?.brand_detail ?? null),
     intel: {
       briefing,
       works,

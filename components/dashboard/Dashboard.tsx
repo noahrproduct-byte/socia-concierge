@@ -11,6 +11,8 @@
 // each card's Details. One component for every state: nothing connected,
 // other platforms only, and Instagram live. Nothing on it is a sample.
 
+import Opportunities from "@/components/intel/Opportunities";
+import type { Opportunity } from "@/lib/intel/opportunities";
 import "@/app/(app)/dashboard/dashboard.css";
 import "@/app/(app)/dashboard/dashboard-motion.css";
 import "@/app/(app)/dashboard/dashboard-week.css";
@@ -95,6 +97,8 @@ export type DashboardData = {
   tasks?: MyTask[];
   /** The latest plan's videos still on the way, for the "Your plan" rows; null when there are none. */
   plan?: { id: string; items: unknown[]; rows: PlanRow[] } | null;
+  /** Growth opportunities from the accounts the brand learns from (lib/intel/opportunities.ts), best first. */
+  opportunities?: Opportunity[];
 };
 
 type Metric = "views" | "engagement" | "followers";
@@ -526,6 +530,19 @@ export default function Dashboard({ d, look = "auto" }: { d: DashboardData; look
           </Details>
         )}
       </Reveal>
+
+      {/* ---- growth opportunities: what comparable accounts do that this one hasn't tried ---- */}
+      {d.opportunities && d.opportunities.length > 0 && (
+        <>
+          <div className="dash-sec">
+            <h2>Growth opportunities</h2>
+            <span className="dash-sec-hint">From the accounts you learn from</span>
+          </div>
+          <Reveal index={next()}>
+            <Opportunities list={d.opportunities.slice(0, 3)} compact />
+          </Reveal>
+        </>
+      )}
 
       {/* ---- more from your account: closed until opened -------------------------------- */}
       <section className="dash-more" aria-labelledby="dash-more-title">
