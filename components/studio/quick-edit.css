@@ -303,3 +303,20 @@
 .qe-make { min-width: 0; max-width: 100%; }
 .qe-ref-card .qe-ref-cap { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; color: var(--qe-dim); }
 .qe-ref-card > .qe-link { flex: none; font-size: 12px; }
+/* Reference music (components/studio/ReferenceMusicCard.tsx) */
+.qe-music { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--qe-line); border-radius: 12px; background: var(--qe-panel); min-width: 0; }
+.qe-music-head { display: flex; align-items: center; gap: 8px; font-size: 14px; line-height: 20px; color: var(--qe-text); }
+.qe-music-head svg { color: var(--qe-dim); }
+.qe-music-facts { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 2px; font-size: 13px; line-height: 19px; color: var(--qe-dim); }
+.qe-music-now { margin: 0; display: flex; align-items: flex-start; gap: 6px; font-size: 13px; line-height: 19px; color: var(--qe-text); }
+.qe-music-now svg { flex: none; margin-top: 3px; }
+.qe-music-actions { flex-wrap: wrap; }
+.qe-music-same { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 10px; border-radius: 10px; background: var(--qe-green-soft); font-size: 13px; line-height: 19px; color: var(--qe-text); }
+.qe-music-same > span { flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; }
+.qe-music-same small { display: block; color: var(--qe-dim); }
+.qe-music-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border-top: 1px solid var(--qe-line); }
+.qe-music-list li { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--qe-line); }
+.qe-music-list li > span { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; font-size: 13px; line-height: 19px; overflow-wrap: anywhere; }
+.qe-music-list small { color: var(--qe-dim); }
+.qe-music-on { flex: none; display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; color: var(--qe-green); }
+.qe-music .qe-link { align-self: flex-start; background: none; border: 0; padding: 0; font: inherit; font-size: 12.5px; cursor: pointer; }

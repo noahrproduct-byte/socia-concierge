@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { alignToBeats, beatFromStart, cutPoint, nearestBeat } from "./beats";
+import { alignToBeats, alignToMoments, beatFromStart, cutPoint, nearestBeat } from "./beats";
 import type { ClipForEdl } from "./edl";
 import type { Edl, EdlSegment } from "./types";
 import { timeline } from "./timeline";
@@ -64,5 +64,24 @@ describe("beatFromStart", () => {
     expect(beatFromStart(b, 10.1).offsetSec).toBeCloseTo(0.1, 3);
     expect(beatFromStart(b, 10.3).offsetSec).toBeCloseTo(0.4, 3);
     expect(beatFromStart({ ...b, trackId: "t" }, 1).trackId).toBe("t");
+  });
+});
+
+describe("cuts on the music's lifts", () => {
+  it("moves the nearest cut onto a moment where the music lifts", () => {
+    // Boundaries near 3 s and 6 s; the music lifts at 3.4 s.
+    const r = alignToMoments(edl([seg("s1", "a", 0, 3), seg("s2", "b", 0, 3), seg("s3", "c", 0, 3)]), clips, [3.4]);
+    expect(r).toMatchObject({ moved: 1, landed: 1 });
+    expect(timeline(r.edl).segments[1].startSec).toBeCloseTo(3.4, 1);
+  });
+  it("leaves cuts alone when no cut is near the moment", () => {
+    const e = edl([seg("s1", "a", 0, 3), seg("s2", "b", 0, 3)]);
+    const r = alignToMoments(e, clips, [5]);
+    expect(r).toMatchObject({ moved: 0, landed: 0 });
+    expect(r.edl).toBe(e);
+  });
+  it("counts a cut already on the moment without moving it", () => {
+    const r = alignToMoments(edl([seg("s1", "a", 0, 3), seg("s2", "b", 0, 3)]), clips, [3]);
+    expect(r).toMatchObject({ moved: 0, landed: 1 });
   });
 });

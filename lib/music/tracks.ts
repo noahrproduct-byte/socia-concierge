@@ -11,6 +11,7 @@ import { STUDIO_BUCKET } from "@/lib/studioClips/types";
 import { signUrls, storageClient } from "@/lib/studioClips/storage";
 import { scopeToWorkspace } from "@/lib/workspaces";
 import { soundName } from "./soundName";
+import { MAX_TRACK_SEC } from "./limits";
 
 type Supa = SupabaseClient;
 
@@ -19,7 +20,7 @@ export type TrackRow = { id: string; user_id: string; workspace_id: string | nul
 export type Track = { id: string; name: string; sourceName: string | null; durationSec: number; createdAt: string; lastUsedAt: string | null; url: string | null };
 
 export const TRACK_EXTS = ["m4a", "mp3", "wav", "aac", "ogg"] as const;
-export const MAX_TRACK_SEC = 180;
+export { MAX_TRACK_SEC };
 export const MIN_TRACK_SEC = 2;
 export const MAX_TRACK_BYTES = 40 * 1024 * 1024;
 export const MAX_TRACKS = 200;
@@ -46,9 +47,9 @@ async function viaTable<T>(table: () => Promise<T>, row: () => Promise<T>): Prom
 }
 
 type Stored = { id: string; name: string; sourceName: string | null; path: string; durationSec: number; bytes: number; ready: boolean; createdAt: string; lastUsedAt: string | null };
-type Detail = Record<string, unknown> & { music?: { tracks?: unknown } };
+export type Detail = Record<string, unknown> & { music?: { tracks?: unknown; playlists?: unknown } };
 
-async function readDetail(client: Supa, ownerId: string, wsId: string | null): Promise<Detail> {
+export async function readDetail(client: Supa, ownerId: string, wsId: string | null): Promise<Detail> {
   if (wsId) {
     const { data, error } = await client.from("workspaces").select("brand_detail").eq("id", wsId).eq("owner_id", ownerId).maybeSingle();
     if (error) throw error;
@@ -60,8 +61,12 @@ async function readDetail(client: Supa, ownerId: string, wsId: string | null): P
 }
 const storedList = (d: Detail): Stored[] => (Array.isArray(d.music?.tracks) ? (d.music!.tracks as unknown[]) : []).filter((t): t is Stored => Boolean(t && typeof t === "object" && typeof (t as Stored).id === "string" && typeof (t as Stored).path === "string"));
 async function writeList(client: Supa, ownerId: string, wsId: string | null, list: Stored[]): Promise<void> {
+  await writeMusic(client, ownerId, wsId, { tracks: list.slice(0, MAX_TRACKS) });
+}
+/** One part of the brand row's music record (the tracks, or the playlists), the rest kept as it is. */
+export async function writeMusic(client: Supa, ownerId: string, wsId: string | null, patch: { tracks?: unknown; playlists?: unknown }): Promise<void> {
   const detail = await readDetail(client, ownerId, wsId);
-  const next = { ...detail, music: { ...(detail.music ?? {}), tracks: list.slice(0, MAX_TRACKS) } };
+  const next = { ...detail, music: { ...(detail.music ?? {}), ...patch } };
   if (wsId) {
     const { error } = await client.from("workspaces").update({ brand_detail: next, updated_at: new Date().toISOString() }).eq("id", wsId).eq("owner_id", ownerId);
     if (error) throw error;

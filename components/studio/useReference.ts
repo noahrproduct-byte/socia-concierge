@@ -21,12 +21,16 @@ import { probeClip, ingestClip } from "@/lib/studioClips/ingest";
 import { REF_MAX_SEC } from "@/lib/studioClips/reference";
 import { STUDIO_BUCKET } from "@/lib/studioClips/types";
 import { readCached, writeCached, type ReelSource } from "@/lib/studioClips/referenceSource";
+import { measureReferenceMusic } from "@/lib/music/referenceAudio";
+import type { ReferenceMusic } from "@/lib/music/referenceMusic";
 
 export type Reference = {
   name: string; durationSec: number; width: number | null; height: number | null;
   cuts: number[] | null; frames: { t: number; jpeg: string }[];
   words: { text: string; startMs: number; endMs: number }[] | null;
   audio: { hasAudio: boolean; level: string; audibleRatio: number | null } | null;
+  /** its music, measured in this browser (lib/music/referenceMusic.ts); null when it has no sound to read */
+  music: ReferenceMusic | null;
   /** where it came from, for the card */
   from: "file" | "link" | "clip" | "discover";
 };
@@ -90,8 +94,15 @@ export function useReference(viewerId: string) {
       if (!cuts) notes.push("This browser couldn't scan its cuts, so the pace comes from the frames.");
       const audio = ingest.facts.audio ? { hasAudio: ingest.facts.audio.hasAudio, level: ingest.facts.audio.level, audibleRatio: ingest.facts.audio.audibleRatio } : cached?.audio ?? null;
       const durationSec = Math.round(probe.durationSec * 10) / 10;
-      if (!cached) writeCached(code, { durationSec, cuts, words, audio });
-      setRef({ name: file.name, durationSec, width: probe.width, height: probe.height, cuts, frames, words, audio, from });
+      // Its music: tempo, beat, where the energy lifts, whether its cuts follow the beat (free, in this browser).
+      let music = cached?.music ?? null;
+      if (!music && ingest.wav) {
+        if (t === ticket.current) setReading("Listening to its music");
+        music = await measureReferenceMusic(ingest.wav, { words, cuts });
+      }
+      if (t !== ticket.current) return;
+      if (!cached || (music && !cached.music)) writeCached(code, { durationSec, cuts, words, audio, music });
+      setRef({ name: file.name, durationSec, width: probe.width, height: probe.height, cuts, frames, words, audio, music, from });
       setNote(notes.join(" ") || null);
     } catch (e) {
       if (t !== ticket.current) return;

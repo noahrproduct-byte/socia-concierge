@@ -11,7 +11,7 @@ import { DEFAULT_STYLE, withCaptionStyle, type CaptionStyleId } from "./style";
 /** The caption style each split-screen look is read with (after the Motus style it follows); SOCIA's own keeps the look's captions. */
 const SKIN_CAPTIONS: Partial<Record<SplitSkinId, { preset: CaptionStyleId; highlight?: string }>> = { prop: { preset: "boxed" }, editorial: { preset: "highlight", highlight: "#fe4d2e" }, ember: { preset: "highlight", highlight: "#ff3ab0" }, night: { preset: "pop" } };
 import type { SplitSkinId } from "./splitSkins";
-import { alignToBeats, type Beat } from "./beats";
+import { alignToBeats, alignToMoments, type Beat } from "./beats";
 import { clipsForEdl } from "./clientClips";
 import { findScenes, type EdlScene } from "./scenes";
 import { editSpeech, speechNote } from "./speech";
@@ -89,6 +89,8 @@ export type QuickOptions = {
   sound?: boolean;
   /** the beat of the music in the cut, when it has music with a steady beat: cuts land on it */
   beat?: Beat | null;
+  /** output seconds where the reference's music lifts (lib/music/referenceMusic.ts drops): a cut lands on each it can */
+  moments?: number[];
 };
 
 /** What every one-drop cut gets last: its cuts on the beat of its music, then the scenes its own words support. */
@@ -97,6 +99,11 @@ function finish(cut: Edl, notes: string[], sources: BuildSource[], words: WordsB
   if (opts.beat && out.segments.length > 1) {
     const r = alignToBeats(out, clipsForEdl(sources), opts.beat);
     if (r.moved) { out = r.edl; notes.push(`${r.moved} of ${r.total} cut${r.total === 1 ? "" : "s"} moved onto the beat of the music (${Math.round(r.bpm)} BPM).`); }
+  }
+  if (opts.moments?.length && out.segments.length > 1) {
+    const m = alignToMoments(out, clipsForEdl(sources), opts.moments);
+    out = m.edl;
+    if (m.landed) notes.push(`A cut lands where the music lifts${m.landed > 1 ? `, ${m.landed} times,` : ""} as in the reference.`);
   }
   // The scenes keep clear of the lines the look just placed, so they are found on the finished cut.
   const { scenes: _old, scenesBehind: _was, scenesSplit: _split, scenesSkin: _skin, scenesSound: _snd, ...rest } = out; void _old; void _was; void _split; void _skin; void _snd;
