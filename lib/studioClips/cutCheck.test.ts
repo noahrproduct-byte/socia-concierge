@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkCut, endOpeningWithShot, repairCut, sentenceEnd, settleCut } from "./cutCheck";
+import { checkCut, endOpeningWithShot, fitTextToShots, repairCut, sentenceEnd, settleCut } from "./cutCheck";
 import type { ClipForEdl } from "./edl";
 import type { Edl } from "./types";
 
@@ -157,5 +157,32 @@ describe("a muted shot (2026-11-13)", () => {
     const muted = { ...edl, segments: edl.segments.map((s) => (s.id === "s2" ? { ...s, out: 6 } : s)) };
     expect(repairCut(muted, [talk, other]).edl.segments[1].out).toBe(6);
     expect(checkCut(muted, [talk, other]).findings.some((f) => f.id === "sentence")).toBe(false);
+  });
+});
+
+describe("every line on its own shot (Noah, 2026-11-25: the pasta Reel)", () => {
+  const line = (text: string, at: number, end: number, role: "opening" | "mid" | "cta" = "mid") => ({ text, at, end, role });
+  // Three shots: 0 to 2, 2 to 5, 5 to 7.9, like the Reel he sent.
+  const pasta = (text: Edl["text"]) => edl([seg("a", "f1", 0, 2), seg("b", "pn", 0, 3), seg("c", "f2", 0, 2.9)], { text });
+  it("starts a line that came in 0.7 s early with the shot it is about", () => {
+    const r = fitTextToShots(pasta([line("me saying i'm cutting carbs", 0, 1.9, "opening"), line("one creamy bite at a time", 4.3, 6.8)]));
+    expect(r.edl.text.map((t) => [t.at, t.end])).toEqual([[0, 1.9], [5, 6.8]]);
+    expect(r.fixed.join()).toMatch(/starts with its shot/);
+    expect(checkCut(pasta([line("one creamy bite at a time", 4.3, 6.8)]), []).findings.some((f) => /before the cut/.test(f.detail))).toBe(true);
+    expect(checkCut(r.edl, []).findings.filter((f) => f.id === "text")).toEqual([]);
+  });
+  it("ends a line that flashes onto the next shot, whatever its role", () => {
+    const r = fitTextToShots(pasta([line("the sauce", 2.4, 5.3)]));
+    expect(r.edl.text[0]).toMatchObject({ at: 2.4, end: 5 });
+  });
+  it("leaves a line placed well across a cut, and one that would be too short to read", () => {
+    const across = pasta([line("all the way through", 1, 4)]);
+    expect(fitTextToShots(across).fixed).toEqual([]);
+    const short = pasta([line("ok", 4.5, 5.6)]);
+    expect(fitTextToShots(short).edl.text[0]).toMatchObject({ at: 4.5, end: 5.6 });
+  });
+  it("is part of SOCIA checking its own cut", () => {
+    const r = settleCut(pasta([line("one creamy bite at a time", 4.3, 6.8)]), [clip("f1", 0), clip("pn", 1), clip("f2", 2)]);
+    expect(r.edl.text[0].at).toBe(5);
   });
 });
