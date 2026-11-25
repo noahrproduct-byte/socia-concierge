@@ -12068,3 +12068,27 @@ p.cbm-muted { display: block; }
 .cpl-ideasx-form textarea:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
 .cpl-ideasx-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); }
 .cpl-ideasx-row small, .cpl-ideasx-note { flex: 1; min-width: 200px; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--text-muted); }
+
+/* Add a voiceover, before the video is made (components/studio/VoiceoverAsk.tsx): the voice, the script, its facts and approval. */
+.cvo { display: flex; flex-direction: column; gap: var(--sp-3); }
+.cvo-label { display: block; margin-bottom: var(--sp-1); font-size: var(--fs-meta); font-weight: 600; color: var(--text-secondary); }
+.cvo-voice-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--sp-2); }
+.cvo-voice { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2); border: 1px solid var(--border); border-radius: var(--r-card); background: var(--surface); }
+.cvo-voice.on { border-color: var(--text-primary); }
+.cvo-voice-pick { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 0; border: 0; background: none; color: var(--text-primary); text-align: left; font: inherit; cursor: pointer; }
+.cvo-voice-pick b { font-size: var(--fs-body); line-height: var(--lh-body); }
+.cvo-voice-pick small { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--text-secondary); overflow-wrap: anywhere; }
+.cvo-voice-pick:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
+.cvo-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); }
+.cvo-row small { flex: 1; min-width: 220px; }
+.cvo-check { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-card); background: var(--surface); }
+.cvo-check ul { margin: 0; padding-left: 18px; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--text-primary); }
+.cvo-answers { width: 100%; margin-top: var(--sp-2); padding: var(--sp-2); border: 1px solid var(--border); border-radius: var(--r-card); background: var(--bg, var(--surface)); color: var(--text-primary); font: inherit; font-size: var(--fs-body); resize: vertical; }
+.cvo-approve { align-items: flex-start; font-size: var(--fs-body); color: var(--text-primary); }
+.cvo-ok { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-meta); color: var(--success); }
+.cvo-mode, .cvo-changes { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.cvo-changes small { flex-basis: 100%; }
+.cvo-more { align-self: flex-start; margin-top: var(--sp-2); }
+.cvo-voice-all { margin-top: var(--sp-2); max-height: 320px; overflow-y: auto; padding-right: 2px; }
+.cvo-time { display: block; margin-top: var(--sp-1); font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--text-muted); }
+.cvo-time.is-long { color: var(--warning-text, var(--text-secondary)); }

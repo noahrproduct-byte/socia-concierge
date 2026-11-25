@@ -17,7 +17,7 @@ import {
   alignmentToWords, cleanLine, fitScript, linesToVoice, needsVoiceover, pickDefaultVoice, placeLines,
   SCRIPT_SCHEMA, speakingEndSec, voicePath, wordBudget, MAX_LINES, type VoiceChoice, type VoiceNeed,
 } from "@/lib/studioClips/voiceover";
-import { listVoices, speakLine, VoiceError } from "./elevenlabs";
+import { listAllVoices, listVoices, speakLine, VoiceError } from "./elevenlabs";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
@@ -46,6 +46,8 @@ export async function voiceNeedFor(client: Supa, edl: Edl, projectId: string): P
 export async function writeScript(edl: Edl, acct: AccountContext, ownerId: string, notes?: string | null): Promise<VoiceLine[]> {
   // What the person wrote the voiceover should say, from the editor or from when they made it.
   const said = (notes ?? edl.brief?.voiceover?.notes ?? "").trim();
+  // A script the person approved when making the video (Auto improve) is read as written.
+  const approved = !notes && edl.brief?.voiceover?.approved === true;
   const total = edlDurationSec(edl);
   const speakEnd = speakingEndSec(edl, total);
   const shots = timeline(edl).segments.map((s, i) => `Shot ${i + 1}, ${s.startSec.toFixed(1)}s to ${(s.startSec + s.durationFrames / 30).toFixed(1)}s${s.purpose ? ` (${s.purpose})` : ""}: ${s.note || "no note"}`);
@@ -59,7 +61,7 @@ export async function writeScript(edl: Edl, acct: AccountContext, ownerId: strin
 ${acct.niche ? `The account's niche: ${acct.niche}.` : ""}
 ${brand ? `Brand facts:\n${brand}` : "No brand facts are set: name no place, product or offer the shots don't show."}
 ${edl.brief?.prompt ? `The person's prompt: ${edl.brief.prompt}` : ""}
-${said ? `What the owner wants the voiceover to say (their own words and facts about their business; build the script on these, keep their facts exactly, and add no fact beyond these, the brand facts and the shots):\n${said}` : ""}
+${said && approved ? `The owner read and approved this script. Use its words exactly and in order: only split it into lines and time each line to the shots. Change no word. Only if it can't fit, leave out whole sentences from the end, never the first one:\n${said}` : said ? `What the owner wants the voiceover to say (their own words and facts about their business; build the script on these, keep their facts exactly, and add no fact beyond these, the brand facts and the shots):\n${said}` : ""}
 ${onScreen.length ? `On-screen text: ${onScreen.join("; ")}` : ""}
 ${edl.endCard ? `The ending card (from ${speakEnd.toFixed(1)}s) shows: ${[edl.endCard.location, edl.endCard.cta, edl.endCard.site].filter(Boolean).join(" / ")}.` : ""}
 The shots, in order on the video's own timeline:
@@ -146,8 +148,10 @@ export async function makeVoiceover(client: Supa, args: MakeArgs): Promise<MakeR
   const total = edlDurationSec(edl);
   const voices = await listVoices();
   if (!voices.length) throw new VoiceError("not_configured", "No voices are available in SOCIA right now. Nothing was counted.");
+  // A voice picked from More voices is any of the voice service's voices, not only the four offered first.
+  const all = await listAllVoices().catch(() => voices);
   const cur = edl.voiceover;
-  const chosen = voices.find((v) => v.id === args.voiceId)
+  const chosen = all.find((v) => v.id === (args.voiceId ?? edl.brief?.voiceover?.voiceId))
     ?? (cur ? voices.find((v) => v.id === cur.voiceId) ?? { id: cur.voiceId, name: cur.voiceName, description: "", preview: null } : null)
     ?? pickDefaultVoice(voices, edl.editStyle)!;
 

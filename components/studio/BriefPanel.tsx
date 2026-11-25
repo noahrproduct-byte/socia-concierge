@@ -12,13 +12,14 @@ import Link from "next/link";
 import { AlertTriangle, Clapperboard, Film, Loader2, PenLine, Undo2, Upload, X } from "lucide-react";
 import { useSpeech } from "./useSpeech";
 import MicButton from "./MicButton";
+import VoiceoverAsk from "./VoiceoverAsk";
+import { actionCredits } from "@/lib/credits/config";
 import { createClient } from "@/lib/supabase/client";
 import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import { probeClip, ingestClip } from "@/lib/studioClips/ingest";
 import { REF_MAX_SEC, PROMPT_MAX } from "@/lib/studioClips/reference";
 import { AUTO_IMPROVE_TIMEOUT_MS, shouldAutoImprove } from "@/lib/studioClips/enhancePrompt";
 import { STUDIO_BUCKET, type StudioBuild } from "@/lib/studioClips/types";
-import { VOICE_NOTES_MAX } from "@/lib/studioClips/types";
 
 type Reference = {
   name: string; durationSec: number; width: number | null; height: number | null;
@@ -81,6 +82,10 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
   // "Add a voiceover" and what it should say (Noah, 2026-11-12): a voice only when the person asks.
   const [voiceOn, setVoiceOn] = useState(false);
   const [voiceNotes, setVoiceNotes] = useState("");
+  // The voice picked, and an Auto improved script the person approved (components/studio/VoiceoverAsk.tsx).
+  const [voiceId, setVoiceId] = useState<string | null>(null);
+  const [voiceApproved, setVoiceApproved] = useState(false);
+  const [voicePending, setVoicePending] = useState(false);
   // The creative direction before the first cut (lib/studioClips/editDirection.ts): sensible defaults, changed only if the person wants.
   const [direction, setDirection] = useState<EditDirection>(() => directionFor(initialStyle));
   const [directionOpen, setDirectionOpen] = useState(false);
@@ -213,7 +218,7 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
         }
         setStep(null);
       }
-      const res = await fetch(`/api/studio/projects/${projectId}/brief`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: withDirection(brief, direction).trim() || null, reference: ref, ...(voiceOn ? { voiceover: { on: true, notes: voiceNotes.trim() || null } } : {}) }) });
+      const res = await fetch(`/api/studio/projects/${projectId}/brief`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: withDirection(brief, direction).trim() || null, reference: ref, ...(voiceOn ? { voiceover: { on: true, notes: voiceNotes.trim() || null, ...(voiceId ? { voiceId } : {}), ...(voiceApproved && voiceNotes.trim() ? { approved: true } : {}) } } : {}) }) });
       const j = (await res.json().catch(() => null)) as { build?: StudioBuild; error?: string } | null;
       if (!res.ok || !j?.build) { setError(j?.error ?? "SOCIA couldn't make that cut. Try again."); return; }
       void loadPast();
@@ -225,7 +230,7 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
     }
   };
 
-  const ready = Boolean(projectId) && (prompt.trim().length >= 3 || ref) && !reading && !busy && !improving;
+  const ready = Boolean(projectId) && (prompt.trim().length >= 3 || ref) && !reading && !busy && !improving && !(voiceOn && voicePending);
   // Sent from Ask SOCIA with clips and a script: start as soon as everything is in. Only on a plan that
   // includes it (canMake true); otherwise the plan note shows and nothing starts.
   useEffect(() => {
@@ -296,12 +301,9 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
           <div className="cbr-voice">
             <label className="cbb-check"><input type="checkbox" checked={voiceOn} disabled={busy} onChange={(e) => setVoiceOn(e.target.checked)} /> Add a voiceover</label>
             {voiceOn && (
-              <label className="cba-cap">
-                <span>What should the voiceover say? (optional)</span>
-                <textarea value={voiceNotes} rows={3} maxLength={VOICE_NOTES_MAX} disabled={busy} placeholder="Details about your business, the offer, the story or the tone. For example: family run since 1998, dough stretched by hand every morning, open till 10 on Fridays." onChange={(e) => setVoiceNotes(e.target.value)} />
-              </label>
+              <VoiceoverAsk notes={voiceNotes} onNotes={setVoiceNotes} voiceId={voiceId} onVoice={setVoiceId} approved={voiceApproved} onApproved={setVoiceApproved} onPending={setVoicePending} prompt={prompt} disabled={busy} />
             )}
-            {voiceOn && <p className="cbp-muted">SOCIA writes the voiceover from these notes and what&apos;s in your clips, and adds nothing you didn&apos;t say. Counts one voiceover on your plan.</p>}
+            {voiceOn && <p className="cbp-muted">{voiceApproved ? "The voice reads your approved script when the video is made." : "Without a script, SOCIA writes one from what it should be about and your clips when the video is made, adding nothing you didn't say."} The audio is made only then, and uses {actionCredits("voiceovers")} credits.</p>}
           </div>
 
           <div className="cbr-ref">
@@ -335,6 +337,7 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
             </button>
             {!projectId && noClipsNote && <p className="cbp-muted">{noClipsNote}</p>}
             {projectId && !busy && !ref && prompt.trim().length < 3 && <p className="cbp-muted">Write what you want above, or add a reference video, to make it.</p>}
+            {voiceOn && voicePending && <p className="cbp-muted">Read the improved voiceover script above and approve it to make the video.</p>}
             <p className="cbp-muted">Opens in the editor to change anything. Making it counts one AI-made video on your plan, as with any of SOCIA&apos;s cuts; editing and exporting it after that don&apos;t count again.</p>
           </div>
         </>
