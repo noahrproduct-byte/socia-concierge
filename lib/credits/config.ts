@@ -85,7 +85,8 @@ export const ACTION_USD = {
   content_build: 0.34,
   video_builds: 0.02,
   animated_videos: 0.26,
-  music_tracks: 0.1,
+  /** AI music for one video, up to a minute (ElevenLabs $0.15 a minute; lib/music/aiMusic.ts AI_MUSIC_MAX_SEC) */
+  music_tracks: 0.15,
   voiceovers: 0.07,
 } as const;
 export type CreditAction = keyof typeof ACTION_USD;
