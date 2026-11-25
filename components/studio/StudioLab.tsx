@@ -23,11 +23,20 @@ import { extractFrames } from "@/lib/studio";
 import * as fx from "./labFixtures";
 import { themeById } from "@/lib/studioClips/themes";
 import { applyTheme } from "@/lib/studioClips/themes/apply";
+import type { Track } from "@/lib/music/tracks";
+import { normalizePlaylists, type Playlist } from "@/lib/music/playlists";
 
 const SCREENS = ["rate", "rate-analysis", "rate-improve", "build", "build-collect", "build-yield", "opportunity", "editor", "editor-loaded", "editor-text", "editor-finish", "edit", "audio", "guide"] as const;
 type Screen = (typeof SCREENS)[number];
 
 const NOW_ISO = new Date().toISOString();
+/** A small music library for the Sound tool: names only, no files (nothing plays). */
+const LAB_TRACKS: Track[] = [
+  { id: "lab-t1", name: "Sunset drive", sourceName: "sunset-drive.mp3", durationSec: 142, createdAt: "2026-11-20T10:00:00Z", lastUsedAt: null, url: null },
+  { id: "lab-t2", name: "Hype beat", sourceName: "hype.m4a", durationSec: 96, createdAt: "2026-11-19T10:00:00Z", lastUsedAt: null, url: null },
+  { id: "lab-t3", name: "Calm keys", sourceName: "calm-keys.wav", durationSec: 60, createdAt: "2026-11-18T10:00:00Z", lastUsedAt: null, url: null },
+];
+let labPlaylists: Playlist[] = normalizePlaylists([{ id: "energetic", trackIds: ["lab-t2"] }]);
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
 /** The Studio API, answered from the fixtures. Everything else goes to the network. */
@@ -124,7 +133,11 @@ function installMock(thumbs: fx.Thumb[], durationSec: number, screen: Screen): (
     if (p === "/api/studio/videos") return json({ videos: fx.videos() });
     if (p === "/api/studio/library") return json({ clips: fx.library(thumbs, durationSec) });
     if (p === "/api/studio/style") return json({ brand: null, templates: [] });
-    if (p === "/api/studio/tracks") return json({ tracks: [] });
+    if (p === "/api/studio/tracks") return json({ tracks: LAB_TRACKS });
+    if (p === "/api/studio/tracks/playlists") {
+      if (method === "PUT") labPlaylists = normalizePlaylists((init?.body ? JSON.parse(String(init.body)) : {}).playlists, LAB_TRACKS.map((t) => t.id));
+      return json({ playlists: labPlaylists });
+    }
     if (p === "/api/studio/outlook") return json(fx.outlook(new URLSearchParams(window.location.search).get("outlook")));
     if (p === "/api/studio/rater-log") return method === "GET" ? json(fx.raterLog()) : json({ ok: true });
     if (p === "/api/studio/analyze") return json({ analysis: fx.analysis(durationSec), usage: { meter: "content_studio", used: 2, limit: 20, remaining: 18, resetsOn: "2026-12-01" } });

@@ -27,12 +27,15 @@ export const FOCUSES = [["auto", "SOCIA decides"], ["person", "The person talkin
 export const GRAPHICS = [["off", "None"], ["some", "A few"], ["lots", "Lots"]] as const;
 export const COLOURS = [["style", "The style's own"], ["natural", "Natural"], ["warm", "Warm"], ["cinematic", "Cinematic"], ["bright", "Bright and punchy"]] as const;
 export const DURATIONS = [0, 15, 30, 45, 60] as const;
+/** What plays under the cut. "match" and "similar" use the reference's measured music (lib/music/referenceMusic.ts). */
+export const MUSIC_MODES = [["pick", "The sound I choose"], ["match", "Match the reference's music and timing"], ["similar", "Similar energy, from my library"], ["none", "No music"]] as const;
 
 export type Pace = (typeof PACES)[number][0];
 export type Focus = (typeof FOCUSES)[number][0];
 export type Graphics = (typeof GRAPHICS)[number][0];
 export type Colour = (typeof COLOURS)[number][0];
 export type AspectId = (typeof ASPECTS)[number]["id"];
+export type MusicMode = (typeof MUSIC_MODES)[number][0];
 
 export type Creative = {
   pace: Pace;
@@ -46,12 +49,14 @@ export type Creative = {
   /** target length in seconds; 0 = SOCIA decides */
   durationSec: number;
   aspect: AspectId;
+  /** the music: the sound picked, the reference's song lined up, a similar one from the library, or none */
+  music: MusicMode;
 };
 
 export type CreativeKey = keyof Creative;
 
 export const DEFAULT_CREATIVE: Creative = {
-  pace: "auto", focus: "auto", captions: "style", captionAnim: "style", transition: "style", colour: "style", graphics: "some", durationSec: 0, aspect: "9:16",
+  pace: "auto", focus: "auto", captions: "style", captionAnim: "style", transition: "style", colour: "style", graphics: "some", durationSec: 0, aspect: "9:16", music: "pick",
 };
 
 /** Colour grades, from the shipped themes (cinematic and energetic) and two plain ones. Letterbox off: it would crop a vertical video. */
@@ -71,6 +76,7 @@ export const paceLabel = (p: Pace) => label(PACES, p);
 export const focusLabel = (f: Focus) => label(FOCUSES, f);
 export const graphicsLabel = (g: Graphics) => label(GRAPHICS, g);
 export const colourLabel = (c: Colour) => label(COLOURS, c);
+export const musicModeLabel = (m: MusicMode) => label(MUSIC_MODES, m);
 export const durationLabel = (s: number) => (s ? `About ${s} seconds` : "SOCIA decides");
 
 /** What the recommendation is made from. Every field is optional: only what is really known is passed. */
@@ -220,5 +226,6 @@ export function creativeSummary(c: Creative, styleName: string): string {
     c.graphics === "off" ? "no graphics" : c.graphics === "lots" ? "lots of graphics" : null,
     c.durationSec ? `about ${c.durationSec} s` : null,
     c.aspect !== "9:16" ? aspectLabel(c.aspect) : null,
+    c.music === "match" ? "music matched to the reference" : c.music === "similar" ? "similar-energy music" : c.music === "none" ? "no music" : null,
   ].filter(Boolean).join(" · ");
 }

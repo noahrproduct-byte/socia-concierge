@@ -10,13 +10,12 @@
 // is encoded to AAC with the ffmpeg.wasm SOCIA already ships (WAV when it
 // can't load) and uploaded under the person's own folder.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Check, ListMusic, Loader2, Music, Pause, Pencil, Play, Save, Trash2, Upload, X } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
-import { uploadMedia } from "@/lib/supabase/uploadMedia";
-import { loadFfmpeg } from "@/lib/videoCompress";
-import { STUDIO_BUCKET, fmtClock, type Edl } from "@/lib/studioClips/types";
+import { AlertTriangle, Check, ListMusic, ListPlus, Loader2, Music, Pause, Pencil, Play, Plus, Save, Trash2, Upload, X } from "lucide-react";
+import { decodeFile, saveSoundPart } from "@/lib/music/soundFile";
+import { fmtClock, type Edl } from "@/lib/studioClips/types";
 import type { Soundtrack } from "@/lib/music/taste";
 import type { Track } from "@/lib/music/tracks";
+import { addList, filterTracks, normalizePlaylists, removeList, toggleInList, type Playlist } from "@/lib/music/playlists";
 import { soundName } from "@/lib/music/soundName";
 import { DUCK } from "@/lib/studioClips/musicDuck";
 import { analysisOfTrack, type TrackAnalysis } from "@/lib/studioClips/beatClient";
@@ -62,67 +61,6 @@ function peaksBetween(buf: AudioBuffer, fromSec: number, toSec: number, bars: nu
   return out;
 }
 
-/** The chosen part as 16-bit WAV bytes. */
-function wavOf(buf: AudioBuffer, fromSec: number, toSec: number): Uint8Array {
-  const rate = buf.sampleRate, chans = Math.min(2, buf.numberOfChannels);
-  const from = Math.floor(fromSec * rate), to = Math.min(buf.length, Math.floor(toSec * rate));
-  const n = Math.max(0, to - from);
-  const data = new DataView(new ArrayBuffer(44 + n * chans * 2));
-  const str = (o: number, s: string) => { for (let i = 0; i < s.length; i++) data.setUint8(o + i, s.charCodeAt(i)); };
-  str(0, "RIFF"); data.setUint32(4, 36 + n * chans * 2, true); str(8, "WAVE"); str(12, "fmt "); data.setUint32(16, 16, true); data.setUint16(20, 1, true); data.setUint16(22, chans, true);
-  data.setUint32(24, rate, true); data.setUint32(28, rate * chans * 2, true); data.setUint16(32, chans * 2, true); data.setUint16(34, 16, true); str(36, "data"); data.setUint32(40, n * chans * 2, true);
-  const src = Array.from({ length: chans }, (_, c) => buf.getChannelData(c));
-  let o = 44;
-  for (let i = 0; i < n; i++) for (let c = 0; c < chans; c++) { const v = Math.max(-1, Math.min(1, src[c][from + i])); data.setInt16(o, v < 0 ? v * 0x8000 : v * 0x7fff, true); o += 2; }
-  return new Uint8Array(data.buffer);
-}
-
-/** The part, encoded: AAC in an .m4a through ffmpeg.wasm, or the WAV itself when that can't load. */
-async function encodePart(buf: AudioBuffer, fromSec: number, toSec: number): Promise<{ file: File; ext: "m4a" | "wav" }> {
-  const wav = wavOf(buf, fromSec, toSec);
-  const ff = await loadFfmpeg().catch(() => null);
-  if (ff) {
-    try {
-      await ff.writeFile("part.wav", wav);
-      const code = await ff.exec(["-i", "part.wav", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", "part.m4a"]);
-      if (code === 0) {
-        const out = (await ff.readFile("part.m4a")) as Uint8Array;
-        if (out?.byteLength) return { file: new File([out.slice().buffer as ArrayBuffer], "part.m4a", { type: "audio/mp4" }), ext: "m4a" };
-      }
-    } catch { /* WAV below */ } finally {
-      try { await ff.deleteFile("part.wav"); } catch { /* not written */ }
-      try { await ff.deleteFile("part.m4a"); } catch { /* not written */ }
-    }
-  }
-  return { file: new File([wav.slice().buffer as ArrayBuffer], "part.wav", { type: "audio/wav" }), ext: "wav" };
-}
-
-/** The file's sound as an AudioBuffer: the browser's decoder first; a video it can't open goes through ffmpeg.wasm. */
-async function decodeFile(file: File, ctx: AudioContext, note: (s: string) => void): Promise<AudioBuffer> {
-  const bytes = await file.arrayBuffer();
-  try {
-    return await ctx.decodeAudioData(bytes.slice(0));
-  } catch {
-    note("Taking the sound out of the video…");
-    const ff = await loadFfmpeg().catch(() => null);
-    if (!ff) throw new Error("This browser can't read that file. Drop an .mp3, .m4a or .wav instead.");
-    const ext = (file.name.split(".").pop() ?? "bin").replace(/[^a-z0-9]/gi, "").toLowerCase() || "bin";
-    const inName = `drop.${ext}`;
-    try {
-      await ff.writeFile(inName, new Uint8Array(bytes));
-      const code = await ff.exec(["-i", inName, "-vn", "-ac", "2", "-ar", "44100", "-t", String(MAX_SEC * 4), "-c:a", "pcm_s16le", "drop.wav"]);
-      if (code !== 0) throw new Error("no sound");
-      const out = (await ff.readFile("drop.wav")) as Uint8Array;
-      return await ctx.decodeAudioData(out.slice().buffer as ArrayBuffer);
-    } catch {
-      throw new Error("No sound SOCIA could read in that file. Try an .mp3, .m4a or .mp4 with sound.");
-    } finally {
-      try { await ff.deleteFile(inName); } catch { /* not written */ }
-      try { await ff.deleteFile("drop.wav"); } catch { /* not written */ }
-    }
-  }
-}
-
 export default function MusicBox({ buildId, edl, canEdit, fixture, speechPct = 0, onSoundtrack, onLevels, onDuck, onTrackUrl, onStart, videoSec = 0, trackUrl = null }: {
   buildId: string;
   edl: Edl;
@@ -146,8 +84,20 @@ export default function MusicBox({ buildId, edl, canEdit, fixture, speechPct = 0
   trackUrl?: string | null;
 }) {
   const st = edl.soundtrack ?? null;
-  const supabase = useMemo(() => createClient(), []);
   const [tracks, setTracks] = useState<Track[] | null>(null);
+  // Playlists (lib/music/playlists.ts), search, and which list is showing.
+  const [lists, setLists] = useState<Playlist[]>(() => normalizePlaylists([]));
+  const [listId, setListId] = useState("all");
+  const [query, setQuery] = useState("");
+  const [newList, setNewList] = useState<string | null>(null);
+  const saveLists = useCallback(async (next: Playlist[]) => {
+    const was = lists;
+    setLists(next);
+    const res = await fetch("/api/studio/tracks/playlists", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ playlists: next }) }).catch(() => null);
+    const j = res ? ((await res.json().catch(() => null)) as { playlists?: Playlist[]; error?: string } | null) : null;
+    if (!res?.ok || !j?.playlists) { setLists(was); setError(j?.error ?? "Couldn't save your playlists. Try again."); return; }
+    setLists(j.playlists);
+  }, [lists]);
   const [listErr, setListErr] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
@@ -186,6 +136,7 @@ export default function MusicBox({ buildId, edl, canEdit, fixture, speechPct = 0
     const j = res ? ((await res.json().catch(() => null)) as { tracks?: Track[]; error?: string } | null) : null;
     if (!res?.ok || !j?.tracks) { setListErr(j?.error ?? "Couldn't read your playlist."); setTracks([]); return; }
     setListErr(null); setTracks(j.tracks);
+    fetch("/api/studio/tracks/playlists").then((r) => (r.ok ? r.json() : null)).then((p: { playlists?: Playlist[] } | null) => { if (p?.playlists) setLists(p.playlists); }).catch(() => {});
     if (st && j.tracks.some((t) => t.id === st.trackId && t.url)) onTrackUrl(st.trackId, j.tracks.find((t) => t.id === st.trackId)!.url!);
     // Once on open; the cut's own link is signed by the editor's load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -299,20 +250,12 @@ export default function MusicBox({ buildId, edl, canEdit, fixture, speechPct = 0
     stop(); setError(null);
     setPhase({ kind: "saving", note: "Cutting the part…", progress: 0 });
     try {
-      const { file, ext } = await encodePart(loaded.buffer, sel.from, sel.to);
-      setPhase({ kind: "saving", note: "Saving to your playlist…", progress: 0 });
-      const reg = await fetch("/api/studio/tracks", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: name.trim() || "Untitled sound", sourceName: loaded.name, durationSec: sel.to - sel.from, ext }) }).catch(() => null);
-      const rj = reg ? ((await reg.json().catch(() => null)) as { id?: string; path?: string; error?: string } | null) : null;
-      if (!reg?.ok || !rj?.id || !rj.path) throw new Error(rj?.error ?? "Couldn't save the sound. Try again.");
-      await uploadMedia(supabase, STUDIO_BUCKET, rj.path, file, (sent, total) => setPhase({ kind: "saving", note: "Saving to your playlist…", progress: total ? sent / total : 0 }));
-      const ok = await fetch(`/api/studio/tracks/${rj.id}`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ uploaded: true }) }).catch(() => null);
-      const oj = ok ? ((await ok.json().catch(() => null)) as { track?: Track; error?: string } | null) : null;
-      if (!ok?.ok || !oj?.track) throw new Error(oj?.error ?? "The sound was uploaded but couldn't be listed. Reload and look in your playlist.");
-      setTracks((t) => [oj.track!, ...(t ?? [])]);
+      const saved = await saveSoundPart(loaded.buffer, sel.from, sel.to, { name: name.trim() || "Untitled sound", sourceName: loaded.name }, (note, progress) => setPhase({ kind: "saving", note: note.replace("library", "playlist"), progress }));
+      setTracks((t) => [saved, ...(t ?? [])]);
       setLoaded(null);
       setPhase({ kind: "idle" });
       // The sound just saved goes into the cut when it has none.
-      if (!st && canEdit) await putInCut(oj.track);
+      if (!st && canEdit) await putInCut(saved);
     } catch (e) {
       setError((e as Error).message || "Couldn't save the sound.");
       setPhase({ kind: "idle" });
@@ -416,8 +359,29 @@ export default function MusicBox({ buildId, edl, canEdit, fixture, speechPct = 0
         : tracks == null ? <p className="cbm-muted"><Loader2 size={12} className="spin" /> Reading your playlist…</p>
         : tracks.length === 0 ? <p className="cbm-muted">Nothing saved yet. Drop a sound above and it stays here for every video. Each video picks its own part of it.</p>
         : (
+          <>
+          <div className="cbm-filter">
+            <input type="search" className="cbm-search" placeholder="Search your sounds" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search your sounds" />
+            <div className="cbm-lists" role="radiogroup" aria-label="Playlists">
+              {[{ id: "all", name: "All", trackIds: tracks.map((t) => t.id) } as Playlist, ...lists].map((p) => (
+                <button key={p.id} type="button" role="radio" aria-checked={listId === p.id} className={`cbm-chip${listId === p.id ? " on" : ""}`} onClick={() => setListId(p.id)}>{p.name} <span>{p.trackIds.length}</span></button>
+              ))}
+              {canEdit && (newList == null
+                ? <button type="button" className="cbm-chip" onClick={() => setNewList("")}><Plus size={12} aria-hidden /> New playlist</button>
+                : (
+                  <form className="cbm-newlist" onSubmit={(e) => { e.preventDefault(); const id = `own-${crypto.randomUUID().slice(0, 8)}`; const next = addList(lists, newList, id); if (!next) { setError("Give the playlist a name you haven't used (20 of your own at most)."); return; } setNewList(null); setListId(id); void saveLists(next); }}>
+                    <input type="text" value={newList} autoFocus maxLength={40} placeholder="Playlist name" aria-label="New playlist name" onChange={(e) => setNewList(e.target.value)} onKeyDown={(e) => { if (e.key === "Escape") setNewList(null); }} />
+                    <button type="submit" className="ov-btn ghost small" disabled={!newList.trim()}>Add</button>
+                  </form>
+                ))}
+            </div>
+            {canEdit && lists.some((p) => p.id === listId && !p.builtIn) && (
+              <button type="button" className="cbm-linkbtn" onClick={() => { const next = removeList(lists, listId); setListId("all"); void saveLists(next); }}>Delete this playlist (its sounds stay in your library)</button>
+            )}
+          </div>
+          {filterTracks(tracks, lists, listId, query).length === 0 && <p className="cbm-muted">{query.trim() ? "No sounds match that search." : "Nothing in this playlist yet. Add a sound to it from its playlists button."}</p>}
           <ol className="cbm-list">
-            {tracks.map((t) => {
+            {filterTracks(tracks, lists, listId, query).map((t) => {
               const inUse = st?.trackId === t.id;
               return (
                 <li key={t.id} className={inUse ? "on" : ""}>
@@ -433,6 +397,16 @@ export default function MusicBox({ buildId, edl, canEdit, fixture, speechPct = 0
                     {canEdit && (inUse
                       ? <span className="cb-badge built"><Check size={11} /> In the video</span>
                       : <button type="button" className="ov-btn ghost small" disabled={busyId === t.id || fixture} onClick={() => void putInCut(t)}>{busyId === t.id ? <Loader2 size={12} className="spin" /> : <Music size={12} />} Use this</button>)}
+                    {canEdit && (
+                      <details className="cbm-pl">
+                        <summary className="sd-iconbtn" aria-label={`Playlists for ${t.name}`} title="Playlists"><ListPlus size={13} /></summary>
+                        <div className="cbm-pl-menu">
+                          {lists.map((p) => (
+                            <label key={p.id}><input type="checkbox" checked={p.trackIds.includes(t.id)} onChange={() => void saveLists(toggleInList(lists, p.id, t.id))} /> {p.name}</label>
+                          ))}
+                        </div>
+                      </details>
+                    )}
                     {canEdit && <button type="button" className="sd-iconbtn" aria-label={`Rename ${t.name}`} onClick={() => setRenaming({ id: t.id, name: t.name })}><Pencil size={13} /></button>}
                     {canEdit && <button type="button" className="sd-iconbtn" aria-label={`Remove ${t.name} from your playlist`} disabled={busyId === t.id} onClick={() => void del(t)}><Trash2 size={13} /></button>}
                   </div>
@@ -440,6 +414,7 @@ export default function MusicBox({ buildId, edl, canEdit, fixture, speechPct = 0
               );
             })}
           </ol>
+          </>
         )}
 
       {st && (

@@ -7,6 +7,7 @@
 
 import type { EditDirection } from "./editDirection";
 import type { ProvenReel, ReelRef } from "../trendSignals";
+import type { ReferenceMusic } from "../music/referenceMusic";
 
 /** A Reel as Discover (or a pasted link) knows it: only what the platform published. */
 export type ReelSource = {
@@ -105,6 +106,8 @@ export type CachedRead = {
   cuts: number[] | null;
   words: { text: string; startMs: number; endMs: number }[] | null;
   audio: { hasAudio: boolean; level: string; audibleRatio: number | null } | null;
+  /** the music, measured (lib/music/referenceMusic.ts); missing in reads saved before it was measured */
+  music?: ReferenceMusic | null;
   at: string;
 };
 

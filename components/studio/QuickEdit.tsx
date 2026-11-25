@@ -34,7 +34,10 @@ import { fileLabel } from "@/lib/publishing/postLabel";
 import { cutSpeaks, startLevels } from "@/lib/music/taste";
 import type { Track } from "@/lib/music/tracks";
 import { analysisOfTrack, beatOfTrack } from "@/lib/studioClips/beatClient";
-import { bestParts } from "@/lib/music/bestPart";
+import { bestParts, clampStart, clock as partClock } from "@/lib/music/bestPart";
+import { alignSection, envelopeFromRms, partLabel } from "@/lib/music/referenceMusic";
+import { rankLibrary } from "@/lib/music/libraryMatch";
+import ReferenceMusicCard from "./ReferenceMusicCard";
 import { beatFromStart } from "@/lib/studioClips/beats";
 import { timeline } from "@/lib/studioClips/timeline";
 import { useSpeech } from "./useSpeech";
@@ -62,7 +65,7 @@ import type { LibraryClip } from "@/lib/studioClips/library";
 import { CAPTION_ANIMATIONS, CAPTION_STYLES } from "@/lib/studioClips/style";
 import { ASPECTS, TRANSITIONS } from "@/lib/studioClips/types";
 import {
-  COLOURS, DEFAULT_CREATIVE, DURATIONS, FOCUSES, GRAPHICS, PACES, aspectLabel, aspectSize, composeBrief, creativeSummary, durationLabel, recommend, themePatch,
+  COLOURS, DEFAULT_CREATIVE, DURATIONS, FOCUSES, GRAPHICS, MUSIC_MODES, PACES, aspectLabel, aspectSize, composeBrief, creativeSummary, durationLabel, recommend, themePatch,
   type Creative, type CreativeKey,
 } from "@/lib/studioClips/creative";
 import { renderBlocker, renderBuild } from "./renderBuild";
@@ -72,7 +75,7 @@ type Result = { creative: Creative; ref: string | null; voice: boolean; buildId:
 type Draft = { phase: "idle" } | { phase: "saving"; progress: number } | { phase: "saved"; postId: string } | { phase: "error"; message: string };
 type Choice = {
   look: string; /** the person picked the style themselves (not SOCIA's default or the one kept on this computer) */ lookPicked: boolean;
-  trackId: string; behind: boolean; split: boolean;
+  trackId: string; /** the person's library, for "similar" music SOCIA picks */ tracks: Track[]; behind: boolean; split: boolean;
   /** what the video should look like, typed or spoken */ prompt: string;
   /** the effects the person picked; none = SOCIA picks */ fx: SceneFxId[]; /** the look a split screen wears */ skin: SplitSkinId; /** a short sound as each graphic lands */ sound: boolean;
   /** the creative settings (lib/studioClips/creative.ts) */ creative: Creative;
@@ -426,10 +429,24 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
       let beat = null as Awaited<ReturnType<typeof beatOfTrack>>;
       let musicName: string | null = null;
       const musicNotes: string[] = [];
-      if (choice.trackId) {
+      // The music: the sound picked, or for "similar" the library sound closest to the reference's music.
+      const mode = choice.creative.music;
+      const refMusic = choice.ref?.music?.musicLikely ? choice.ref.music : null;
+      const fromRef = Boolean(refMusic) && (mode === "match" || mode === "similar");
+      let wantTrack = mode === "none" ? "" : choice.trackId;
+      if (mode === "similar" && !wantTrack && refMusic) {
+        setStep("Choosing music like the reference's");
+        const r = await rankLibrary(refMusic, choice.tracks).catch(() => null);
+        wantTrack = r?.ranked[0]?.track.id ?? "";
+        if (!wantTrack) musicNotes.push("Your library has no sound SOCIA could measure, so this video has no music. Upload music you own under Reference music.");
+      }
+      if (mode === "match" && !wantTrack && refMusic) musicNotes.push("Matching the reference's music needs the song: upload it or pick it under Reference music. This video has no music.");
+      let moments: number[] = [];
+      let followBeat = true;
+      if (wantTrack) {
         setStep("Putting the music in");
         const speaks = cutSpeaks(start.segments, wordsById);
-        const res = await call(`/api/studio/builds/${id}/music/${choice.trackId}`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...startLevels(speaks), ...(speaks ? { duck: true } : {}) }) });
+        const res = await call(`/api/studio/builds/${id}/music/${wantTrack}`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...startLevels(speaks), ...(speaks ? { duck: true } : {}) }) });
         const j = await json(res);
         const st = j?.soundtrack as Edl["soundtrack"] | undefined;
         if (res?.ok && st && typeof j?.url === "string") {
@@ -437,13 +454,35 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
           music = { ...(music ?? {}), [st.trackId]: j.url };
           musicName = st.name;
           musicIn.current = st.trackId;
-          // The strongest stretch of the sound for a video this long plays under it (lib/music/bestPart.ts).
           const sound = await analysisOfTrack(j.url);
-          const part = sound ? bestParts(sound.rms, timeline(start).durationSec, sound.beat).picks[0] : null;
-          if (part && part.startSec > 0) start = { ...start, soundtrack: { ...st, startSec: part.startSec } };
-          beat = sound?.beat ? beatFromStart(sound.beat, part?.startSec) : null;
-          const partNote = part?.reason ? ` ${part.reason} Choose another part in the editor, under Sound.` : "";
-          musicNotes.push(beat ? `Music: ${st.name}${speaks ? ", low under the talking" : ""}.${partNote}` : `Music: ${st.name}${speaks ? ", low under the talking" : ""}.${partNote} It has no steady beat SOCIA could measure, so the cuts were not moved onto it.`);
+          const videoSec = timeline(start).durationSec;
+          const low = speaks ? ", low under the talking" : "";
+          // With a reference: the part of the song that moves like the reference's music (lib/music/referenceMusic.ts).
+          const lined = sound && refMusic && fromRef ? alignSection(refMusic, envelopeFromRms(sound.rms)) : null;
+          const line = lined && lined.level !== "none" ? lined : null;
+          // Otherwise the strongest stretch of the sound for a video this long (lib/music/bestPart.ts).
+          const part = !line && sound ? bestParts(sound.rms, videoSec, sound.beat).picks[0] : null;
+          const startSec = line && sound ? clampStart(line.startSec, sound.durationSec, videoSec) : part?.startSec ?? 0;
+          if (startSec > 0) start = { ...start, soundtrack: { ...st, startSec } };
+          beat = sound?.beat ? beatFromStart(sound.beat, startSec) : null;
+          if (line && refMusic) {
+            const speed = line.speed !== 1 ? ` The reference plays it about ${Math.round(Math.abs(line.speed - 1) * 100)}% ${line.speed > 1 ? "faster" : "slower"}; yours plays at its own speed.` : "";
+            musicNotes.push(line.level === "matched"
+              ? `Music: ${st.name}${low}. Its part ${partLabel(startSec, videoSec)} is the part the reference uses.${speed}`
+              : `Music: ${st.name}${low}, from ${partClock(startSec)}: the part that moves most like the reference's music. Choose another part in the editor, under Sound.`);
+            // Where the reference's music lifts, a cut lands too.
+            moments = refMusic.drops.map((d) => Math.round(d * line.speed * 100) / 100).filter((t) => t > 0.5 && t < videoSec - 0.5);
+          } else {
+            const partNote = part?.reason ? ` ${part.reason} Choose another part in the editor, under Sound.` : "";
+            const missed = fromRef && mode === "match" ? ` It didn't line up with the reference's music, so its strongest part plays.` : "";
+            musicNotes.push(`Music: ${st.name}${low}.${missed}${partNote}`);
+          }
+          if (!beat) musicNotes.push("It has no steady beat SOCIA could measure, so the cuts were not moved onto it.");
+          // The reference's cuts don't follow its beat: neither do these.
+          if (beat && fromRef && refMusic && refMusic.cutsOnBeat != null && refMusic.cutsOnBeat < 0.35) {
+            followBeat = false;
+            musicNotes.push("The reference's cuts don't follow its beat, so these don't either.");
+          }
         } else {
           musicNotes.push(`The music couldn't be put in (${typeof j?.error === "string" ? j.error.replace(/\.$/, "") : "SOCIA couldn't be reached"}), so this video has none. Add it in the editor, under Sound.`);
         }
@@ -454,7 +493,7 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
       }
       setStep(null);
       const scenes = choice.creative.graphics !== "off";
-      const opts = { scenes, behind: choice.behind, split: choice.split, skin: choice.skin, sound: choice.sound, beat };
+      const opts = { scenes, behind: choice.behind, split: choice.split, skin: choice.skin, sound: choice.sound, beat: followBeat ? beat : null, moments };
       const cut = viaPicture.current ? quickLook(start, chosen, data.sources, opts) : quickCut(start, chosen, data.sources, opts);
       let made = cut.edl;
       const aiNotes: string[] = [];
@@ -544,7 +583,7 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
   useEffect(() => { buildId.current = null; base.current = null; viaPicture.current = false; setPicture(false); }, [clipIds]);
 
   const choiceNow = (): Choice => ({
-    look, lookPicked, trackId, behind: place === "behind", split: place === "split", prompt, fx: fxPick, skin, sound: soundOn, creative,
+    look, lookPicked, trackId, tracks, behind: place === "behind", split: place === "split", prompt, fx: fxPick, skin, sound: soundOn, creative,
     ref, voice: voiceOn && voiceApproved && voiceNotes.trim() ? { notes: voiceNotes.trim(), voiceId } : null,
   });
 
@@ -653,13 +692,14 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
         {pick("transition", "Transitions", [["style", "The style's own"], ...TRANSITIONS.map((t) => [t.id, t.label] as const)], { disabled })}
         {pick("colour", "Colour", COLOURS, { disabled })}
         {pick("aspect", "Frame", ASPECTS.map((a) => [a.id, a.label] as const), { disabled })}
-        <label className="qe-field" htmlFor="qe-set-music">
-          <span>Music</span>
-          <select value={trackId} disabled={disabled || !tracks.length} id="qe-set-music" onChange={(e) => setTrackId(e.target.value)}>
-            <option value="">None</option>
+        {pick("music", "Music", ref?.music?.musicLikely ? MUSIC_MODES : MUSIC_MODES.filter(([id]) => id === "pick" || id === "none"), { disabled, note: creative.music === "match" ? "The sound below is lined up with the reference's music: the same part, cuts where its music lifts." : creative.music === "similar" ? "SOCIA picks the library sound closest in tempo and energy, unless you choose one below." : undefined })}
+        <label className="qe-field" htmlFor="qe-set-sound">
+          <span>Sound</span>
+          <select value={trackId} disabled={disabled || !tracks.length || creative.music === "none"} id="qe-set-sound" onChange={(e) => { setTrackId(e.target.value); if (e.target.value && creative.music === "none") setSetting("music", "pick"); }}>
+            <option value="">{creative.music === "similar" ? "SOCIA picks" : "None"}</option>
             {tracks.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
-          <small>{tracks.length ? "From your playlist. Cuts land on its beat; it sits low under talking." : "Your playlist is empty. Add sounds in Content Studio, under Audio."}</small>
+          <small>{tracks.length ? "From your playlist. Cuts land on its beat; it sits low under talking." : "Your playlist is empty. Upload a song under Reference music, or add sounds in Content Studio, under Audio."}</small>
         </label>
         <label className="qe-field" htmlFor="qe-set-place">
           <span>Where graphics sit</span>
@@ -838,6 +878,11 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
                 )
             )}
             {reference.note && <small className="qe-note">{reference.note}</small>}
+            {ref?.music && (
+              <ReferenceMusicCard music={ref.music} needSec={creative.durationSec || ref.durationSec} tracks={tracks} trackId={trackId} mode={creative.music} disabled={false}
+                onTracks={setTracks} onChoose={(c) => { setTrackId(c.trackId); setSetting("music", c.mode); }}
+                onCustomize={() => { setCustomize(true); window.setTimeout(() => document.getElementById("qe-set-sound")?.focus(), 50); }} />
+            )}
             <small>Your prompt decides what the video says. The reference shows how: its length, pace, order of shots and text style, made with your clips, never its footage.</small>
           </div>
 

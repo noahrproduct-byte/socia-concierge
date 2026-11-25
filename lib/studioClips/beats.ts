@@ -45,6 +45,37 @@ export function cutPoint(edl: Pick<Edl, "segments" | "fps">, i: number): number 
 export type BeatResult = { edl: Edl; moved: number; total: number; bpm: number };
 
 /**
+ * Move the cut into segment `i` onto `target` (an output second) by trimming the outgoing
+ * cut inside its own clip, when that lands within `tolerance` of a point `on(after)` and breaks
+ * nothing (a cut too short, a word split, a jump inside one moving shot). Mutates `segments`.
+ */
+function moveCut(segments: EdlSegment[], i: number, target: number, maxMoveSec: number, tolerance: number, on: (t: number) => number, byId: Map<string, ClipForEdl>, fps: Edl["fps"]): boolean {
+  const prev = segments[i - 1];
+  const clip = byId.get(prev.clipId);
+  if (!clip) return false;
+  const at = cutPoint({ segments, fps }, i);
+  const delta = target - at;
+  if (Math.abs(delta) < 0.02 || Math.abs(delta) > maxMoveSec) return false;
+  // The outgoing cut gives or takes the difference, inside its clip and off the middle of a word.
+  const wantOut = prev.out + delta;
+  // In whole frames of the cut's rounded length, so the timeline lands exactly on the target.
+  const frames = Math.round((prev.out - prev.in) * fps) + Math.round(delta * fps);
+  const framed = r3(Math.min(clip.durationSec, Math.max(0, prev.in + frames / fps)));
+  const out = clip.words?.length ? snapTime(wantOut, clip, "out") : framed;
+  if (out - prev.in < EDL_DEFAULTS.minSegmentSec || out > clip.durationSec + 1e-6) return false;
+  // Snapping to a word may have pulled it off the target again: keep it only if still inside the tolerance.
+  const trial = segments.map((s, k) => (k === i - 1 ? { ...s, out } : s));
+  const after = cutPoint({ segments: trial, fps }, i);
+  if (Math.abs(after - on(after)) > tolerance) return false;
+  if (Math.abs(out - prev.out) < 0.02) return false;
+  // Never move a cut so that one moving shot skips a second or two inside itself (a glitch, 2026-11-12).
+  const next = segments[i];
+  if (next && jumpsInTake({ clipId: prev.clipId, out }, next, clip) && !jumpsInTake(prev, next, clip)) return false;
+  prev.out = out;
+  return true;
+}
+
+/**
  * Every cut boundary onto the beat where it can be. Boundaries are visited in
  * order, so each move already counts the ones before it.
  */
@@ -54,33 +85,35 @@ export function alignToBeats(edl: Edl, clips: ClipForEdl[], beat: Beat, maxMoveS
   const segments: EdlSegment[] = edl.segments.map((s) => ({ ...s }));
   let moved = 0;
   for (let i = 1; i < segments.length; i++) {
-    const prev = segments[i - 1];
-    const clip = byId.get(prev.clipId);
-    if (!clip) continue;
-    const at = cutPoint({ segments, fps: edl.fps }, i);
-    const target = nearestBeat(at, beat);
-    const delta = target - at;
-    if (Math.abs(delta) < 0.02 || Math.abs(delta) > maxMoveSec) continue;
-    // The outgoing cut gives or takes the difference, inside its clip and off the middle of a word.
-    const wantOut = prev.out + delta;
-    // In whole frames of the cut's rounded length, so the timeline lands exactly on the beat.
-    const frames = Math.round((prev.out - prev.in) * edl.fps) + Math.round(delta * edl.fps);
-    const framed = r3(Math.min(clip.durationSec, Math.max(0, prev.in + frames / edl.fps)));
-    const out = clip.words?.length ? snapTime(wantOut, clip, "out") : framed;
-    if (out - prev.in < EDL_DEFAULTS.minSegmentSec || out > clip.durationSec + 1e-6) continue;
-    // Snapping to a word may have pulled it off the beat again: keep it only if still inside the tolerance.
-    const trial = segments.map((s, k) => (k === i - 1 ? { ...s, out } : s));
-    const after = cutPoint({ segments: trial, fps: edl.fps }, i);
-    if (Math.abs(after - nearestBeat(after, beat)) > beatTolerance(beat.bpm)) continue;
-    if (Math.abs(out - prev.out) < 0.02) continue;
-    // Never move a cut so that one moving shot skips a second or two inside itself (a glitch, 2026-11-12).
-    const next = segments[i];
-    if (next && jumpsInTake({ clipId: prev.clipId, out }, next, clip) && !jumpsInTake(prev, next, clip)) continue;
-    prev.out = out;
-    moved++;
+    const target = nearestBeat(cutPoint({ segments, fps: edl.fps }, i), beat);
+    if (moveCut(segments, i, target, maxMoveSec, beatTolerance(beat.bpm), (t) => nearestBeat(t, beat), byId, edl.fps)) moved++;
   }
   // An opening line still ends with its shot after the cut moved (lib/studioClips/cutCheck.ts).
   return { edl: endOpeningWithShot({ ...edl, segments }).edl, moved, total: segments.length - 1, bpm: beat.bpm };
+}
+
+/** How far a cut may move to land on a musical moment, and how close counts as on it. */
+export const MOMENT_MOVE_SEC = 0.6;
+const MOMENT_TOLERANCE_SEC = 0.08;
+
+/**
+ * A cut onto each musical moment (where the reference's music lifts: lib/music/referenceMusic.ts
+ * drops, as output seconds): the nearest cut boundary moves onto it when it is within MOMENT_MOVE_SEC.
+ * Run after alignToBeats, so a moment wins over the plain beat for the cut nearest it.
+ */
+export function alignToMoments(edl: Edl, clips: ClipForEdl[], moments: number[], maxMoveSec = MOMENT_MOVE_SEC): { edl: Edl; moved: number; landed: number } {
+  if (!moments.length || edl.segments.length < 2) return { edl, moved: 0, landed: 0 };
+  const byId = new Map(clips.map((c) => [c.id, c]));
+  const segments: EdlSegment[] = edl.segments.map((s) => ({ ...s }));
+  let moved = 0, landed = 0;
+  for (const m of moments) {
+    let best = -1, gap = Infinity;
+    for (let i = 1; i < segments.length; i++) { const d = Math.abs(cutPoint({ segments, fps: edl.fps }, i) - m); if (d < gap) { gap = d; best = i; } }
+    if (best < 1 || gap > maxMoveSec) continue;
+    if (gap <= MOMENT_TOLERANCE_SEC) { landed++; continue; }
+    if (moveCut(segments, best, r2(m), maxMoveSec, MOMENT_TOLERANCE_SEC, () => r2(m), byId, edl.fps)) { moved++; landed++; }
+  }
+  return { edl: moved ? endOpeningWithShot({ ...edl, segments }).edl : edl, moved, landed };
 }
 
 /** Whether the overlap of a transition would be wider than the beat allows; exported for the report. */
