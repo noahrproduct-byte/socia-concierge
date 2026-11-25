@@ -789,7 +789,7 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
                     ? <img src={`data:image/jpeg;base64,${ref.frames[0].jpeg}`} alt="" />
                     : <span className="qe-ref-blank"><Film size={16} aria-hidden /></span>}
                 <span>
-                  <b>{reference.source ? (reference.source.handle ? `@${reference.source.handle}` : reference.source.account ?? "Instagram Reel") : ref!.name}</b>
+                  <b>{reference.source ? (reference.source.handle ? `@${reference.source.handle}` : reference.source.account ?? `A ${reference.source.format ?? "Instagram"} video`) : ref!.name}</b>
                   {reference.source?.caption && <small className="qe-ref-cap">{reference.source.caption}</small>}
                   <small>
                     {reference.reading ? <><Loader2 size={11} className="spin" aria-hidden /> {reference.reading}…</>
@@ -797,6 +797,7 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
                       : "Video not studied: the cut follows your prompt"}
                   </small>
                 </span>
+                {reference.source && !ref && !reference.reading && <button type="button" className="qe-btn is-small" onClick={() => refInput.current?.click()}><Upload size={13} aria-hidden /> Upload the file</button>}
                 {reference.source && <a className="qe-link" href={reference.source.link} target="_blank" rel="noopener noreferrer">Original</a>}
                 <button type="button" className="ov-x" aria-label="Remove the reference" onClick={() => { reference.clear(); setRefFromReel(null); }}><X size={14} /></button>
               </div>
@@ -805,16 +806,16 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
             ) : (
               <div className="qe-row">
                 <button type="button" className="qe-btn is-small" onClick={() => refInput.current?.click()}><Upload size={13} aria-hidden /> Upload a video</button>
-                <button type="button" className="qe-btn is-small" aria-expanded={refMode === "link"} onClick={() => setRefMode((m) => (m === "link" ? null : "link"))}><Link2 size={13} aria-hidden /> Paste a Reel link</button>
+                <button type="button" className="qe-btn is-small" aria-expanded={refMode === "link"} onClick={() => setRefMode((m) => (m === "link" ? null : "link"))}><Link2 size={13} aria-hidden /> Paste a video link</button>
                 <button type="button" className="qe-btn is-small" aria-expanded={refMode === "clips"} onClick={openLibrary}><Film size={13} aria-hidden /> From your clips</button>
               </div>
             )}
-            <input ref={refInput} type="file" hidden accept="video/mp4,video/quicktime,video/webm,video/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) { setRefFromReel(null); setRefMode(null); void reference.readFile(f); } e.target.value = ""; }} />
-            {!ref && !reference.reading && refMode === "link" && (
+            <input ref={refInput} type="file" hidden accept="video/mp4,video/quicktime,video/webm,video/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) { setRefMode(null); if (!reference.source) setRefFromReel(null); /* the file of a video named by its link keeps its creator and link on the card */ void reference.readFile(f, reference.source ? "link" : "file", undefined, reference.source?.code ?? null); } e.target.value = ""; }} />
+            {!ref && !reference.source && !reference.reading && refMode === "link" && (
               <form className="qe-row" onSubmit={(e) => { e.preventDefault(); if (linkText.trim()) { setRefFromReel(null); void reference.readReel(linkText.trim(), { handle: handleText.trim() || null }); } }}>
-                <input className="qe-input" type="url" inputMode="url" placeholder="instagram.com/reel/…" value={linkText} onChange={(e) => setLinkText(e.target.value)} aria-label="Reel link" />
+                <input className="qe-input" type="text" inputMode="url" autoComplete="off" placeholder="Instagram, TikTok, YouTube or Facebook link" value={linkText} onChange={(e) => setLinkText(e.target.value)} aria-label="Video link" />
                 {reference.needHandle && <input className="qe-input" placeholder="@account" value={handleText} onChange={(e) => setHandleText(e.target.value)} aria-label="Whose Reel it is" />}
-                <button type="submit" className="qe-btn is-small" disabled={!linkText.trim()}>Use this Reel</button>
+                <button type="submit" className="qe-btn is-small" disabled={!linkText.trim()}>Use this video</button>
               </form>
             )}
             {!ref && !reference.reading && refMode === "clips" && (
