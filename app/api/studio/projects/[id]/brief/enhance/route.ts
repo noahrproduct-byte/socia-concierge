@@ -14,7 +14,10 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 // Improve the prompt (lib/studioClips/enhancePrompt.ts).
-//   POST { prompt?, hasReference? } -> { prompt, added }
+//   POST { prompt?, hasReference?, help?, reference?, goal? } -> { prompt, added }
+// "Help me write a prompt" (help: true) may start from an empty box: the brief is then written from the
+// clips, the brand, the goal the person came with (a planned post, a Discover idea) and the reference's
+// measured facts (its length, shots and whether anyone speaks), never from anything SOCIA didn't read.
 // Rewrites what the person wrote into a brief built from this project's clips.
 // Nothing is saved and nothing is counted against the plan's videos: the person
 // reads it, edits it, and only "Make the video" makes one. An hourly limit and
@@ -28,9 +31,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const forbidden = requireMutate(ctx);
   if (forbidden) return forbidden;
   if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: AI_UNAVAILABLE_COPY.no_key, kind: "no_key" }, { status: 503 });
-  const body = (await req.json().catch(() => null)) as { prompt?: unknown; hasReference?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as { prompt?: unknown; hasReference?: unknown; help?: unknown; reference?: unknown; goal?: unknown } | null;
+  const help = body?.help === true;
   const prompt = cleanPrompt(body?.prompt);
-  if (!prompt) return NextResponse.json({ error: "Write a few words about the video first." }, { status: 400 });
+  if (!prompt && !help) return NextResponse.json({ error: "Write a few words about the video first." }, { status: 400 });
+  const goal = typeof body?.goal === "string" ? body.goal.replace(/\s+/g, " ").trim().slice(0, 600) : "";
+  const r0 = body?.reference && typeof body.reference === "object" ? (body.reference as Record<string, unknown>) : null;
+  const refFacts = r0 && typeof r0.durationSec === "number" && r0.durationSec > 0 && r0.durationSec <= 600
+    ? `Its length is ${Math.round(r0.durationSec)} seconds${typeof r0.shots === "number" && r0.shots > 0 && r0.shots < 500 ? `, ${Math.round(r0.shots)} shots` : ""}${r0.speech === true ? ", and someone speaks in it" : r0.speech === false ? ", and no one speaks in it" : ""}.`
+    : "";
   try {
     const { denied } = await requireFeature(ctx.client, ctx.ownerId, "auto_build");
     if (denied) return denied;
@@ -43,12 +52,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const usable = rows.filter((c) => !c.purged_at && c.status !== "expired");
     const brand = [acct.niche ? `Niche: ${acct.niche}` : null, acct.goals ? `Goal: ${acct.goals}` : null, brandContext(acct.brand) || null].filter(Boolean).join("\n");
     const text = [
-      `# What they wrote\n${prompt}`,
+      prompt ? `# What they wrote\n${prompt}` : "# What they wrote\nNothing yet. Write the brief for them from the clips, the brand notes and the goal below, keeping to what is really there.",
+      goal ? `# What they want this video to do\n${goal}` : null,
       `# The clips\n${clipLines(usable)}`,
       brand ? `# Brand notes\n${brand}` : null,
       // What goes viral in the niche (lib/nicheScan): the improved prompt can ask for a proven on-screen line.
       acct.playbook ? `# ${acct.playbook}` : null,
-      body?.hasReference === true ? "# Reference video\nA reference video is attached. The editor copies its length, pace and text style." : null,
+      body?.hasReference === true || refFacts ? `# Reference video\nA reference video is attached. The editor copies its length, pace and text style.${refFacts ? ` ${refFacts}` : ""}` : null,
     ].filter(Boolean).join("\n\n");
     const params2 = {
       model: FAST_MODEL, max_tokens: 1500, system: ENHANCE_SYSTEM,
