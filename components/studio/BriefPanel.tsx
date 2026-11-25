@@ -22,6 +22,7 @@ import { probeClip, ingestClip } from "@/lib/studioClips/ingest";
 import { REF_MAX_SEC, PROMPT_MAX } from "@/lib/studioClips/reference";
 import { AUTO_IMPROVE_TIMEOUT_MS, shouldAutoImprove } from "@/lib/studioClips/enhancePrompt";
 import { STUDIO_BUCKET, type StudioBuild } from "@/lib/studioClips/types";
+import StoryboardReview from "./StoryboardReview";
 
 type Reference = {
   name: string; durationSec: number; width: number | null; height: number | null;
@@ -262,6 +263,7 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
     }
   };
 
+  const [board, setBoard] = useState<{ id: string; title: string } | null>(null);
   const make = async () => {
     if (!projectId) return;
     setBusy(true); setError(null);
@@ -289,7 +291,8 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
       const j = (await res.json().catch(() => null)) as { build?: StudioBuild; error?: string } | null;
       if (!res.ok || !j?.build) { setError(j?.error ?? "SOCIA couldn't make that cut. Try again."); return; }
       void loadPast();
-      onOpen(j.build.id, prompt.trim().split(/\n/)[0]?.slice(0, 70) || (ref ? `Like “${ref.name}”` : "Your video"));
+      // Storyboard first: the shots are checked before the editor opens (components/studio/StoryboardReview.tsx).
+      setBoard({ id: j.build.id, title: prompt.trim().split(/\n/)[0]?.slice(0, 70) || (ref ? `Like “${ref.name}”` : "Your video") });
     } catch {
       setError("Couldn't reach SOCIA. Try again.");
     } finally {
@@ -456,6 +459,7 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
           ))}
         </ul>
       )}
+      {board && <StoryboardReview key={board.id} buildId={board.id} title={board.title} onDone={() => { const b = board; setBoard(null); onOpen(b.id, b.title); }} onClose={() => setBoard(null)} />}
     </section>
   );
 }

@@ -1,0 +1,198 @@
+/* Storyboard first (components/studio/StoryboardReview.tsx). Tokens only. */
+.sb-status {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-3);
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.sb-status.is-error {
+  color: var(--negative-ink);
+}
+.sb-bar {
+  display: flex;
+  gap: var(--sp-1);
+}
+.sb-bar i {
+  display: grid;
+  place-items: center;
+  flex-basis: 0;
+  min-width: var(--sp-4);
+  height: var(--control-h-sm);
+  border-radius: var(--r-control);
+  background: var(--positive);
+  color: var(--surface);
+  font-style: normal;
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.sb-bar i.is-maybe {
+  background: var(--warning);
+}
+.sb-bar i.is-drop {
+  background: var(--surface-hover);
+  color: var(--ink-3);
+  text-decoration: line-through;
+}
+.sb-sum {
+  margin: var(--sp-2) 0 var(--sp-3);
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.sb-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sb-list > li {
+  display: flex;
+  gap: var(--sp-4);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+.sb-list > li.is-maybe {
+  border-color: var(--warning);
+}
+.sb-list > li.is-drop {
+  background: var(--surface-raised);
+}
+.sb-list > li.is-drop .sb-frame,
+.sb-list > li.is-drop q,
+.sb-list > li.is-drop .sb-text,
+.sb-list > li.is-drop .sb-note {
+  opacity: 0.45;
+}
+.sb-frame {
+  position: relative;
+  flex: none;
+  width: 96px;
+  aspect-ratio: 9 / 16;
+  border-radius: var(--r-control);
+  background: var(--surface-hover);
+  overflow: hidden;
+}
+.sb-frame video,
+.sb-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.sb-frame b {
+  position: absolute;
+  top: var(--sp-1);
+  left: var(--sp-1);
+  display: grid;
+  place-items: center;
+  min-width: var(--sp-5);
+  height: var(--sp-5);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-variant-numeric: tabular-nums;
+}
+.sb-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  flex: 1;
+  min-width: 0;
+}
+.sb-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2);
+}
+.sb-head b {
+  color: var(--ink);
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: var(--fw-semibold);
+}
+.sb-head small,
+.sb-note {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-variant-numeric: tabular-nums;
+}
+.sb-body q {
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.sb-text {
+  align-self: flex-start;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-control);
+  background: var(--surface-hover);
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.sb-marks {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: var(--sp-1);
+  padding: var(--sp-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+}
+.sb-marks button {
+  min-height: var(--control-h-sm);
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-radius: var(--r-control);
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  cursor: pointer;
+}
+.sb-marks button:focus-visible,
+.sb-input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.sb-marks button.on {
+  background: var(--ink);
+  color: var(--surface);
+  font-weight: var(--fw-medium);
+}
+.sb-marks button.on.is-maybe {
+  background: var(--warning);
+}
+.sb-marks button.on.is-drop {
+  background: var(--negative);
+}
+.sb-input {
+  width: 100%;
+  min-height: var(--control-h-lg);
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+@media (max-width: 600px) {
+  .sb-frame {
+    width: 64px;
+  }
+}
