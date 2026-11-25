@@ -51,7 +51,8 @@ import { DEFAULT_THEME_ID, THEMES, themeById } from "@/lib/studioClips/themes";
 import { OUTPUT, type BuildPlayerData, type Edl, type StudioBuild } from "@/lib/studioClips/types";
 import { ClipGrid, type LocalClip } from "./ClipsViews";
 import VoiceoverAsk from "./VoiceoverAsk";
-import Inspiration, { reelName, reelVideoUrl } from "./Inspiration";
+import Inspiration from "./Inspiration";
+import { servedVideoOf, sourceOfReel } from "@/lib/studioClips/referenceSource";
 import { useReference, type Reference } from "./useReference";
 import { actionCredits } from "@/lib/credits/config";
 import { setThemeOverride } from "@/lib/studioClips/themes/apply";
@@ -230,15 +231,19 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
   const [refFromReel, setRefFromReel] = useState<string | null>(null);
   const [refMode, setRefMode] = useState<null | "link" | "clips">(null);
   const [linkText, setLinkText] = useState("");
+  const [handleText, setHandleText] = useState("");
   const [library, setLibrary] = useState<LibraryClip[] | null>(null);
   const refInput = useRef<HTMLInputElement>(null);
   // A Reel handed over from Discover is read once, on arrival.
   const handedRef = useRef<string | null>(null);
   useEffect(() => {
     const r = handed?.reference;
-    if (!r || handedRef.current === r.url) return;
-    handedRef.current = r.url;
-    void reference.readServed(r.url, r.name, "discover");
+    const key = r ? r.reel?.link ?? r.url : null;
+    if (!r || !key || handedRef.current === key) return;
+    handedRef.current = key;
+    // A Reel from Discover: the video link Discover had is tried first, then Instagram's official read finds it fresh.
+    if (r.reel) void reference.readReel(r.reel.link, { known: r.reel, served: r.url, handle: r.reel.handle, from: "discover" });
+    else if (r.url) void reference.readServed(r.url, r.name, "discover");
   }, [handed?.reference, reference]);
   const openLibrary = () => {
     setRefMode((m) => (m === "clips" ? null : "clips"));
@@ -707,7 +712,7 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
     const ownWords = helped && helped.after === prompt;
     return (
       <section className="qe qe-make" aria-labelledby="qe-h">
-        <Inspiration chosen={ref || reference.reading ? refFromReel : null} onUse={(r) => { const url = reelVideoUrl(r); if (!url) return; setRefFromReel(r.url); setRefMode(null); void reference.readServed(url, reelName(r), "discover"); }} />
+        <Inspiration chosen={ref || reference.reading ? refFromReel : null} onUse={(r) => { const known = sourceOfReel(r); setRefFromReel(r.url); setRefMode(null); void reference.readReel(r.url, { known, served: servedVideoOf(r), handle: known.handle, from: "discover" }); }} />
         <div className="qe-hero">
           <motion.span className="qe-eyebrow" {...rise(0)}>AI video editor</motion.span>
           <motion.h2 id="qe-h" {...rise(1)}>Raw footage in. <em>Finished video</em> out.</motion.h2>
@@ -774,13 +779,25 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
           {/* 3. A video to make it like */}
           <div className="qe-sec">
             <div className="qe-sec-title">Reference video <span>Optional</span></div>
-            {ref ? (
+            {ref || reference.source ? (
               <div className="qe-ref-card">
-                {ref.frames[0]
-                  // eslint-disable-next-line @next/next/no-img-element -- a frame read from the reference in this browser
-                  ? <img src={`data:image/jpeg;base64,${ref.frames[0].jpeg}`} alt="" />
-                  : <span className="qe-ref-blank"><Film size={16} aria-hidden /></span>}
-                <span><b>{ref.name}</b><small>{[`${ref.durationSec} s`, shots ? `${shots} shot${shots === 1 ? "" : "s"}` : null, ref.words?.length ? "speech heard" : null].filter(Boolean).join(" · ")}</small></span>
+                {reference.source?.thumb
+                  // eslint-disable-next-line @next/next/no-img-element -- the platform's own cover image
+                  ? <img src={reference.source.thumb} alt="" referrerPolicy="no-referrer" />
+                  : ref?.frames[0]
+                    // eslint-disable-next-line @next/next/no-img-element -- a frame read from the reference in this browser
+                    ? <img src={`data:image/jpeg;base64,${ref.frames[0].jpeg}`} alt="" />
+                    : <span className="qe-ref-blank"><Film size={16} aria-hidden /></span>}
+                <span>
+                  <b>{reference.source ? (reference.source.handle ? `@${reference.source.handle}` : reference.source.account ?? "Instagram Reel") : ref!.name}</b>
+                  {reference.source?.caption && <small className="qe-ref-cap">{reference.source.caption}</small>}
+                  <small>
+                    {reference.reading ? <><Loader2 size={11} className="spin" aria-hidden /> {reference.reading}…</>
+                      : ref ? [`Video studied: ${ref.durationSec} s`, shots ? `${shots} shot${shots === 1 ? "" : "s"}` : null, ref.words?.length ? "speech heard" : null].filter(Boolean).join(" · ")
+                      : "Video not studied: the cut follows your prompt"}
+                  </small>
+                </span>
+                {reference.source && <a className="qe-link" href={reference.source.link} target="_blank" rel="noopener noreferrer">Original</a>}
                 <button type="button" className="ov-x" aria-label="Remove the reference" onClick={() => { reference.clear(); setRefFromReel(null); }}><X size={14} /></button>
               </div>
             ) : reference.reading ? (
@@ -794,8 +811,9 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
             )}
             <input ref={refInput} type="file" hidden accept="video/mp4,video/quicktime,video/webm,video/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) { setRefFromReel(null); setRefMode(null); void reference.readFile(f); } e.target.value = ""; }} />
             {!ref && !reference.reading && refMode === "link" && (
-              <form className="qe-row" onSubmit={(e) => { e.preventDefault(); if (linkText.trim()) { setRefFromReel(null); void reference.readLink(linkText); } }}>
+              <form className="qe-row" onSubmit={(e) => { e.preventDefault(); if (linkText.trim()) { setRefFromReel(null); void reference.readReel(linkText.trim(), { handle: handleText.trim() || null }); } }}>
                 <input className="qe-input" type="url" inputMode="url" placeholder="instagram.com/reel/…" value={linkText} onChange={(e) => setLinkText(e.target.value)} aria-label="Reel link" />
+                {reference.needHandle && <input className="qe-input" placeholder="@account" value={handleText} onChange={(e) => setHandleText(e.target.value)} aria-label="Whose Reel it is" />}
                 <button type="submit" className="qe-btn is-small" disabled={!linkText.trim()}>Use this Reel</button>
               </form>
             )}
@@ -851,7 +869,7 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
             <dl className="qe-sum-list">
               <div><dt>Footage</dt><dd>{locals.length ? [`${ready.length} of ${locals.length} clip${locals.length === 1 ? "" : "s"} ready`, footage > 0 ? clock(footage) : null].filter(Boolean).join(" · ") : "None yet"}</dd></div>
               <div><dt>Prompt</dt><dd>{promptOk ? (prompt.trim().length > 140 ? `${prompt.trim().slice(0, 140).replace(/\s+\S*$/, "")}…` : prompt.trim()) : "Not written yet"}</dd></div>
-              <div><dt>Reference</dt><dd>{ref ? ref.name : "None"}</dd></div>
+              <div><dt>Reference</dt><dd>{ref ? (reference.source?.handle ? `@${reference.source.handle}'s Reel` : ref.name) : reference.source ? `${reference.source.handle ? `@${reference.source.handle}'s Reel` : "A Reel"}, video not studied` : "None"}</dd></div>
               <div><dt>Direction</dt><dd>{creativeSummary(creative, theme.name)}</dd></div>
               <div><dt>Voiceover</dt><dd>{!voiceOn ? "None" : voiceOk ? "Script approved" : "Waiting for your approved script"}</dd></div>
               <div><dt>Length</dt><dd>{durationLabel(creative.durationSec)} · {aspectLabel(creative.aspect)}</dd></div>

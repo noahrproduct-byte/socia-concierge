@@ -301,3 +301,5 @@
 .qe-footage .cb-grid { margin: 0; padding: 0; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
 .qe-insp, .qe-insp ul { min-width: 0; max-width: 100%; }
 .qe-make { min-width: 0; max-width: 100%; }
+.qe-ref-card .qe-ref-cap { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; color: var(--qe-dim); }
+.qe-ref-card > .qe-link { flex: none; font-size: 12px; }
