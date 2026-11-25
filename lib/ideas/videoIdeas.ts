@@ -175,6 +175,22 @@ export function ideaText(idea: VideoIdea): string {
   ].filter((l, k, a) => !(l === "" && a[k - 1] === "")).join("\n").trim();
 }
 
+/**
+ * An idea as the Video editor's prompt: what to make and how, without the Reel it's built on (that goes as the
+ * reference video), its track record or the caption. Pure.
+ */
+export function ideaEditorText(idea: VideoIdea): string {
+  const style = TREATMENT_LABEL[idea.treatment] ?? IDEA_STYLES.find((s) => s.id === idea.style)?.label ?? idea.style;
+  return [
+    `${idea.title} (${style}, about ${idea.lengthSec} seconds)`,
+    idea.premise,
+    "",
+    ...idea.shots.map((s) => `${clock(s.from)} to ${clock(s.to)}: ${s.onCamera}${s.onScreenText ? ` On screen: "${s.onScreenText}".` : ""}${s.say ? ` Say: "${s.say}"` : ""}`),
+    "",
+    `Sound: ${SOUND[idea.sound.kind]}${idea.sound.feel ? `, ${idea.sound.feel}` : ""}.`,
+  ].filter((l, k, a) => !(l === "" && a[k - 1] === "")).join("\n").trim();
+}
+
 /** A stored set, bounded; anything malformed is dropped. */
 export function sanitizeIdeaSet(v: unknown): IdeaSet | null {
   if (!v || typeof v !== "object") return null;

@@ -56,7 +56,7 @@ const errCopy = (e: unknown): string => {
 export default function ClipsStudio({ viewerId, modeTabs, variant = "build", fromPlan = null }: {
   viewerId: string; modeTabs?: ReactNode;
   /** A planned post opened in the editor: its plan, written as the prompt (lib/planEditorBrief.ts). */
-  fromPlan?: { title: string; day: string; prompt: string; from?: "post" } | null;
+  fromPlan?: { title: string; day: string; prompt: string; from?: "post"; reference?: HandoffReference | null } | null;
   /** build: SOCIA understands the clips as soon as they're in and leads with Make and schedule. edit: the person's videos, and new footage opens straight in the editor. audio: a video dropped here opens on Music, with a track added from the brand's taste. */
   variant?: "build" | "edit" | "audio";
 }) {
@@ -575,7 +575,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build", fro
             manualBusy={manualBusy}
             onReset={backToStart}
             onRunning={setRunning}
-            handed={{ prompt: startPrompt ?? fromPlan?.prompt ?? null, reference: startReference, style: startStyle, goal: fromPlan ? fromPlan.title : null }}
+            handed={{ prompt: startPrompt ?? fromPlan?.prompt ?? null, reference: startReference ?? fromPlan?.reference ?? null, style: startStyle, goal: fromPlan ? fromPlan.title : null }}
           />
           {!running && <VideoList videos={videos} onOpen={(v) => setCustom({ id: v.id, title: v.title })} />}
           {!running && <ClipLibrary onOpenCut={(id, title) => setCustom({ id, title })} onUse={addFromLibrary} useLabel={project ? "Add to this video" : "Add to a new video"} />}
