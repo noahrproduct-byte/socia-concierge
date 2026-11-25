@@ -466,6 +466,9 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
   try {
     tracked = withoutSkipped(await listTracked<TrackedRow>(supabase, userId, "platform, handle", { limit: 20, workspaceId }), skip, (t) => [t.handle]);
   } catch { /* none */ }
+  // In the ranking's order (lib/intel/rank.ts): the person's priority accounts and the best to learn from first.
+  const rankAt = new Map((intel?.roster ?? []).map((r, i) => [r.key, i]));
+  if (rankAt.size) tracked.sort((x, y) => (rankAt.get(`${x.platform}:${x.handle.replace(/^@/, "").toLowerCase()}`) ?? 1e9) - (rankAt.get(`${y.platform}:${y.handle.replace(/^@/, "").toLowerCase()}`) ?? 1e9));
   const winning: WinningRow[] = withoutSkipped((intel?.content ?? []) as unknown as WinningRow[], skip, (w) => [w.account_name]).slice(0, 30);
 
   // Twice as many Reels as a plan shows, so there are still eight once the ones earlier plans used are left out.

@@ -18,6 +18,8 @@ export type DiscoverAccount = CompetitorRow & {
   /** On the copy list: added by the person ("you") or found by SOCIA from one of theirs ("found", via copyVia). */
   copy?: "you" | "found";
   copyVia?: string | null;
+  /** A tracked competitor's place in SOCIA's ranking (lib/intel/rank.ts): marked a priority, and why it ranks there. */
+  rank?: { pinned: boolean; reasons: string[] };
 };
 
 export type DiscoverData = {

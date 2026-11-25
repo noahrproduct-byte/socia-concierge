@@ -1,6 +1,8 @@
 // What Discover shows, assembled on the server: the competitors tracked, accounts like them,
 // and the Reels worth copying (app/(app)/discover/page.tsx). Shared with the Dashboard's
 // "Going viral in your niche" (app/api/dashboard/viral), so both show the same Reels. Server only.
+import { rankRoster } from "@/lib/intel/rankLoad";
+import { keyOf } from "@/lib/intel/rank";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getProfile } from "@/lib/profile";
 import { brandKind, viralSource } from "@/lib/discoverRules";
@@ -230,7 +232,15 @@ export async function loadDiscoverData(supabase: SupabaseClient<any, any, any>, 
     return { ...base, ...row, reading: false };
   };
 
-  const competitors = tracked.map((t) => build(t.platform, t.handle, suggestedRows.find((r) => r.platform === t.platform && String(r.handle).toLowerCase() === t.handle.toLowerCase()) ?? null, t));
+  // The competitors in SOCIA's ranking order (lib/intel/rank.ts): priority accounts first, then business and
+  // audience fit, growth, how their Reels do and how makeable their videos are; each with its reasons.
+  const ranked = await rankRoster({ client: ctx.client, ownerId: ctx.ownerId, scopeId: cwid, detail: (profile?.brand_detail ?? null) as BrandDetail | null, now }).catch(() => []);
+  const rankAt = new Map(ranked.map((r, i) => [r.key, { i, r }]));
+  const competitors = tracked.map((t) => {
+    const a = build(t.platform, t.handle, suggestedRows.find((r) => r.platform === t.platform && String(r.handle).toLowerCase() === t.handle.toLowerCase()) ?? null, t);
+    const hit = rankAt.get(keyOf(t.platform, t.handle));
+    return hit ? { ...a, rank: { pinned: hit.r.pinned, reasons: hit.r.reasons } } : a;
+  }).sort((a, b) => (rankAt.get(keyOf(a.platform, a.handle))?.i ?? 1e9) - (rankAt.get(keyOf(b.platform, b.handle))?.i ?? 1e9));
   // Suggestions SOCIA could read and that are doing well lead; ones it couldn't read follow, never above them.
   // Fit (lib/discoverStyle.ts, from Noah's training examples): each suggested account is judged a
   // competitor (suggested, Reels shown), niche (Reels shown, never suggested: a creator showing tools
