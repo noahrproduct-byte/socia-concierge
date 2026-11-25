@@ -14,7 +14,8 @@ import PlanNotice, { UsageLine } from "./PlanNotice";
 import PlaceScan from "./PlaceScan";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import type { UsageSnapshot } from "@/lib/entitlements";
-import { EVIDENCE_LABEL, IDEA_STYLES, TREATMENT_LABEL, ideaText, type IdeaSet, type IdeaStyle, type VideoIdea } from "@/lib/ideas/videoIdeas";
+import { EVIDENCE_LABEL, IDEA_STYLES, TREATMENT_LABEL, ideaEditorText, ideaText, type IdeaSet, type IdeaStyle, type VideoIdea } from "@/lib/ideas/videoIdeas";
+import { referenceOf, sourceOfRef } from "@/lib/studioClips/referenceSource";
 import { handFiles } from "@/lib/studioClips/handoff";
 import { PROMPT_MAX } from "@/lib/studioClips/reference";
 
@@ -68,7 +69,9 @@ export default function VideoIdeasCard() {
   };
 
   const makeIt = (idea: VideoIdea) => {
-    handFiles("edit", [], { prompt: ideaText(idea).slice(0, PROMPT_MAX) });
+    // The Reel the idea is built on goes as the reference video; the prompt keeps only what to make.
+    const reference = referenceOf(sourceOfRef(idea.ref));
+    handFiles("edit", [], { prompt: ideaEditorText(idea).slice(0, PROMPT_MAX), ...(reference ? { reference } : {}) });
     router.push("/studio?mode=edit");
   };
 

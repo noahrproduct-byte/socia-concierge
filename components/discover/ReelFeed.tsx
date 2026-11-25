@@ -12,7 +12,7 @@ import { Button, Drawer, Skeleton } from "@/components/system";
 import PlanNotice from "@/components/PlanNotice";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import { FEED_BADGE, FEED_PAGE, type FeedReel } from "@/lib/discoverFeed";
-import { ADAPTATIONS_PER_REEL, adaptationText, type Adaptation } from "@/lib/discoverAdapt";
+import { ADAPTATIONS_PER_REEL, adaptationPrompt, adaptationText, type Adaptation } from "@/lib/discoverAdapt";
 import { reelKey } from "@/lib/discoverStyle";
 import { handFiles } from "@/lib/studioClips/handoff";
 import { servedVideoOf, sourceOfReel } from "@/lib/studioClips/referenceSource";
@@ -152,7 +152,7 @@ export default function ReelFeed({ recommended, trending: firstTrending, trendin
   // shots and text style), fetched by the editor through SOCIA; the person's own clips make the video.
   const make = (r: FeedReel, a: Adaptation) => {
     const reference = { url: servedVideoOf(r), name: `${r.accountHandle ? `@${r.accountHandle}` : r.accountName} ${r.format}.mp4`, reel: sourceOfReel(r) };
-    handFiles("edit", [], { prompt: `${adaptationText(a, r)}\n\nCut it from my clips with the pacing and length above; follow the reference's pace and text style, never its footage.`, reference });
+    handFiles("edit", [], { prompt: adaptationPrompt(a), reference });
     router.push("/studio?mode=edit");
   };
 

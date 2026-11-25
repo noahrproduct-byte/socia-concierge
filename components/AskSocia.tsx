@@ -19,6 +19,7 @@ import SioCorner from "@/components/sio/SioCorner";
 import Sio from "@/components/sio/Sio";
 import { usePathname, useRouter } from "next/navigation";
 import { editorPrompt, isFilmedScript } from "@/lib/assistant/editorBrief";
+import { referenceOf, sourceOfLink, type ReelSource } from "@/lib/studioClips/referenceSource";
 import { handFiles } from "@/lib/studioClips/handoff";
 import { Sparkles, Send, ArrowRight, Check, Copy, RotateCcw, Paperclip } from "lucide-react";
 import Drawer from "./ov/Drawer";
@@ -106,7 +107,7 @@ function nextSteps(a: AskAnswer): string[] {
   return ["Only the spoken lines", "Show the filming guide", "Make it more storytelling"];
 }
 
-function AnswerView({ a, onProposal, applied, setApplied, onPlaceScanned, onAddClips, onAsk, onChoose, chosen }: {
+function AnswerView({ a, onProposal, applied, setApplied, onPlaceScanned, onAddClips, onAsk, onChoose, chosen, editorRef }: {
   a: AskAnswer; onProposal?: ProposalHandler; applied: Record<string, string>; setApplied: (k: string, v: string) => void;
   /** On the latest answer only: send a follow-up. */
   onAsk?: (text: string, opts?: { moreRefs?: string[] }) => void;
@@ -114,6 +115,8 @@ function AnswerView({ a, onProposal, applied, setApplied, onPlaceScanned, onAddC
   onChoose?: (d: CreativeDirection, label: string) => void;
   /** gallery letters chosen after this answer */
   chosen?: string[];
+  /** On the latest script: the Reel it's built on, for the Video editor's reference video (never its prompt). */
+  editorRef?: ReelSource | null;
   /** On the latest filmed script only: pick the clips, which then go to the AI editor with this script. */
   onAddClips?: () => void;
   /** On the latest script only: photos of the place were just scanned, so rewrite it with real spots. */
@@ -137,7 +140,7 @@ function AnswerView({ a, onProposal, applied, setApplied, onPlaceScanned, onAddC
           {nextSteps(a).map((t) => <button key={t} type="button" className="ov-btn ghost small" onClick={() => onAsk(t)}>{t}</button>)}
           <a className="ov-btn ghost small" href={`/plan?note=${encodeURIComponent(`${a.draft.title}: ${a.draft.body.slice(0, 300)}`)}`}>Add to Content Plan</a>
           {/* The script as written here goes to the editor as its brief, without being written again (or charged again). */}
-          {isFilmedScript(a.draft) && <a className="ov-btn ghost small" href={`/studio?mode=edit&about=${encodeURIComponent(a.draft.title.slice(0, 80))}&brief=${encodeURIComponent(a.draft.body.slice(0, 1500))}`}>Open in the editor</a>}
+          {isFilmedScript(a.draft) && <a className="ov-btn ghost small" href={`/studio?mode=edit&about=${encodeURIComponent(a.draft.title.slice(0, 80))}&brief=${encodeURIComponent(a.draft.body.slice(0, 1500))}${editorRef ? `&refUrl=${encodeURIComponent(editorRef.link)}${editorRef.account ? `&refBy=${encodeURIComponent(editorRef.account)}` : ""}` : ""}`}>Open in the editor</a>}
         </div>
       )}
       {onAddClips && isFilmedScript(a.draft) && (
@@ -280,16 +283,27 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
   const toEditor = useMemo(() => (latestScript?.draft ? { title: latestScript.draft.title, prompt: editorPrompt(latestScript.draft, { approach: latestScript.research?.approach }) } : null), [latestScript]);
   // The creative style chosen in this chat, so the editor starts from matching direction defaults.
   const chosenStyle = [...messages].reverse().find((m) => m.role === "user" && m.direction?.refs.length)?.direction?.refs[0]?.style ?? null;
+  // The Reel the script is built on: the one chosen from the reference gallery, else the first Instagram example the
+  // research found. It goes to the Video editor as the reference video, never into the prompt.
+  const scriptRef = useMemo((): ReelSource | null => {
+    const picked = [...messages].reverse().find((m) => m.role === "user" && m.direction?.refs.length)?.direction?.refs[0] ?? null;
+    const examples = [...messages].reverse().map((m) => m.answer?.research?.examples).find((e) => e?.length) ?? [];
+    const ex = picked ? examples.find((e) => e.url === picked.url) : examples.find((e) => e.platform === "instagram");
+    const url = picked?.url ?? ex?.url;
+    const src = url ? sourceOfLink(url, picked?.creator ?? ex?.creator ?? null, picked?.title ?? ex?.title ?? null) : null;
+    return src ? { ...src, thumb: ex?.thumb ?? null, views: ex?.views ?? null } : null;
+  }, [messages]);
   const sendToEditor = useCallback((sent: File[]) => {
     if (!toEditor) return;
-    handFiles("edit", sent, { prompt: toEditor.prompt, ...(chosenStyle ? { style: chosenStyle } : {}) });
+    const reference = referenceOf(scriptRef);
+    handFiles("edit", sent, { prompt: toEditor.prompt, ...(chosenStyle ? { style: chosenStyle } : {}), ...(reference ? { reference } : {}) });
     const n = sent.length;
     const text = `Sent ${n} ${n === 1 ? "clip" : "clips"} and the script “${toEditor.title}” to the Video editor, with the script as the prompt. Check the settings and what it counts there, then press Make the video.`;
     setMessages((m) => [...m, { role: "user", content: `Added ${n} ${n === 1 ? "clip" : "clips"} for “${toEditor.title}”` }, { role: "assistant", content: text, answer: { text, observed: [], derived: [], interpretation: "", recommendation: "", proposals: [], post: null, actions: [{ label: "Open the Video editor", href: "/studio?mode=edit" }] } }]);
     setFiles([]); setFileNote(null);
     router.push("/studio?mode=edit");
     onClose();
-  }, [toEditor, router, onClose, chosenStyle]);
+  }, [toEditor, router, onClose, chosenStyle, scriptRef]);
   const footageDone = useCallback((r: FootageResult) => {
     const names = r.names.length > 3 ? `${r.names.slice(0, 3).join(", ")} and ${r.names.length - 3} more` : r.names.join(", ");
     const saved = r.drafts.length;
@@ -388,7 +402,7 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
           )}
           {messages.map((m, i) => m.role === "user"
             ? <div key={i} className="ask-msg user"><p>{m.content}</p></div>
-            : <div key={i} className="ask-msg assistant"><span className="ask-avatar is-sio"><Sio size={28} shadow={false} /></span>{m.answer ? <AnswerView a={m.answer} onProposal={onProposal} applied={applied} setApplied={setApplied} onPlaceScanned={i === messages.length - 1 && !busy ? () => void send("Rewrite this script using the photos of my place, with every shot at a real spot.") : undefined} onAddClips={footage && i === scriptAt && !saving ? () => pickRef.current?.click() : undefined} onAsk={i === messages.length - 1 && !busy ? (t, o) => void send(t, undefined, { moreRefs: o?.moreRefs }) : undefined} onChoose={i === messages.length - 1 && !busy ? (d, label) => void send(label, undefined, { direction: d }) : undefined} chosen={messages.slice(i + 1).find((x) => x.role === "user" && x.direction)?.direction?.refs.map((r) => r.letter) ?? []} /> : <p>{m.content}</p>}</div>)}
+            : <div key={i} className="ask-msg assistant"><span className="ask-avatar is-sio"><Sio size={28} shadow={false} /></span>{m.answer ? <AnswerView a={m.answer} onProposal={onProposal} applied={applied} setApplied={setApplied} onPlaceScanned={i === messages.length - 1 && !busy ? () => void send("Rewrite this script using the photos of my place, with every shot at a real spot.") : undefined} onAddClips={footage && i === scriptAt && !saving ? () => pickRef.current?.click() : undefined} onAsk={i === messages.length - 1 && !busy ? (t, o) => void send(t, undefined, { moreRefs: o?.moreRefs }) : undefined} onChoose={i === messages.length - 1 && !busy ? (d, label) => void send(label, undefined, { direction: d }) : undefined} chosen={messages.slice(i + 1).find((x) => x.role === "user" && x.direction)?.direction?.refs.map((r) => r.letter) ?? []} editorRef={i === scriptAt ? scriptRef : null} /> : <p>{m.content}</p>}</div>)}
           {busy && (
             <div className="ask-msg assistant" aria-live="polite">
               <span className="ask-avatar is-sio"><Sio size={28} shadow={false} expression="thinking" /></span>

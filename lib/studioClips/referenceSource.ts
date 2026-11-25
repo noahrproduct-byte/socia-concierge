@@ -6,7 +6,7 @@
 // so going back and forth doesn't pay twice. Pure helpers plus a guarded localStorage cache; browser-safe.
 
 import type { EditDirection } from "./editDirection";
-import type { ProvenReel } from "../trendSignals";
+import type { ProvenReel, ReelRef } from "../trendSignals";
 
 /** A Reel as Discover (or a pasted link) knows it: only what the platform published. */
 export type ReelSource = {
@@ -31,6 +31,29 @@ export function sourceOfReel(r: Pick<ProvenReel, "url" | "accountHandle" | "acco
     link: r.url, code: parseReelLink(r.url)?.code ?? null, handle: cleanHandle(r.accountHandle), account: r.accountName,
     thumb: r.thumb, caption: r.line ?? r.title, format: r.format, views: r.views, multiplier: r.multiplier, structure: r.fitStructure ?? null,
   };
+}
+
+/** A plan post's or a video idea's Reel (lib/trendSignals.ts ReelRef) as a reference source; null unless it's an Instagram Reel. Pure. */
+export function sourceOfRef(r: ReelRef | null | undefined): ReelSource | null {
+  if (!r?.url) return null;
+  const parsed = parseReelLink(r.url);
+  if (!parsed) return null;
+  return {
+    link: parsed.link, code: parsed.code, handle: cleanHandle(r.account) ?? parsed.handle, account: r.account,
+    thumb: r.thumb ?? null, caption: r.title, format: "Reel", views: r.views, multiplier: r.multiplier, structure: r.structure,
+  };
+}
+
+/** A Reel link someone chose elsewhere (Ask SOCIA's reference gallery) as a reference source; null unless it's an Instagram Reel. Pure. */
+export function sourceOfLink(url: string, creator?: string | null, title?: string | null): ReelSource | null {
+  const parsed = parseReelLink(url);
+  if (!parsed) return null;
+  return { link: parsed.link, code: parsed.code, handle: parsed.handle ?? cleanHandle(creator), account: creator ?? null, thumb: null, caption: title ?? null, format: "Reel", views: null, multiplier: null };
+}
+
+/** A reference to hand to the Video editor from a source: no video link yet, the editor fetches it. Pure. */
+export function referenceOf(src: ReelSource | null, served: string | null = null): { url: string | null; name: string; reel: ReelSource } | null {
+  return src ? { url: served, name: `${src.handle ? `@${src.handle}` : src.account ?? "reel"} ${src.format ?? "Reel"}.mp4`, reel: src } : null;
 }
 
 /** The link SOCIA serves for a Discover Reel's video file when the page was given one, else null. Pure. */

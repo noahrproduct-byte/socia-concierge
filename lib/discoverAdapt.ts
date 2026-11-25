@@ -141,7 +141,26 @@ export function storeWith(store: AdaptStore, key: string, profile: string, versi
   return Object.fromEntries(keep);
 }
 
-/** The adaptation as a brief to copy, hand to the editor or plan. Pure. */
+/**
+ * The adaptation as the Video editor's prompt: only the personalized instructions (concept, opening, length,
+ * filming, shots, editing, text, call to action). The original Reel goes as the reference video, never here. Pure.
+ */
+export function adaptationPrompt(a: Adaptation): string {
+  return [
+    `Video idea: ${a.concept}`,
+    a.hook ? `Opening: "${a.hook}"` : "",
+    `Length: about ${a.durationSec} seconds`,
+    "How it's filmed:",
+    ...a.steps.map((s, i) => `${i + 1}. ${s}`),
+    a.shots.length ? `Shots: ${a.shots.join("; ")}` : "",
+    a.editing ? `Editing: ${a.editing}` : "",
+    a.onScreenText.length ? `On-screen text: ${a.onScreenText.map((t) => `"${t}"`).join(", ")}` : "",
+    a.cta ? `Call to action: ${a.cta}` : "",
+    "Cut it from my clips; follow the reference video's pace and text style, never its footage.",
+  ].filter(Boolean).join("\n");
+}
+
+/** The adaptation as a brief to copy or plan, with where it came from. Pure. */
 export function adaptationText(a: Adaptation, r: Pick<ProvenReel, "accountName" | "accountHandle" | "format" | "url">): string {
   return [
     `Video idea: ${a.concept}`,

@@ -110,7 +110,9 @@ export function recommend(input: RecommendInput): Recommendation {
       const shots = ref.cuts.length + 1;
       const perSec = shots / ref.durationSec;
       out.pace = perSec >= 0.6 ? "fast" : perSec <= 0.25 ? "calm" : "steady";
-      out.transition = perSec >= 0.6 ? "cut" : out.transition;
+      // Only a fast reference sets the transition: writing `undefined` here wiped the default and crashed the
+      // editor's summary for every calm or steady reference (2026-11-25).
+      if (perSec >= 0.6) out.transition = "cut";
       reasons.push(`${paceLabel(out.pace)} pace from the reference: ${shots} shot${shots === 1 ? "" : "s"} in ${Math.round(ref.durationSec)} seconds.`);
     }
     if (ref.durationSec <= 75) {

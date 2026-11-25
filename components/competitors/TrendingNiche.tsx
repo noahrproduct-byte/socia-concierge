@@ -16,6 +16,8 @@ import { Check, Clapperboard, Copy, ExternalLink, Lock, Plus, TrendingUp, Users 
 import { useRouter } from "next/navigation";
 import { handFiles } from "@/lib/studioClips/handoff";
 import { servedVideoOf, sourceOfReel } from "@/lib/studioClips/referenceSource";
+import { does, recipe, reelEditorPrompt } from "@/lib/reelBrief";
+export { does, recipe, reelEditorPrompt };
 import type { CompetitorRow, CompPost } from "@/lib/competitorIntel";
 import { BREAKOUT_MULTIPLE, TREND_WINDOW_DAYS, VIRAL_MIN_VIEWS, refResult } from "@/lib/trendSignals";
 import type { CompetitorsData, ProvenReel } from "./types";
@@ -175,42 +177,6 @@ export function TrendingAccounts({
   );
 }
 
-const hookName = (h: string) => h.replace(/ hook$/i, "");
-
-/** How to open your own version, for each hook structure SOCIA recognises (lib/discovery.ts hook tags, plus "Question"). */
-const HOOK_HOW: Record<string, string> = {
-  "POV": "Open as a POV: the camera is the viewer, and the first words name their situation.",
-  "Question": "Open with a question your audience is already asking.",
-  "Listicle hook": "Open with the number and what the list is of.",
-  "Contrarian hook": "Open by naming what most people get wrong.",
-  "Comparison": "Open with the two things side by side.",
-  "Time contrast": "Open on the before, then cut to the after.",
-  "Levels / tiers": "Open on the first level and say how many there are.",
-  "First-person challenge": "Open by saying what you are about to try.",
-  "Superlative": "Open on the one thing you would call your best.",
-  "High-drama framing": "Open on the moment with the most at stake.",
-};
-
-/** What the Reel does, in the words of its own data: its hook structure, topic and format. */
-export function does(r: ProvenReel): string[] {
-  return [
-    ...r.structures.slice(0, 1).map((h) => `Hook: ${hookName(h)}`),
-    ...r.topics.slice(0, 1).map((t) => `About: ${t}`),
-    `Format: ${r.format}`,
-  ];
-}
-
-/** How to make your own version, from what the Reel does. */
-export function recipe(r: ProvenReel): string {
-  // Without a named hook, the Reel's own opening line (or caption) says what to borrow, so no two cards read the same.
-  const own = (t: string | null | undefined) => (t ? t.replace(/\s+/g, " ").trim().slice(0, 70) : "");
-  const open = HOOK_HOW[r.structures[0] ?? ""]
-    ?? (own(r.line) ? `Open the way it does, "${own(r.line)}", said your own way.`
-      : own(r.title) ? `Borrow its idea, "${own(r.title)}", and show it at your place.`
-      : "Open on the moment itself, with no setup line.");
-  return `${open} Film it as a ${r.format} with your own subject, footage and words.`;
-}
-
 /**
  * Make a video like this (Discover and the Dashboard): the brief written from the Reel starts the
  * video editor's prompt, and, when official data gives the Reel's file, the Reel is read there as the
@@ -219,11 +185,11 @@ export function recipe(r: ProvenReel): string {
 export function makeLikeReel(r: ProvenReel, go: (href: string) => void): void {
   // The Reel itself travels too (lib/studioClips/referenceSource.ts): the editor fetches its video through SOCIA, or says it couldn't.
   const reference = { url: servedVideoOf(r), name: `${r.accountHandle ? `@${r.accountHandle}` : r.accountName} ${r.format}.mp4`, reel: sourceOfReel(r) };
-  handFiles("edit", [], { prompt: `${brief(r)}\n\nCopy its length, pace, order of shots and on-screen text style with my clips.`, reference });
+  handFiles("edit", [], { prompt: reelEditorPrompt(r), reference });
   go("/studio?mode=edit");
 }
 
-/** A short brief for the user's own version: the idea, never the video. */
+/** A short brief for the user's own version, to copy or plan: the idea, never the video. */
 export function brief(r: ProvenReel): string {
   const lines = [
     `Make my version of a ${r.format} that took off for ${r.accountHandle ? `@${r.accountHandle}` : r.accountName} on ${PLATFORM[r.platform] ?? r.platform}`,
