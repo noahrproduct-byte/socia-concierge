@@ -17,6 +17,7 @@
 // a model. Pure types and rules; lib/intel/profileLoad.ts reads and saves it.
 
 import type { NicheRead } from "../trendSignalsLoad";
+import type { Ranked } from "./rank";
 
 export const PROFILE_VERSION = 1;
 
@@ -48,6 +49,8 @@ export type ProfileInputs = {
   igReadAt: string | null;
   /** the brand's location, which ranks local Reels first */
   location: string | null;
+  /** the accounts the person marked as a priority (lib/intel/rank.ts); absent on profiles built before ranking */
+  pins?: string[];
 };
 
 export type IntelProfile = {
@@ -61,13 +64,16 @@ export type IntelProfile = {
   accounts: DiscoveredAccountRow[];
   content: DiscoveredContentRow[];
   tracked: { platform: string; handle: string }[];
+  /** the tracked accounts ranked best first, with reasons (lib/intel/rank.ts); absent on older profiles */
+  roster?: Ranked[];
 };
 
 /** The key in niche_trends: it starts with the owner's id, which that table's row policy requires. */
 export const profileKey = (ownerId: string, scopeId: string | null | undefined): string => `${ownerId}:${scopeId ?? "default"}:intel:v${PROFILE_VERSION}`;
 
 export const sameInputs = (a: ProfileInputs, b: ProfileInputs): boolean =>
-  a.discoveryAt === b.discoveryAt && a.igReadAt === b.igReadAt && (a.location ?? "") === (b.location ?? "") && a.tracked.join("|") === b.tracked.join("|");
+  a.discoveryAt === b.discoveryAt && a.igReadAt === b.igReadAt && (a.location ?? "") === (b.location ?? "") && a.tracked.join("|") === b.tracked.join("|")
+  && (a.pins ?? []).join("|") === (b.pins ?? []).join("|");
 
 export type NeedNiche = "live" | "saved";
 

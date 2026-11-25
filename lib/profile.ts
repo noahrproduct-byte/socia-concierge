@@ -14,6 +14,8 @@ export type BrandDetail = {
   growth?: GrowthProfile;
   /** The Growth Strategy SOCIA wrote and the person may edit (lib/strategy.ts). */
   strategy?: GrowthStrategy;
+  /** Competitors the person marked as a priority, "platform:handle" (lib/intel/rank.ts). */
+  competitorPins?: string[];
   /** Creative styles chosen in Ask SOCIA's reference gallery (lib/creativePrefs.ts). */
   creative?: import("./creativePrefs").CreativePrefs;
   /** The person's IANA time zone from their browser, on their own profile row (the Sunday plan's clock). */

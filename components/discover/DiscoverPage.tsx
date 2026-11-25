@@ -13,7 +13,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, Loader2, Plus, Search, Trash2, Users, X } from "lucide-react";
+import { ExternalLink, Loader2, Plus, Search, Trash2, Users, X, Star } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import PlanNotice from "@/components/PlanNotice";
 import AddCompetitor from "@/components/competitors/AddCompetitor";
@@ -80,7 +80,8 @@ function AccountCard({ a, action, footer }: { a: DiscoverAccount; action: React.
         {a.addedBy === "you" && <span className="dsc-tag is-quiet">Added by you</span>}
         {a.addedBy === "socia" && <span className="dsc-tag is-quiet">Found by SOCIA</span>}
       </div>
-      {a.why && !a.posts.length ? <p className="dsc-acct-why">{a.why}</p> : a.why && a.addedBy !== "you" ? <p className="dsc-acct-why">{a.why}</p> : null}
+      {a.rank && a.rank.reasons.length > 0 && <p className="dsc-acct-rank">{a.rank.reasons.join(" · ")}</p>}
+      {a.why && !a.posts.length ? <p className="dsc-acct-why">{a.why}</p> : a.why && a.addedBy !== "you" && !a.rank?.reasons.length ? <p className="dsc-acct-why">{a.why}</p> : null}
       {status && <p className="dsc-acct-status">{a.reading && <Loader2 size={12} className="cx-spin" aria-hidden />} {status}</p>}
       {footer}
     </li>
@@ -135,6 +136,19 @@ export default function DiscoverPage({ d }: { d: DiscoverData }) {
   }, [router, startRead]);
 
   // Removing a competitor, or saying no to a suggestion: either way SOCIA won't suggest it again.
+  // Priority (lib/intel/rank.ts): a marked account comes first wherever SOCIA ranks the accounts it learns from.
+  const [pinNote, setPinNote] = useState<{ id: string; text: string } | null>(null);
+  const togglePin = useCallback(async (a: DiscoverAccount) => {
+    setBusy(a.id); setPinNote(null);
+    try {
+      const res = await fetch("/api/competitors/priority", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ platform: a.platform, handle: a.handle, on: !a.rank?.pinned }) });
+      if (!res.ok) { const j = await res.json().catch(() => ({})); setPinNote({ id: a.id, text: j.error ?? "Couldn't save that. Try again." }); return; }
+      router.refresh();
+    } catch {
+      setPinNote({ id: a.id, text: "Couldn't reach SOCIA. Try again." });
+    } finally { setBusy(null); }
+  }, [router]);
+
   const drop = useCallback(async (a: DiscoverAccount) => {
     setBusy(a.id); setDropError(null);
     try {
@@ -232,9 +246,14 @@ export default function DiscoverPage({ d }: { d: DiscoverData }) {
             {d.competitors.map((a) => (
               <AccountCard key={a.id} a={a}
                 action={
-                  <button type="button" className="ov-btn ghost small dsc-remove" aria-label={`Remove @${a.handle}`} aria-expanded={confirming === a.id} disabled={busy === a.id} onClick={() => { setDropError(null); setConfirming(confirming === a.id ? null : a.id); }}>
-                    <Trash2 size={12} aria-hidden /> Remove
-                  </button>
+                  <span className="dsc-acct-acts">
+                    <button type="button" className={`ov-btn ${a.rank?.pinned ? "primary" : "ghost"} small`} aria-pressed={Boolean(a.rank?.pinned)} disabled={busy === a.id} onClick={() => void togglePin(a)}>
+                      <Star size={12} aria-hidden /> {a.rank?.pinned ? "Priority" : "Make priority"}
+                    </button>
+                    <button type="button" className="ov-btn ghost small dsc-remove" aria-label={`Remove @${a.handle}`} aria-expanded={confirming === a.id} disabled={busy === a.id} onClick={() => { setDropError(null); setConfirming(confirming === a.id ? null : a.id); }}>
+                      <Trash2 size={12} aria-hidden /> Remove
+                    </button>
+                  </span>
                 }
                 footer={confirming === a.id ? (
                   <div className="dsc-confirm" role="group" aria-label={`Remove @${a.handle}`}
@@ -248,11 +267,12 @@ export default function DiscoverPage({ d }: { d: DiscoverData }) {
                     </div>
                     {dropError?.id === a.id && <p className="dsc-confirm-err" role="alert">{dropError.text}</p>}
                   </div>
-                ) : null}
+                ) : pinNote?.id === a.id ? <p className="dsc-confirm-err" role="alert">{pinNote.text}</p> : null}
               />
             ))}
           </ul>
         )}
+        {d.competitors.length > 1 && <p className="dsc-own">Ranked by how much you can learn from each: a business like yours, a similar audience, growth, how their Reels do and whether you could make their kind of video. Your priority accounts come first, and SOCIA studies the top ones first.</p>}
         {d.ownStyle && <p className="dsc-own">Your own Reels read as <b>{d.ownStyle}</b>. Competitors and Reels made the same way come first.</p>}
       </section>
 

@@ -12110,3 +12110,11 @@ p.cbm-muted { display: block; }
 .cvo-voice-all { margin-top: var(--sp-2); max-height: 320px; overflow-y: auto; padding-right: 2px; }
 .cvo-time { display: block; margin-top: var(--sp-1); font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--text-muted); }
 .cvo-time.is-long { color: var(--warning-text, var(--text-secondary)); }
+
+/* Discover: why a competitor ranks where it does, and its actions (lib/intel/rank.ts) */
+.dsc-acct-rank { margin: 6px 0 0; font-size: 12px; line-height: 1.45; color: var(--text-secondary); }
+.dsc-acct-acts { display: inline-flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+/* Two actions don't fit beside the name in a card: they take their own row under it. */
+.dsc-acct-top:has(.dsc-acct-acts) { flex-wrap: wrap; }
+.dsc-acct-top:has(.dsc-acct-acts) .dsc-acct-name { flex: 1 1 140px; min-width: 0; }
+.dsc-acct-acts { flex-basis: 100%; justify-content: flex-start; }

@@ -16,6 +16,7 @@ import {
   PROFILE_VERSION, profileKey, profileServes, sameInputs, storableNiche, LIVE_FRESH_MS,
   type DiscoveredAccountRow, type DiscoveredContentRow, type IntelProfile, type NeedNiche, type ProfileInputs,
 } from "./profile";
+import { brandDetailFor, pinsOf, rankRoster } from "./rankLoad";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
@@ -41,7 +42,7 @@ async function saveProfile(w: Where, p: IntelProfile): Promise<void> {
 
 /** What the profile rests on right now: cheap reads, no platform calls. */
 export async function profileInputs(w: Where, location: string | null): Promise<ProfileInputs> {
-  const [tracked, run] = await Promise.all([
+  const [tracked, run, detail] = await Promise.all([
     listTracked<{ platform: string; handle: string }>(w.client, w.ownerId, "platform, handle", { workspaceId: w.scopeId }).catch(() => []),
     (async () => {
       try {
@@ -50,6 +51,7 @@ export async function profileInputs(w: Where, location: string | null): Promise<
         return ((await q.maybeSingle()).data?.ran_at as string | null) ?? null;
       } catch { return null; }
     })(),
+    brandDetailFor(w.client, w.ownerId, w.scopeId),
   ]);
   const handles = [...new Set(tracked.filter((t) => t.platform === "instagram").map((t) => t.handle.replace(/^@/, "").toLowerCase()))];
   let igReadAt: string | null = null;
@@ -59,7 +61,7 @@ export async function profileInputs(w: Where, location: string | null): Promise<
       igReadAt = ((data ?? [])[0] as { fetched_at?: string } | undefined)?.fetched_at ?? null;
     } catch { /* none */ }
   }
-  return { tracked: tracked.map((t) => `${t.platform}:${t.handle.toLowerCase()}`).sort(), discoveryAt: run, igReadAt, location: location?.trim() || null };
+  return { tracked: tracked.map((t) => `${t.platform}:${t.handle.toLowerCase()}`).sort(), discoveryAt: run, igReadAt, location: location?.trim() || null, pins: pinsOf(detail).sort() };
 }
 
 async function discovered(w: Where): Promise<{ accounts: DiscoveredAccountRow[]; content: DiscoveredContentRow[] }> {
@@ -86,10 +88,12 @@ async function discovered(w: Where): Promise<{ accounts: DiscoveredAccountRow[];
 const inflight = new Map<string, Promise<IntelProfile>>();
 
 async function build(w: Where, need: NeedNiche, location: string | null, inputs: ProfileInputs, prev: IntelProfile | null, now: Date): Promise<IntelProfile> {
+  // The ranking first (saved numbers only, no platform call): the niche read studies the best-ranked accounts.
+  const roster = await rankRoster({ client: w.client, ownerId: w.ownerId, scopeId: w.scopeId, now }).catch(() => []);
   const [lists, read] = await Promise.all([
     discovered(w),
     need === "live"
-      ? loadNicheRead(w.client, w.ownerId, w.scopeId, { location, now, provenMax: 16 }).catch(() => null)
+      ? loadNicheRead(w.client, w.ownerId, w.scopeId, { location, now, provenMax: 16, order: roster.map((r) => r.key) }).catch(() => null)
       : loadCachedNicheRead(w.client, w.ownerId, w.scopeId, { location, now }).catch(() => null),
   ]);
   // A saved-only read never replaces a live one from the last day: it would be the same data, re-ranked with less.
@@ -105,6 +109,7 @@ async function build(w: Where, need: NeedNiche, location: string | null, inputs:
     accounts: lists.accounts,
     content: lists.content,
     tracked: inputs.tracked.map((t) => { const i = t.indexOf(":"); return { platform: t.slice(0, i), handle: t.slice(i + 1) }; }),
+    roster,
   };
   await saveProfile(w, p);
   return p;

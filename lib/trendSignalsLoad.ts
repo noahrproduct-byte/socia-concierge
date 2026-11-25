@@ -55,7 +55,7 @@ async function cachedIgCompetitors(client: Supa, ownerId: string, handles: strin
   return { competitors: rows.map((r) => ({ handle: r.handle, found: true, displayName: r.display_name, profilePicture: r.profile_picture, media: r.media ?? [] }) as IgCompetitor) };
 }
 
-async function read(client: Supa, ownerId: string, scopeId: string | null, location: string | null, now: Date, cachedOnly = false, provenMax = 8): Promise<NicheRead | null> {
+async function read(client: Supa, ownerId: string, scopeId: string | null, location: string | null, now: Date, cachedOnly = false, provenMax = 8, order: string[] = []): Promise<NicheRead | null> {
   const ent = await getEntitlements(client, ownerId);
   if (!canUseFeature(ent, "niche_intelligence")) return null;
   const mine = await ownAccounts(client, ownerId).catch(() => null);
@@ -83,8 +83,11 @@ async function read(client: Supa, ownerId: string, scopeId: string | null, locat
   ]);
 
   // The same order as the Discover page: tracked first, then discovered.
+  // Tracked accounts in the ranking's order when one is given (lib/intel/rank.ts): only the first few are read.
+  const rankOf = (t: { platform: string; handle: string }) => { const i = order.indexOf(`${t.platform}:${t.handle.replace(/^@/, "").toLowerCase()}`); return i < 0 ? order.length : i; };
+  const ordered = order.length ? [...tracked].sort((a, b) => rankOf(a) - rankOf(b)) : tracked;
   const handles = (platform: string, max: number) => [...new Set([
-    ...tracked.filter((t) => t.platform === platform).map((t) => t.handle),
+    ...ordered.filter((t) => t.platform === platform).map((t) => t.handle),
     ...discovered.filter((d) => d.platform === platform && d.handle).map((d) => d.handle!),
   ].map((h) => h.replace(/^@/, "").toLowerCase()))].filter((h) => notMine({ handle: h })).slice(0, max);
   const igHandles = handles("instagram", 8);
@@ -126,11 +129,11 @@ async function read(client: Supa, ownerId: string, scopeId: string | null, locat
 }
 
 /** The niche's trends for one brand, or null when the plan lacks niche trends, nothing was found, or the read ran out of time. */
-export async function loadNicheRead(client: Supa, ownerId: string, scopeId: string | null, opts: { location?: string | null; now?: Date; provenMax?: number } = {}): Promise<NicheRead | null> {
+export async function loadNicheRead(client: Supa, ownerId: string, scopeId: string | null, opts: { location?: string | null; now?: Date; provenMax?: number; order?: string[] } = {}): Promise<NicheRead | null> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), READ_BUDGET_MS); });
   try {
-    return await Promise.race([read(client, ownerId, scopeId, opts.location ?? null, opts.now ?? new Date(), false, opts.provenMax).catch(() => null), timeout]);
+    return await Promise.race([read(client, ownerId, scopeId, opts.location ?? null, opts.now ?? new Date(), false, opts.provenMax, opts.order ?? []).catch(() => null), timeout]);
   } finally {
     clearTimeout(timer);
   }
