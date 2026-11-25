@@ -34,6 +34,11 @@ export default function ReferenceLab() {
       if (u.startsWith("/api/studio/transcribe")) return json({ transcript: null, reason: "limit" });
       if (u.startsWith("/api/studio/library")) return json({ clips: [] });
       if (u.startsWith("/api/studio/style")) return json({ brand: null, templates: [] });
+      // AI music: answered here after a short wait (nothing is made or charged in the lab).
+      if (u.startsWith("/api/studio/tracks/generate")) {
+        await new Promise((r) => setTimeout(r, 1500));
+        return json({ track: { id: "lab-ai", name: "AI music: Warm acoustic", sourceName: "SOCIA AI music", durationSec: 16, createdAt: "2026-11-25T10:00:00Z", lastUsedAt: null, url: "/dev-lab/song.m4a" }, seconds: 16 });
+      }
       if (u.startsWith("/api/studio/tracks")) return json({ tracks: music ? [
         { id: "lab-other", name: "Pulse loop", sourceName: "pulse.m4a", durationSec: 20, createdAt: "2026-11-20T10:00:00Z", lastUsedAt: null, url: "/dev-lab/other.m4a" },
         { id: "lab-same", name: "Intro theme", sourceName: "intro.m4a", durationSec: 12, createdAt: "2026-11-19T10:00:00Z", lastUsedAt: null, url: "/dev-lab/song.m4a" },

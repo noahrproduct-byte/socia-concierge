@@ -9,7 +9,9 @@
 //     the same recording is suggested first, with the part that matches.
 //   - Upload song: the file is read here, the matching part found, and that part saved to the
 //     library (lib/music/soundFile.ts), so it's there for every video after.
-//   - Find licensed alternative: library sounds with a similar tempo and energy.
+//   - Find licensed alternative: music made with AI for this video (instrumental, at the
+//     reference's tempo and energy, price in credits shown first; app/api/studio/tracks/generate),
+//     then library sounds with a similar tempo and energy.
 //   - Choose different music: the Music setting under Customize.
 //   - Continue without music.
 import { useEffect, useRef, useState } from "react";
@@ -21,6 +23,8 @@ import { decodeFile, monoOf, sameSound, saveSoundPart } from "@/lib/music/soundF
 import { MAX_TRACK_SEC } from "@/lib/music/limits";
 import type { Track } from "@/lib/music/tracks";
 import type { MusicMode } from "@/lib/studioClips/creative";
+import { actionCredits } from "@/lib/credits/config";
+import { aiMusicSeconds, energyWords, MOOD_MAX } from "@/lib/music/aiMusic";
 
 type View = null | "library" | "similar";
 type Upload = { kind: "idle" } | { kind: "busy"; note: string; progress: number } | { kind: "done"; name: string; alignment: Alignment } | { kind: "dup"; track: Track; file: File };
@@ -59,6 +63,26 @@ export default function ReferenceMusicCard({ music, needSec, tracks, trackId, mo
   const [ranking, setRanking] = useState(false);
   const [upload, setUpload] = useState<Upload>({ kind: "idle" });
   const [error, setError] = useState<string | null>(null);
+  // AI music (lib/music/aiMusic.ts): the person's mood words, and the one being made.
+  const [mood, setMood] = useState("");
+  const [making, setMaking] = useState<"idle" | "busy" | { name: string; seconds: number }>("idle");
+  const aiSec = aiMusicSeconds(needSec);
+  const aiCredits = actionCredits("music_tracks");
+  const makeMusic = async () => {
+    setError(null);
+    setMaking("busy");
+    try {
+      const res = await fetch("/api/studio/tracks/generate", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ videoSec: needSec, mood, reference: { bpm: music.bpm, drops: music.drops, speechShare: music.speechShare, musicLikely: music.musicLikely } }) }).catch(() => null);
+      const j = res ? ((await res.json().catch(() => null)) as { track?: Track; seconds?: number; error?: string } | null) : null;
+      if (!res?.ok || !j?.track) throw new Error(j?.error ?? "SOCIA couldn't be reached. Check your connection and try again. No credits were used.");
+      onTracks([j.track, ...tracks]);
+      onChoose({ trackId: j.track.id, mode: "pick" });
+      setMaking({ name: j.track.name, seconds: j.seconds ?? aiSec });
+    } catch (e) {
+      setError((e as Error).message);
+      setMaking("idle");
+    }
+  };
   const fileInput = useRef<HTMLInputElement>(null);
   const lines = referenceMusicLines(music);
   const chosen = tracks.find((t) => t.id === trackId) ?? null;
@@ -170,8 +194,23 @@ export default function ReferenceMusicCard({ music, needSec, tracks, trackId, mo
           )}
           {error && <small className="qe-note"><AlertTriangle size={12} aria-hidden /> {error}</small>}
 
+          {view === "similar" && (
+            <div className="qe-music-ai">
+              <b><Music size={13} aria-hidden /> Make music with AI</b>
+              <small>Instrumental, about {aiSec} s, {music.bpm ? `around ${music.bpm} BPM, ` : ""}{energyWords(music)}{music.drops.length ? ", lifting where the reference lifts" : ""}. Made for this video, cleared for social media use, and saved to your library.</small>
+              <label className="qe-music-mood">
+                <span>Mood or style (optional)</span>
+                <input className="qe-input" value={mood} maxLength={MOOD_MAX} disabled={disabled || making === "busy"} placeholder="For example: warm acoustic, morning cafe" onChange={(e) => setMood(e.target.value)} />
+                <small>Describe a feeling or a style, not a song or an artist.</small>
+              </label>
+              {making === "busy"
+                ? <p className="qe-fine" role="status"><Loader2 size={13} className="spin" aria-hidden /> Making the music. This takes up to a minute…</p>
+                : <button type="button" className="qe-btn is-small" disabled={disabled} onClick={() => void makeMusic()}><Music size={13} aria-hidden /> Make the music: {aiCredits} credits</button>}
+              {typeof making === "object" && <p className="qe-fine">Made {making.name} ({making.seconds} s) and saved it to your library. It plays under this video.</p>}
+            </div>
+          )}
           {view && (
-            !tracks.length ? <p className="qe-fine">Your library has no sounds yet. Upload music you own or have the rights to.</p>
+            !tracks.length ? view === "similar" ? null : <p className="qe-fine">Your library has no sounds yet. Upload music you own or have the rights to.</p>
               : ranking && !rank ? <p className="qe-fine" role="status"><Loader2 size={13} className="spin" aria-hidden /> Lining your sounds up with the reference…</p>
               : rank && (
                 <>
