@@ -65,7 +65,7 @@ import type { LibraryClip } from "@/lib/studioClips/library";
 import { CAPTION_ANIMATIONS, CAPTION_STYLES } from "@/lib/studioClips/style";
 import { ASPECTS, TRANSITIONS } from "@/lib/studioClips/types";
 import {
-  COLOURS, DEFAULT_CREATIVE, DURATIONS, FOCUSES, GRAPHICS, MUSIC_MODES, PACES, aspectLabel, aspectSize, composeBrief, creativeSummary, durationLabel, recommend, themePatch,
+  COLOURS, DURATIONS, FOCUSES, GRAPHICS, MUSIC_MODES, PACES, aspectLabel, aspectSize, composeBrief, creativeSummary, durationLabel, recommend, settingsInForce, themePatch,
   type Creative, type CreativeKey,
 } from "@/lib/studioClips/creative";
 import { renderBlocker, renderBuild } from "./renderBuild";
@@ -266,7 +266,7 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
     reference: ref ? { durationSec: ref.durationSec, cuts: ref.cuts, speech: Boolean(ref.words?.length) } : null,
     clips: footageCount ? { count: footageCount } : null,
   }), [prompt, handed?.style, ref, footageCount]);
-  const creative: Creative = { ...DEFAULT_CREATIVE, ...rec.creative, ...mine };
+  const creative: Creative = settingsInForce(rec.creative, mine);
   const setSetting = <K extends CreativeKey>(k: K, v: Creative[K]) => setMine((m) => ({ ...m, [k]: v }));
   const resetSettings = () => { setMine({}); setLookPicked(false); };
   const scenesOn = creative.graphics !== "off";

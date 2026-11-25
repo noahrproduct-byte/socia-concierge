@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_CREATIVE, asksText, aspectSize, composeBrief, creativeSummary, recommend, themePatch, withRecommendation, type Creative, type CreativeKey } from "./creative";
+import { settingsInForce, DEFAULT_CREATIVE, asksText, aspectSize, composeBrief, creativeSummary, recommend, themePatch, withRecommendation, type Creative, type CreativeKey } from "./creative";
 import { THEMES } from "./themes";
 import { setThemeOverride, applyTheme, resolveTheme } from "./themes/apply";
 import type { Edl } from "./types";
@@ -98,5 +98,25 @@ describe("the look", () => {
   it("summarises only what isn't left to the style", () => {
     expect(creativeSummary(DEFAULT_CREATIVE, "Showroom")).toBe("Showroom");
     expect(creativeSummary({ ...DEFAULT_CREATIVE, pace: "fast", durationSec: 30 }, "Showroom")).toBe("Showroom · Fast pace · about 30 s");
+  });
+});
+
+describe("settings in force (the 2026-11-25 crash on uploading a reference)", () => {
+  it("a calm or steady reference sets no transition at all, so the default stays", () => {
+    for (const cuts of [[4], [2, 5, 8]]) {
+      const r = recommend({ reference: { durationSec: 12, cuts, speech: false } });
+      expect("transition" in r.creative).toBe(false);
+      const c = settingsInForce(r.creative, {});
+      expect(c.transition).toBe("style");
+      expect(() => creativeSummary(c, "Showroom")).not.toThrow();
+    }
+  });
+  it("an undefined entry in either layer never wipes the setting under it", () => {
+    const c = settingsInForce({ pace: "fast", transition: undefined }, { pace: undefined, colour: "warm" });
+    expect(c).toMatchObject({ pace: "fast", transition: "style", colour: "warm" });
+    expect(() => creativeSummary(c, "Showroom")).not.toThrow();
+  });
+  it("the person's choice sits on top of the recommendation", () => {
+    expect(settingsInForce({ pace: "fast" }, { pace: "calm" }).pace).toBe("calm");
   });
 });

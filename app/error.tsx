@@ -39,7 +39,10 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
         <h1>This page didn&apos;t load</h1>
         <p>The problem is on SOCIA&apos;s side, not yours, and nothing you saved is lost. Try again. It usually works the second time.</p>
         <div className="er-actions">
-          <button type="button" className="er-btn" onClick={() => reset()}>Try again</button>
+          {/* A full reload, not just a re-render: a tab left open through a deploy still runs the older code, and
+              re-rendering that code fails the same way (2026-11-25: the crash was already fixed on the live site,
+              and "Try again" kept failing in the old tab). The reload fetches the page and its code fresh. */}
+          <button type="button" className="er-btn" onClick={() => { try { window.location.reload(); } catch { reset(); } }}>Try again</button>
           <Link href="/dashboard" className="er-btn ghost">Go to Dashboard</Link>
         </div>
         {error?.digest && <p className="er-digest">If you contact us, give this reference: {error.digest}</p>}
