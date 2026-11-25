@@ -45,8 +45,16 @@ export const CHECK = {
   sentenceReachSec: 3,
   /** a measured frame this dark is black */
   blackLuma: 0.03,
-  /** an opening line still up this little after the first cut flashes onto the next shot */
+  /** a line still up this little after a cut flashes onto the next shot */
   spillSec: 0.6,
+  /**
+   * A line that comes in this little before a cut and stays on into the next shot belongs to that shot: it
+   * starts with it (Noah, 2026-11-25, a pasta Reel: "one creamy bite at a time" came up 0.7 s early, over
+   * the penne, and carried onto the plate it was about).
+   */
+  leadInSec: 0.9,
+  /** what is left of a line after it is moved onto its shot must still be readable */
+  lineMinSec: 1,
   /**
    * Two pieces of one moving shot this close in the footage: the picture and the
    * sound jump forward mid-motion and read as a glitch, not a cut (Noah,
@@ -133,12 +141,47 @@ export function firstCutSec(edl: Edl): number {
   return second ? r2(second.startSec + second.overlapIn / 2 / edl.fps) : Infinity;
 }
 
+/** Where every cut lands on the cut's own timeline, in seconds (the middle of a join). */
+export function cutTimes(edl: Edl): number[] {
+  const tl = timeline(edl);
+  return tl.segments.slice(1).map((s) => r2(s.startSec + s.overlapIn / 2 / edl.fps));
+}
+
+/**
+ * Every designed line starts and ends with a shot (Noah, 2026-11-25). A line
+ * that comes in just before a cut (under CHECK.leadInSec) and runs on into the
+ * next shot starts with that shot instead; a line still up a moment after a
+ * cut (under CHECK.spillSec) ends with its own shot. A line placed well across
+ * a cut, on purpose, is left alone, and so is one that would be too short to read.
+ */
+export function fitTextToShots(edl: Edl): { edl: Edl; fixed: string[] } {
+  const cuts = cutTimes(edl);
+  if (!cuts.length || !edl.text.length) return { edl, fixed: [] };
+  const fixed: string[] = [];
+  const text = edl.text.map((t) => {
+    if (!t.text.trim()) return t;
+    let { at, end } = t;
+    const early = cuts.find((c) => at < c && c - at <= CHECK.leadInSec && end - c >= CHECK.lineMinSec);
+    if (early != null && at > 0.05) { fixed.push(`“${t.text.replace(/\n/g, " ")}” now starts with its shot instead of ${(early - at).toFixed(1)} s before the cut`); at = early; }
+    const spill = cuts.find((c) => at < c - 0.5 && end > c + 0.05 && end - c < CHECK.spillSec);
+    if (spill != null && spill - at >= CHECK.lineMinSec) {
+      fixed.push(spill === cuts[0] ? `“${t.text}” now ends with the first shot instead of flashing over the second` : `“${t.text.replace(/\n/g, " ")}” now ends with its shot instead of flashing over the next one`);
+      end = spill;
+    }
+    return at === t.at && end === t.end ? t : { ...t, at: r2(at), end: r2(end) };
+  });
+  return fixed.length ? { edl: { ...edl, text }, fixed } : { edl, fixed };
+}
+
 /**
  * An opening line that stays up a moment past the first cut (under
  * CHECK.spillSec) flashes onto the next shot: it ends with its shot instead.
- * A line placed well across the cut is left alone.
+ * A line placed well across the cut is left alone. Since 2026-11-25 every
+ * line is fitted to its shot this way (fitTextToShots), the opening included.
  */
 export function endOpeningWithShot(edl: Edl): { edl: Edl; fixed: string | null } {
+  const all = fitTextToShots(edl);
+  if (all.fixed.length) return { edl: all.edl, fixed: all.fixed.join("; ") };
   const cut = firstCutSec(edl);
   let fixed: string | null = null;
   const text = edl.text.map((t) => {
@@ -228,6 +271,11 @@ export function checkCut(edl: Edl, clips: ClipForEdl[]): CutCheck {
       else if (charCount(t.text) > max) findings.push({ id: "text", segmentId: null, detail: `“${t.text}” is ${charCount(t.text)} characters; its look holds ${max}, so words fall off. Shorten it or pick a roomier look.` });
       else if (t.shortened) findings.push({ id: "text", segmentId: null, detail: `“${t.text}” was shortened to fit. Read it, and rewrite it if it lost its point.` });
       else if (t.role === "opening" && t.at < firstCut && t.end > firstCut + 0.05 && t.end - firstCut < CHECK.spillSec) findings.push({ id: "text", segmentId: null, detail: `“${t.text}” stays up ${(t.end - firstCut).toFixed(1)} s into the second shot, so it flashes over it. End it with the first shot.` });
+      else {
+        const cuts = cutTimes(edl);
+        const early = t.at > 0.05 ? cuts.find((c) => t.at < c && c - t.at <= CHECK.leadInSec && t.end - c >= CHECK.lineMinSec) : undefined;
+        if (early != null) findings.push({ id: "text", segmentId: null, detail: `“${t.text}” comes in ${(early - t.at).toFixed(1)} s before the cut at ${fmtClock(early)} and is about the next shot. Start it with that shot.` });
+      }
     });
   }
 
@@ -396,5 +444,9 @@ export function settleCut(edl: Edl, clips: ClipForEdl[], opts: { keepTransitions
   }
   // Roles follow the order that is left.
   const segments = cur.segments.map((s, i, all) => ({ ...s, role: i === 0 ? ("opener" as const) : all.length >= 3 && i === all.length - 1 ? ("ending" as const) : s.role === "opener" || s.role === "ending" ? ("body" as const) : s.role }));
-  return { edl: { ...cur, segments }, fixed: [...new Set(fixed)], left };
+  // Every line on its own shot, now the shots are final.
+  const lines = fitTextToShots({ ...cur, segments });
+  fixed.push(...lines.fixed);
+  if (lines.fixed.length) left = checkCut(lines.edl, clips).findings;
+  return { edl: lines.edl, fixed: [...new Set(fixed)], left };
 }

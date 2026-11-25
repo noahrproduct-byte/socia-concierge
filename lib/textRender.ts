@@ -81,9 +81,27 @@ export function wrapParagraph(text: string, maxWidth: number, font: string, meas
   return out;
 }
 
+/**
+ * Wrapped into as few lines as the greedy wrap needs, but evened out, the way CSS text-wrap: balance does:
+ * the narrowest width that still gives the same number of lines. No line of one hanging word (Noah,
+ * 2026-11-25: "one creamy bite at a / time"). A paragraph with a word broken at characters stays as it was.
+ */
+export function wrapBalanced(text: string, maxWidth: number, font: string, measure: Measure): WrappedLine[] {
+  const greedy = wrapParagraph(text, maxWidth, font, measure);
+  if (greedy.length < 2 || greedy.some((l) => l.broke)) return greedy;
+  let lo = Math.max(...text.split(" ").filter(Boolean).map((w) => measure(w, font)));
+  let hi = maxWidth, best = greedy;
+  for (let i = 0; i < 12 && hi - lo > 1; i++) {
+    const mid = (lo + hi) / 2;
+    const tryLines = wrapParagraph(text, mid, font, measure);
+    if (tryLines.length === greedy.length && !tryLines.some((l) => l.broke)) { best = tryLines; hi = mid; } else lo = mid;
+  }
+  return best;
+}
+
 function wrapAt(paras: string[], font: TextFont, px: number, maxWidth: number, measure: Measure, color: string, lineHeight: number): LaidLine[] {
   const f = canvasFont(font, px);
-  return paras.flatMap((p) => (p ? wrapParagraph(p, maxWidth, f, measure) : [{ text: "", width: 0 }]).map((l) => ({ ...l, font: f, fontSize: px, lineHeight, color })));
+  return paras.flatMap((p) => (p ? wrapBalanced(p, maxWidth, f, measure) : [{ text: "", width: 0 }]).map((l) => ({ ...l, font: f, fontSize: px, lineHeight, color })));
 }
 
 /**
@@ -219,9 +237,12 @@ export function drawTextLayer(ctx: Ctx, preset: TextPreset, layout: TextLayout):
         ctx.shadowColor = b.shadow.color; ctx.shadowBlur = b.shadow.blur * scale; ctx.shadowOffsetY = b.shadow.offsetY * scale;
         if (b.halo) {
           // A tight dark halo first, so white letters stay readable on bright footage; the wide soft shadow goes on top.
+          // Two passes: a tight one that outlines the letters and a wider one that darkens just around them.
           ctx.save();
-          ctx.shadowColor = b.halo; ctx.shadowBlur = Math.max(2, l.fontSize * 0.06); ctx.shadowOffsetY = 0;
-          ctx.fillStyle = l.color;
+          ctx.shadowOffsetY = 0; ctx.fillStyle = l.color; ctx.shadowColor = b.halo;
+          ctx.shadowBlur = Math.max(2, l.fontSize * 0.05);
+          ctx.fillText(l.text, x, baseline);
+          ctx.shadowBlur = Math.max(3, l.fontSize * 0.14);
           ctx.fillText(l.text, x, baseline);
           ctx.restore();
         }
