@@ -5,7 +5,7 @@
 // the person, so an answer never implies research that didn't happen.
 
 import { channelAverages, researchVideos, videoById, youtubeVideoId, ytConfigured } from "@/lib/youtube";
-import { loadCachedNicheRead } from "@/lib/trendSignalsLoad";
+import { nicheReadFor } from "@/lib/intel/profileLoad";
 import { trendsEvidence } from "@/lib/trendSignals";
 import { exampleLine, rankExamples, type ResearchExample } from "./examples";
 import { linkIn, type ResearchIntent, type SourcePlan } from "./intent";
@@ -93,7 +93,7 @@ export async function gatherResearch(opts: {
   const link = plan.reference ? linkIn(opts.question) : null;
   const [yt, niche, ref] = await Promise.all([
     ytOn ? within(Promise.all(intent.queries.slice(0, 2).map((q) => youtubeExamples(q, short, days))).then((r) => r.flat()), [] as ResearchExample[]) : Promise.resolve([] as ResearchExample[]),
-    plan.niche ? within(loadCachedNicheRead(opts.client, opts.ownerId, opts.scopeId, { location: opts.location ?? null, now }), null) : Promise.resolve(null),
+    plan.niche ? within(nicheReadFor(opts.client, opts.ownerId, opts.scopeId, { need: "saved", location: opts.location ?? null, now }), null) : Promise.resolve(null),
     link ? within(reference(link), null) : Promise.resolve(null),
   ]);
 

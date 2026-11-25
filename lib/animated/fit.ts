@@ -7,7 +7,7 @@ import { recordAiUsage } from "@/lib/aiUsage";
 import { brandWorkspace, type Ctx } from "@/lib/context";
 import { getIgSnapshot } from "@/lib/instagramSync";
 import { competitorScopeId, updateWorkspace } from "@/lib/workspaces";
-import { loadCachedNicheRead } from "@/lib/trendSignalsLoad";
+import { nicheReadFor } from "@/lib/intel/profileLoad";
 import { trendsEvidence } from "@/lib/trendSignals";
 import { freshDetail } from "@/lib/intel/understandLoad";
 import { getProfile, type BrandDetail } from "@/lib/profile";
@@ -32,7 +32,7 @@ export async function scanAnimatedFit(ctx: Ctx): Promise<AnimatedFit> {
   const [profile, snap, niche] = await Promise.all([
     getProfile(ctx.client, ctx.ownerId, brandWs).catch(() => null),
     getIgSnapshot(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null).catch(() => null),
-    competitorScopeId(ctx.client, ctx.workspace?.id ?? null).then((scope) => loadCachedNicheRead(ctx.client, ctx.ownerId, scope)).catch(() => null),
+    competitorScopeId(ctx.client, ctx.workspace?.id ?? null).then((scope) => nicheReadFor(ctx.client, ctx.ownerId, scope, { need: "saved" })).catch(() => null),
   ]);
   const growth = profile?.brand_detail?.growth;
   const posts = postsEvidence(snap?.media ?? []);
