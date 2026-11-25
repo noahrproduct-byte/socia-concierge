@@ -10,8 +10,12 @@ import type { EditorPanel } from "@/lib/studioFixes";
 export type HandoffFix = { panel: EditorPanel; cleanSound?: boolean; cuts?: { start: number; end: number }[] };
 
 /** `layers`: text lines (preset, words, timing) ready to go on the cut's EDL; `fix`: what Rate asked the editor to do. */
-/** A video to read as the reference for a brief, by a link SOCIA serves (a competitor's Reel from Discover). */
-export type HandoffReference = { url: string; name: string };
+/**
+ * A video to read as the reference for a brief: `url` is a link SOCIA serves for its file (a competitor's Reel from
+ * Discover), null when Discover didn't have one; `reel` is the Reel itself (its link, creator, cover, caption,
+ * numbers), so the editor can fetch it fresh, show where it came from and say plainly when it couldn't be studied.
+ */
+export type HandoffReference = { url: string | null; name: string; reel?: import("./referenceSource").ReelSource };
 /** `autoMake`: start making the video as soon as the clips are in (Ask SOCIA's "send to the editor"). */
 /** The creative style chosen in Ask SOCIA's reference gallery, for the editor's direction defaults. */
 export type HandoffStyle = import("@/lib/research/direction").CreativeStyle;

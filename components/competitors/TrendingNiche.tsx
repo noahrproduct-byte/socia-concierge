@@ -15,6 +15,7 @@ import Link from "next/link";
 import { Check, Clapperboard, Copy, ExternalLink, Lock, Plus, TrendingUp, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { handFiles } from "@/lib/studioClips/handoff";
+import { servedVideoOf, sourceOfReel } from "@/lib/studioClips/referenceSource";
 import type { CompetitorRow, CompPost } from "@/lib/competitorIntel";
 import { BREAKOUT_MULTIPLE, TREND_WINDOW_DAYS, VIRAL_MIN_VIEWS, refResult } from "@/lib/trendSignals";
 import type { CompetitorsData, ProvenReel } from "./types";
@@ -216,8 +217,9 @@ export function recipe(r: ProvenReel): string {
  * reference. The person adds their own clips; their version is original, never a copy.
  */
 export function makeLikeReel(r: ProvenReel, go: (href: string) => void): void {
-  const reference = r.refToken && r.video ? { url: `/api/studio/reference/media?url=${encodeURIComponent(r.video)}&token=${r.refToken}`, name: `${r.accountHandle ? `@${r.accountHandle}` : r.accountName} ${r.format}.mp4` } : undefined;
-  handFiles("edit", [], { prompt: `${brief(r)}\n\nCopy its length, pace, order of shots and on-screen text style with my clips.`, ...(reference ? { reference } : {}) });
+  // The Reel itself travels too (lib/studioClips/referenceSource.ts): the editor fetches its video through SOCIA, or says it couldn't.
+  const reference = { url: servedVideoOf(r), name: `${r.accountHandle ? `@${r.accountHandle}` : r.accountName} ${r.format}.mp4`, reel: sourceOfReel(r) };
+  handFiles("edit", [], { prompt: `${brief(r)}\n\nCopy its length, pace, order of shots and on-screen text style with my clips.`, reference });
   go("/studio?mode=edit");
 }
 
