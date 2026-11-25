@@ -249,3 +249,10 @@ export const speakingEndSec = (edl: Pick<Edl, "endCard">, totalSec: number): num
 
 /** How much speaking a cut of this length has room for, in words, for the script prompt. */
 export const wordBudget = (totalSec: number): number => Math.max(0, Math.floor((totalSec - 0.6) * VOICE_WPS * 0.85));
+
+/** How long the video will be, from the prompt ("a 20 second reel"), else a short Reel's 30 seconds. */
+export const secondsFromPrompt = (prompt: string): number => {
+  const m = prompt.match(/(\d{1,3})\s*(?:-|\s)?\s*(?:s\b|sec|secs|second|seconds)/i);
+  const n = m ? Number(m[1]) : NaN;
+  return Number.isFinite(n) && n >= 5 && n <= 90 ? n : 30;
+};

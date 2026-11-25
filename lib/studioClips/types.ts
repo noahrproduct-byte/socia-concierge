@@ -458,7 +458,13 @@ export type EdlBrief = {
 };
 
 /** A voiceover the person asked for: on, and their notes on what it should say (the business, the offer, the story, the tone). */
-export type VoiceoverAsk = { on: true; notes: string | null };
+export type VoiceoverAsk = {
+  on: true; notes: string | null;
+  /** the voice the person picked from the list (lib/voiceover/elevenlabs.ts listVoices); absent = the one that suits the cut */
+  voiceId?: string;
+  /** the notes are a script the person read and approved (Auto improve): the voiceover reads these words, not a new script */
+  approved?: true;
+};
 
 /** The most a person's voiceover notes may run. */
 export const VOICE_NOTES_MAX = 800;
@@ -468,7 +474,10 @@ export function sanitizeVoiceAsk(v: unknown): VoiceoverAsk | undefined {
   if (!v || typeof v !== "object" || (v as { on?: unknown }).on !== true) return undefined;
   const n = (v as { notes?: unknown }).notes;
   const notes = typeof n === "string" ? n.replace(/\u2014/g, ",").replace(/[ \t]+/g, " ").trim().slice(0, VOICE_NOTES_MAX) : "";
-  return { on: true, notes: notes || null };
+  const vid = (v as { voiceId?: unknown }).voiceId;
+  const voiceId = typeof vid === "string" && /^[A-Za-z0-9_-]{4,64}$/.test(vid) ? vid : undefined;
+  const approved = (v as { approved?: unknown }).approved === true && Boolean(notes);
+  return { on: true, notes: notes || null, ...(voiceId ? { voiceId } : {}), ...(approved ? { approved: true as const } : {}) };
 }
 
 /**
