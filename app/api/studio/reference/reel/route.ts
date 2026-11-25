@@ -44,7 +44,9 @@ export async function GET(req: Request) {
     views: post?.views ?? null, multiplier: null,
   };
   if (!post) return NextResponse.json({ reel, error: `That Reel isn't among @${handle}'s last 30 posts, which is all Instagram shares. Upload it as a file instead.`, code: "too_old" }, { status: 404 });
+  // Meta's Business Discovery leaves media_url out when the media "contains copyrighted material or has been
+  // flagged for a copyright violation" (its IG Media reference), which covers Reels with licensed music.
   const token = post.video && isPlatformMediaUrl(post.video) ? signRefUrl(r.viewerId, post.video) : null;
-  if (!token) return NextResponse.json({ reel, error: "Instagram didn't share this Reel's video file. Upload it as a file instead.", code: "no_video" }, { status: 404 });
+  if (!token) return NextResponse.json({ reel, error: "Instagram found this Reel but kept its video file back, as it does for Reels with copyrighted material such as licensed music. Save it (Instagram's share menu has Download when the creator allows it, or screen record it) and upload the file, and SOCIA studies its length, pace and shots; otherwise the cut follows your prompt.", code: "no_video" }, { status: 404 });
   return NextResponse.json({ reel, media: `/api/studio/reference/media?url=${encodeURIComponent(post.video!)}&token=${token}` });
 }
