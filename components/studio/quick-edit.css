@@ -301,12 +301,5 @@
 .qe-footage .cb-grid { margin: 0; padding: 0; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
 .qe-insp, .qe-insp ul { min-width: 0; max-width: 100%; }
 .qe-make { min-width: 0; max-width: 100%; }
-
-/* A Reel handed over as the reference (Discover, the Planner, Ask SOCIA, a video idea): its cover, creator,
-   caption, whether its video was studied, and Original / Preview / Replace. */
-.qe-src { align-items: flex-start; }
-.qe-src .qe-src-cap { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
-.qe-src small[role="status"] { display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; color: var(--qe-text); font-weight: 600; }
-.qe-src small.qe-src-missed { color: var(--qe-dim); }
-.qe-src-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.qe-ref-preview { display: block; width: 100%; max-width: 220px; aspect-ratio: 9 / 16; margin-top: 8px; border-radius: 12px; background: var(--qe-track); }
+.qe-ref-card .qe-ref-cap { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; color: var(--qe-dim); }
+.qe-ref-card > .qe-link { flex: none; font-size: 12px; }

@@ -105,7 +105,9 @@ const OUTLINE = { kind: "outline", padding: { x: 0, y: 8 }, radius: 0, strokeRat
 // Reels set white type with a soft shadow and no outline; the outline is the
 // lo-fi native look. Presets drawn with OUTLINE switch to this one when the
 // video's text background is "none" (presetInStyle).
-const SHADOW: TextBoxStyle = { kind: "shadow", padding: { x: 0, y: 10 }, radius: 0, shadow: { blur: 26, offsetY: 3, color: "rgba(0,0,0,0.6)" }, halo: "rgba(0,0,0,0.55)" };
+// Noah, 2026-11-25 (a pasta Reel): white lines over cream sauce and a white plate nearly vanished, so the
+// tight halo is darker and wider; it reads as a soft edge on dark footage and keeps the words on bright food.
+const SHADOW: TextBoxStyle = { kind: "shadow", padding: { x: 0, y: 10 }, radius: 0, shadow: { blur: 26, offsetY: 3, color: "rgba(0,0,0,0.6)" }, halo: "rgba(0,0,0,0.8)" };
 const SERIF_ITALIC: TextFont = { family: "serif", weight: 400, italic: true };
 
 export const TEXT_PRESETS: Record<TextPresetId, TextPreset> = {
@@ -128,7 +130,8 @@ export const TEXT_PRESETS: Record<TextPresetId, TextPreset> = {
   // ("butter", "green onions").
   step_label: {
     id: "step_label", label: "Step Label", hint: "A small label in the middle naming the dish, the ingredient or the step.", sample: "fresh basil",
-    font: { family: "montserrat", weight: 600 }, size: { min: 42, max: 58 }, lineHeight: 1.15, letterSpacing: 0,
+    // Bigger and bolder since Noah's 2026-11-25 review: at 42 to 58 px and 600 the label was too slight to read on a phone.
+    font: { family: "montserrat", weight: 700 }, size: { min: 50, max: 66 }, lineHeight: 1.15, letterSpacing: 0,
     maxLines: 2, maxChars: 32, color: BRAND.white,
     box: SHADOW,
     align: "center", widthPct: 0.86, slot: "middle", time: { start: 0, end: 2 }, animation: "fade",

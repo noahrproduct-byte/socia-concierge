@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ASPECTS } from "./studioClips/types";
-import { fitMessage, isRtl, layoutTextLayer, normalizeText, wrapParagraph, type Measure } from "./textRender";
+import { fitMessage, isRtl, layoutTextLayer, normalizeText, wrapBalanced, wrapParagraph, type Measure } from "./textRender";
 import { TEXT_PRESETS, TEXT_PRESET_IDS, charCount, clampChars, clampWords, fitLine, defaultTiming, frameScale, presetForRole, presetForLine, presetInStyle, asStepLabel, becomesStepLabel, presetOf, safeZoneFor, type TextPresetId, type TextSlot, presetInFont, readableOn } from "./textPresets";
 import { CAPCUT_FONTS } from "./studioClips/style";
 
@@ -120,12 +120,14 @@ describe("presets", () => {
 });
 
 describe("Step Label (2026-11-11 food study)", () => {
-  it("is small, in the middle, and keeps its lighter weight in the video's font", () => {
+  it("is a label, not a title, in the middle, and keeps its lighter weight in the video's font", () => {
     const l = lay("step_label", "green onions");
     expect(l.fits).toBe(true);
-    expect(l.lines[0].fontSize).toBeLessThanOrEqual(58);
+    // Readable on a phone since Noah's 2026-11-25 review, still well under a title.
+    expect(l.lines[0].fontSize).toBeLessThanOrEqual(66);
+    expect(l.lines[0].fontSize).toBeGreaterThanOrEqual(50);
     expect(TEXT_PRESETS.step_label.slot).toBe("middle");
-    expect(presetInStyle(TEXT_PRESETS.step_label, "montserrat", "none").font.weight).toBe(600);
+    expect(presetInStyle(TEXT_PRESETS.step_label, "montserrat", "none").font.weight).toBe(700);
     expect(presetInStyle(TEXT_PRESETS.step_label, "anton", "none").font.weight).toBe(400);
     expect(presetInStyle(TEXT_PRESETS.hook_title, "tiktok", "none").font.weight).toBe(800);
   });
@@ -287,5 +289,20 @@ describe("text backgrounds (BUG-03: the Style tab's boxes draw)", () => {
     expect(readableOn("#ffffff")).toBe("#000000");
     expect(readableOn("#000000")).toBe("#ffffff");
     expect(readableOn("#5b4bd6")).toBe("#ffffff");
+  });
+});
+
+describe("balanced lines (Noah, 2026-11-25)", () => {
+  const mono: Measure = (t) => t.length * 10;
+  it("never leaves one word hanging when the lines can be evened out", () => {
+    const greedy = wrapParagraph("one creamy bite at a time", 210, "x", mono);
+    expect(greedy.map((l) => l.text)).toEqual(["one creamy bite at a", "time"]);
+    const even = wrapBalanced("one creamy bite at a time", 210, "x", mono);
+    expect(even).toHaveLength(2);
+    expect(even.map((l) => l.text)).toEqual(["one creamy", "bite at a time"]);
+    expect(even.every((l) => l.text.includes(" "))).toBe(true);
+  });
+  it("leaves a line that fits alone as one line", () => {
+    expect(wrapBalanced("green onions", 400, "x", mono).map((l) => l.text)).toEqual(["green onions"]);
   });
 });

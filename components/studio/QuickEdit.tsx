@@ -25,8 +25,7 @@
 import { PROMPT_MAX } from "@/lib/studioClips/reference";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ArrowLeft, ArrowRight, Check, Columns2, Download, ExternalLink, Film, Link2, Loader2, PenLine, Play, RefreshCw, Scissors, SlidersHorizontal, Undo2, Upload, X } from "lucide-react";
-import { sourceOfReel, type ReelSource } from "@/lib/studioClips/referenceSource";
+import { AlertTriangle, ArrowLeft, ArrowRight, Check, Columns2, Download, Film, Link2, Loader2, PenLine, RefreshCw, Scissors, SlidersHorizontal, Undo2, Upload, X } from "lucide-react";
 import { animate, motion, useReducedMotion } from "framer-motion";
 import "./quick-edit.css";
 import { createClient } from "@/lib/supabase/client";
@@ -52,7 +51,8 @@ import { DEFAULT_THEME_ID, THEMES, themeById } from "@/lib/studioClips/themes";
 import { OUTPUT, type BuildPlayerData, type Edl, type StudioBuild } from "@/lib/studioClips/types";
 import { ClipGrid, type LocalClip } from "./ClipsViews";
 import VoiceoverAsk from "./VoiceoverAsk";
-import Inspiration, { reelVideoUrl } from "./Inspiration";
+import Inspiration from "./Inspiration";
+import { servedVideoOf, sourceOfReel } from "@/lib/studioClips/referenceSource";
 import { useReference, type Reference } from "./useReference";
 import { actionCredits } from "@/lib/credits/config";
 import { setThemeOverride } from "@/lib/studioClips/themes/apply";
@@ -231,31 +231,20 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
   const [refFromReel, setRefFromReel] = useState<string | null>(null);
   const [refMode, setRefMode] = useState<null | "link" | "clips">(null);
   const [linkText, setLinkText] = useState("");
+  const [handleText, setHandleText] = useState("");
   const [library, setLibrary] = useState<LibraryClip[] | null>(null);
   const refInput = useRef<HTMLInputElement>(null);
-  // A Reel handed over (Discover, the Planner, Ask SOCIA, a video idea) is read once, on arrival, through SOCIA's
-  // official Instagram read; its card says whether its video was studied (useReference readReel).
-  const [source, setSource] = useState<ReelSource | null>(null);
-  const [sourceMissed, setSourceMissed] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
+  // A Reel handed over from Discover is read once, on arrival.
   const handedRef = useRef<string | null>(null);
   useEffect(() => {
     const r = handed?.reference;
-    const key = r?.reel?.link ?? r?.url ?? null;
+    const key = r ? r.reel?.link ?? r.url : null;
     if (!r || !key || handedRef.current === key) return;
     handedRef.current = key;
-    setShowPreview(false);
-    if (r.reel) {
-      const reel = r.reel;
-      setSource(reel); setSourceMissed(false);
-      void reference.readReel(reel, r.url).then((ok) => setSourceMissed(!ok));
-    } else if (r.url) {
-      setSource(null);
-      void reference.readServed(r.url, r.name, "discover");
-    }
+    // A Reel from Discover: the video link Discover had is tried first, then Instagram's official read finds it fresh.
+    if (r.reel) void reference.readReel(r.reel.link, { known: r.reel, served: r.url, handle: r.reel.handle, from: "discover" });
+    else if (r.url) void reference.readServed(r.url, r.name, "discover");
   }, [handed?.reference, reference]);
-  /** Any other way in (a file, a link, a clip) replaces the handed-over Reel. */
-  const leaveSource = () => { setSource(null); setSourceMissed(false); setShowPreview(false); };
   const openLibrary = () => {
     setRefMode((m) => (m === "clips" ? null : "clips"));
     if (library) return;
@@ -723,7 +712,7 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
     const ownWords = helped && helped.after === prompt;
     return (
       <section className="qe qe-make" aria-labelledby="qe-h">
-        <Inspiration chosen={ref || reference.reading ? refFromReel : null} onUse={(r) => { const url = reelVideoUrl(r); if (!url) return; setRefFromReel(r.url); setRefMode(null); const reel = sourceOfReel(r); setSource(reel); setSourceMissed(false); setShowPreview(false); void reference.readReel(reel, url).then((ok) => setSourceMissed(!ok)); }} />
+        <Inspiration chosen={ref || reference.reading ? refFromReel : null} onUse={(r) => { const known = sourceOfReel(r); setRefFromReel(r.url); setRefMode(null); void reference.readReel(r.url, { known, served: servedVideoOf(r), handle: known.handle, from: "discover" }); }} />
         <div className="qe-hero">
           <motion.span className="qe-eyebrow" {...rise(0)}>AI video editor</motion.span>
           <motion.h2 id="qe-h" {...rise(1)}>Raw footage in. <em>Finished video</em> out.</motion.h2>
@@ -790,40 +779,26 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
           {/* 3. A video to make it like */}
           <div className="qe-sec">
             <div className="qe-sec-title">Reference video <span>Optional</span></div>
-            {source && (ref || reference.reading || sourceMissed) ? (
-              <div className="qe-ref-card qe-src">
-                {source.thumb
-                  // eslint-disable-next-line @next/next/no-img-element -- the Reel's cover, as the platform published it
-                  ? <img src={source.thumb} alt="" referrerPolicy="no-referrer" />
+            {ref || reference.source ? (
+              <div className="qe-ref-card">
+                {reference.source?.thumb
+                  // eslint-disable-next-line @next/next/no-img-element -- the platform's own cover image
+                  ? <img src={reference.source.thumb} alt="" referrerPolicy="no-referrer" />
                   : ref?.frames[0]
                     // eslint-disable-next-line @next/next/no-img-element -- a frame read from the reference in this browser
                     ? <img src={`data:image/jpeg;base64,${ref.frames[0].jpeg}`} alt="" />
                     : <span className="qe-ref-blank"><Film size={16} aria-hidden /></span>}
                 <span>
-                  <b>{source.handle ? `@${source.handle}` : source.account ?? "Instagram Reel"}</b>
-                  {source.caption && <small className="qe-src-cap">{source.caption}</small>}
-                  <small role="status" className={sourceMissed && !ref ? "qe-src-missed" : undefined}>
+                  <b>{reference.source ? (reference.source.handle ? `@${reference.source.handle}` : reference.source.account ?? "Instagram Reel") : ref!.name}</b>
+                  {reference.source?.caption && <small className="qe-ref-cap">{reference.source.caption}</small>}
+                  <small>
                     {reference.reading ? <><Loader2 size={11} className="spin" aria-hidden /> {reference.reading}…</>
-                      : ref ? `Video studied: ${[`${ref.durationSec} s`, shots ? `${shots} shot${shots === 1 ? "" : "s"}` : null, ref.words?.length ? "speech heard" : null].filter(Boolean).join(", ")}`
-                      : "Video not available: SOCIA hasn't studied its footage"}
+                      : ref ? [`Video studied: ${ref.durationSec} s`, shots ? `${shots} shot${shots === 1 ? "" : "s"}` : null, ref.words?.length ? "speech heard" : null].filter(Boolean).join(" · ")
+                      : "Video not studied: the cut follows your prompt"}
                   </small>
-                  <span className="qe-src-actions">
-                    <a href={source.link} target="_blank" rel="noopener noreferrer" className="qe-btn is-small"><ExternalLink size={12} aria-hidden /> Original</a>
-                    {reference.preview && ref && <button type="button" className="qe-btn is-small" aria-expanded={showPreview} onClick={() => setShowPreview((v) => !v)}><Play size={12} aria-hidden /> {showPreview ? "Hide" : "Preview"}</button>}
-                    <button type="button" className="qe-btn is-small" disabled={Boolean(reference.reading)} onClick={() => refInput.current?.click()}><Upload size={12} aria-hidden /> {ref ? "Replace" : "Upload it"}</button>
-                  </span>
                 </span>
-                <button type="button" className="ov-x" aria-label="Remove the reference" onClick={() => { reference.clear(); setRefFromReel(null); leaveSource(); }}><X size={14} /></button>
-              </div>
-            ) : ref ? (
-              <div className="qe-ref-card">
-                {ref.frames[0]
-                  // eslint-disable-next-line @next/next/no-img-element -- a frame read from the reference in this browser
-                  ? <img src={`data:image/jpeg;base64,${ref.frames[0].jpeg}`} alt="" />
-                  : <span className="qe-ref-blank"><Film size={16} aria-hidden /></span>}
-                <span><b>{ref.name}</b><small>{[`${ref.durationSec} s`, shots ? `${shots} shot${shots === 1 ? "" : "s"}` : null, ref.words?.length ? "speech heard" : null].filter(Boolean).join(" · ")}</small></span>
-                {reference.preview && <button type="button" className="qe-btn is-small" aria-expanded={showPreview} onClick={() => setShowPreview((v) => !v)}><Play size={12} aria-hidden /> {showPreview ? "Hide" : "Preview"}</button>}
-                <button type="button" className="ov-x" aria-label="Remove the reference" onClick={() => { reference.clear(); setRefFromReel(null); leaveSource(); }}><X size={14} /></button>
+                {reference.source && <a className="qe-link" href={reference.source.link} target="_blank" rel="noopener noreferrer">Original</a>}
+                <button type="button" className="ov-x" aria-label="Remove the reference" onClick={() => { reference.clear(); setRefFromReel(null); }}><X size={14} /></button>
               </div>
             ) : reference.reading ? (
               <p className="qe-fine" role="status"><Loader2 size={13} className="spin" aria-hidden /> {reference.reading}…</p>
@@ -834,11 +809,11 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
                 <button type="button" className="qe-btn is-small" aria-expanded={refMode === "clips"} onClick={openLibrary}><Film size={13} aria-hidden /> From your clips</button>
               </div>
             )}
-            {showPreview && reference.preview && ref && <video className="qe-ref-preview" src={reference.preview} controls playsInline preload="metadata" />}
-            <input ref={refInput} type="file" hidden accept="video/mp4,video/quicktime,video/webm,video/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) { setRefFromReel(null); setRefMode(null); leaveSource(); void reference.readFile(f); } e.target.value = ""; }} />
+            <input ref={refInput} type="file" hidden accept="video/mp4,video/quicktime,video/webm,video/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) { setRefFromReel(null); setRefMode(null); void reference.readFile(f); } e.target.value = ""; }} />
             {!ref && !reference.reading && refMode === "link" && (
-              <form className="qe-row" onSubmit={(e) => { e.preventDefault(); if (linkText.trim()) { setRefFromReel(null); leaveSource(); void reference.readLink(linkText); } }}>
+              <form className="qe-row" onSubmit={(e) => { e.preventDefault(); if (linkText.trim()) { setRefFromReel(null); void reference.readReel(linkText.trim(), { handle: handleText.trim() || null }); } }}>
                 <input className="qe-input" type="url" inputMode="url" placeholder="instagram.com/reel/…" value={linkText} onChange={(e) => setLinkText(e.target.value)} aria-label="Reel link" />
+                {reference.needHandle && <input className="qe-input" placeholder="@account" value={handleText} onChange={(e) => setHandleText(e.target.value)} aria-label="Whose Reel it is" />}
                 <button type="submit" className="qe-btn is-small" disabled={!linkText.trim()}>Use this Reel</button>
               </form>
             )}
@@ -849,7 +824,7 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
                   <ul className="qe-lib">
                     {library.slice(0, 24).map((c) => (
                       <li key={c.id}>
-                        <button type="button" onClick={() => { setRefFromReel(null); setRefMode(null); leaveSource(); void reference.readClip(c.id, c.name); }}>
+                        <button type="button" onClick={() => { setRefFromReel(null); setRefMode(null); void reference.readClip(c.id, c.name); }}>
                           {c.thumb
                             // eslint-disable-next-line @next/next/no-img-element -- a frame of the person's own clip
                             ? <img src={c.thumb} alt="" loading="lazy" />
@@ -894,7 +869,7 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
             <dl className="qe-sum-list">
               <div><dt>Footage</dt><dd>{locals.length ? [`${ready.length} of ${locals.length} clip${locals.length === 1 ? "" : "s"} ready`, footage > 0 ? clock(footage) : null].filter(Boolean).join(" · ") : "None yet"}</dd></div>
               <div><dt>Prompt</dt><dd>{promptOk ? (prompt.trim().length > 140 ? `${prompt.trim().slice(0, 140).replace(/\s+\S*$/, "")}…` : prompt.trim()) : "Not written yet"}</dd></div>
-              <div><dt>Reference</dt><dd>{ref ? ref.name : "None"}</dd></div>
+              <div><dt>Reference</dt><dd>{ref ? (reference.source?.handle ? `@${reference.source.handle}'s Reel` : ref.name) : reference.source ? `${reference.source.handle ? `@${reference.source.handle}'s Reel` : "A Reel"}, video not studied` : "None"}</dd></div>
               <div><dt>Direction</dt><dd>{creativeSummary(creative, theme.name)}</dd></div>
               <div><dt>Voiceover</dt><dd>{!voiceOn ? "None" : voiceOk ? "Script approved" : "Waiting for your approved script"}</dd></div>
               <div><dt>Length</dt><dd>{durationLabel(creative.durationSec)} · {aspectLabel(creative.aspect)}</dd></div>

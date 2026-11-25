@@ -281,3 +281,14 @@ Over 100K likes: F1 4.7M skit, F2 2.3M one-pot pasta, R1 1.2M POV pizza, F8 1.1M
 - Allow short cuts (6 to 12 s) for single-action footage, and keep a single satisfying action whole rather than chopping it.
 - Jump cuts on the same locked framing are a feature in process videos (stop-motion build), not a stutter.
 - Offer formats, not just cuts: experiment rounds with a counter, tag-a-friend, magic cut on a locked frame.
+
+# Noah's review of a cut SOCIA made (pasta Reel, 2026-11-25)
+
+A 7.9 s cut from three pasta clips: the fettuccine in the pan (0 to 2.0 s), the penne with spinach stirred with a wooden spoon (2.0 to 5.0 s), the fettuccine plated (5.0 to 7.9 s). Two lines: "me saying i'm cutting carbs" over the first shot, "one creamy bite at a time" near the end. Noah: "fix it and teach socia too". What was wrong, and where each lesson now lives:
+
+1. **The words were hard to read.** Small, thin, white step labels with a faint shadow over cream sauce and a white plate. Now: the step label is bigger and bolder (50 to 66 px, weight 700), the clean look's dark halo is darker and drawn in two passes, so white words hold an edge on bright food (lib/textPresets.ts SHADOW and step_label, lib/textRender.ts).
+2. **A two-line label left one word hanging** at the bigger size ("one creamy bite at a / time"). Now every wrapped line is balanced: the narrowest width that keeps the same number of lines (lib/textRender.ts wrapBalanced).
+3. **The second line came in 0.7 s before the cut**, over the penne, and carried onto the plate it was about. Now every line starts and ends with its shot: one that comes in under 0.9 s before a cut starts with the next shot; one still up under 0.6 s after a cut ends with its own (lib/studioClips/cutCheck.ts fitTextToShots, part of settleCut and the final cut check). The editing model is told the same (lib/studioClips/analysis.ts BRIEF_CUT_RULES).
+4. **A third of a second of the wooden spoon swinging into the lens**, blurred, in the middle of a shot. The model's rule against a tool in front of the subject covered only the last shot; it now covers every shot (BRIEF_CUT_RULES). Blur is not measured per frame yet, so this one is taught, not checked.
+
+What worked and stays: opening and closing on the same dish, and a meme line ("me saying i'm cutting carbs") over the most indulgent shot, which is the joke.
