@@ -160,6 +160,23 @@ export function recommend(input: RecommendInput): Recommendation {
   return { creative: out, reasons };
 }
 
+/**
+ * The settings in force: the defaults, SOCIA's recommendation on top, the person's own choices on top of that.
+ * A layer only counts where it really sets something: an absent or `undefined` entry never wipes the one under
+ * it. (2026-11-25: a recommendation that wrote `transition: undefined` took the default with it, and the
+ * editor's summary crashed on every calm or steady reference.)
+ */
+export function settingsInForce(rec: Partial<Creative>, mine: Partial<Creative>): Creative {
+  const out: Creative = { ...DEFAULT_CREATIVE };
+  for (const layer of [rec, mine]) {
+    for (const k of Object.keys(DEFAULT_CREATIVE) as CreativeKey[]) {
+      const v = layer[k];
+      if (v !== undefined && v !== null) (out as Record<CreativeKey, unknown>)[k] = v;
+    }
+  }
+  return out;
+}
+
 /** The recommendation on top of the current settings, leaving every setting the person changed as they set it. */
 export function withRecommendation(current: Creative, rec: Partial<Creative>, mine: ReadonlySet<CreativeKey>): Creative {
   const next: Creative = { ...DEFAULT_CREATIVE, aspect: current.aspect };
