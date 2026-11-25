@@ -8,7 +8,8 @@ import type { ProvenReel } from "./trendSignals";
 
 /** Where a recommended Reel comes from, shown as a small badge on its card. */
 export type FeedSource = "competitor" | "niche" | "similar" | "style" | "copy" | "related" | "trending";
-export type FeedReel = ProvenReel & { source: FeedSource };
+/** A Reel in a feed. `fitStructure`: for Trending, the creative structure SOCIA judged transfers to the business (lib/trendFit.ts). */
+export type FeedReel = ProvenReel & { source: FeedSource; fitStructure?: string };
 
 export const FEED_BADGE: Record<FeedSource, string | null> = {
   competitor: "Competitor",
