@@ -5,7 +5,7 @@
 // GET /v2/voices (their ids aren't fixed in code: the old defaults are being
 // replaced, docs 2026-11). Billed per character. Server only: the key never
 // leaves it, and only the reason for a failure is logged.
-import { pickDefaultVoice, type VoiceChoice } from "@/lib/studioClips/voiceover";
+import { featuredVoices, voiceStyle, type VoiceChoice } from "@/lib/studioClips/voiceover";
 
 const API = "https://api.elevenlabs.io";
 export const VOICE_MODEL = () => process.env.ELEVENLABS_VOICE_MODEL?.trim() || "eleven_multilingual_v2";
@@ -35,38 +35,42 @@ type RawVoice = { voice_id?: unknown; name?: unknown; description?: unknown; pre
 
 let cached: { at: number; voices: VoiceChoice[] } | null = null;
 const CACHE_MS = 60 * 60 * 1000;
-/** How many voices a person picks from. */
+/** How many voices are offered first; the rest are under More voices. */
 export const VOICE_CHOICES = 4;
 
 /**
- * A few premade voices to pick from: for each editing style, the one whose
- * description fits it best, so the list covers warm, clear, upbeat and calm.
- * ELEVENLABS_VOICE_IDS (comma-separated) pins the list instead.
+ * Every premade voice, each with its description and labels and the short
+ * sample the voice service already recorded (played as is, never made again),
+ * and the speaking style it sounds most like. Cached for an hour.
  */
-export async function listVoices(): Promise<VoiceChoice[]> {
+export async function listAllVoices(): Promise<VoiceChoice[]> {
   if (cached && Date.now() - cached.at < CACHE_MS) return cached.voices;
   const res = await fetch(`${API}/v2/voices?category=premade&page_size=100`, { headers: { "xi-api-key": key() }, signal: AbortSignal.timeout(15_000) })
     .catch((e) => { throw new VoiceError("failed", (e as Error)?.message || "ElevenLabs couldn't be reached."); });
   if (!res.ok) await fail("voices", res);
   const j = (await res.json().catch(() => null)) as { voices?: RawVoice[] } | null;
-  const all: VoiceChoice[] = (j?.voices ?? []).flatMap((v) => {
+  const voices: VoiceChoice[] = (j?.voices ?? []).flatMap((v) => {
     if (typeof v.voice_id !== "string" || typeof v.name !== "string") return [];
     const labels = v.labels && typeof v.labels === "object" ? Object.values(v.labels).filter((x): x is string => typeof x === "string") : [];
     const description = [typeof v.description === "string" ? v.description : "", ...labels].filter(Boolean).join(", ").slice(0, 200);
-    return [{ id: v.voice_id, name: v.name.slice(0, 40), description, preview: typeof v.preview_url === "string" ? v.preview_url : null }];
+    const choice: VoiceChoice = { id: v.voice_id, name: v.name.slice(0, 40), description, preview: typeof v.preview_url === "string" ? v.preview_url : null };
+    const style = voiceStyle(choice);
+    return [style ? { ...choice, style } : choice];
   });
-  const pinned = (process.env.ELEVENLABS_VOICE_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  let voices: VoiceChoice[];
-  if (pinned.length) voices = pinned.flatMap((id) => all.filter((v) => v.id === id)).slice(0, VOICE_CHOICES);
-  else {
-    voices = [];
-    for (const style of ["process", "demo", "energetic", "calm"] as const) {
-      const v = pickDefaultVoice(all.filter((x) => !voices.some((y) => y.id === x.id)), style);
-      if (v) voices.push(v);
-    }
-  }
   cached = { at: Date.now(), voices };
   return voices;
+}
+
+/**
+ * The four voices offered first: one for each speaking style (energetic,
+ * calm and cinematic, natural, bold), so they sound clearly different.
+ * ELEVENLABS_VOICE_IDS (comma-separated) pins the list instead.
+ */
+export async function listVoices(): Promise<VoiceChoice[]> {
+  const all = await listAllVoices();
+  const pinned = (process.env.ELEVENLABS_VOICE_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (pinned.length) return pinned.flatMap((id) => all.filter((v) => v.id === id)).slice(0, VOICE_CHOICES);
+  return featuredVoices(all).slice(0, VOICE_CHOICES);
 }
 
 export type Alignment = { characters: string[]; character_start_times_seconds: number[]; character_end_times_seconds: number[] };

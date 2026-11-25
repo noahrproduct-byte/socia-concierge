@@ -13,6 +13,7 @@ import { AlertTriangle, Clapperboard, Film, Loader2, PenLine, Undo2, Upload, X }
 import { useSpeech } from "./useSpeech";
 import MicButton from "./MicButton";
 import VoiceoverAsk from "./VoiceoverAsk";
+import { actionCredits } from "@/lib/credits/config";
 import { createClient } from "@/lib/supabase/client";
 import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import { probeClip, ingestClip } from "@/lib/studioClips/ingest";
@@ -302,7 +303,7 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
             {voiceOn && (
               <VoiceoverAsk notes={voiceNotes} onNotes={setVoiceNotes} voiceId={voiceId} onVoice={setVoiceId} approved={voiceApproved} onApproved={setVoiceApproved} onPending={setVoicePending} prompt={prompt} disabled={busy} />
             )}
-            {voiceOn && <p className="cbp-muted">{voiceApproved ? "The voiceover reads your approved script." : "SOCIA writes the voiceover from these notes and what's in your clips, and adds nothing you didn't say."} Counts one voiceover on your plan.</p>}
+            {voiceOn && <p className="cbp-muted">{voiceApproved ? "The voice reads your approved script when the video is made." : "Without a script, SOCIA writes one from what it should be about and your clips when the video is made, adding nothing you didn't say."} The audio is made only then, and uses {actionCredits("voiceovers")} credits.</p>}
           </div>
 
           <div className="cbr-ref">

@@ -7,13 +7,14 @@ import { requireUsage } from "@/lib/planGuard";
 import { perUserLimit } from "@/lib/rateLimit";
 import { AI_UNAVAILABLE_COPY, aiFailure } from "@/lib/anthropic";
 import { VOICE_NOTES_MAX } from "@/lib/studioClips/types";
-import { improveVoiceover } from "@/lib/voiceover/improve";
+import { improveVoiceover, isScriptChange } from "@/lib/voiceover/improve";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 // Auto improve a voiceover before the video is made (lib/voiceover/improve.ts):
-//   POST { notes, prompt?, seconds?, answers? } -> { script, facts, questions, readSite, usage }
+//   POST { notes, prompt?, seconds?, answers?, voiceStyle?, change?, current? } -> { script, facts, questions, readSite, usage }
+//   (change = one of SCRIPT_CHANGES, applied to `current`; without it a script is written from the notes)
 // Facts come from the notes, the business facts SOCIA holds, then the business's
 // website; what is still missing comes back as questions. One hooks-and-captions
 // unit, given back when nothing comes back.
@@ -24,10 +25,13 @@ export async function POST(req: Request) {
   const forbidden = requireMutate(ctx);
   if (forbidden) return forbidden;
   if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: AI_UNAVAILABLE_COPY.no_key, kind: "no_key" }, { status: 503 });
-  const body = (await req.json().catch(() => null)) as { notes?: unknown; prompt?: unknown; seconds?: unknown; answers?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as { notes?: unknown; prompt?: unknown; seconds?: unknown; answers?: unknown; voiceStyle?: unknown; change?: unknown; current?: unknown } | null;
   const text = (v: unknown, n: number) => (typeof v === "string" ? v.replace(/—/g, ",").trim().slice(0, n) : "");
   const notes = text(body?.notes, VOICE_NOTES_MAX);
-  if (!notes) return NextResponse.json({ error: "Write a few words about what the voiceover should say first." }, { status: 400 });
+  if (!notes) return NextResponse.json({ error: "Write a few words about what the voiceover should be about first." }, { status: 400 });
+  const change = isScriptChange(body?.change) ? body.change : null;
+  const current = text(body?.current, 1500);
+  if (change && change !== "again" && !current) return NextResponse.json({ error: "There's no script to change yet." }, { status: 400 });
   const seconds = typeof body?.seconds === "number" && Number.isFinite(body.seconds) ? Math.min(90, Math.max(5, body.seconds)) : 30;
   const limited = await perUserLimit(ctx.ownerId, "voiceover_improve", 20, "voiceover improvements");
   if (limited) return limited;
@@ -38,8 +42,9 @@ export async function POST(req: Request) {
     const profile = await getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null);
     const out = await improveVoiceover({
       ownerId: ctx.ownerId, notes, videoBrief: text(body?.prompt, 1500) || null, seconds,
-      brand: brandContext(profile?.brand_detail) || "", niche: profile?.niche ?? null,
+      brand: brandContext(profile?.brand_detail) || "", niche: profile?.niche ?? null, goal: profile?.goals ?? null,
       website: profile?.brand_detail?.website ?? null, answers: text(body?.answers, 600) || null,
+      voiceStyle: text(body?.voiceStyle, 60) || null, change, current: current || null,
     });
     return NextResponse.json({ ...out, usage: u.usage });
   } catch (err) {

@@ -220,7 +220,43 @@ export function mergeVoiceover(stored: Voiceover | undefined, edited: unknown): 
   return { ...stored, on: typeof e.on === "boolean" ? e.on : stored.on, volume: r2(num(e.volume, 0, MAX_VOICE_VOLUME, stored.volume)) };
 }
 
-export type VoiceChoice = { id: string; name: string; description: string; preview: string | null };
+export type VoiceChoice = { id: string; name: string; description: string; preview: string | null; /** the speaking style it is offered as (VOICE_STYLES) */ style?: string };
+
+/**
+ * The four speaking styles the featured voices cover, so the four sound clearly
+ * different (Noah, 2026-11-25): each matched against a voice's own description
+ * and labels from the voice service.
+ */
+export const VOICE_STYLES = [
+  { id: "energetic", label: "Energetic and engaging", want: ["energetic", "upbeat", "excited", "lively", "young", "social media", "hyped"] },
+  { id: "cinematic", label: "Calm and cinematic", want: ["deep", "calm", "cinematic", "narration", "narrat", "soothing", "resonant", "smooth"] },
+  { id: "natural", label: "Natural and conversational", want: ["conversational", "casual", "friendly", "natural", "relaxed", "warm"] },
+  { id: "bold", label: "Bold and confident", want: ["confident", "authoritative", "strong", "bold", "professional", "assertive", "clear"] },
+] as const;
+
+const scoreFor = (v: VoiceChoice, want: readonly string[]) => {
+  const d = `${v.name} ${v.description}`.toLowerCase();
+  return want.reduce((a, w, i) => a + (d.includes(w) ? want.length - i : 0), 0);
+};
+
+/** The style a voice sounds most like, by its description; null when nothing matches. */
+export function voiceStyle(v: VoiceChoice): string | null {
+  let best: string | null = null, top = 0;
+  for (const s of VOICE_STYLES) { const n = scoreFor(v, s.want); if (n > top) { top = n; best = s.label; } }
+  return best;
+}
+
+/** Four voices, one for each style, never the same voice twice; each carries the style it is offered as. */
+export function featuredVoices(all: VoiceChoice[]): VoiceChoice[] {
+  const out: VoiceChoice[] = [];
+  for (const s of VOICE_STYLES) {
+    const left = all.filter((v) => !out.some((o) => o.id === v.id));
+    if (!left.length) break;
+    const best = left.reduce((a, v) => (scoreFor(v, s.want) > scoreFor(a, s.want) ? v : a), left[0]);
+    out.push({ ...best, style: s.label });
+  }
+  return out;
+}
 
 // What each editing style wants to hear, matched against a voice's own description.
 const VOICE_TASTE: Record<EditStyleId, string[]> = {

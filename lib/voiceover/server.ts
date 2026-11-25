@@ -17,7 +17,7 @@ import {
   alignmentToWords, cleanLine, fitScript, linesToVoice, needsVoiceover, pickDefaultVoice, placeLines,
   SCRIPT_SCHEMA, speakingEndSec, voicePath, wordBudget, MAX_LINES, type VoiceChoice, type VoiceNeed,
 } from "@/lib/studioClips/voiceover";
-import { listVoices, speakLine, VoiceError } from "./elevenlabs";
+import { listAllVoices, listVoices, speakLine, VoiceError } from "./elevenlabs";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
@@ -148,8 +148,10 @@ export async function makeVoiceover(client: Supa, args: MakeArgs): Promise<MakeR
   const total = edlDurationSec(edl);
   const voices = await listVoices();
   if (!voices.length) throw new VoiceError("not_configured", "No voices are available in SOCIA right now. Nothing was counted.");
+  // A voice picked from More voices is any of the voice service's voices, not only the four offered first.
+  const all = await listAllVoices().catch(() => voices);
   const cur = edl.voiceover;
-  const chosen = voices.find((v) => v.id === (args.voiceId ?? edl.brief?.voiceover?.voiceId))
+  const chosen = all.find((v) => v.id === (args.voiceId ?? edl.brief?.voiceover?.voiceId))
     ?? (cur ? voices.find((v) => v.id === cur.voiceId) ?? { id: cur.voiceId, name: cur.voiceName, description: "", preview: null } : null)
     ?? pickDefaultVoice(voices, edl.editStyle)!;
 

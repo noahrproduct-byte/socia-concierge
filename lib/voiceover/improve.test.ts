@@ -26,3 +26,20 @@ describe("voiceover auto improve", () => {
     expect(sanitizeVoiceAsk({ on: true, notes: "x", voiceId: "bad id!" })).toEqual({ on: true, notes: "x" });
   });
 });
+
+describe("voices and script changes", () => {
+  it("offers four voices that sound different, one per style, never the same voice twice", async () => {
+    const { featuredVoices, voiceStyle } = await import("@/lib/studioClips/voiceover");
+    const v = (id: string, d: string) => ({ id, name: id, description: d, preview: null });
+    const all = [v("Liam", "energetic, young, social media"), v("Brian", "deep, resonant, narration"), v("Sarah", "friendly, conversational, warm"), v("Bill", "confident, authoritative, professional"), v("Joe", "calm, soothing")];
+    const f = featuredVoices(all);
+    expect(f.map((x) => [x.id, x.style])).toEqual([["Liam", "Energetic and engaging"], ["Brian", "Calm and cinematic"], ["Sarah", "Natural and conversational"], ["Bill", "Bold and confident"]]);
+    expect(voiceStyle(v("x", "nothing that matches"))).toBeNull();
+  });
+  it("knows the one-change requests and nothing else", async () => {
+    const { isScriptChange, SCRIPT_CHANGES } = await import("./improve");
+    expect(Object.keys(SCRIPT_CHANGES)).toEqual(["shorter", "engaging", "hook", "natural", "cinematic", "less_promo", "again"]);
+    expect(isScriptChange("hook")).toBe(true);
+    expect(isScriptChange("make it viral")).toBe(false);
+  });
+});
