@@ -42,7 +42,7 @@ export function businessFrom(detail: BrandDetail | null, niche: string | null, n
 export const adaptKeyOf = (url: string): string => reelKey(url) ?? `u:${profileKey([url])}`;
 
 /** A Reel as sent by the page, made safe: only the fields the prompt uses, bounded. null when it isn't a Reel link. */
-export function reelFrom(v: unknown): ProvenReel | null {
+export function reelFrom(v: unknown): (ProvenReel & { fitStructure?: string }) | null {
   const o = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
   const url = typeof o.url === "string" ? o.url.slice(0, 400) : "";
   if (!/^https:\/\/(www\.)?(instagram\.com|youtube\.com|youtu\.be)\//i.test(url)) return null;
@@ -54,7 +54,8 @@ export function reelFrom(v: unknown): ProvenReel | null {
     accountAvatar: null, title: s("title", 300), thumb: s("thumb", 1000), publishedAt: s("publishedAt", 40), views: num("views"), likes: num("likes"), comments: num("comments"),
     multiplier: num("multiplier"), basis: o.basis === "views" ? "views" : "interactions", format: s("format", 20) ?? "Reel",
     id: "R1", proven: true, line: s("line", 200), structures: list("structures"), topics: list("topics"),
-  } as ProvenReel;
+    ...(s("fitStructure", 140) ? { fitStructure: s("fitStructure", 140) } : {}),
+  } as ProvenReel & { fitStructure?: string };
 }
 
 async function business(ctx: Ctx): Promise<{ lines: string[]; key: string }> {
@@ -100,7 +101,7 @@ const inFlight = new Set<string>();
  * The adaptations for a Reel, writing one when there are none, or one more when the person asks for another
  * (`have` is how many they see: a repeated click finds the one already written and gets it, free).
  */
-export async function adaptReel(ctx: Ctx, reel: ProvenReel, opts: { again: boolean; have: number }, now = new Date()): Promise<Adaptation[]> {
+export async function adaptReel(ctx: Ctx, reel: ProvenReel & { fitStructure?: string }, opts: { again: boolean; have: number }, now = new Date()): Promise<Adaptation[]> {
   const key = adaptKeyOf(reel.url);
   const [store, biz] = await Promise.all([readStore(ctx), business(ctx)]);
   const saved = store[key]?.profile === biz.key ? store[key].versions : [];

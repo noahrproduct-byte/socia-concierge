@@ -16,10 +16,9 @@ import { planConcept } from "@/lib/studioGuideLoad";
 import { conceptPrompt } from "@/lib/studioGuide";
 import { requireUsage } from "@/lib/planGuard";
 import { resolveContext, brandWorkspace } from "@/lib/context";
-import { scopeToWorkspace, competitorScopeId } from "@/lib/workspaces";
-import { nicheVetted } from "@/lib/discovery";
+import { competitorScopeId } from "@/lib/workspaces";
 import { fetchAllowed, isPlatformMediaUrl } from "@/lib/fetchGuard";
-import { loadNicheRead } from "@/lib/trendSignalsLoad";
+import { intelFor, nicheReadFor } from "@/lib/intel/profileLoad";
 import { loadOutcomes } from "@/lib/raterLogLoad";
 import { logEvidence } from "@/lib/raterLog";
 import { refResult } from "@/lib/trendSignals";
@@ -128,7 +127,7 @@ Planned shots: ${planned.guide.shots.map((x) => x.shot).join("; ")}` : ""}`
   const posts = postCards(media, baseline);
   const top: PostCard[] = [...posts].sort((a, b) => (b.views ?? -1) - (a.views ?? -1)).slice(0, 6);
   // Competitors' Reels that took off, the same read plans and ideas build on (lib/trendSignalsLoad.ts); none off the plan feature or when nothing is on file.
-  const nicheReadP = competitorScopeId(ctx.client, ctx.workspace?.id).then((scope) => loadNicheRead(ctx.client, ctx.ownerId, scope, { location: profile?.brand_detail?.location ?? null })).catch(() => null);
+  const nicheReadP = competitorScopeId(ctx.client, ctx.workspace?.id).then((scope) => nicheReadFor(ctx.client, ctx.ownerId, scope, { need: "live", location: profile?.brand_detail?.location ?? null })).catch(() => null);
   // What SOCIA recommended for earlier videos, what was applied and how those posts did (lib/raterLog.ts).
   const pastP = loadOutcomes(ctx).then(logEvidence).catch(() => "");
   const covers = (await Promise.all(top.map((p) => (p.thumb ? fetchB64(p.thumb) : Promise.resolve(null))))).map((b, i) => ({ b64: b, post: top[i] }));
@@ -144,9 +143,10 @@ Planned shots: ${planned.guide.shots.map((x) => x.shot).join("; ")}` : ""}`
   }));
   const rivalCovers = (await Promise.all(rivals.slice(0, 3).map((r) => (r.thumb ? fetchB64(r.thumb) : Promise.resolve(null))))).filter((b): b is string => Boolean(b));
   let niche: { title: string | null; trend_tags: string[] | null; multiplier: number | null; account_name: string | null }[] = [];
+  // The niche's posts from the brand's intelligence profile (already read for the niche above; no extra query).
   try {
-    const { data } = await scopeToWorkspace(ctx.client.from("discovered_content").select("title, trend_tags, multiplier, account_name, data_source, relevance_reasons").eq("user_id", ctx.ownerId), await competitorScopeId(ctx.client, ctx.workspace?.id)).order("multiplier", { ascending: false, nullsFirst: false }).limit(40);
-    niche = (data ?? []).filter(nicheVetted).slice(0, 8);
+    const intel = await intelFor({ client: ctx.client, ownerId: ctx.ownerId, scopeId: await competitorScopeId(ctx.client, ctx.workspace?.id) }, { need: "saved", location: profile?.brand_detail?.location ?? null });
+    niche = intel.content.slice(0, 8);
   } catch { niche = []; }
 
   const winnersText = top.length

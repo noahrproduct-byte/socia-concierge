@@ -12,7 +12,7 @@ import { recordAiUsage, recordTranscription } from "@/lib/aiUsage";
 import { getTranscriptionProvider } from "@/lib/transcribe";
 import { getProfile } from "@/lib/profile";
 import { competitorScopeId } from "@/lib/workspaces";
-import { loadCachedNicheRead } from "@/lib/trendSignalsLoad";
+import { nicheReadFor } from "@/lib/intel/profileLoad";
 import { trendsEvidence } from "@/lib/trendSignals";
 import { brandLine, writeClipCaptions } from "@/lib/aiStudio/captions";
 import { signedUrl } from "@/lib/aiStudio/media";
@@ -65,7 +65,7 @@ export async function pickMoments(svc: Supa, job: JobLike, words: TranscriptWord
   const [profile, outcomes, niche] = await Promise.all([
     getProfile(svc, job.user_id, job.workspace_id ? ({ id: job.workspace_id } as never) : null).catch(() => null),
     loadClipOutcomes(svc, job.user_id, job.workspace_id),
-    competitorScopeId(svc, job.workspace_id).then((scope) => loadCachedNicheRead(svc, job.user_id, scope)).catch(() => null),
+    competitorScopeId(svc, job.workspace_id).then((scope) => nicheReadFor(svc, job.user_id, scope, { need: "saved" })).catch(() => null),
   ]);
   const brand = brandLine(profile);
   const message = pickMessage({

@@ -82,7 +82,7 @@ export function cleanAdaptation(raw: unknown, now: Date): Adaptation | null {
 }
 
 /** The Reel as SOCIA knows it, for the prompt: only what the platform gave. Pure. */
-export function reelFacts(r: Pick<ProvenReel, "accountName" | "accountHandle" | "platform" | "format" | "title" | "line" | "views" | "likes" | "comments" | "multiplier" | "basis" | "publishedAt" | "structures" | "topics">, hasCover: boolean): string {
+export function reelFacts(r: Pick<ProvenReel, "accountName" | "accountHandle" | "platform" | "format" | "title" | "line" | "views" | "likes" | "comments" | "multiplier" | "basis" | "publishedAt" | "structures" | "topics"> & { fitStructure?: string }, hasCover: boolean): string {
   const n = (v: number | null) => (v == null ? null : v.toLocaleString("en-US"));
   return [
     `Account: ${r.accountHandle ? `@${r.accountHandle.replace(/^@/, "")}` : r.accountName} on ${r.platform === "youtube" ? "YouTube" : "Instagram"}`,
@@ -94,6 +94,7 @@ export function reelFacts(r: Pick<ProvenReel, "accountName" | "accountHandle" | 
     r.structures.length ? `Hook structure SOCIA recognised: ${r.structures.join(", ")}` : "",
     r.topics.length ? `Topics SOCIA recognised: ${r.topics.join(", ")}` : "",
     r.publishedAt ? `Posted: ${r.publishedAt.slice(0, 10)}` : "",
+    r.fitStructure ? `The creative structure SOCIA judged transfers to this business: ${r.fitStructure}. Build the adaptation on it.` : "",
     hasCover ? "Its cover image is attached." : "No cover image is available.",
   ].filter(Boolean).join("\n");
 }

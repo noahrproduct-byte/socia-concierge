@@ -17,9 +17,8 @@ import { experimentResults } from "./experimentsLoad";
 import { experimentsEvidence } from "./experiments";
 import type { GrowthStrategy } from "./strategy";
 import type { Deliverable } from "./schema";
-import { loadNicheRead } from "./trendSignalsLoad";
+import { intelFor } from "./intel/profileLoad";
 import { playbookTextFor } from "./nicheScan/run";
-import { nicheVetted } from "./discovery";
 import { provenEvidence, trendsEvidence, type ProvenReel } from "./trendSignals";
 import { isOwnAccount, ownAccounts } from "./ownAccounts";
 import { createServiceClient } from "./supabase/service";
@@ -458,35 +457,19 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
   const media = snap?.media ?? [];
   const followers = snap?.followers_count ?? null;
 
-  let accounts: CompetitorRow[] = [];
+  // The brand's intelligence profile (lib/intel/profileLoad.ts): the discovered accounts and posts and the
+  // niche read every feature shares, read live at most once a day unless the competitors changed.
+  const intel = await intelFor({ client: supabase, ownerId: userId, scopeId: workspaceId ?? null }, { need: "live", location: opts.location ?? null }).catch(() => null);
+  // YouTube search results count only once they passed the niche check (lib/nicheCheck.ts); the profile keeps only those.
+  const accounts: CompetitorRow[] = withoutSkipped((intel?.accounts ?? []) as unknown as CompetitorRow[], skip, (a) => [a.handle, a.display_name]).slice(0, 12);
   let tracked: TrackedRow[] = [];
-  let winning: WinningRow[] = [];
-  try {
-    const { data } = await scopeToWorkspace(supabase
-      .from("discovered_accounts")
-      .select("platform, handle, display_name, followers, location, category, classification, relevance_score, data_source, relevance_reasons")
-      .eq("user_id", userId), workspaceId)
-      .order("relevance_score", { ascending: false, nullsFirst: false })
-      .limit(40);
-    // YouTube search results count only once they passed the niche check (lib/nicheCheck.ts).
-    accounts = withoutSkipped(((data ?? []) as (CompetitorRow & { data_source?: string; relevance_reasons?: unknown })[]).filter(nicheVetted), skip, (a) => [a.handle, a.display_name]).slice(0, 12);
-  } catch { /* none */ }
   try {
     tracked = withoutSkipped(await listTracked<TrackedRow>(supabase, userId, "platform, handle", { limit: 20, workspaceId }), skip, (t) => [t.handle]);
   } catch { /* none */ }
-  try {
-    const { data } = await scopeToWorkspace(supabase
-      .from("discovered_content")
-      .select("platform, account_name, title, views, likes, comments, multiplier, trend_tags, why_recommended, published_at, data_source, relevance_reasons")
-      .eq("user_id", userId), workspaceId)
-      .order("multiplier", { ascending: false, nullsFirst: false })
-      .limit(80);
-    winning = withoutSkipped(((data ?? []) as (WinningRow & { data_source?: string; relevance_reasons?: unknown })[]).filter(nicheVetted), skip, (w) => [w.account_name]).slice(0, 30);
-  } catch { /* none */ }
+  const winning: WinningRow[] = withoutSkipped((intel?.content ?? []) as unknown as WinningRow[], skip, (w) => [w.account_name]).slice(0, 30);
 
-  // The niche's trends read live alongside the stored rows; null off the plan feature or on a slow platform.
   // Twice as many Reels as a plan shows, so there are still eight once the ones earlier plans used are left out.
-  const trendsP = loadNicheRead(supabase, userId, workspaceId ?? null, { location: opts.location ?? null, provenMax: 16 }).catch(() => null);
+  const trendsP = Promise.resolve(intel?.niche ?? null);
   const formats = await activeFindings(supabase, userId, workspaceId, FORMATS_PRODUCER, 5);
   // What goes viral in the niche, from the Reels the niche scan studied (lib/nicheScan).
   const playbook = await playbookTextFor(supabase, userId, workspaceId).catch(() => "");

@@ -19,6 +19,7 @@ import { dismissedHandles } from "@/lib/competitorAutoPick";
 import { COPY_FIND_PER_READ, COVERS_PER_ACCOUNT, NICHE_FIND_PER_READ, FIT_VERSION, REELS_JUDGED_PER_READ, REEL_RULE_VERSION, STYLE_MEANS, fitOf, reelKey, reelVerdictOf, tooSmallToSuggest, mentionedHandles, reachesPastFollowers, sameStyle, missKind, styleKey, styleStale, triedRecently, type AccountStyle, type CopyFound, type Fit, type ReelVerdict, type StyleMemory, type Tried } from "./discoverStyle";
 import { judgeFit, judgeReels, readStyleMemory, saveStyleMemory, styleAccounts, type FitCandidate, type ReelCandidate } from "./discoverStyleLoad";
 import { getProfile } from "@/lib/profile";
+import { judgeTrending, topUpCompetitors } from "@/lib/discoverIntel";
 import { brandWorkspace } from "@/lib/context";
 
 /** Suggestions read with the roster, so they show their picture and numbers. */
@@ -63,7 +64,7 @@ export async function discoverHandles(ctx: Ctx, memory?: StyleMemory, now: Date 
   return { tracked, suggested, styleSources, limit };
 }
 
-export async function readDiscoverAccounts(ctx: Ctx, now: Date): Promise<{ read: number; found: number; styled: number; enabled: boolean }> {
+export async function readDiscoverAccounts(ctx: Ctx, now: Date): Promise<{ read: number; found: number; styled: number; enabled: boolean; added: number; judged: number }> {
   const memory = await readStyleMemory(ctx);
   const { tracked, suggested, styleSources } = await discoverHandles(ctx, memory, now);
   // Accounts tried in the last day wait, whatever came back, so a failed lookup isn't repeated on every visit.
@@ -252,5 +253,10 @@ export async function readDiscoverAccounts(ctx: Ctx, now: Date): Promise<{ read:
       copyFrom, copyFound, nicheFound: { ...fresh.nicheFound, ...nicheFoundNew }, reels: { ...fresh.reels, ...reelVerdicts },
     });
   }
-  return { read: handles.length, found: res.competitors.filter((c) => c.found).length, styled, enabled: res.enabled };
+  // SOCIA's own picks for the roster, and which Trending Reels this business could adapt (lib/discoverIntel.ts),
+  // from what this read saved: no new research, and nothing charged to the person.
+  const latest = await readStyleMemory(ctx).catch(() => memory);
+  const added = await topUpCompetitors(ctx, latest, [...new Set([...suggested, ...Object.keys(latest.nicheFound)])], now);
+  const judged = await judgeTrending(ctx, latest, now);
+  return { read: handles.length, found: res.competitors.filter((c) => c.found).length, styled, enabled: res.enabled, added: added.length, judged };
 }

@@ -16,6 +16,10 @@
 import type { Ctx } from "../context";
 import { workspacesByIds } from "../workspaces";
 import { runInsights } from "./runIntel";
+import { refreshProfileIfChanged } from "./profileLoad";
+import { competitorScopeId } from "../workspaces";
+import { brandWorkspace } from "../context";
+import { getProfile } from "../profile";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
@@ -25,7 +29,10 @@ export const YT_PER_RUN = 25;
 const AT_ONCE = 3;
 
 export type Brand = { userId: string; workspaceId: string | null; youtube: boolean };
-export type DailyIntelRun = { brands: number; due: number; refreshed: number; deferredYouTube: number; outOfTime: number; errors: number };
+export type DailyIntelRun = { brands: number; due: number; refreshed: number; deferredYouTube: number; outOfTime: number; errors: number; profilesRebuilt?: number };
+
+/** Time a brand's profile rebuild may need (a live niche read gives up after 15 s). */
+const PROFILE_TIME_MS = 30_000;
 
 const keyOf = (b: { userId: string; workspaceId: string | null }) => `${b.userId}:${b.workspaceId ?? "-"}`;
 
@@ -110,6 +117,14 @@ export async function runDailyInsights(svc: Supa, now = new Date(), budgetMs = 2
       try {
         await runInsights(ctx, "cron");
         result.refreshed++;
+        // The brand's intelligence profile (lib/intel/profileLoad.ts): rebuilt only when what it rests on
+        // changed, so features read it instead of each calling the platforms. Skipped near the deadline.
+        if (deadline - Date.now() > PROFILE_TIME_MS) {
+          const profile = await getProfile(svc, b.userId, brandWorkspace(ctx)).catch(() => null);
+          const scopeId = await competitorScopeId(svc, b.workspaceId).catch(() => b.workspaceId);
+          const done = await refreshProfileIfChanged({ client: svc, ownerId: b.userId, scopeId }, profile?.brand_detail?.location ?? null, now).catch(() => "unchanged" as const);
+          if (done === "rebuilt") result.profilesRebuilt = (result.profilesRebuilt ?? 0) + 1;
+        }
       } catch (e) {
         result.errors++;
         console.error("[intel-refresh]", b.userId, b.workspaceId, (e as Error)?.message ?? e);

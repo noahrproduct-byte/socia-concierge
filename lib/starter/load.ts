@@ -7,7 +7,7 @@ import type { Ctx } from "../context";
 import { getEntitlements } from "../entitlements";
 import { loadSources } from "../api/sources";
 import { buildAccountSample } from "../intel/accountSample";
-import { loadCachedNicheRead } from "../trendSignalsLoad";
+import { nicheReadFor } from "../intel/profileLoad";
 import { listTracked } from "../trackedCompetitors";
 import { competitorScopeId } from "../workspaces";
 import type { TtVideo } from "../tiktokAuth";
@@ -39,7 +39,7 @@ const fmt = (n: number) => n.toLocaleString("en-US");
  */
 export async function nicheObservations(ctx: Ctx, opts: { location?: string | null; max?: number } = {}): Promise<string[]> {
   const scope = await competitorScopeId(ctx.client, ctx.workspace?.id ?? null).catch(() => ctx.workspace?.id ?? null);
-  const read = await loadCachedNicheRead(ctx.client, ctx.ownerId, scope, { location: opts.location ?? null }).catch(() => null);
+  const read = await nicheReadFor(ctx.client, ctx.ownerId, scope, { need: "saved", location: opts.location ?? null }).catch(() => null);
   if (!read) return [];
   return read.proven.slice(0, opts.max ?? 6).map((r) => {
     const who = r.accountHandle ? `@${r.accountHandle}` : r.accountName;

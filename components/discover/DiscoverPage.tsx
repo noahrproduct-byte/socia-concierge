@@ -78,7 +78,7 @@ function AccountCard({ a, action, footer }: { a: DiscoverAccount; action: React.
       <div className="dsc-acct-tags">
         {a.style && <span className={`dsc-tag${a.sameStyle ? " is-same" : ""}`}>{a.style}{a.sameStyle ? ", like yours" : ""}</span>}
         {a.addedBy === "you" && <span className="dsc-tag is-quiet">Added by you</span>}
-        {a.addedBy === "socia" && <span className="dsc-tag is-quiet">Picked by SOCIA</span>}
+        {a.addedBy === "socia" && <span className="dsc-tag is-quiet">Found by SOCIA</span>}
       </div>
       {a.why && !a.posts.length ? <p className="dsc-acct-why">{a.why}</p> : a.why && a.addedBy !== "you" ? <p className="dsc-acct-why">{a.why}</p> : null}
       {status && <p className="dsc-acct-status">{a.reading && <Loader2 size={12} className="cx-spin" aria-hidden />} {status}</p>}
@@ -239,7 +239,7 @@ export default function DiscoverPage({ d }: { d: DiscoverData }) {
                 footer={confirming === a.id ? (
                   <div className="dsc-confirm" role="group" aria-label={`Remove @${a.handle}`}
                     onKeyDown={(e) => { if (e.key === "Escape") setConfirming(null); }}>
-                    <p>Stop tracking @{a.handle}? Its Reels leave Reels you can copy, it frees a place on your plan, and SOCIA won&apos;t suggest it again. You can add it back any time.</p>
+                    <p>Stop tracking @{a.handle}? Its Reels leave Reels you can copy, it frees a place on your plan, and SOCIA won&apos;t suggest or add it again. You can add it back any time.</p>
                     <div className="dsc-actions">
                       <button type="button" className="ov-btn small dsc-danger" autoFocus disabled={busy === a.id} onClick={() => drop(a)}>
                         {busy === a.id ? <Loader2 size={12} className="cx-spin" aria-hidden /> : <Trash2 size={12} aria-hidden />} {busy === a.id ? "Removing…" : "Remove"}
