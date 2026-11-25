@@ -161,7 +161,7 @@ describe("a muted shot (2026-11-13)", () => {
 });
 
 describe("every line on its own shot (Noah, 2026-11-25: the pasta Reel)", () => {
-  const line = (text: string, at: number, end: number, role: "opening" | "mid" | "cta" = "mid") => ({ text, at, end, role });
+  const line = (text: string, at: number, end: number, role: "opening" | "mid" | "cta" = "mid") => ({ id: `l-${text.slice(0, 8)}-${at}`, text, at, end, role });
   // Three shots: 0 to 2, 2 to 5, 5 to 7.9, like the Reel he sent.
   const pasta = (text: Edl["text"]) => edl([seg("a", "f1", 0, 2), seg("b", "pn", 0, 3), seg("c", "f2", 0, 2.9)], { text });
   it("starts a line that came in 0.7 s early with the shot it is about", () => {

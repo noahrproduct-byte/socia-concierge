@@ -7,7 +7,9 @@
 //   - a file the person drops or chooses,
 //   - a Reel link, found through Instagram's official Business Discovery read
 //     (app/api/studio/reference/reel), asking for the account when the link
-//     doesn't carry it,
+//     doesn't carry it; a TikTok, YouTube or Facebook link is named from what the
+//     platform publishes (app/api/studio/reference/video) and the file is asked
+//     for, since those platforms don't let apps download their videos,
 //   - one of the person's own clips (GET /api/studio/clips/[id] gives its file),
 //   - a Reel handed over from Discover or the editor's inspiration row.
 // A Reel keeps where it came from (lib/studioClips/referenceSource.ts ReelSource:
@@ -20,7 +22,8 @@ import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import { probeClip, ingestClip } from "@/lib/studioClips/ingest";
 import { REF_MAX_SEC } from "@/lib/studioClips/reference";
 import { STUDIO_BUCKET } from "@/lib/studioClips/types";
-import { readCached, writeCached, type ReelSource } from "@/lib/studioClips/referenceSource";
+import { parseReelLink, readCached, writeCached, type ReelSource } from "@/lib/studioClips/referenceSource";
+import { parseVideoLink } from "@/lib/studioClips/videoLink";
 
 export type Reference = {
   name: string; durationSec: number; width: number | null; height: number | null;
@@ -126,7 +129,21 @@ export function useReference(viewerId: string) {
   const readReel = useCallback(async (link: string, opts: { handle?: string | null; known?: ReelSource | null; served?: string | null; from?: Reference["from"] } = {}) => {
     const t = ++ticket.current;
     const from = opts.from ?? "link";
-    setRef(null); setNote(null); setNeedHandle(false); setReading("Getting the Reel");
+    setRef(null); setNote(null); setNeedHandle(false);
+    // Not an Instagram Reel: what TikTok, YouTube or Facebook publish about it, and a plain ask for the file.
+    const other = parseReelLink(link) ? null : parseVideoLink(link);
+    if (!parseReelLink(link)) {
+      if (!other) { setSource(null); setReading(null); setNote("Paste a link to a video on Instagram, TikTok, YouTube or Facebook, or upload the file."); return; }
+      setSource(null); setReading(`Looking up the ${other.platform === "youtube" ? "YouTube video" : other.platform === "tiktok" ? "TikTok" : "Facebook video"}`);
+      const res = await fetch(`/api/studio/reference/video?link=${encodeURIComponent(link)}`).catch(() => null);
+      const j = res ? ((await res.json().catch(() => null)) as { reel?: ReelSource; why?: string; error?: string } | null) : null;
+      if (t !== ticket.current) return;
+      setReading(null);
+      if (j?.reel) setSource(j.reel);
+      setNote(j?.why ?? j?.error ?? "SOCIA couldn't be reached. Check your connection and try again.");
+      return;
+    }
+    setReading("Getting the Reel");
     setSource(opts.known ?? null);
     const code = opts.known?.code ?? null;
     const name = (s: ReelSource | null | undefined) => `${s?.handle ? `@${s.handle}` : s?.account ?? "Instagram"} ${s?.format ?? "Reel"}.mp4`;
