@@ -18,8 +18,8 @@ describe("ticksFor: one tick per post read", () => {
 });
 
 describe("offline platforms", () => {
-  it("says Facebook and TikTok aren't open yet, and nothing about the others", () => {
-    expect(offlineReason("Facebook")).toMatch(/aren't open yet/);
+  it("says TikTok isn't open yet, and nothing about the others", () => {
+    expect(offlineReason("Facebook")).toBeNull();
     expect(offlineReason("tiktok")).toMatch(/aren't open yet/);
     expect(offlineReason("instagram")).toBeNull();
     expect(offlineReason("YouTube")).toBeNull();

@@ -1,15 +1,18 @@
 // Platforms SOCIA isn't taking new connections for yet, and what to say about
 // them. Wherever a Connect would be, these show "Offline for now" with the
 // reason and no button; an account that is already connected keeps working.
-// Admins can still connect (Settings), since SOCIA's own Facebook connection
-// powers competitor research. Remove a platform here when it opens. Client-safe.
+// Admins can still connect (Settings). Remove a platform here when it opens:
+// Facebook opened 2026-11-26 when Meta approved every permission SOCIA asks for.
+// Client-safe.
 
 export type OfflinePlatform = "facebook" | "tiktok";
 
-export const OFFLINE_PLATFORMS: Record<OfflinePlatform, string> = {
-  facebook: "Facebook connections aren't open yet. Instagram and YouTube work now.",
-  tiktok: "TikTok connections aren't open yet. Instagram and YouTube work now.",
+export const OFFLINE_PLATFORMS: Partial<Record<OfflinePlatform, string>> = {
+  tiktok: "TikTok connections aren't open yet. Instagram, Facebook and YouTube work now.",
 };
+
+/** The platforms still waiting on access, in a fixed order. */
+export const OFFLINE_LIST = (["facebook", "tiktok"] as const).filter((p) => p in OFFLINE_PLATFORMS);
 
 export const OFFLINE_LABEL = "Offline for now";
 

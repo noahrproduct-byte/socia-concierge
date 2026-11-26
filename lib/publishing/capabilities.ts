@@ -228,7 +228,7 @@ const FACEBOOK: PlatformCapabilities = {
     description: "supported", thumbnail: "supported", nativeScheduling: "supported", shareToFeed: "unsupported", trialReel: "unsupported",
   },
   fields: {},
-  notes: ["Publishes text, a photo, several photos, or a video to the Page feed. Needs the pages_manage_posts permission: granted to Pages the app admins/testers manage today, and to all users' Pages once Meta approves it. Reconnect Facebook after granting it."],
+  notes: ["Publishes text, a photo, several photos, or a video to the Page feed. Needs the pages_manage_posts permission (approved by Meta 2026-11-26). Reconnect Facebook if it was connected without it."],
   sources: ["https://developers.facebook.com/docs/pages-api/posts/", "https://developers.facebook.com/docs/video-api/guides/reels-publishing/"],
 };
 

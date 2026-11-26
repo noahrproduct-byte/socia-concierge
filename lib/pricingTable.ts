@@ -72,11 +72,10 @@ function feature(key: FeatureKey, note?: string): ComparisonRow {
 export const CONNECTED_PLATFORMS = WORKSPACE_PLATFORMS.map((p) => PLATFORM_NAME[p]).join(", ");
 
 /**
- * Platforms SOCIA can publish to today. Facebook publishing waits on Meta's
- * pages_manage_posts review and TikTok on TikTok's content-posting audit, so
- * neither is listed as publishing until it is real.
+ * Platforms SOCIA can publish to today. TikTok publishing waits on TikTok's
+ * content-posting audit, so it isn't listed as publishing until it is real.
  */
-export const PUBLISHING_PLATFORMS = "Instagram and YouTube";
+export const PUBLISHING_PLATFORMS = "Instagram, Facebook and YouTube";
 
 export const COMPARISON: ComparisonCategory[] = [
   {
@@ -167,7 +166,7 @@ export const COMPARISON: ComparisonCategory[] = [
   {
     category: "Publishing",
     rows: [
-      { label: "Scheduling and direct publishing", note: `On ${PUBLISHING_PLATFORMS} today. Facebook after Meta's review, TikTok after TikTok's audit.`, cells: publishingCells() },
+      { label: "Scheduling and direct publishing", note: `On ${PUBLISHING_PLATFORMS} today. TikTok after TikTok's audit.`, cells: publishingCells() },
       feature("comment_replies", "SOCIA drafts a reply to each comment; you approve before anything is sent."),
     ],
   },

@@ -5,7 +5,7 @@ import { ArrowRight, Check, Mail } from "lucide-react";
 import { PlatformMark } from "@/components/system/PlatformMark";
 import { PLANS, SALE_ORDER, formatHistory, type PlanId } from "@/lib/plans";
 import { MONTHLY_CREDITS, actionCredits, creditsOnSale } from "@/lib/credits/config";
-import { CONTACT_EMAIL, awaitingAccessText, offlineReason, openPlatformsText, platformRequestHref, type OfflinePlatform } from "@/lib/platformStatus";
+import { CONTACT_EMAIL, OFFLINE_LIST, awaitingAccessText, offlineReason, openPlatformsText, platformRequestHref, type OfflinePlatform } from "@/lib/platformStatus";
 import HomeNav from "./HomeNav";
 import HomeFooter from "./HomeFooter";
 import HomeFaq from "./HomeFaq";
@@ -28,7 +28,7 @@ import "./home.css";
 const FAQ = [
   {
     q: "Which platforms does SOCIA support?",
-    a: `${openPlatformsText()} connect today: analytics, scheduling and publishing. ${awaitingAccessText("facebook")} ${awaitingAccessText("tiktok")} To connect either one, email ${CONTACT_EMAIL}.`,
+    a: `${openPlatformsText()} connect today: analytics, scheduling and publishing.${OFFLINE_LIST.length ? ` ${OFFLINE_LIST.map(awaitingAccessText).join(" ")} To ask about ${OFFLINE_LIST.length > 1 ? "either one" : "it"}, email ${CONTACT_EMAIL}.` : ""}`,
   },
   {
     q: "What does the free plan include?",
