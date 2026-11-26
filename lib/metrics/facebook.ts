@@ -528,7 +528,7 @@ export function buildFacebookAnalytics(input: {
       label: "Page & video views",
       why: ins?.available
         ? "Facebook Insights returned no view data for this Page in this period."
-        : "Needs the read_insights permission — reconnect Facebook to grant it (public access arrives with App Review).",
+        : "Needs the read_insights permission. Reconnect Facebook to grant it.",
     });
   }
 

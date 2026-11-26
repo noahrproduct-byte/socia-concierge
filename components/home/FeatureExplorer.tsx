@@ -6,7 +6,7 @@ import Link from "next/link";
 import { ArrowRight, Mail } from "lucide-react";
 import { PlatformMark } from "@/components/system/PlatformMark";
 import { FEATURE_MIN_PLAN, PLANS, type FeatureKey } from "@/lib/plans";
-import { awaitingAccessText, platformRequestHref } from "@/lib/platformStatus";
+import { OFFLINE_LIST, awaitingAccessText, openPlatformsText, platformRequestHref } from "@/lib/platformStatus";
 import ReelDemo from "./ReelDemo";
 import { WEEK } from "./exampleWeek";
 import "./features.css";
@@ -719,7 +719,7 @@ const FEATURES: Feature[] = [
     name: "Calendar and publishing",
     group: "Workflow",
     line: "One post to every connected account.",
-    does: "Schedule one post to Instagram and YouTube together from the Calendar. Nothing publishes until it is scheduled, and you can withdraw a post until it goes out.",
+    does: `Schedule one post to ${openPlatformsText()} together from the Calendar. Nothing publishes until it is scheduled, and you can withdraw a post until it goes out.`,
     screen: "Calendar",
     href: "/plan/calendar",
     cta: "Open the Calendar",
@@ -869,8 +869,8 @@ const FEATURES: Feature[] = [
     key: "accounts",
     name: "Connected accounts",
     group: "Workflow",
-    line: "Instagram and YouTube today.",
-    does: "Connect Instagram and YouTube with each platform's own sign-in. Facebook and TikTok are waiting on platform access; email us and we'll tell you when they open.",
+    line: `${openPlatformsText()} today.`,
+    does: `Connect ${openPlatformsText()} with each platform's own sign-in. TikTok is waiting on platform access; email us and we'll tell you when it opens.`,
     screen: "Settings: connections",
     href: "/settings",
     cta: "Open Settings",
@@ -898,7 +898,7 @@ const FEATURES: Feature[] = [
           </span>
           <span className="fx-status is-on">Available</span>
         </li>
-        {(["facebook", "tiktok"] as const).map((p, n) => (
+        {OFFLINE_LIST.map((p, n) => (
           <li key={p} style={i(n + 2)} className="is-pending">
             <PlatformMark platform={p} brand />
             <span>

@@ -9,7 +9,7 @@
 import { useEffect, useState } from "react";
 import { Bell, BellOff, Check } from "lucide-react";
 import { ACCOUNTS } from "./ConnectAccounts";
-import { CONTACT_EMAIL, platformRequestHref, type OfflinePlatform } from "@/lib/platformStatus";
+import { CONTACT_EMAIL, openPlatformsText, platformRequestHref, type OfflinePlatform } from "@/lib/platformStatus";
 import { LAUNCH_COPY, countdownParts, launchPhase, launchWhen } from "@/lib/platformLaunch";
 
 const NAME: Record<OfflinePlatform, string> = { tiktok: "TikTok", facebook: "Facebook" };
@@ -91,7 +91,7 @@ export default function PlatformLaunch({ platform, at, signedIn = true, compact 
         <p className="pl-wait">{phase?.kind === "late" ? LAUNCH_COPY.late : LAUNCH_COPY.awaiting}</p>
       )}
 
-      {!compact && <p className="pl-what">{WHAT[platform]} Instagram and YouTube work now.</p>}
+      {!compact && <p className="pl-what">{WHAT[platform]} {openPlatformsText()} work now.</p>}
 
       <div className="pl-actions">
         {signedIn && on !== null && (
