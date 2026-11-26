@@ -50,6 +50,7 @@ import { lookAtCut } from "@/lib/studioClips/lookAtCut";
 import { placeClear, placeNote, samplesFor } from "@/lib/studioClips/placement";
 import { PICTURE_BRIEF, quickCut, quickLook, quickStats, rawOf, type QuickStats } from "@/lib/studioClips/quickEdit";
 import { renderFaults, type RenderReport } from "@/lib/studioClips/renderCheck";
+import { renderErrorCopy } from "@/lib/studioClips/renderErrors";
 import { DEFAULT_THEME_ID, THEMES, themeById } from "@/lib/studioClips/themes";
 import { OUTPUT, type BuildPlayerData, type Edl, type StudioBuild } from "@/lib/studioClips/types";
 import { ClipGrid, type LocalClip } from "./ClipsViews";
@@ -65,7 +66,7 @@ import type { LibraryClip } from "@/lib/studioClips/library";
 import { CAPTION_ANIMATIONS, CAPTION_STYLES } from "@/lib/studioClips/style";
 import { ASPECTS, TRANSITIONS } from "@/lib/studioClips/types";
 import {
-  COLOURS, DURATIONS, FOCUSES, GRAPHICS, MUSIC_MODES, PACES, aspectLabel, aspectSize, composeBrief, creativeSummary, durationLabel, recommend, settingsInForce, themePatch,
+  COLOURS, DURATIONS, FOCUSES, GRAPHICS, MUSIC_MODES, PACES, aspectLabel, aspectSize, composeBrief, voiceLengthAsk, creativeSummary, durationLabel, recommend, settingsInForce, themePatch,
   type Creative, type CreativeKey,
 } from "@/lib/studioClips/creative";
 import { renderBlocker, renderBuild } from "./renderBuild";
@@ -356,7 +357,9 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
       setStep(choice.ref ? "Studying the reference and choosing the shots" : choice.voice ? "Choosing the shots and voicing the script" : "Choosing the shots");
       // The general guide for a cut from the picture, without its own length when a length or a reference sets it.
       const guide = choice.creative.durationSec || choice.ref ? PICTURE_BRIEF.replace(", 15 to 30 seconds", "") : PICTURE_BRIEF;
-      const brief = composeBrief(`${choice.prompt.trim()}\n\n${guide}`, choice.creative);
+      // An approved voiceover script sets a floor for the length, unless the person chose a length themselves.
+      const voiceLen = choice.voice ? voiceLengthAsk(choice.voice.notes, choice.creative.durationSec) : "";
+      const brief = composeBrief(`${choice.prompt.trim()}\n\n${voiceLen ? `${voiceLen}\n\n` : ""}${guide}`, choice.creative);
       const { from: _from, ...refFacts } = choice.ref ?? ({} as Reference); void _from;
       const res = await call(`/api/studio/projects/${projectId}/brief`, post({
         prompt: brief,
@@ -599,7 +602,7 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
       onRunning?.(false);
       if ((e as Error)?.name === "AbortError") return;
       setStep(null);
-      setError((e as Error)?.message || "The video couldn't be made this time. Try again; if it keeps failing, open SOCIA in Chrome or Edge on a computer.");
+      setError(renderErrorCopy(e));
       setFailedAt(cur);
       setStage("error");
     }

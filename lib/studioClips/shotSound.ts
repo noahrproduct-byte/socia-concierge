@@ -25,7 +25,10 @@ export function shotHasSpeech(words: TranscriptWord[] | null | undefined, inSec:
  */
 export function muteSilentShots(edl: Edl, words: WordsById): { edl: Edl; muted: number } {
   const spoken = edl.segments.map((s) => shotHasSpeech(words[s.clipId], s.in, s.out));
-  if (!spoken.some(Boolean)) return { edl, muted: 0 };
+  // The voice only carries a cut when it can be heard: speech in a shot whose sound is switched off (background
+  // chatter the cut muted as unrelated) is not a voice, and muting everything else for it left the video with
+  // no sound of its own at all (Noah's pizza Reel, 2026-11-26: nine clips, kitchen talk in one, music only).
+  if (!edl.segments.some((s, i) => spoken[i] && s.volume !== 0)) return { edl, muted: 0 };
   let muted = 0;
   const segments = edl.segments.map((s, i) => {
     if (spoken[i] || s.volume != null || s.sound) return s;

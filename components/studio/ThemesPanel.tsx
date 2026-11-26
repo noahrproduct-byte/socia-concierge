@@ -3,13 +3,14 @@
 // The Themes tab: the eight themes as a strip of cards drawn on the person's
 // own footage (the first clip's frame, the theme's look as a CSS filter, its
 // title and caption in its own face), the active one marked; a tap applies
-// the theme to the preview at once. "Compare" shows every theme as a small
-// looping preview of the cut itself, so one can be chosen by eye. The
+// the theme's look to the preview at once (the cut itself is never re-edited
+// by a tap; "Re-cut to this theme" asks for that). "Compare" shows every theme
+// on the cut itself, one playing at a time, so one can be chosen by eye. The
 // person's changes on top of a theme are a diff the "Reset to theme"
 // button clears.
-import { useEffect, useMemo, useState } from "react";
-import { Player } from "@remotion/player";
-import { Check, LayoutGrid, RotateCcw, Rows3 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Player, type PlayerRef } from "@remotion/player";
+import { Check, LayoutGrid, RotateCcw, Rows3, Scissors } from "lucide-react";
 import { ClipComposition } from "./remotion/ClipComposition";
 import { THEMES, type Theme } from "@/lib/studioClips/themes";
 import { applyTheme, type ApplyContext } from "@/lib/studioClips/themes/apply";
@@ -69,7 +70,47 @@ function ThemeCard({ theme, thumb, active, hasOverrides, onPick, disabled }: { t
   );
 }
 
-export default function ThemesPanel({ edl, sources, ctx, canEdit, busy, onApply, onReset }: {
+/**
+ * One theme in the compare grid: the cut's first seconds in that theme, drawn the way the editor's own preview draws
+ * (no WebGL: twelve players each with its own effect chain is what lost the graphics context), held on a frame until
+ * the pointer or the keyboard is on it, so one preview plays at a time instead of twelve.
+ */
+function ThemeLive({ theme, sliced, sources, active, locked, motionOk, onPick }: { theme: Theme; sliced: Edl; sources: Record<string, BuildSource>; active: boolean; locked: boolean; motionOk: boolean; onPick: () => void }) {
+  const player = useRef<PlayerRef>(null);
+  const tl = useMemo(() => timeline(sliced), [sliced]);
+  const inputProps = useMemo(() => ({ edl: sliced, sources, captionsOn: Boolean(sliced.captions), preview: true }), [sliced, sources]);
+  // Held a second in, where the opening line and the look are both on screen.
+  const still = Math.min(Math.max(0, tl.durationFrames - 1), OUTPUT.fps);
+  const play = () => { if (motionOk) player.current?.play(); };
+  const hold = () => { player.current?.pause(); player.current?.seekTo(still); };
+  return (
+    <button type="button" role="radio" aria-checked={active} className={`sd-theme sd-theme-live${active ? " is-on" : ""}`} disabled={locked} onClick={onPick} onPointerEnter={play} onPointerLeave={hold} onFocus={play} onBlur={hold}>
+      <span className="sd-theme-frame" aria-hidden>
+        <Player
+          ref={player}
+          component={ClipComposition}
+          inputProps={inputProps}
+          durationInFrames={tl.durationFrames}
+          fps={OUTPUT.fps}
+          compositionWidth={sliced.width}
+          compositionHeight={sliced.height}
+          initialFrame={still}
+          loop
+          initiallyMuted
+          controls={false}
+          clickToPlay={false}
+          acknowledgeRemotionLicense
+          style={{ width: "100%", aspectRatio: `${sliced.width} / ${sliced.height}` }}
+        />
+        {active && <span className="sd-theme-check"><Check size={12} aria-hidden /></span>}
+      </span>
+      <span className="sd-theme-name">{theme.name}</span>
+      <span className="sd-theme-for">{theme.bestFor}</span>
+    </button>
+  );
+}
+
+export default function ThemesPanel({ edl, sources, ctx, canEdit, busy, onApply, onReset, onRecut }: {
   edl: Edl;
   sources: Record<string, BuildSource>;
   /** words by clip, so a theme's punches and sentence steps land on the speech */
@@ -78,6 +119,8 @@ export default function ThemesPanel({ edl, sources, ctx, canEdit, busy, onApply,
   busy: boolean;
   onApply: (theme: Theme) => void;
   onReset: () => void;
+  /** the theme's own edit of the cut (hook first, pauses out, its shot length); absent = not offered */
+  onRecut?: () => void;
 }) {
   const [compare, setCompare] = useState(false);
   const motionOk = useMotionOk();
@@ -97,6 +140,7 @@ export default function ThemesPanel({ edl, sources, ctx, canEdit, busy, onApply,
         </div>
         <div className="sd-themes-actions">
           {active && hasOverrides && <button type="button" className="ov-btn ghost small" disabled={locked} onClick={onReset}><RotateCcw size={12} aria-hidden /> Reset to theme</button>}
+          {active && onRecut && <button type="button" className="ov-btn ghost small" disabled={locked} onClick={onRecut}><Scissors size={12} aria-hidden /> Re-cut to this theme</button>}
           <button type="button" className="ov-btn ghost small" aria-pressed={compare} onClick={() => setCompare((c) => !c)}>{compare ? <Rows3 size={12} aria-hidden /> : <LayoutGrid size={12} aria-hidden />} {compare ? "Back to the strip" : "Compare all"}</button>
         </div>
       </div>
@@ -106,35 +150,11 @@ export default function ThemesPanel({ edl, sources, ctx, canEdit, busy, onApply,
         </div>
       ) : (
         <div className="sd-theme-grid" role="radiogroup" aria-label="Theme">
-          {slices.map(({ theme, edl: sliced }) => {
-            const tl = timeline(sliced);
-            return (
-              <button key={theme.id} type="button" role="radio" aria-checked={theme.id === active} className={`sd-theme sd-theme-live${theme.id === active ? " is-on" : ""}`} disabled={locked} onClick={() => onApply(theme)}>
-                <span className="sd-theme-frame" aria-hidden>
-                  <Player
-                    component={ClipComposition}
-                    inputProps={{ edl: sliced, sources, captionsOn: Boolean(sliced.captions) }}
-                    durationInFrames={tl.durationFrames}
-                    fps={OUTPUT.fps}
-                    compositionWidth={sliced.width}
-                    compositionHeight={sliced.height}
-                    autoPlay={motionOk}
-                    loop
-                    initiallyMuted
-                    controls={false}
-                    clickToPlay={false}
-                    acknowledgeRemotionLicense
-                    style={{ width: "100%", aspectRatio: `${sliced.width} / ${sliced.height}` }}
-                  />
-                  {theme.id === active && <span className="sd-theme-check"><Check size={12} aria-hidden /></span>}
-                </span>
-                <span className="sd-theme-name">{theme.name}</span>
-                <span className="sd-theme-for">{theme.bestFor}</span>
-              </button>
-            );
-          })}
+          {slices.map(({ theme, edl: sliced }) => <ThemeLive key={theme.id} theme={theme} sliced={sliced} sources={sources} active={theme.id === active} locked={locked} motionOk={motionOk} onPick={() => onApply(theme)} />)}
         </div>
       )}
+      {compare && <p className="ov-source">{motionOk ? "Point at a theme, or tab to it, to play it." : "Each theme is shown on a frame of your cut."}</p>}
+      <p className="ov-source">Picking a theme changes the look only. Re-cut to this theme lets the theme edit the cut as well: the strongest line first, pauses out, its own shot length. Undo takes it back.</p>
       <p className="ov-source">Every theme keeps to the house style: a line on screen from the first second, captions a few words at a time with the key word coloured, the ask in the post text, and cuts by default outside the fast themes.</p>
     </div>
   );

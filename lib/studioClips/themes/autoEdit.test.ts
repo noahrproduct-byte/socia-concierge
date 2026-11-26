@@ -123,7 +123,7 @@ describe("dropRepeatTakes", () => {
 });
 
 describe("two acts (the owner's Osh reel)", async () => {
-  const { twoActs, actOf, ACT_LINES } = await import("./autoEdit");
+  const { twoActs, actOf } = await import("./autoEdit");
   const story = (subject: string, setting: string, action: string, tags: string[] = [], people: "none" | "one" | "several" | "unknown" = "none") => ({ subject, setting, action, tags, people });
   const clip = (id: string, s: ReturnType<typeof story> | undefined) => ({ id, position: Number(id.slice(1)), durationSec: 10, words: null, silences: null, medianLuma: null, warmth: null, brightness: null, contrastLevel: null, rmsDb: null, audioLevel: null, hasSpeech: false, ...(s ? { story: s } : {}) }) as unknown as import("../edl").ClipForEdl;
   const seg = (clipId: string, len: number) => ({ id: `s${clipId}`, clipId, in: 0, out: len, role: "body" as const, note: "" });
@@ -135,14 +135,16 @@ describe("two acts (the owner's Osh reel)", async () => {
     expect(actOf(story("a sign", "outside", "the camera pans", []))).toBeNull();
     expect(actOf(undefined)).toBeNull();
   });
-  it("puts the making first, the enjoying second, a chapter line over each and a leak at the change", () => {
+  it("puts the making first, the enjoying second and a leak at the change, and never touches the words on screen (2026-11-26)", () => {
     const clips = [clip("c1", story("plated rice", "the table", "served", ["plate"])), clip("c2", story("flames", "the kitchen", "tossing a wok", ["fire"])), clip("c3", story("hands", "the kitchen", "folding dumplings", ["dough"])), clip("c4", story("the room", "the dining room", "guests eating", [], "several"))];
     const edl = { ...base, segments: [seg("c1", 2), seg("c2", 3.9), seg("c3", 5.5), seg("c4", 2.2)], text: [{ id: "t", at: 0, end: 2, text: "old hook", role: "opening" as const, presetId: "hook_pair" as const }] };
     const r = twoActs(edl, clips);
     expect(r.applied).toBe(true);
     expect(r.edl.segments.map((s) => s.clipId)).toEqual(["c2", "c3", "c1", "c4"]);
     expect(r.edl.segments.map((s) => s.transition ?? "cut")).toEqual(["cut", "cut", "leak", "cut"]);
-    expect(r.edl.text.map((t) => [t.text, t.at, t.end, t.presetId])).toEqual([[ACT_LINES[0], 0, 9.4, "chapter"], [ACT_LINES[1], 9.4, 13.6, "chapter"]]);
+    // The person's own line is still there, untouched: a theme never writes words ("We make it" used to replace it).
+    expect(r.edl.text).toEqual(edl.text);
+    expect(JSON.stringify(r.edl)).not.toMatch(/We make it|You enjoy it/);
   });
   it("leaves a cut alone when the footage shows only one act", () => {
     const clips = [clip("c1", story("flames", "the kitchen", "a wok", ["fire"])), clip("c2", story("hands", "the kitchen", "kneading dough", []))];

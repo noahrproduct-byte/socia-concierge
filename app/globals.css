@@ -11683,7 +11683,7 @@ p.cbm-muted { display: block; }
 .cbb-tl-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 @media (hover: hover) and (pointer: fine) { .cbb-tl-btn:not(:disabled):hover { background: var(--surface-hover); } }
 .cbb-tl-time { min-width: 7.5rem; padding: 0 var(--sp-2); font-size: var(--fs-meta); font-variant-numeric: tabular-nums; color: var(--ink); }
-.cbb-tl-time span { color: var(--text-secondary); }
+.cbb-tl-time span:last-child { color: var(--text-secondary); }
 .cbb-tl-sep { width: 1px; height: 18px; margin: 0 var(--sp-1); background: var(--border); }
 .cbb-tl-note { flex: 1; min-width: 0; font-size: var(--fs-meta); color: var(--warning-ink); }
 .cbb-tl-keys { margin: 0; font-size: var(--fs-meta); color: var(--text-secondary); }

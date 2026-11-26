@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { settingsInForce, DEFAULT_CREATIVE, asksText, aspectSize, composeBrief, creativeSummary, recommend, themePatch, withRecommendation, type Creative, type CreativeKey } from "./creative";
+import { settingsInForce, voiceLengthAsk, DEFAULT_CREATIVE, asksText, aspectSize, composeBrief, creativeSummary, recommend, themePatch, withRecommendation, type Creative, type CreativeKey } from "./creative";
 import { THEMES } from "./themes";
 import { setThemeOverride, applyTheme, resolveTheme } from "./themes/apply";
 import type { Edl } from "./types";
@@ -118,5 +118,16 @@ describe("settings in force (the 2026-11-25 crash on uploading a reference)", ()
   });
   it("the person's choice sits on top of the recommendation", () => {
     expect(settingsInForce({ pace: "fast" }, { pace: "calm" }).pace).toBe("calm");
+  });
+});
+
+describe("the voiceover's length in the brief (the 11 second cut under a 23 second script, 2026-11-26)", () => {
+  const script = Array.from({ length: 57 }, (_, i) => `word${i}`).join(" ");
+  it("asks for a video long enough for the whole script", () => {
+    expect(voiceLengthAsk(script)).toMatch(/about 57 words .* at least 23 seconds long/);
+  });
+  it("says nothing when the person chose the length, or there is no real script", () => {
+    expect(voiceLengthAsk(script, 15)).toBe("");
+    expect(voiceLengthAsk("warm and calm")).toBe("");
   });
 });

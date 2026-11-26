@@ -94,6 +94,15 @@ describe("applyHouseStyle", () => {
     expect(applyHouseStyle(briefed, [clip("a", 20), clip("b", 20)]).edl.targetSec).toEqual({ min: 15, max: 30 });
   });
 
+  it("keeps the asked length when the caller says the cut is from a brief, before the brief is attached (2026-11-26)", () => {
+    // The real pipeline shapes the cut first and attaches the brief after: the cut has no `brief` yet here.
+    const long = { ...edl([seg("s1", "a", 0, 3, { role: "opener" }), seg("s2", "b", 0, 12), seg("s3", "a", 4, 19, { role: "ending" })], "food_reel"), targetSec: { min: 25, max: 30 } };
+    const { edl: out, changes } = applyHouseStyle(long, [clip("a", 20), clip("b", 20)], { briefed: true });
+    expect(out.targetSec).toEqual({ min: 25, max: 30 });
+    expect(out.segments.reduce((a, s) => a + s.out - s.in, 0)).toBe(30);
+    expect(changes.map((c) => c.rule)).not.toContain("length");
+  });
+
   it("moves an on-screen ask into the caption but keeps an address or a date as a label", () => {
     const base2 = edl([seg("s1", "a", 0, 3, { role: "opener" }), seg("s2", "b", 0, 3, { role: "ending" })], "food_reel");
     const r = applyHouseStyle({ ...base2, text: [line("t1", 0, 2, "Lunch rush", "opening"), line("t2", 4, 6, "Follow for more", "cta")] }, [clip("a", 10), clip("b", 10)]);

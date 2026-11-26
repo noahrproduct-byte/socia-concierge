@@ -19,6 +19,7 @@ import { cleanPunches } from "../punch";
 import { findTakes } from "../takes";
 import { settleCut } from "../cutCheck";
 import { muteSilentShots, shotSoundNote } from "../shotSound";
+import { cutSpeaks } from "@/lib/music/taste";
 import type { BrollItem, BuildSource, ClipStory, Edl, EdlSegment, EdlText, TranscriptWord } from "../types";
 import { MIN_CUT_SEC } from "../tracks";
 import { TEXT_PRESETS, fitLine, isTextPresetId, type TextPresetId } from "@/lib/textPresets";
@@ -200,9 +201,18 @@ export function dropRepeatTakes(edl: Edl, ctx: AutoEditContext): { edl: Edl; dro
   return { edl: { ...edl, segments: segments.map((s, i, all) => ({ ...s, role: i === 0 ? "opener" : all.length >= 3 && i === all.length - 1 ? "ending" : "body" })) }, dropped };
 }
 
-/** The theme's edit of the raw footage (see the file's header). */
-/** The owner's own two chapter lines (the Osh reel, 2026-11-16); the person can retype them. */
-export const ACT_LINES = ["We make it", "You enjoy it"] as const;
+/** Heard words before a theme switches captions on, as when SOCIA makes a cut (lib/studioClips/edl.ts). */
+const CAPTION_MIN_WORDS = 3;
+
+/**
+ * Captions for the speech that is in the cut and heard: on when at least a few words sit inside the trims of
+ * shots whose sound is on (lib/music/taste.ts cutSpeaks), and never when the person switched them off or the
+ * look has none. A cut that already has captions, or has no heard speech, comes back as it is.
+ */
+export function captionsForSpeech(edl: Edl, theme: Theme | null, words: Record<string, TranscriptWord[] | null | undefined>): Edl {
+  if (edl.captions || edl.captionsOff || theme?.typography.captions === false) return edl;
+  return cutSpeaks(edl.segments, words, CAPTION_MIN_WORDS) ? { ...edl, captions: { source: "transcript" } } : edl;
+}
 const MAKING = /\b(kitchen|cook|cooking|chef|stove|flame|flames|fire|grill|grilling|pan|wok|skillet|pot|boil|fry|frying|sizzl|chop|chopping|slice|slicing|knead|dough|fold|folding|raw|prep|preparing|skewer|oven|charcoal|coals|smoke|ingredients|hands|mixing|stir|pour(?:ing)? (?:batter|oil|sauce|soup|broth)|roll(?:ing)?|cutting|baking|bake|tray|wrap|dumpling|manti)\b/i;
 const ENJOYING = /\b(plate|plated|plating|served|serving|table|dining|diner|diners|guest|guests|customer|customers|restaurant|interior|room|seating|seats|decor|lamp|wall|art|tea|teapot|cup|bowl of|drink|drinking|eating|eat|bite|tasting|taste|enjoy|cheers|toast|dessert|coffee|latte|glass|menu|front of house|counter|dish on|finished dish|ready to eat|garnish(?:ed)?|presentation)\b/i;
 /** Which act a clip belongs to from its card: the making, the enjoying, or neither. */
@@ -238,17 +248,10 @@ export function twoActs(edl: Edl, clips: ClipForEdl[]): { edl: Edl; applied: boo
     else delete next.transition;
     return next;
   });
-  const secOf = (s: EdlSegment) => Math.max(0, s.out - s.in) / (s.motion?.speed?.rate ?? 1);
-  const act1 = making.reduce((a, s) => a + secOf(s), 0);
-  const total = segments.reduce((a, s) => a + secOf(s), 0);
-  const r1 = (n: number) => Math.round(n * 10) / 10;
-  const kept = edl.text.filter((t) => t.role === "cta");
-  const text: EdlText[] = [
-    { id: "act1", at: 0, end: r1(act1), text: ACT_LINES[0], role: "opening", presetId: "chapter", slot: "middle" },
-    { id: "act2", at: r1(act1), end: r1(total), text: ACT_LINES[1], role: "mid", presetId: "chapter", slot: "middle" },
-    ...kept,
-  ];
-  return { edl: { ...edl, segments, text }, applied: true };
+  // The words on screen are the person's and stay as they are. Until 2026-11-26 this replaced every line with two
+  // fixed ones from one restaurant's Reel ("We make it" / "You enjoy it"), on any footage the loose word match
+  // above called two acts: a theme never writes words.
+  return { edl: { ...edl, segments }, applied: true };
 }
 
 export function autoEdit(edl: Edl, theme: Theme, ctx: AutoEditContext): AutoEditResult {
@@ -256,14 +259,16 @@ export function autoEdit(edl: Edl, theme: Theme, ctx: AutoEditContext): AutoEdit
   let out: Edl = edl;
   if (theme.pacing.acts) {
     const acts = twoActs(out, ctx.clips);
-    if (acts.applied) { out = acts.edl; notes.push(`Two acts: the making first, then the enjoying, a chapter line over each (“${ACT_LINES[0]}”, “${ACT_LINES[1]}”), a light leak at the change.`); }
-    else notes.push("The clips don't show both the making and the enjoying, so the cut keeps its order; retype the chapter line in Words.");
+    if (acts.applied) { out = acts.edl; notes.push("Two acts: the making first, then the enjoying, a light leak at the change. Your own words on screen stay as they are."); }
+    else notes.push("The clips don't show both the making and the enjoying, so the cut keeps its order.");
   }
   // Two takes of one line never both play: the cleanest stays.
   const takes = dropRepeatTakes(out, ctx);
   if (takes.dropped.length) { out = takes.edl; notes.push(`${takes.dropped.join("; ")}: only the cleanest take is in.`); }
-  const anyWords = out.segments.some((s) => (ctx.words[s.clipId] ?? []).length);
-  if (anyWords && !out.captions && !out.captionsOff && theme.typography.captions !== false) out = { ...out, captions: { source: "transcript" } };
+  // Captions come on for speech that is in the cut and heard: at least a few words inside the trims of shots whose
+  // sound is on (lib/music/taste.ts cutSpeaks). Any word anywhere in a clip used to be enough, so background talk in
+  // one muted clip put captions over a whole food Reel.
+  out = captionsForSpeech(out, theme, ctx.words);
   const dead = trimSilences(out, ctx.words, theme.pacing.silenceSec);
   if (dead.count) { out = dead.edl; notes.push(`${dead.seconds}s of dead air trimmed (${dead.count} pause${dead.count === 1 ? "" : "s"}).`); }
   if (theme.pacing.hook) {

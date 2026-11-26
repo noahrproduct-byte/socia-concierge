@@ -105,7 +105,7 @@ export type HouseChange = { rule: "length" | "transition" | "cta" | "opening" | 
  * follows the rules comes back unchanged with no changes listed. A cut with no
  * genre is returned as is.
  */
-export function applyHouseStyle(edl: Edl, clips: ClipForEdl[]): { edl: Edl; changes: HouseChange[] } {
+export function applyHouseStyle(edl: Edl, clips: ClipForEdl[], opts: { /** the cut is being made from the person's own brief (a prompt, a reference, a voiceover): its length is theirs */ briefed?: boolean } = {}): { edl: Edl; changes: HouseChange[] } {
   const genre = edl.genre;
   if (!genre || !isHouseGenre(genre)) return { edl, changes: [] };
   const byId = new Map(clips.map((c) => [c.id, c]));
@@ -153,9 +153,12 @@ export function applyHouseStyle(edl: Edl, clips: ClipForEdl[]): { edl: Edl; chan
     }
   }
 
-  // 4. Length: the genre's band caps the target unless the person's brief set one.
+  // 4. Length: the genre's band caps the target unless the person's brief set one. The brief is attached to the cut
+  // only after it is shaped (lib/studioClips/server.ts buildFromBrief), so the caller says when there is one: until
+  // 2026-11-26 this check never saw it, and a cut asked for at "25 to 30 seconds, every clip" was trimmed to 14 s
+  // with four of nine clips left out.
   const band = HOUSE_PACING[genre].lengthSec;
-  if (!edl.brief && targetSec.max > band[1]) {
+  if (!edl.brief && !opts.briefed && targetSec.max > band[1]) {
     targetSec = { min: Math.min(targetSec.min, band[0]), max: band[1] };
     const before = edlDurationSec({ segments });
     if (before > band[1]) {

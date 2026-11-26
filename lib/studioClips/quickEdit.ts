@@ -16,7 +16,7 @@ import { clipsForEdl } from "./clientClips";
 import { findScenes, type EdlScene } from "./scenes";
 import { editSpeech, speechNote } from "./speech";
 import { applyTheme } from "./themes/apply";
-import { autoEdit } from "./themes/autoEdit";
+import { autoEdit, captionsForSpeech } from "./themes/autoEdit";
 import type { Theme } from "./themes/schema";
 import { timeline } from "./timeline";
 import type { BuildSource, Edl, TranscriptWord } from "./types";
@@ -135,15 +135,16 @@ export function quickCut(base: Edl, theme: Theme, sources: BuildSource[], opts: 
 /**
  * A cut SOCIA already made from what is in the picture (several clips, or a
  * clip where no one speaks: the server's own cut from a brief), put in the
- * look. The same look as the cut already has leaves its shots as they were
- * chosen; another look makes its own edit on top, as picking it in the editor does.
+ * look. The shots, their order and their lengths are the ones the brief asked
+ * for and stay as they were chosen: another look changes how the cut looks
+ * (type, colour, joins, motion, captions for speech that is heard), never what
+ * is in it. Until 2026-11-26 another look also re-edited the cut (dead air,
+ * the look's shot length), which is how a 25 to 30 second ask came out at 11.
  */
 export function quickLook(base: Edl, theme: Theme, sources: BuildSource[], opts: QuickOptions = {}): { edl: Edl; notes: string[] } {
   const words: WordsById = Object.fromEntries(sources.map((s) => [s.clipId, s.words]));
   if (base.theme?.id === theme.id) return finish(base, [], sources, words, opts);
-  const byId = Object.fromEntries(sources.map((s) => [s.clipId, s]));
-  const auto = autoEdit(applyTheme(base, theme, { words }), theme, { clips: clipsForEdl(sources), words, sources: byId, beat: opts.beat });
-  return finish(auto.edl, auto.notes, sources, words, opts);
+  return finish(captionsForSpeech(applyTheme(base, theme, { words }), theme, words), [], sources, words, opts);
 }
 
 /** The whole of every clip, end to end: what a cut from several clips is counted against. */
