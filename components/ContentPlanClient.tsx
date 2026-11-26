@@ -59,6 +59,7 @@ import DrawStoryboard from "@/components/plan/DrawStoryboard";
 import StepPlan, { stillBuilding } from "@/components/plan/StepPlan";
 import { cleanIdeas, MAX_IDEAS_TEXT } from "@/lib/planIdeas";
 import ContentIdeas from "@/components/plan/ContentIdeas";
+import VideoWorkspace from "@/components/plan/VideoWorkspace";
 import { FilmExample, PlanTrack, WeekStrip, beatsLength, builtOn, type StripItem } from "@/components/plan/PostFocus";
 import { planStage, postBuilderHref } from "@/lib/planStage";
 import { animatedHour, weekdayOf } from "@/lib/animated/day";
@@ -152,6 +153,8 @@ export default function ContentPlanClient({ context, canSchedule = true, initial
   // Known only after a generate response; before that nothing is rendered.
   const [usage, setUsage] = useState<UsageSnapshot | null>(null);
   const [result, setResult] = useState<{ data: Deliverable; id: string | null } | null>(initial);
+  // Help me make a video: its workspace in place of the weekly plan, which stays as it is.
+  const [videoWs, setVideoWs] = useState(false);
   const [history, setHistory] = useState<SavedPlan[]>([]);
   const [outcomes, setOutcomes] = useState<PlanOutcomeSummary[]>([]);
   // This week's mix, starting from the last plan's (lib/planMix.ts).
@@ -455,9 +458,12 @@ export default function ContentPlanClient({ context, canSchedule = true, initial
 
         {/* plan stage */}
         <section className="cpl-stage">
-          {/* One video at a time, above the week (components/plan/ContentIdeas.tsx). */}
-          <ContentIdeas />
-          {loading ? (
+          {/* One video at a time, above the week (components/plan/ContentIdeas.tsx); Help me make a video takes the week's place until Back. */}
+          {videoWs ? (
+            <VideoWorkspace onBack={() => setVideoWs(false)} niche={context.profile.niche} planId={result?.id ?? null} planItems={result?.data.weeklyPlan ?? null}
+              onPlanSaved={(items) => setResult((r) => (r ? { ...r, data: { ...r.data, weeklyPlan: items as typeof r.data.weeklyPlan } } : r))} />
+          ) : <ContentIdeas onMakeVideo={() => { setVideoWs(true); window.scrollTo({ top: 0, behavior: "smooth" }); }} />}
+          {videoWs ? null : loading ? (
             <div className="sp-start" role="status"><span className="cpl-btn-spin" aria-hidden /> Writing the first day&apos;s idea</div>
           ) : result?.id && stillBuilding(result.data) ? (
             <StepPlan planId={result.id} data={result.data} onChange={(data) => {

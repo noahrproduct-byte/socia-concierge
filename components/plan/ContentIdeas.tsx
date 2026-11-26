@@ -2,20 +2,16 @@
 
 // Content ideas, above the weekly plan: help with one video without making a
 // whole week. "Give me an idea" for someone who doesn't know what to post;
-// "Help me make a video" for someone who has one in mind. Both open Ask SOCIA
-// with the request sent, which already does the work in stages: it reads
-// what is wanted, finds real public videos like it (YouTube search, with their
-// links and numbers) and the Reels working in the niche, offers directions to
-// choose from, then writes the script and filming brief, and changes one part
-// when asked ("make the hook stronger"). From there the script goes to the
-// plan or the video editor without being written again. Ask SOCIA's own credit
-// price applies; nothing here charges on its own.
+// "Help me make a video" for someone who has one in mind, which opens its own
+// workspace in place of the weekly plan (components/plan/VideoWorkspace.tsx).
+// "Give me an idea" opens Ask SOCIA with the request sent; Ask SOCIA's own
+// credit price applies.
 import { useState } from "react";
 import { Lightbulb, Video } from "lucide-react";
 import { askSocia } from "@/lib/ask";
 import { contentIdeasQuestion, IDEAS_MAX as MAX, type IdeasMode as Mode } from "@/lib/contentIdeas";
 
-export default function ContentIdeas() {
+export default function ContentIdeas({ onMakeVideo }: { /** opens Help me make a video in place of the weekly plan */ onMakeVideo: () => void }) {
   const [mode, setMode] = useState<Mode | null>(null);
   const [text, setText] = useState("");
   const send = () => {
@@ -35,9 +31,9 @@ export default function ContentIdeas() {
           <Lightbulb size={16} aria-hidden />
           <span><b>Give me an idea</b><small>You don&apos;t know what to post. SOCIA picks one from your results, your competitors and your niche.</small></span>
         </button>
-        <button type="button" className={`cpl-ideasx-choice${mode === "video" ? " is-on" : ""}`} aria-pressed={mode === "video"} onClick={() => setMode(mode === "video" ? null : "video")}>
+        <button type="button" className="cpl-ideasx-choice" onClick={onMakeVideo}>
           <Video size={16} aria-hidden />
-          <span><b>Help me make a video</b><small>You have something in mind. SOCIA finds videos like it that did well, then writes yours.</small></span>
+          <span><b>Help me make a video</b><small>You have something in mind. SOCIA finds videos that made an idea like it work, then plans yours shot by shot.</small></span>
         </button>
       </div>
       {mode && (
