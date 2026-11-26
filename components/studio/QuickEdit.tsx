@@ -71,7 +71,7 @@ import {
 import { renderBlocker, renderBuild } from "./renderBuild";
 
 type Stage = "setup" | "upload" | "words" | "picture" | "cut" | "render" | "check" | "done" | "error";
-type Result = { creative: Creative; ref: string | null; voice: boolean; buildId: string; title: string; blob: Blob; url: string; rawUrl: string | null; stats: QuickStats; clips: number; clipsUsed: number; picture: boolean; prompt: string; fx: SceneFxId[]; notes: string[]; lines: string[]; report: RenderReport | null; edl: Edl; look: string; music: string | null; width: number; height: number };
+type Result = { creative: Creative; ref: string | null; /** the video really has a voiced voiceover */ voice: boolean; /** a voiceover was asked for and couldn't be made: why */ voiceNote: string | null; buildId: string; title: string; blob: Blob; url: string; rawUrl: string | null; stats: QuickStats; clips: number; clipsUsed: number; picture: boolean; prompt: string; fx: SceneFxId[]; notes: string[]; lines: string[]; report: RenderReport | null; edl: Edl; look: string; music: string | null; width: number; height: number };
 type Draft = { phase: "idle" } | { phase: "saving"; progress: number } | { phase: "saved"; postId: string } | { phase: "error"; message: string };
 type Choice = {
   look: string; /** the person picked the style themselves (not SOCIA's default or the one kept on this computer) */ lookPicked: boolean;
@@ -552,18 +552,44 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
       const sj = await json(saved);
       if (!saved?.ok || !sj?.edl) throw fail(sj, "The cut couldn't be saved, so the video wasn't made. Check your connection and try again.");
       // What renders is the cut as the server kept it (cuts snapped to words), so the file and the editor agree.
-      const build = sj as unknown as StudioBuild;
-      const kept = build.edl as Edl;
+      let build = sj as unknown as StudioBuild;
+      let kept = build.edl as Edl;
+      // The voiceover. Making the cut only records that one was asked for: the audio is made by the cut's own
+      // voiceover route, once the cut is final, reading the approved script in the chosen voice and placing its
+      // lines on this cut's timeline. (Until 2026-11-25 this screen never asked for it, so a video made with
+      // "Add a voiceover" came out without one.) A cut that already has its voice keeps it; nothing is voiced twice.
+      let voice: Record<string, string> = data.voice ?? {};
+      let voiceNote: string | null = null;
+      if (choice.voice && !kept.voiceover?.lines.some((l) => l.path)) {
+        setStep("Voicing your script");
+        const res = await call(`/api/studio/builds/${id}/voiceover`, post(choice.voice.voiceId ? { voiceId: choice.voice.voiceId } : {}));
+        const j = await json(res);
+        const vo = j?.voiceover as Edl["voiceover"] | undefined;
+        if (res?.ok && vo?.lines.some((l) => l.path)) {
+          kept = { ...kept, voiceover: vo, captions: kept.captions ?? { source: "transcript" } };
+          build = { ...build, edl: kept };
+          voice = { ...voice, ...((j?.urls as Record<string, string> | undefined) ?? {}) };
+          const over = typeof j?.overrunSec === "number" ? j.overrunSec : 0;
+          aiNotes.push(`Voiceover: ${vo.voiceName}, reading your approved script.${over > 0.3 ? ` It runs about ${over.toFixed(1)} s past the end of the video; shorten a line in the editor, under Voiceover.` : ""}`);
+        } else {
+          voiceNote = `The voiceover couldn't be made (${typeof j?.error === "string" ? j.error.replace(/\.$/, "") : "SOCIA couldn't be reached"}), so this video has none. Nothing was counted for it. Open the video in the editor to add it, under Voiceover.`;
+        }
+        setStep(null);
+      } else if (!choice.voice && kept.voiceover?.on) {
+        // Made again without a voiceover: the one this cut has is switched off (it stays with the cut, to switch back on in the editor).
+        const res = await call(`/api/studio/builds/${id}/voiceover`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ on: false }) });
+        if (res?.ok) { kept = { ...kept, voiceover: { ...kept.voiceover, on: false } }; build = { ...build, edl: kept }; }
+      }
       const st = quickStats(viaPicture.current ? rawOf(kept, data.sources) : base.current, kept, wordsById);
       setStats(st);
 
       go("render");
-      const out = await renderBuild({ ...data, build, music }, { signal, onProgress: (f) => { setProgress(f); go(f >= 1 ? "check" : "render"); } });
+      const out = await renderBuild({ ...data, build, music, voice }, { signal, onProgress: (f) => { setProgress(f); go(f >= 1 ? "check" : "render"); } });
       const url = URL.createObjectURL(out.blob);
       urls.current.push(url);
       const used = new Set([...kept.segments.map((s) => s.clipId), ...(kept.broll ?? []).map((b) => b.clipId)]).size;
       setResult({
-        creative: choice.creative, ref: choice.ref?.name ?? null, voice: Boolean(choice.voice),
+        creative: choice.creative, ref: choice.ref?.name ?? null, voice: Boolean(kept.voiceover?.on && kept.voiceover.lines.some((l) => l.path)), voiceNote,
         buildId: id, title, blob: out.blob, url, rawUrl: data.sources.length === 1 ? data.sources[0].url : null, stats: st, clips: data.sources.length, clipsUsed: used, picture: viaPicture.current, prompt: choice.prompt.trim(), fx: choice.fx,
         notes: [...cut.notes, ...aiNotes, ...musicNotes], lines: kept.text.map((t) => t.text.trim()).filter(Boolean), report: out.report, edl: kept, look: chosen.id, music: musicName, width: out.width, height: out.height,
       });
@@ -979,6 +1005,7 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
               <div><dt>Graphics</dt><dd>{s.scenes}<small>{s.captions ? "captions on" : "captions off"}</small></dd></div>
               <div><dt>Loudness</dt><dd>{result.report?.levelDb != null ? `${result.report.levelDb.toFixed(1)} dB` : "Not measured"}</dd></div>
             </motion.dl>
+            {result.voiceNote && <p className="qe-err" role="alert"><AlertTriangle size={14} aria-hidden /><span>{result.voiceNote}</span></p>}
             {faults.length > 0 && (
               <p className="qe-err" role="alert"><AlertTriangle size={14} aria-hidden /><span>SOCIA watched the file twice and still found: {faults.map((f) => f.detail.replace(/\.$/, "")).join("; ")}. Play it before you post it, or open it in the editor to fix it.</span></p>
             )}
