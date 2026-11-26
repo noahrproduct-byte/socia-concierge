@@ -23,9 +23,18 @@ export const TT_SCOPES = [
   "user.info.stats",   // follower / following / likes / video counts
   "video.list",        // the account's own public videos and their counts
   "video.upload",      // Content Posting API: upload to the creator's inbox
-  // "video.publish" (direct post) is requested when TikTok approves it; the
-  // publisher checks the stored scopes and posts directly when it is there.
 ];
+
+/**
+ * Direct posting (video.publish) is asked for only when TIKTOK_DIRECT_POST=1:
+ * TikTok approved it with the Content Posting audit (2026-11-26), and the
+ * switch lets it be turned on, and back off, without risking every TikTok
+ * connection on a scope the app doesn't hold. The publisher checks the stored
+ * scopes and posts directly when video.publish is there, else to the inbox.
+ */
+export function ttScopes(env: Record<string, string | undefined> = process.env): string[] {
+  return env.TIKTOK_DIRECT_POST?.trim() === "1" ? [...TT_SCOPES, "video.publish"] : TT_SCOPES;
+}
 
 export const TT_OAUTH_STATE_COOKIE = "tt_oauth_state";
 export const TT_OAUTH_STATE_MAX_AGE = 600; // 10 minutes to finish the round trip
@@ -47,7 +56,7 @@ export function ttRedirectUri(reqOrigin: string): string {
 export function ttAuthUrl(state: string, redirectUri: string): string {
   const u = new URL(AUTHORIZE);
   u.searchParams.set("client_key", ttClientKey()!);
-  u.searchParams.set("scope", TT_SCOPES.join(","));
+  u.searchParams.set("scope", ttScopes().join(","));
   u.searchParams.set("response_type", "code");
   u.searchParams.set("redirect_uri", redirectUri);
   u.searchParams.set("state", state);

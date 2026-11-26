@@ -2,26 +2,25 @@
 // them. Wherever a Connect would be, these show "Offline for now" with the
 // reason and no button; an account that is already connected keeps working.
 // Admins can still connect (Settings). Remove a platform here when it opens:
-// Facebook opened 2026-11-26 when Meta approved every permission SOCIA asks for.
+// Facebook opened 2026-11-26 when Meta approved every permission SOCIA asks for,
+// and TikTok the same day when TikTok made SOCIA's app live.
 // Client-safe.
 
 export type OfflinePlatform = "facebook" | "tiktok";
 
-export const OFFLINE_PLATFORMS: Partial<Record<OfflinePlatform, string>> = {
-  tiktok: "TikTok connections aren't open yet. Instagram, Facebook and YouTube work now.",
-};
+export const OFFLINE_PLATFORMS: Partial<Record<OfflinePlatform, string>> = {};
 
 /** The platforms still waiting on access, in a fixed order. */
 export const OFFLINE_LIST = (["facebook", "tiktok"] as const).filter((p) => p in OFFLINE_PLATFORMS);
 
 export const OFFLINE_LABEL = "Offline for now";
 
-const NAMES = { instagram: "Instagram", facebook: "Facebook", youtube: "YouTube" } as const;
+const NAMES = { instagram: "Instagram", facebook: "Facebook", youtube: "YouTube", tiktok: "TikTok" } as const;
 
 /** The platforms a customer can connect today, in the order the site names them. */
 export const OPEN_PLATFORMS = (Object.keys(NAMES) as (keyof typeof NAMES)[]).filter((p) => !(p in OFFLINE_PLATFORMS));
 
-/** Those platforms as words: "Instagram and YouTube", or "Instagram, Facebook and YouTube" once Facebook opens. */
+/** Those platforms as words: "Instagram, Facebook, YouTube and TikTok" with every platform open. */
 export function openPlatformsText(join: "and" | "or" = "and"): string {
   const names = OPEN_PLATFORMS.map((p) => NAMES[p]);
   return names.length > 1 ? `${names.slice(0, -1).join(", ")} ${join} ${names[names.length - 1]}` : names.join("");

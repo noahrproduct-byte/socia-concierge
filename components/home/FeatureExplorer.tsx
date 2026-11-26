@@ -6,10 +6,18 @@ import Link from "next/link";
 import { ArrowRight, Mail } from "lucide-react";
 import { PlatformMark } from "@/components/system/PlatformMark";
 import { FEATURE_MIN_PLAN, PLANS, type FeatureKey } from "@/lib/plans";
-import { OFFLINE_LIST, awaitingAccessText, openPlatformsText, platformRequestHref } from "@/lib/platformStatus";
+import { awaitingAccessText, offlineReason, openPlatformsText, platformRequestHref, type OfflinePlatform } from "@/lib/platformStatus";
 import ReelDemo from "./ReelDemo";
 import { WEEK } from "./exampleWeek";
 import "./features.css";
+
+/** The platforms the Connected accounts preview lists: what each gives today, or its wait when offline. */
+const CONNS = [
+  { platform: "instagram", name: "Instagram", what: "Analytics, scheduling and publishing" },
+  { platform: "facebook", name: "Facebook", what: "Page analytics, scheduling and publishing" },
+  { platform: "youtube", name: "YouTube", what: "Analytics, video and Shorts uploads" },
+  { platform: "tiktok", name: "TikTok", what: "Video stats and posting" },
+] as const;
 
 // "One platform. Every part of your workflow.": SOCIA's features in five
 // groups (create, video, intelligence, strategy, workflow). Choosing a group
@@ -870,7 +878,7 @@ const FEATURES: Feature[] = [
     name: "Connected accounts",
     group: "Workflow",
     line: `${openPlatformsText()} today.`,
-    does: `Connect ${openPlatformsText()} with each platform's own sign-in. TikTok is waiting on platform access; email us and we'll tell you when it opens.`,
+    does: `Connect ${openPlatformsText()} with each platform's own sign-in.`,
     screen: "Settings: connections",
     href: "/settings",
     cta: "Open Settings",
@@ -882,34 +890,29 @@ const FEATURES: Feature[] = [
     ),
     preview: (
       <ul className="fx-conns">
-        <li style={i(0)}>
-          <PlatformMark platform="instagram" brand />
-          <span>
-            <b>Instagram</b>
-            <em>Analytics, scheduling and publishing</em>
-          </span>
-          <span className="fx-status is-on">Available</span>
-        </li>
-        <li style={i(1)}>
-          <PlatformMark platform="youtube" brand />
-          <span>
-            <b>YouTube</b>
-            <em>Analytics, video and Shorts uploads</em>
-          </span>
-          <span className="fx-status is-on">Available</span>
-        </li>
-        {OFFLINE_LIST.map((p, n) => (
-          <li key={p} style={i(n + 2)} className="is-pending">
-            <PlatformMark platform={p} brand />
-            <span>
-              <b>{p === "facebook" ? "Facebook" : "TikTok"}</b>
-              <em>{awaitingAccessText(p)}</em>
-            </span>
-            <a className="fx-chip fx-contact" href={platformRequestHref(p)}>
-              <Mail aria-hidden /> Contact us
-            </a>
-          </li>
-        ))}
+        {CONNS.map((c, n) =>
+          offlineReason(c.platform) ? (
+            <li key={c.platform} style={i(n)} className="is-pending">
+              <PlatformMark platform={c.platform} brand />
+              <span>
+                <b>{c.name}</b>
+                <em>{awaitingAccessText(c.platform as OfflinePlatform)}</em>
+              </span>
+              <a className="fx-chip fx-contact" href={platformRequestHref(c.platform as OfflinePlatform)}>
+                <Mail aria-hidden /> Contact us
+              </a>
+            </li>
+          ) : (
+            <li key={c.platform} style={i(n)}>
+              <PlatformMark platform={c.platform} brand />
+              <span>
+                <b>{c.name}</b>
+                <em>{c.what}</em>
+              </span>
+              <span className="fx-status is-on">Available</span>
+            </li>
+          ),
+        )}
       </ul>
     ),
   },

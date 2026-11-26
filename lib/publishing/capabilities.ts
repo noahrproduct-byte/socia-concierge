@@ -257,8 +257,7 @@ const TIKTOK: PlatformCapabilities = {
   },
   fields: {},
   notes: [
-    "Videos are uploaded to your TikTok inbox as drafts: you finish and post them in the TikTok app. Direct posting switches on once TikTok approves SOCIA's video.publish scope.",
-    "Until TikTok completes its audit of SOCIA, videos posted directly are limited to private visibility.",
+    "With direct posting, SOCIA posts the video with the visibility you choose from the ones TikTok allows your account. Without it, the video goes to your TikTok inbox as a draft and you post it in the TikTok app.",
   ],
   sources: ["https://developers.tiktok.com/doc/content-posting-api-get-started", "https://developers.tiktok.com/doc/content-sharing-guidelines"],
 };

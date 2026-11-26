@@ -18,10 +18,7 @@ describe("ticksFor: one tick per post read", () => {
 });
 
 describe("offline platforms", () => {
-  it("says TikTok isn't open yet, and nothing about the others", () => {
-    expect(offlineReason("Facebook")).toBeNull();
-    expect(offlineReason("tiktok")).toMatch(/aren't open yet/);
-    expect(offlineReason("instagram")).toBeNull();
-    expect(offlineReason("YouTube")).toBeNull();
+  it("lists none: every platform is open", () => {
+    for (const p of ["Facebook", "tiktok", "instagram", "YouTube"]) expect(offlineReason(p)).toBeNull();
   });
 });

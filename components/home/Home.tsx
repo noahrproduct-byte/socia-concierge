@@ -242,12 +242,16 @@ export default function Home({ signedIn, intro = false, yearly = false }: { sign
                 </div>
                 <p>Channel analytics, video and Shorts uploads, scheduling from the Calendar.</p>
               </li>
-              <li className="hm-platform is-pending">
+              <li className={`hm-platform${offlineReason("tiktok") ? " is-pending" : ""}`}>
                 <div className="hm-platform-head">
                   <PlatformMark platform="tiktok" brand />
                   TikTok
                 </div>
-                <PendingPlatform platform="tiktok" />
+                {offlineReason("tiktok") ? (
+                  <PendingPlatform platform="tiktok" />
+                ) : (
+                  <p>Follower count and each video&apos;s views, likes, comments and shares, and video posting from the Calendar.</p>
+                )}
               </li>
             </ul>
           </div>

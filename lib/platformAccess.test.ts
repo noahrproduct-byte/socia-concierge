@@ -3,19 +3,20 @@ import { hasEarlyAccess, offlineFor } from "./platformAccess";
 
 afterEach(() => vi.unstubAllEnvs());
 
-describe("connecting a platform that is offline for everyone else", () => {
-  it("lets the listed accounts and admins connect, and nobody else", () => {
+describe("connecting a platform", () => {
+  it("lets everyone connect every platform now that none is offline", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("ADMIN_EMAILS", "owner@example.com");
-    vi.stubEnv("PLATFORM_EARLY_ACCESS_EMAILS", " Reviewer@Example.com ,other@example.com");
-    expect(offlineFor("tiktok", "reviewer@example.com")).toBeNull();
-    expect(offlineFor("tiktok", "owner@example.com")).toBeNull();
-    expect(offlineFor("tiktok", "customer@example.com")).toMatch(/aren't open yet/);
-    expect(offlineFor("tiktok", null)).toMatch(/aren't open yet/);
-    expect(offlineFor("instagram", "customer@example.com")).toBeNull();
+    for (const p of ["instagram", "facebook", "youtube", "tiktok"]) {
+      expect(offlineFor(p, "customer@example.com")).toBeNull();
+      expect(offlineFor(p, null)).toBeNull();
+    }
   });
 
-  it("is empty without the setting", () => {
+  it("reads the early access list case-insensitively, and is empty without the setting", () => {
+    vi.stubEnv("PLATFORM_EARLY_ACCESS_EMAILS", " Reviewer@Example.com ,other@example.com");
+    expect(hasEarlyAccess("reviewer@example.com")).toBe(true);
+    expect(hasEarlyAccess("customer@example.com")).toBe(false);
     vi.stubEnv("PLATFORM_EARLY_ACCESS_EMAILS", "");
     expect(hasEarlyAccess("reviewer@example.com")).toBe(false);
   });

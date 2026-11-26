@@ -568,7 +568,7 @@ export function Steps() {
               {OPEN_PLATFORMS.map((p, i) => (
                 <div key={p} style={{ "--j": i } as CSSProperties}>
                   <PlatformMark platform={p} brand />
-                  <span>{p === "instagram" ? "Instagram" : p === "facebook" ? "Facebook" : "YouTube"}</span>
+                  <span>{p === "instagram" ? "Instagram" : p === "facebook" ? "Facebook" : p === "tiktok" ? "TikTok" : "YouTube"}</span>
                   <em>
                     <Check aria-hidden /> Connected
                   </em>
