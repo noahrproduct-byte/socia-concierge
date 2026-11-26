@@ -82,9 +82,8 @@ export default function PrivacyPage() {
           <code>user.info.stats</code>, <code>video.list</code>,{" "}
           <code>video.upload</code>), we read your profile, follower and video
           counts, and your public videos and their counts, and send a video you
-          schedule to your TikTok account. If TikTok approves direct posting,
-          we also ask for <code>video.publish</code> to post a video you
-          schedule.
+          schedule to your TikTok account. When direct posting is on, we also
+          ask for <code>video.publish</code> to post a video you schedule.
         </li>
         <li>
           <b>Twitch</b>: when you connect Twitch for Live streams in the AI

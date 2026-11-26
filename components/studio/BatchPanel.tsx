@@ -70,7 +70,7 @@ type Made = {
   outcome: { ok: boolean; text: string } | null;
 };
 
-/** TikTok asks who may see each post and, until it audits SOCIA, allows only private posts: Create Post handles it one by one. */
+/** TikTok needs the creator to choose who may see each post, so TikTok posts go through Create Post one by one. */
 const BATCH_PLATFORMS: Platform[] = ["instagram", "youtube", "facebook"];
 const STEP_COPY: Record<Step, string> = {
   waiting: "Waiting", cut: "Writing the cut", music: "Adding music from your taste", voice: "Adding a voiceover", look: "Correcting the colour", render: "Making the video", upload: "Saving the video", caption: "Writing the caption",
