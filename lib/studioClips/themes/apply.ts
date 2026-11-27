@@ -111,13 +111,18 @@ export function applyTheme(edl: Edl, theme: Theme, ctx: ApplyContext = {}): Edl 
   const text = edl.text.map((t) => {
     if (t.role !== "opening" || !isTextPresetId(title)) return t;
     const fit = fitLine(t.text, TEXT_PRESETS[title]);
-    const { slot: _slot, ...rest } = t; void _slot;
-    return { ...rest, text: fit.text, presetId: fit.preset.id, ...(fit.slot ? { slot: fit.slot } : {}), ...(fit.shortened ? { shortened: true as const } : {}) };
+    // A theme changes how the line looks, never what it says: words that don't fit the theme's title look keep
+    // the look they have (until 2026-11-26 they were cut short at a whole word). Where the person put the line stays.
+    if (fit.shortened) return t;
+    const { slot: mine, ...rest } = t;
+    return { ...rest, text: fit.text, presetId: fit.preset.id, ...(fit.slot ? { slot: fit.slot } : mine ? { slot: mine } : {}) };
   });
   const out: Edl = { ...edl, segments, text, style: styleFromTheme(theme), theme: { id: theme.id } };
   // A theme without captions keeps them off (the switch the person has); leaving one for a theme with captions
   // gives the switch back, and the auto-edit puts them on where there is speech.
-  if (theme.typography.captions === false) { out.captions = null; out.captionsOff = true; }
+  // Only on the way INTO such a theme: a change made on top of it (a font, a colour, a caption style) re-applies the
+  // same theme, and used to switch captions the person had turned on straight back off.
+  if (theme.typography.captions === false && edl.theme?.id !== theme.id) { out.captions = null; out.captionsOff = true; }
   else if (edl.captionsOff && edl.theme?.id && THEMES.find((t) => t.id === edl.theme!.id)?.typography.captions === false) delete out.captionsOff;
   if (out.soundtrack) out.soundtrack = theme.audio.duck < 1 ? { ...out.soundtrack, duck: true } : (({ duck: _d, ...st }) => { void _d; return st; })(out.soundtrack);
   return out;
@@ -133,9 +138,28 @@ export function setThemeOverride(edl: Edl, patch: Record<string, unknown>, ctx: 
   if (!base) return edl;
   const current = withOverrides(base, edl.theme?.overrides);
   const next = withOverrides(current, patch);
-  const applied = applyTheme(edl, next, ctx);
   const overrides = deepDiff(base, next);
-  return { ...applied, theme: { id: base.id, ...(overrides ? { overrides } : {}) } };
+  const theme = { id: base.id, ...(overrides ? { overrides } : {}) };
+  // A change to how things look (the caption style, a font, a colour, the grade, the layout marks) restyles and
+  // nothing else: the cuts, their joins and motion, and every line of text stay exactly as they are. Until
+  // 2026-11-26 every such change re-applied the whole theme, which reset each join to the theme's own, re-fitted
+  // the opening line and, on a theme without captions, switched the captions off again.
+  if (lookOnly(patch)) {
+    const out: Edl = { ...edl, style: styleFromTheme(next), theme };
+    const captions = (patch.typography as { captions?: unknown } | undefined)?.captions;
+    if (captions === false) { out.captions = null; out.captionsOff = true; }
+    else if (captions === true) delete out.captionsOff;
+    return out;
+  }
+  return { ...applyTheme(edl, next, ctx), theme };
+}
+
+/** Whether a theme change only touches the look: typography (but not which title look), colour or layout marks. */
+function lookOnly(patch: Record<string, unknown>): boolean {
+  const keys = Object.keys(patch);
+  if (!keys.length || keys.some((k) => k !== "typography" && k !== "color" && k !== "layout")) return false;
+  const ty = patch.typography as Record<string, unknown> | undefined;
+  return !ty || !("titlePreset" in ty);
 }
 
 /** The theme as shipped: overrides dropped, every cut's own motion unlocked and set again. */

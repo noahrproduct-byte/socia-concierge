@@ -184,7 +184,9 @@ export const TEXT_PRESETS: Record<TextPresetId, TextPreset> = {
   // in the middle of the frame, white with a soft shadow, that stays up through an act and changes with it.
   chapter: {
     id: "chapter", label: "Chapter", hint: "A small serif line in the middle that stays up through a part of the video.", sample: "We make it",
-    font: { family: "serif", weight: 400 }, size: { min: 30, max: 40 }, lineHeight: 1.2, letterSpacing: 0.02,
+    // 30 to 40 px was too small to notice on a phone, over food (Noah's pizza Reel, 2026-11-26: "We make it" went unread
+    // for 7.9 s). Still a quiet line, now one that can be read.
+    font: { family: "serif", weight: 400 }, size: { min: 46, max: 60 }, lineHeight: 1.2, letterSpacing: 0.02,
     maxLines: 1, maxChars: 24, color: BRAND.white,
     box: SHADOW,
     align: "center", widthPct: 0.8, slot: "middle", time: { start: 0, end: 12 }, animation: "fade",

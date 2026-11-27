@@ -17,7 +17,8 @@
 
 /* The playhead glides the 33 ms between two frames instead of stepping. */
 .cbb-tl-head {
-  transition: left 40ms linear;
+  transition: transform 40ms linear;
+  will-change: transform;
 }
 /* While a cut is dragged, the others slide aside to show where it will land. */
 .cbb-tl-clip.is-shifting {
@@ -30,9 +31,12 @@
 @media (prefers-reduced-motion: reduce) {
   .sd-lift,
   .sd-lift:hover,
-  .cbb-tl-head,
   .cbb-tl-clip.is-shifting {
     transition: none;
     transform: none;
+  }
+  /* The playhead is placed with a transform, so only its glide goes. */
+  .cbb-tl-head {
+    transition: none;
   }
 }

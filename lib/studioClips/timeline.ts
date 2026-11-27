@@ -72,9 +72,12 @@ export type CaptionLike = { text: string; startMs: number; endMs: number; timest
 export function captionsForEdl(edl: Edl, words: Record<string, TranscriptWord[] | null | undefined>): CaptionLike[] {
   const out: CaptionLike[] = [];
   const cleaned = new Map<string, TranscriptWord[]>();
-  for (const s of timeline(edl).segments) {
+  // A shot whose sound is switched off says nothing: its words are not captioned (kitchen chatter the cut muted
+  // came up as captions across a food Reel, 2026-11-26). Matched by position: the timeline keeps the cut's order.
+  const muted = edl.segments.map((x) => x.volume === 0);
+  timeline(edl).segments.forEach((s, si) => {
     const said = words[s.clipId];
-    if (!said?.length) continue;
+    if (!said?.length || muted[si]) return;
     // What the caption shows: broken-off words, stutters and filler sounds tidied (lib/studioClips/captionClean.ts).
     const ws = cleaned.get(s.clipId) ?? cleaned.set(s.clipId, cleanCaptionWords(said)).get(s.clipId)!;
     // A voice carried over the next shot (an L-cut) keeps its captions.
@@ -94,7 +97,7 @@ export function captionsForEdl(edl: Edl, words: Record<string, TranscriptWord[] 
         key: captionKey(s.clipId, w.startMs),
       });
     }
-  }
+  });
   // A voiceover's words caption like anyone's (lib/studioClips/voiceover.ts), while it is on.
   const vo = edl.voiceover;
   if (vo?.on) {
@@ -196,10 +199,14 @@ export function captionPages(edl: Edl, words: Record<string, TranscriptWord[] | 
   // A page never runs across a cut, or the next shot's first word shows over this one.
   const starts = tl.segments.map((s) => (s.startFrame / fps) * 1000);
   const shotOf = (ms: number) => starts.reduce((at, s, i) => (ms >= s ? i : at), 0);
+  /** The shot each page belongs to, so a page is never left up over the shots after it. */
+  const shotOfPage: number[] = [];
   const pages = starts.flatMap((_, i) => {
     const inShot = captions.filter((c) => shotOf(c.startMs) === i);
     const made = inShot.length ? createTikTokStyleCaptions({ captions: inShot, combineTokensWithinMilliseconds: pageMs }).pages : [];
-    return maxWords > 0 ? splitPages(made, maxWords) : made;
+    const split = maxWords > 0 ? splitPages(made, maxWords) : made;
+    for (let k = 0; k < split.length; k++) shotOfPage.push(i);
+    return split;
   });
   const out: CaptionPageSpan[] = [];
   // A page is known by its first word's key, so a change made to it is found again after a trim.
@@ -207,7 +214,12 @@ export function captionPages(edl: Edl, words: Record<string, TranscriptWord[] | 
   for (const c of captions) if (c.key && !keyAt.has(c.startMs)) keyAt.set(c.startMs, c.key);
   pages.forEach((page, i) => {
     const from = Math.round((page.startMs / 1000) * fps);
-    const lastMs = Math.max(page.startMs + pageMs, ...page.tokens.map((t) => t.toMs));
+    // A page stays up for its words, and for the page length when that is longer, but only inside its own shot: the
+    // last page of a shot used to linger over the shots after it when they had no words ("jugar con" over two other
+    // clips, 2026-11-26). Its words are never cut short.
+    const wordsEndMs = Math.max(...page.tokens.map((t) => t.toMs));
+    const shotEndMs = starts[shotOfPage[i] + 1] ?? (total / fps) * 1000;
+    const lastMs = Math.max(wordsEndMs, Math.min(page.startMs + pageMs, shotEndMs));
     const next = pages[i + 1];
     const end = Math.min(next ? Math.round((next.startMs / 1000) * fps) : total, Math.round((lastMs / 1000) * fps), total);
     if (end - from > 0) out.push({ page, from, durationInFrames: end - from, key: keyAt.get(page.tokens[0]?.fromMs ?? page.startMs) ?? keyAt.get(page.startMs) ?? `page@${page.startMs}` });

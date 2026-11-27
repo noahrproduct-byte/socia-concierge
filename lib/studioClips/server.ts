@@ -30,7 +30,7 @@ import { MAX_REGENERATIONS, STUDIO_BUCKET, clipLabel } from "./types";
 import { findTakes, takesNote, type Takes } from "./takes";
 import { settleCut } from "./cutCheck";
 import { SHOT_SOUND_NOTE, muteSilentShots, shotSoundNote } from "./shotSound";
-import { applyTheme } from "./themes/apply";
+import { applyTheme, resolveTheme } from "./themes/apply";
 import { DEFAULT_THEME_ID, themeById } from "./themes";
 import { sanitizeSoundtrack } from "@/lib/music/taste";
 import { loadTrack } from "@/lib/music/tracks";
@@ -544,7 +544,7 @@ export async function regenerateBuild(client: Supa, args: { ownerId: string; wsI
   const style = pick?.id ?? row.edl.editStyle ?? "process";
   const { raw, model } = await opportunityEdl(opp, toClipInputs(ordered, urls), { ...acct, audio: acct.audio ?? (await audioLine(client, ownerId, wsId)) }, { directive, previous: row.edl }, brief ? briefText(brief) : null, null, style);
   const forEdl = rows.map(toClipForEdl);
-  const edl = shaped(raw, forEdl, acct, brief?.prompt, style, pick);
+  const edl = shaped(raw, forEdl, acct, brief?.prompt, style, pick, Boolean(brief));
   if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut with that change. Try another option.");
   // A new version keeps the look the cut had (cuts saved before styles were stored had the CapCut look).
   edl.style = row.edl.style ?? CAPCUT_STYLE;
@@ -561,8 +561,11 @@ export async function regenerateBuild(client: Supa, args: { ownerId: string; wsI
   // cut pauses belonged to the old cut.
   const kept = sanitizeFinish(row.edl.finish, new Set(edl.segments.map((s) => s.clipId)));
   if (kept && (kept.look !== "off" || kept.sound)) edl.finish = { ...kept, pausesCut: null };
-  // The new cut keeps the theme the old one had (or takes the default).
-  Object.assign(edl, withDefaultTheme(edl, forEdl, null, row.edl.theme?.id));
+  // The new cut keeps the theme the old one had (or takes the default), with the person's changes on top of it
+  // (their caption style, font and colours used to be dropped by every "make it again"), and stays without
+  // captions when they switched them off.
+  Object.assign(edl, withDefaultTheme(edl, forEdl, null, row.edl.theme?.id, row.edl.theme?.overrides));
+  if (row.edl.captionsOff) { edl.captions = null; edl.captionsOff = true; }
   const guide = guideFromEdl(edl, forEdl);
   const history = [...(row.edl_history ?? []), row.edl].slice(-HISTORY_MAX);
   const patch: Record<string, unknown> = { edl, edl_history: history, guide, caption: edl.caption || null, model, updated_at: now() };
@@ -771,7 +774,7 @@ export async function buildFromBrief(client: Supa, args: {
   const forEdl = rows.map(toClipForEdl);
   const footageSec = usable.filter((r) => opp.clipIds.includes(r.id)).reduce((a, r) => a + (r.duration_s ?? 0), 0);
   const pick = styleFor(usable.filter((r) => opp.clipIds.includes(r.id)), acct, prompt);
-  const { edl, model } = await edlWithFloor((retry) => opportunityEdl(opp, toClipInputs(usable, urls), { ...acct, audio }, undefined, briefText(brief), retry, pick.id), forEdl, footageSec, acct, pick, prompt);
+  const { edl, model } = await edlWithFloor((retry) => opportunityEdl(opp, toClipInputs(usable, urls), { ...acct, audio }, undefined, briefText(brief), retry, pick.id), forEdl, footageSec, acct, pick, prompt, true);
   if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut from that. Make the brief more specific, or add clips.");
   // Every distinct clip the person gave is in the cut while there is room for it, and the cut is long enough to be a post.
   const filled = fillCut(edl.segments, usable.map((r) => ({ id: r.id, position: r.position, durationSec: r.duration_s ?? 0, moments: r.card?.moments ?? [] })), briefFloorSec(footageSec), { maxSec: edl.targetSec.max, skip: new Set(takes.repeats.keys()) });
@@ -809,11 +812,11 @@ function takesOf(rows: ClipRow[]): Takes {
  * none drags, the ending lands, every line is readable. One note says how
  * many moved; the person's own edits are never paced this way.
  */
-function paced(edl: Edl, forEdl: ClipForEdl[], _asked?: string | null): Edl {
+function paced(edl: Edl, forEdl: ClipForEdl[], briefed = false): Edl {
   // House style first (lib/studioClips/houseStyle.ts): the genre's length,
   // transitions, one-take and before/after shape, the ask off screen, the
   // opening line from 0 s. Then pacing inside what is left.
-  const house = applyHouseStyle(edl, forEdl);
+  const house = applyHouseStyle(edl, forEdl, { briefed });
   const { edl: out, changes } = applyPacing(house.edl, forEdl);
   if (house.changes.length) out.notes = [...out.notes, `SOCIA cut this as a ${(house.edl.genre ?? "").replace(/_/g, " ")}: ${house.changes.map((c) => c.what).join(" ")}`];
   if (changes.length) out.notes = [...out.notes, `SOCIA paced the cut: ${changes.length} change${changes.length === 1 ? "" : "s"} so cuts start on the action, nothing drags and every line can be read.`];
@@ -838,8 +841,8 @@ function styleFor(rows: ClipRow[], acct: AccountContext, prompt: string | null |
 const STYLE_NOTE = /^SOCIA edited this as/;
 
 /** The model's cut made real, in its editing style: validated, paced, held to what Noah taught, then finished. `pick` adds the note saying which style and why. */
-function shaped(raw: RawEdl, forEdl: ClipForEdl[], acct: AccountContext, asked: string | null | undefined, style: EditStyleId, pick: StylePick | null): Edl {
-  const edl = finishCut(taught(paced(textForStyle({ ...validateEdl(raw, forEdl).edl, editStyle: style }), forEdl, asked), raw, acct, forEdl), forEdl, asked);
+function shaped(raw: RawEdl, forEdl: ClipForEdl[], acct: AccountContext, asked: string | null | undefined, style: EditStyleId, pick: StylePick | null, briefed = false): Edl {
+  const edl = finishCut(taught(paced(textForStyle({ ...validateEdl(raw, forEdl).edl, editStyle: style }), forEdl, briefed), raw, acct, forEdl), forEdl, asked);
   // The words the captions highlight: the model's marks that were really said, then numbers and names (lib/studioClips/emphasis.ts).
   const emphasis = pickEmphasis(edl, Object.fromEntries(forEdl.map((c) => [c.id, c.words])), raw.emphasis);
   if (emphasis.length) edl.emphasis = emphasis;
@@ -894,17 +897,20 @@ function finishCut(edl: Edl, forEdl: ClipForEdl[], asked?: string | null, opts: 
  * a reference video keeps that style on top. Until this (2026-11-13) a cut from a brief had no theme at
  * all and rendered plain: no caption look, no motion, every join as the model left it.
  */
-function withDefaultTheme(edl: Edl, forEdl: ClipForEdl[], keepStyle?: EdlStyle | null, themeId?: string | null): Edl {
+function withDefaultTheme(edl: Edl, forEdl: ClipForEdl[], keepStyle?: EdlStyle | null, themeId?: string | null, overrides?: NonNullable<Edl["theme"]>["overrides"]): Edl {
   const theme = themeById(themeId ?? edl.theme?.id) ?? themeById(DEFAULT_THEME_ID);
   if (!theme) return edl;
   const words = Object.fromEntries(forEdl.map((c) => [c.id, c.words]));
-  const themed = applyTheme(edl, theme, { words });
+  // The person's changes on top of the theme (only for the theme they were made on) are applied with it and stay recorded.
+  const mine = overrides && Object.keys(overrides).length && themeById(themeId)?.id === theme.id ? { id: theme.id, overrides } : null;
+  const resolved = mine ? resolveTheme({ theme: mine }) ?? theme : theme;
+  const themed = mine ? { ...applyTheme(edl, resolved, { words }), theme: mine } : applyTheme(edl, theme, { words });
   return keepStyle ? { ...themed, style: keepStyle } : themed;
 }
 
-async function edlWithFloor(make: (retry: string | null) => Promise<{ raw: RawEdl; model: string }>, forEdl: ClipForEdl[], footageSec: number, acct: AccountContext, pick: StylePick, asked?: string | null): Promise<{ edl: Edl; model: string }> {
+async function edlWithFloor(make: (retry: string | null) => Promise<{ raw: RawEdl; model: string }>, forEdl: ClipForEdl[], footageSec: number, acct: AccountContext, pick: StylePick, asked?: string | null, briefed = false): Promise<{ edl: Edl; model: string }> {
   const first = await make(null);
-  let edl = shaped(first.raw, forEdl, acct, asked, pick.id, pick);
+  let edl = shaped(first.raw, forEdl, acct, asked, pick.id, pick, briefed);
   let model = first.model;
   const len = edlDurationSec(edl);
   // A genre with a short band (a 7 s one-take skit, a 7–14 s food reel) is not "too short".
@@ -912,7 +918,7 @@ async function edlWithFloor(make: (retry: string | null) => Promise<{ raw: RawEd
   const floor = Math.min(10, genreMin, footageSec * 0.5);
   if (footageSec >= 6 && len < floor) {
     const again = await make(`Your first cut was only ${len.toFixed(1)} seconds long, from ${Math.round(footageSec)} seconds of footage. That is far too short. Make a cut of at least ${Math.ceil(floor)} seconds that uses all the clips.`);
-    const second = shaped(again.raw, forEdl, acct, asked, pick.id, pick);
+    const second = shaped(again.raw, forEdl, acct, asked, pick.id, pick, briefed);
     if (edlDurationSec(second) > len) { edl = second; model = again.model; }
   }
   return { edl, model };

@@ -8,7 +8,7 @@
 // captions on/off, undo/redo. The video is rendered HERE
 // in the browser (WebCodecs) and saved as a DRAFT post — nothing is scheduled
 // or published without the person doing it in Create Post.
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Player, type PlayerRef } from "@remotion/player";
 import { ChevronLeft, Save, ArrowUp, ArrowDown, Trash2, Captions, Info, RefreshCw, Loader2, AlertTriangle, Clapperboard, ArrowRight, Check, Music, Crop, SkipBack, SkipForward, Palette, Volume2, VolumeX, Type, Download, X, Layers, Scissors, SlidersHorizontal, MessageSquare } from "lucide-react";
@@ -46,6 +46,7 @@ import { MAX_WITH_FINDINGS, pacingReport, pacingRules } from "@/lib/studioClips/
 import { EDIT_STYLES, EDIT_STYLE_IDS, isEditStyle, type EditStyleId } from "@/lib/studioClips/profiles";
 import { checkCut, CHECK_LABEL } from "@/lib/studioClips/cutCheck";
 import { renderFaults, type RenderReport } from "@/lib/studioClips/renderCheck";
+import { isGraphicsLost, renderErrorCopy } from "@/lib/studioClips/renderErrors";
 import { emphasisLabels, pickEmphasis } from "@/lib/studioClips/emphasis";
 import { inspectRender } from "@/lib/studioClips/inspectRender";
 import { bestMomentFor } from "@/lib/studioClips/rank";
@@ -56,9 +57,11 @@ import { DEFAULT_THEME_ID, themeById, type Theme } from "@/lib/studioClips/theme
 import { muteSilentShots } from "@/lib/studioClips/shotSound";
 import AskPanel from "./AskPanel";
 import { applyTheme, resetToTheme, resolveTheme, setThemeOverride } from "@/lib/studioClips/themes/apply";
-import { autoEdit } from "@/lib/studioClips/themes/autoEdit";
+import { autoEdit, captionsForSpeech } from "@/lib/studioClips/themes/autoEdit";
 import { remotionLicenseKey } from "@/lib/studioClips/renderLicense";
 import { exportProps, previewProps } from "@/lib/studioClips/renderProps";
+import { preloadOrder } from "@/lib/studioClips/preload";
+import { usePreloadMedia } from "./usePreloadMedia";
 import "@/app/(app)/studio/studio.css";
 import "@/app/(app)/studio/studio-motion.css";
 import "@/app/(app)/dashboard/dashboard.css";
@@ -167,6 +170,10 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   const [regen, setRegen] = useState<RegenerateDirective | null>(null);
   const [regenErr, setRegenErr] = useState<string | null>(null);
   const [exp, setExp] = useState<ExportState>({ phase: "idle", progress: 0, message: null, postId: null });
+  // The finished file's object URL is freed when another export replaces it and when the editor closes (each one
+  // held the whole video in memory until the tab was closed).
+  const expUrl = exp.url;
+  useEffect(() => () => { if (expUrl) URL.revokeObjectURL(expUrl); }, [expUrl]);
   // The stage: the preview, the timeline under it, the tools under that. One tool is open at a time as a panel
   // (a timeline selection opens the tool for it); none open is the clean stage.
   const [section, setSection] = useState<Panel | null>(initialPanel ? PANEL_FOR[initialPanel] ?? null : null);
@@ -252,8 +259,12 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
       setData((d) => {
         if (!d) return j;
         const old = new Map(d.sources.map((x) => [x.clipId, x]));
-        const sources = j.sources.map((n) => { const o = old.get(n.clipId); return o ? { ...o, words: n.words, moments: n.moments, hasAudio: n.hasAudio, transcribing: n.transcribing } : n; });
-        return { ...d, sources };
+        // A clip nothing changed for keeps its own object, and a poll that changed nothing changes no state: every
+        // poll used to hand the player new sources, so the whole preview was laid out again every five seconds.
+        const same = (o: BuildSource, n: BuildSource) => o.hasAudio === n.hasAudio && o.transcribing === n.transcribing && JSON.stringify(o.moments ?? null) === JSON.stringify(n.moments ?? null)
+          && (o.words === n.words || (Boolean(o.words) === Boolean(n.words) && (o.words?.length ?? 0) === (n.words?.length ?? 0) && JSON.stringify(o.words?.[o.words.length - 1] ?? null) === JSON.stringify(n.words?.[n.words.length - 1] ?? null)));
+        const sources = j.sources.map((n) => { const o = old.get(n.clipId); return !o ? n : same(o, n) ? o : { ...o, words: n.words, moments: n.moments, hasAudio: n.hasAudio, transcribing: n.transcribing }; });
+        return sources.length === d.sources.length && sources.every((x, i) => x === d.sources[i]) ? d : { ...d, sources };
       });
       return true;
     }
@@ -285,8 +296,10 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     if (!data || fixture) return;
     const has = data.sources.some((x) => x.words?.length);
     const cur = edlRef.current;
-    if (has && cur && !cur.captions && !cur.captionsOff && cur.segments.some((sg) => data.sources.find((x) => x.clipId === sg.clipId)?.words?.length)) {
-      const next = { ...cur, captions: { source: "transcript" as const } };
+    // Only for speech that is in the cut and heard (a few words inside the trims of shots whose sound is on), and
+    // never against the look: background talk in a muted clip used to put captions over a whole food Reel.
+    const next = has && cur ? captionsForSpeech(cur, resolveTheme(cur), Object.fromEntries(data.sources.map((x) => [x.clipId, x.words]))) : cur;
+    if (cur && next && next !== cur) {
       edlRef.current = next; setEdl(next); setDirty(true);
       if (hadWords.current === false) setHereNote("The words are in: captions are on from the transcript.");
     }
@@ -362,7 +375,9 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.canEdit, edl == null, sourceCount]);
 
-  const sources = useMemo(() => Object.fromEntries((data?.sources ?? []).map((s) => [s.clipId, s])) as Record<string, BuildSource>, [data]);
+  // Keyed on the clips themselves: a save or an export changes `data` (the build row) but not the clips, and the player must not be laid out again for it.
+  const dataSources = data?.sources;
+  const sources = useMemo(() => Object.fromEntries((dataSources ?? []).map((s) => [s.clipId, s])) as Record<string, BuildSource>, [dataSources]);
   const tl = useMemo(() => (edl ? timeline(edl) : null), [edl]);
   const tlRef = useRef(tl);
   tlRef.current = tl;
@@ -536,12 +551,21 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   // silences, the B-roll pacing, the beat) runs from the clips' own words and goes in as the same undo step.
   const applyCtx = useMemo(() => ({ words: Object.fromEntries(Object.values(sources).map((x) => [x.clipId, x.words])) }), [sources]);
   const theme = useMemo(() => (edl ? resolveTheme(edl) : null), [edl]);
+  // Picking a theme changes how the cut looks and nothing else: the shots, their order, their lengths and every
+  // word on screen stay (Noah, 2026-11-26: a theme click re-edited the video and replaced the text). Picking the
+  // theme the cut is already in changes nothing, so the person's own changes on top are not lost to a second tap.
   const applyThemeHere = (t: Theme) => {
     if (!edl) return;
-    const themed = applyTheme(edl, t, applyCtx);
-    const r = autoEdit(themed, t, { clips: clipsForEdl(sources), words: applyCtx.words, beat, sources });
+    if (edl.theme?.id === t.id) { setHereNote(`${t.name} is already on. Reset to theme takes your changes on top of it back.`); return; }
+    commit(captionsForSpeech(applyTheme(edl, t, applyCtx), t, applyCtx.words));
+    setHereNote(`${t.name} applied: the look, the motion and the joins. Your shots and words are as they were.`);
+  };
+  /** The theme's own edit of the cut (the hook first, dead air out, the theme's shot length, cuts on the beat): asked for, never a side effect. */
+  const recutInTheme = () => {
+    if (!edl || !theme) return;
+    const r = autoEdit(edl, theme, { clips: clipsForEdl(sources), words: applyCtx.words, beat, sources });
     commit(r.edl);
-    setHereNote(r.notes.length ? r.notes.join(" ") : `${t.name} applied.`);
+    setHereNote(r.notes.length ? r.notes.join(" ") : `${theme.name} found nothing to change in the cut.`);
   };
   const resetThemeHere = () => { if (edl) commit(resetToTheme(edl, applyCtx)); };
   const override = (patch: Record<string, unknown>) => { if (edl?.theme) commit(setThemeOverride(edl, patch, applyCtx)); };
@@ -688,7 +712,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   const failExport = (e: unknown) => {
     clearLocalExport(buildId);
     if ((e as Error)?.name === "AbortError") { setExp({ phase: "idle", progress: 0, message: null, postId: null }); return; }
-    setExp({ phase: "error", progress: 0, message: (e as Error)?.message?.replace(/^Upload failed: /, "") || "The video couldn't be made this time. Your edit is saved; try again, and if it keeps failing open SOCIA in Chrome or Edge on a computer.", postId: null });
+    setExp({ phase: "error", progress: 0, message: renderErrorCopy(e), postId: null });
   };
 
   const exportVideo = async (resume?: { path: string }) => {
@@ -747,7 +771,15 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
         setExp({ phase: "inspecting", progress: 1, message, postId: null });
         return inspectRender(b, toRender, expect, ctrl.signal);
       };
-      let blob = await render(null);
+      // The browser can drop its graphics context mid-render: one more try before the person is told (lib/studioClips/renderErrors.ts).
+      const firstTry = async () => {
+        try { return await render(null); } catch (e) {
+          if (!isGraphicsLost(e) || ctrl.signal.aborted) throw e;
+          await new Promise((r) => setTimeout(r, 1200));
+          return render("The browser's graphics hiccuped, so SOCIA is making it once more.");
+        }
+      };
+      let blob = await firstTry();
       let report = await inspect(blob, null);
       if (renderFaults(report).length) {
         const again = `The first try had a problem (${renderFaults(report)[0].detail.replace(/\.$/, "")}), so SOCIA is making it once more.`;
@@ -793,7 +825,8 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     const segs = tlRef.current?.segments ?? [];
     let i = segs.findIndex((x) => sec >= x.startSec && sec < x.startSec + x.durationFrames / OUTPUT.fps);
     if (i < 0) i = segs.length - 1;
-    if (i !== playCut.current) { playCut.current = i; setPlaySec(sec); }
+    // A transition: the tree is drawn again between frames instead of blocking one, so entering a cut doesn't hitch the picture.
+    if (i !== playCut.current) { playCut.current = i; startTransition(() => setPlaySec(sec)); }
   }, []);
   const select = (next: TimelineSelection) => { setSel(next); if (next?.kind === "text" || next?.kind === "caption") setPanel("words"); else if (next?.kind === "cut" || next?.kind === "broll") setPanel("cut"); };
   // ---- captions styled one at a time (lib/studioClips/captionMotion.ts) ----
@@ -818,7 +851,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     const { captionOverrides: _o, ...rest } = edl; void _o;
     const base: Edl = Object.keys(all).length ? { ...rest, captionOverrides: all } : rest;
     if (!base.theme) commit({ ...base, style: { ...st, font: next.font, textBox: next.textBox, captions: next.captions } });
-    else commit(setThemeOverride(base, { typography: { font: next.font, textBox: next.textBox, captionPreset: id, captionPosition: next.captions.position, sizeScale: next.captions.size === "s" ? 0.85 : next.captions.size === "l" ? 1.2 : 1, pill: next.captions.box, transform: next.captions.uppercase ? "upper" : "none", highlight: next.captions.highlight } }, applyCtx));
+    else commit(setThemeOverride(base, { typography: { font: next.font, textBox: next.textBox, captionPreset: id, captionPosition: next.captions.position, sizeScale: next.captions.size === "s" ? 0.85 : next.captions.size === "l" ? 1.2 : 1, pill: next.captions.box, transform: next.captions.uppercase ? "upper" : "none", highlight: next.captions.highlight, captionAnimation: captionStyle(id).animation } }, applyCtx));
     setStyleNote(`${captionStyle(id).label} captions: ${captionStyle(id).hint}`);
   };
   /** Play the picked caption in the preview (or the captions from the first one). */
@@ -897,11 +930,37 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // The cut's clips are fetched ahead so the preview plays from memory (lib/studioClips/preload.ts): each shot used
+  // to start cold from storage and the player froze at the cut waiting for it. A clip is switched to its in-memory
+  // copy only while the player is paused (a source that changes under a waiting player never recovers); the export
+  // keeps reading the originals.
+  const preloadUrls = useMemo(() => (edl ? preloadOrder(edl, sources) : []), [edl, sources]);
+  const fetched = usePreloadMedia(preloadUrls, () => Boolean(player.current?.isPlaying()));
+  const [inMemory, setInMemory] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const p = player.current;
+    if (!p || !p.isPlaying()) { setInMemory(fetched); return; }
+    const adopt = () => setInMemory(fetched);
+    p.addEventListener("pause", adopt);
+    p.addEventListener("ended", adopt);
+    return () => { p.removeEventListener("pause", adopt); p.removeEventListener("ended", adopt); };
+  }, [fetched]);
+  const previewSources = useMemo(() => {
+    let swapped = false;
+    const out: Record<string, BuildSource> = {};
+    for (const [id, src] of Object.entries(sources)) {
+      // Only a copy that is still held (a clip taken out of the cut gives its copy up).
+      const copy = inMemory[src.url];
+      if (copy && fetched[src.url] === copy) { out[id] = { ...src, url: copy }; swapped = true; } else out[id] = src;
+    }
+    return swapped ? out : sources;
+  }, [sources, inMemory, fetched]);
+
   // The watermark slot: SOCIA's own mark on SOCIA's theme; any other brand's mark would have to be the account's own (not stored yet), so the slot stays empty.
   const watermarkUrl = edl?.theme?.id === "socia-brand" ? "/brand/socia-mark.png" : null;
   // The preview's props come from the same builder as the export's (lib/studioClips/renderProps.ts): the parity test keeps them one.
   // Hooks run before the loading guard below: with no cut yet (a build still loading from the server) there are no props.
-  const playerProps = useMemo(() => (edl ? previewProps({ edl, sources, musicUrl, voiceUrls, cleanAudio, watermarkUrl, beat, finishOn: compare === "after", guide }) : null), [edl, sources, compare, musicUrl, voiceUrls, cleanAudio, guide, watermarkUrl, beat]);
+  const playerProps = useMemo(() => (edl ? previewProps({ edl, sources: previewSources, musicUrl, voiceUrls, cleanAudio, watermarkUrl, beat, finishOn: compare === "after", guide }) : null), [edl, previewSources, compare, musicUrl, voiceUrls, cleanAudio, guide, watermarkUrl, beat]);
 
   // -------------------------------------------------------------- render ----
   if (planError) return <div className="cbb"><button type="button" className="cb-back" onClick={onBack}><ChevronLeft size={14} /> Back to the guide</button><div className="ov-card st-error"><span className="st-error-ico"><AlertTriangle size={16} /></span><div><PlanNotice error={planError} compact /></div></div></div>;
@@ -1122,7 +1181,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
         {section === "theme" && (
           <section className="sd-tool-body" aria-labelledby="sd-tool-theme">
           {(
-            <ThemesPanel edl={edl} sources={sources} ctx={applyCtx} canEdit={data.canEdit} busy={busy} onApply={applyThemeHere} onReset={resetThemeHere} />
+            <ThemesPanel edl={edl} sources={previewSources} ctx={applyCtx} canEdit={data.canEdit} busy={busy} onApply={applyThemeHere} onReset={resetThemeHere} onRecut={recutInTheme} />
           )}
           </section>
         )}
@@ -1351,7 +1410,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                 <b>Caption style</b>
                 <div className="cbb-capstyles" role="radiogroup" aria-label="Caption style">
                   {CAPTION_STYLES.map((c) => (
-                    <button key={c.id} type="button" role="radio" aria-checked={st.captions.preset === c.id} className={`cbb-capstyle is-${c.id}${st.captions.preset === c.id ? " on" : ""}`} disabled={!data.canEdit || busy} onClick={() => { const next = withCaptionStyle(st, c.id); styleChange({ font: next.font, textBox: next.textBox, captions: next.captions }); setStyleNote(`${c.label} captions: ${c.hint}`); }}>
+                    <button key={c.id} type="button" role="radio" aria-checked={st.captions.preset === c.id} className={`cbb-capstyle is-${c.id}${st.captions.preset === c.id ? " on" : ""}`} disabled={!data.canEdit || busy} onClick={() => { const next = withCaptionStyle(st, c.id); styleChange({ font: next.font, textBox: next.textBox, captions: { ...next.captions, animation: c.animation } }); setStyleNote(`${c.label} captions: ${c.hint}`); }}>
                       <span className="cbb-capstyle-demo" aria-hidden style={{ "--cap-hi": st.captions.highlight } as React.CSSProperties}><i>know</i> <em>what</em> <i>to post</i></span>
                       <span className="cbb-capstyle-name">{c.label}</span>
                     </button>

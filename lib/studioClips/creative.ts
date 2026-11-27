@@ -21,6 +21,7 @@ import { directionFor } from "./editDirection";
 import { CAPTION_ANIMATIONS, CAPTION_STYLES, type CaptionAnimation, type CaptionStyleId } from "./style";
 import { ASPECTS, TRANSITIONS, type TransitionKind } from "./types";
 import { PROMPT_MAX } from "./reference";
+import { VOICE_WPS } from "./voiceover";
 
 export const PACES = [["auto", "SOCIA decides"], ["calm", "Calm"], ["steady", "Steady"], ["fast", "Fast"]] as const;
 export const FOCUSES = [["auto", "SOCIA decides"], ["person", "The person talking"], ["screen", "The product or screen"], ["balanced", "Both"]] as const;
@@ -211,6 +212,19 @@ export function composeBrief(prompt: string, c: Creative, max: number = PROMPT_M
   const p = prompt.trim();
   const cut = p.length > room ? p.slice(0, Math.max(0, room)).replace(/\s+\S*$/, "") : p;
   return `${cut}${cut && add ? "\n\n" : ""}${add}`.slice(0, max);
+}
+
+/**
+ * The line that tells the cut how long an approved voiceover script runs, so the video is long enough for every
+ * line to be heard (2026-11-26: a 57-word script, about 23 seconds aloud, was laid over an 11 second cut). Empty
+ * when there is no real script, or when the person chose a length themselves: their choice stands, and the
+ * voiceover step says what did not fit.
+ */
+export function voiceLengthAsk(script: string, chosenSec?: number | null): string {
+  const n = script.trim().split(/\s+/).filter(Boolean).length;
+  if (n < 6 || chosenSec) return "";
+  const sec = Math.ceil(n / VOICE_WPS) + 1;
+  return `A voiceover of about ${n} words is read over this video, which takes about ${sec} seconds aloud: make the video at least ${sec} seconds long so every line is heard.`;
 }
 
 /** The theme overrides for the look settings (setThemeOverride's patch), or null when every one is the style's own. */

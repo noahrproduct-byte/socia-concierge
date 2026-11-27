@@ -77,6 +77,8 @@ describe("the graphics and the beat", () => {
     expect(same.edl.segments).toEqual(made.segments);
     const other = quickLook(made, themeById("bold-hook")!, [src]);
     expect(other.edl.theme?.id).toBe("bold-hook");
+    // Another look changes how the cut looks, never what is in it: the shots SOCIA chose from the brief stay.
+    expect(other.edl.segments.map((s) => [s.clipId, s.in, s.out])).toEqual(made.segments.map((s) => [s.clipId, s.in, s.out]));
   });
 
   it("counts a cut from several clips against all the footage", () => {

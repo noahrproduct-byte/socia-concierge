@@ -11,6 +11,10 @@ import { renderFaults, type RenderReport } from "@/lib/studioClips/renderCheck";
 import { inspectRender } from "@/lib/studioClips/inspectRender";
 import { remotionLicenseKey } from "@/lib/studioClips/renderLicense";
 import { exportProps } from "@/lib/studioClips/renderProps";
+import { isGraphicsLost } from "@/lib/studioClips/renderErrors";
+import { beatFromStart } from "@/lib/studioClips/beats";
+import { beatOfTrack } from "@/lib/studioClips/beatClient";
+import { CAPTION_MOTIONS } from "@/lib/studioClips/captionMotion";
 
 /** Why this browser can't render, or null when it can. */
 export async function renderBlocker(width: number, height: number): Promise<string | null> {
@@ -36,7 +40,13 @@ export async function renderBuild(data: BuildPlayerData, opts: { signal?: AbortS
   const { renderMediaOnWeb } = await import("@remotion/web-renderer");
   // Background noise reduced first, as in the editor (clips that can't be cleaned keep their own sound).
   const cleanAudio = edl.cleanSound ? await cleanSounds(Array.from(new Set(edl.segments.map((s) => s.clipId))).map((id) => ({ clipId: id, url: sources[id].url }))) : {};
-  const props = exportProps({ edl, sources, musicUrl: edl.soundtrack ? data.music?.[edl.soundtrack.trackId] ?? null : null, voiceUrls: data.voice ?? {}, cleanAudio, watermarkUrl: edl.theme?.id === "socia-brand" ? "/brand/socia-mark.png" : null });
+  const musicUrl = edl.soundtrack ? data.music?.[edl.soundtrack.trackId] ?? null : null;
+  // The beat of the cut's music, measured as the editor measures it, for the caption style that lands on it: without
+  // it this render timed those captions differently from the editor's preview and its own Export.
+  const usesBeat = Boolean(edl.captions) && [edl.style?.captions.preset, ...Object.values(edl.captionOverrides ?? {}).map((o) => o.preset)].some((id) => CAPTION_MOTIONS.some((m) => m.id === id && m.beats));
+  const measured = usesBeat && musicUrl ? await beatOfTrack(musicUrl).catch(() => null) : null;
+  const beat = measured ? beatFromStart(measured, edl.soundtrack?.startSec ?? 0) : null;
+  const props = exportProps({ edl, sources, musicUrl, voiceUrls: data.voice ?? {}, cleanAudio, watermarkUrl: edl.theme?.id === "socia-brand" ? "/brand/socia-mark.png" : null, beat });
   const once = async () => {
     const { getBlob } = await renderMediaOnWeb({
       composition: { id: "socia-clip-build", component: ClipComposition, durationInFrames: tl.durationFrames, fps: OUTPUT.fps, width: edl.width, height: edl.height, defaultProps: props, calculateMetadata: null },
@@ -53,7 +63,16 @@ export async function renderBuild(data: BuildPlayerData, opts: { signal?: AbortS
   const speaks = edl.segments.some((s) => sources[s.clipId]?.words?.length);
   const voiced = Boolean(edl.voiceover?.on && edl.voiceover.lines.some((l) => l.path && props.voiceUrls[l.path]));
   const expect = { sound: Boolean(props.musicUrl) || speaks || voiced, music: Boolean(props.musicUrl) };
-  let blob = await once();
+  // The browser can drop its graphics context mid-render (other tabs playing video, a busy graphics card): the
+  // render is tried once more after a breath before the person is told (lib/studioClips/renderErrors.ts).
+  const withRetry = async () => {
+    try { return await once(); } catch (e) {
+      if (!isGraphicsLost(e) || opts.signal?.aborted) throw e;
+      await new Promise((r) => setTimeout(r, 1200));
+      return once();
+    }
+  };
+  let blob = await withRetry();
   let report = await inspectRender(blob, edl, expect, opts.signal);
   if (renderFaults(report).length) {
     blob = await once();

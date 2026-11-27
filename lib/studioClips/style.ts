@@ -133,9 +133,10 @@ export const CAPCUT_STYLE: EdlStyle = { font: "montserrat", accent: "#5b4bd6", t
 /** A style with a caption style applied: the style's own font, case, position and box, everything else kept. */
 export function withCaptionStyle(style: EdlStyle, id: CaptionStyleId): EdlStyle {
   const d = CAPTION_STYLE_DEFAULTS[id];
-  // A motion preset brings its own colour and drops a page animation set for another style; the person changes both after.
+  // Every style comes in with its own motion: a page animation set for the style before would otherwise ride along
+  // (picking Karaoke kept the last style's bounce). A motion preset also brings its own colour. The person changes both after.
   const { animation: _a, ...rest } = style.captions; void _a;
-  const captions = d.highlight ? { ...rest, ...d.captions, preset: id, highlight: d.highlight } : { ...style.captions, ...d.captions, preset: id };
+  const captions = d.highlight ? { ...rest, ...d.captions, preset: id, highlight: d.highlight } : { ...rest, ...d.captions, preset: id };
   return { ...style, font: d.font, textBox: d.textBox, captions };
 }
 

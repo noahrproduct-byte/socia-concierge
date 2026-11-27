@@ -82,11 +82,17 @@ export default function Timeline({
 }) {
   const scroller = useRef<HTMLDivElement>(null);
   const area = useRef<HTMLDivElement>(null);
-  const [now, setNow] = useState(0);
-  // The playhead moves on every frame straight on the element; React state (the readout and snapping) follows at 10 Hz.
+  // Nothing here is React state while the video plays: the playhead (a transform, so the browser moves it without
+  // laying the timeline out again) and the time readout are written straight to their elements. Until 2026-11-26 the
+  // time was state, so the whole timeline (every cut, caption and line on it) was drawn again ten times a second
+  // during playback, and the playhead animated `left`, which is layout work on every frame.
   const head = useRef<HTMLSpanElement>(null);
+  const timeEl = useRef<HTMLSpanElement>(null);
   const nowRef = useRef(0);
   const lastTick = useRef(0);
+  const areaWRef = useRef(0);
+  const placeHead = (t: number) => { if (head.current) head.current.style.transform = `translateX(${(Math.min(Math.max(t, 0), dRef.current) / dRef.current) * areaWRef.current}px)`; };
+  const showTime = (t: number) => { const n = timeEl.current?.firstChild; if (n) n.nodeValue = fmtTenths(t); };
   const [playing, setPlaying] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [ghost, setGhost] = useState<{ index: number; dx: number; to: number } | null>(null);
@@ -94,6 +100,8 @@ export default function Timeline({
   const [areaW, setAreaW] = useState(0);
   const drag = useRef<Drag | null>(null);
   const d = Math.max(0.1, tracks.duration);
+  const dRef = useRef(d);
+  dRef.current = d;
   const pct = (t: number) => `${(Math.min(Math.max(t, 0), d) / d) * 100}%`;
   const width = (a: number, b: number) => `${(Math.max(0, b - a) / d) * 100}%`;
   const pps = () => (area.current?.getBoundingClientRect().width ?? 0) / d;
@@ -101,7 +109,7 @@ export default function Timeline({
   useEffect(() => {
     const el = area.current;
     if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(([e]) => setAreaW(e.contentRect.width));
+    const ro = new ResizeObserver(([e]) => { areaWRef.current = el.clientWidth; placeHead(nowRef.current); setAreaW(e.contentRect.width); });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -112,9 +120,9 @@ export default function Timeline({
     const onFrame = (e: { detail: { frame: number } }) => {
       const t = e.detail.frame / fps;
       nowRef.current = t;
-      if (head.current) head.current.style.left = `${(Math.min(Math.max(t, 0), d) / d) * 100}%`;
+      placeHead(t);
       const at = performance.now();
-      if (at - lastTick.current >= 100 || !p.isPlaying()) { lastTick.current = at; setNow(t); onTime?.(t); }
+      if (at - lastTick.current >= 100 || !p.isPlaying()) { lastTick.current = at; showTime(t); onTime?.(t); }
       // Zoomed in and playing: keep the playhead in view.
       const sc = scroller.current, ar = area.current;
       if (!sc || !ar || sc.scrollWidth <= sc.clientWidth) return;
@@ -140,13 +148,25 @@ export default function Timeline({
     const r = area.current?.getBoundingClientRect();
     return r && r.width ? Math.min(Math.max(0, ((clientX - r.left) / r.width) * d), d) : 0;
   };
+  // Scrubbing: the playhead follows the pointer at once; the player is asked for a frame once per screen frame, not
+  // once per pointer event (a fast drag sent hundreds of seeks a second, each one a video seek the browser had to drop).
+  const seekRaf = useRef(0);
+  const seekTo = useRef<number | null>(null);
+  useEffect(() => () => { if (seekRaf.current) cancelAnimationFrame(seekRaf.current); }, []);
   const seek = (clientX: number) => {
     const t = secAt(clientX);
-    player.current?.seekTo(Math.min(Math.round(t * fps), Math.max(0, Math.round(d * fps) - 1)));
     nowRef.current = t;
-    if (head.current) head.current.style.left = pct(t);
-    setNow(t);
+    placeHead(t);
+    showTime(t);
     onTime?.(t);
+    seekTo.current = Math.min(Math.round(t * fps), Math.max(0, Math.round(d * fps) - 1));
+    if (seekRaf.current) return;
+    seekRaf.current = requestAnimationFrame(() => {
+      seekRaf.current = 0;
+      const f = seekTo.current;
+      seekTo.current = null;
+      if (f != null) player.current?.seekTo(f);
+    });
   };
 
   // ---- pointer -----------------------------------------------------------
@@ -205,7 +225,7 @@ export default function Timeline({
       const b = tracks.broll[g.index];
       const len = b.end - b.start;
       const delta = (e.clientX - g.x0) / Math.max(1, g.pps);
-      const targets = [0, now, ...tracks.video.map((v) => v.end)];
+      const targets = [0, nowRef.current, ...tracks.video.map((v) => v.end)];
       const tol = SNAP_PX / Math.max(1, g.pps);
       const at = snapTo(moveSpan(g.at0, g.at0 + len, delta, d).at, targets, tol);
       onBrollLive?.(g.index, Math.min(Math.max(0, at), Math.max(0, d - len)));
@@ -213,7 +233,7 @@ export default function Timeline({
     }
     if (g.kind === "text") {
       const delta = (e.clientX - g.x0) / Math.max(1, g.pps);
-      const targets = [0, d, now, ...tracks.video.map((v) => v.end)];
+      const targets = [0, d, nowRef.current, ...tracks.video.map((v) => v.end)];
       const tol = SNAP_PX / Math.max(1, g.pps);
       if (g.mode === "move") {
         const next = moveSpan(g.at0, g.end0, delta, d);
@@ -281,7 +301,7 @@ export default function Timeline({
         <button type="button" className="cbb-tl-btn" onClick={() => player.current?.toggle()} aria-label={playing ? "Pause" : "Play"} title={playing ? "Pause (Space)" : "Play (Space)"}>
           {playing ? <Pause size={14} aria-hidden /> : <Play size={14} aria-hidden />}
         </button>
-        <span className="cbb-tl-time" aria-live="off">{fmtTenths(now)} <span>/ {fmtTenths(d)}</span></span>
+        <span className="cbb-tl-time" aria-live="off"><span ref={timeEl}>{fmtTenths(nowRef.current)}</span> <span>/ {fmtTenths(d)}</span></span>
         <span className="cbb-tl-sep" aria-hidden />
         <button type="button" className="cbb-tl-btn" onClick={onSplit} disabled={!canEdit} title="Split at the playhead (S)">
           <Scissors size={14} aria-hidden /> <span>Split</span>
@@ -410,7 +430,7 @@ export default function Timeline({
                 ))}
               </div>
             )}
-            <span className="cbb-tl-head" ref={head} style={{ left: pct(now) }} aria-hidden />
+            <span className="cbb-tl-head" ref={head} style={{ left: 0, transform: `translateX(${(Math.min(Math.max(nowRef.current, 0), d) / d) * areaW}px)` }} aria-hidden />
           </div>
         </div>
       </div>

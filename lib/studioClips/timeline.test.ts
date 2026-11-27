@@ -114,3 +114,25 @@ describe("caption pages by word count", () => {
     expect(splitPages([page], 5)).toEqual([page]);
   });
 });
+
+describe("captions stay with their own shot (Noah's pizza Reel, 2026-11-26)", () => {
+  const base = { version: 1, fps: 30, width: 1080, height: 1920, targetSec: { min: 5, max: 30 }, text: [], enhance: [], audio: [], cta: null, music: null, caption: "", notes: [] };
+  const seg = (id: string, clipId: string, out: number, more: Record<string, unknown> = {}) => ({ id, clipId, in: 0, out, role: "body" as const, note: "", ...more });
+  const chatter = [{ text: "jugar", startMs: 1900, endMs: 2200, confidence: 1 }, { text: "con", startMs: 2250, endMs: 2500, confidence: 1 }];
+  it("a shot's last caption ends with the shot instead of staying up over the wordless shots after it", () => {
+    const cut = { ...base, captions: { source: "transcript" }, segments: [seg("s1", "talk", 2.6), seg("s2", "pizza", 3), seg("s3", "pasta", 3)] } as unknown as Edl;
+    const pages = captionPages(cut, { talk: chatter, pizza: null, pasta: null }, 30, 1800);
+    expect(pages).toHaveLength(1);
+    const end = pages[0].from + pages[0].durationInFrames;
+    expect(end).toBeLessThanOrEqual(Math.round(2.6 * 30));
+    // Its words are still shown in full.
+    expect(end).toBeGreaterThanOrEqual(Math.round(2.5 * 30));
+  });
+  it("a shot whose sound is switched off is not captioned", () => {
+    const cut = { ...base, captions: { source: "transcript" }, segments: [seg("s1", "talk", 2.6, { volume: 0 }), seg("s2", "pizza", 3)] } as unknown as Edl;
+    expect(captionsForEdl(cut, { talk: chatter, pizza: null })).toEqual([]);
+    expect(captionPages(cut, { talk: chatter, pizza: null }, 30)).toEqual([]);
+    const heard = { ...cut, segments: [seg("s1", "talk", 2.6), seg("s2", "pizza", 3)] } as unknown as Edl;
+    expect(captionsForEdl(heard, { talk: chatter, pizza: null })).toHaveLength(2);
+  });
+});

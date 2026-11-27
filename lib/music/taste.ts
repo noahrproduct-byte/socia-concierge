@@ -39,7 +39,8 @@ export const startLevels = (speech: boolean) => (speech ? { musicVolume: 0.35, o
 /** Words before music treats a cut as talking and sits under it. */
 const MIN_SPEECH_WORDS = 8;
 /** Whether the cut has enough spoken words (from the clips' transcripts) to count as talking. */
-export function cutSpeaks(segments: { clipId: string; in: number; out: number }[], words: Record<string, { startMs: number }[] | null | undefined>, minWords = MIN_SPEECH_WORDS): boolean {
-  const n = segments.reduce((a, s) => a + (words[s.clipId] ?? []).filter((w) => w.startMs / 1000 >= s.in && w.startMs / 1000 < s.out).length, 0);
+export function cutSpeaks(segments: { clipId: string; in: number; out: number; volume?: number }[], words: Record<string, { startMs: number }[] | null | undefined>, minWords = MIN_SPEECH_WORDS): boolean {
+  // Only words that are heard count: a shot whose sound is off has no voice for the music to sit under.
+  const n = segments.reduce((a, s) => a + (s.volume === 0 ? 0 : (words[s.clipId] ?? []).filter((w) => w.startMs / 1000 >= s.in && w.startMs / 1000 < s.out).length), 0);
   return n >= minWords;
 }

@@ -23,6 +23,7 @@ import { scanlines } from "@remotion/effects/scanlines";
 import { clipSecAt, motionAt, speedPieces, transformCss } from "@/lib/studioClips/motion";
 import { letterboxPx, lookCssFilter, lookPlan, type LookStep } from "@/lib/studioClips/look";
 import { resolveTheme } from "@/lib/studioClips/themes/apply";
+import { themeById } from "@/lib/studioClips/themes";
 import type { Theme } from "@/lib/studioClips/themes/schema";
 import { DEFAULT_STYLE, captionLayout, captionStyle, withCaptionStyle, type EdlStyle, type FontId } from "@/lib/studioClips/style";
 import { MotionCaption, captionMotionOf } from "./CaptionMotion";
@@ -339,13 +340,17 @@ export function CaptionPage({ page, style: trackStyle, fontFamily: trackFamily, 
   }
   const base0 = captionLayout(style.captions);
   const ty = theme?.typography;
+  // The theme's weight, letter spacing and alignment belong to the theme's own caption style. On a style the person
+  // picked instead they made every style look like the theme's (a left-set, wide-spaced "Classic"), so they are left out.
+  const own = !theme || (themeById(theme.id)?.typography.captionPreset ?? style.captions.preset) === style.captions.preset;
+  const tyOwn = own ? ty : undefined;
   // A lower third sits at the bottom of the safe zone: captions set low move up above it so the two never overlap.
   const base = lowerThird && base0.bottom && style.captions.position === "bottom" ? { ...base0, bottom: "38%" } : base0;
   // One word at a time reads at half again the size; a theme scales the type on top.
   const l = { ...base, fontSize: Math.round(base.fontSize * (spec.maxWords === 1 ? 1.5 : 1) * (ty?.sizeScale ?? 1) * (width / 1080)) };
   const outline = style.textBox === "outline";
   const hi = style.captions.highlight;
-  const left = spec.id === "vox" || ty?.align === "left";
+  const left = spec.id === "vox" || tyOwn?.align === "left";
   const animation: CaptionAnimation = style.captions.animation ?? spec.animation;
   // The page's entrance: a spring pop, a short rise, a fade, a bounce, letters typed in, or nothing.
   const enter = spring({ frame, fps, config: { damping: 14, stiffness: 220, mass: 0.6 }, durationInFrames: 10 });
@@ -370,9 +375,9 @@ export function CaptionPage({ page, style: trackStyle, fontFamily: trackFamily, 
       <div style={{ position: "absolute", ...(l.top ? { top: l.top } : { bottom: l.bottom! }), left: left ? "8%" : "6%", right: left ? "14%" : "6%", textAlign: left ? "left" : "center", ...pageStyle }}>
         <span
           style={{
-            display: "inline-block", fontFamily, fontWeight: outlineWeight(style.font) === 400 ? 400 : ty?.weight && ty.weight >= 700 ? ty.weight : 700, fontSize: l.fontSize, lineHeight: left ? 1.35 : 1.2, whiteSpace: "pre-wrap",
+            display: "inline-block", fontFamily, fontWeight: outlineWeight(style.font) === 400 ? 400 : tyOwn?.weight && tyOwn.weight >= 700 ? tyOwn.weight : 700, fontSize: l.fontSize, lineHeight: left ? 1.35 : 1.2, whiteSpace: "pre-wrap",
             textTransform: style.captions.uppercase ? "uppercase" : "none",
-            letterSpacing: ty?.letterSpacing ? `${ty.letterSpacing}em` : undefined,
+            letterSpacing: tyOwn?.letterSpacing ? `${tyOwn.letterSpacing}em` : undefined,
             padding: "10px 18px", borderRadius: 16, backgroundColor: pill,
             textShadow: style.captions.box || outline ? "none" : "0 2px 14px rgba(0,0,0,0.8)",
             ...stroke,
@@ -491,10 +496,15 @@ function SegmentLayer({ s, index, into, out, effects, theme, softenFrom, childre
   // The cut's own motion (lib/studioClips/motion.ts): the slow move, word punches and shake, one transform with the transition's.
   const mo = motionAt(s.motion, f, s.durationFrames, clipSec, index);
   const css = transformCss({ ...mo, scale: mo.scale * look.scale * punch, x: mo.x + look.x / 100, y: mo.y + look.y / 100 });
-  const fx: Effects = [...(effects ?? []), ...lookEffects(lookPlan(theme?.color.grade, s.startFrame + f, width))];
-  if (look.zoomBlur > 0.5) fx.push(zoomBlur({ amount: look.zoomBlur, samples: 16 }));
-  if (look.blur > 0.5) fx.push(blur({ radius: look.blur, horizontal: look.blurAxis !== "y", vertical: look.blurAxis !== "x" }));
-  if (look.noise > 0) fx.push(noise({ amount: 0.6 * look.noise, seed: f }));
+  // The Player's video element takes no WebGL effects, so none are built there (they were made and thrown away on every frame of every shot).
+  const preview = useContext(PreviewCtx);
+  const fx: Effects = preview ? [] : [...(effects ?? []), ...lookEffects(lookPlan(theme?.color.grade, s.startFrame + f, width))];
+  if (!preview && look.zoomBlur > 0.5) fx.push(zoomBlur({ amount: look.zoomBlur, samples: 16 }));
+  if (!preview && look.blur > 0.5) fx.push(blur({ radius: look.blur, horizontal: look.blurAxis !== "y", vertical: look.blurAxis !== "x" }));
+  if (!preview && look.noise > 0) fx.push(noise({ amount: 0.6 * look.noise, seed: f }));
+  // What the CSS filter can't carry is drawn over the shot in the Player, so the preview is closer to the export:
+  // the look's darkened corners and its scanlines (grain and the colour split are export only).
+  const grade = preview ? theme?.color.grade : undefined;
   // The Player's video element takes no WebGL effects: the grade and a join's blur become a CSS filter there.
   const cssFilter = [lookCssFilter(theme?.color.grade), look.blur > 0.5 ? `blur(${Math.round(look.blur / 4)}px)` : undefined, look.zoomBlur > 0.5 ? `blur(${Math.round(look.zoomBlur / 8)}px)` : undefined].filter(Boolean).join(" ") || undefined;
   // Behind the ending the picture stays sharp (its last shot is the payoff); only the bottom darkens for the words.
@@ -507,6 +517,8 @@ function SegmentLayer({ s, index, into, out, effects, theme, softenFrom, childre
       <AbsoluteFill style={{ clipPath: tearing ? tearClip(look.wipe, 3) : undefined }}>
         {children({ effects: fx.length ? fx : undefined, frame: f, cssFilter })}
       </AbsoluteFill>
+      {grade && grade.vignette > 0 ? <AbsoluteFill style={{ background: `radial-gradient(ellipse at center, rgba(0,0,0,0) ${Math.round((0.7 - grade.vignette * 0.15) * 70)}%, rgba(0,0,0,${Math.min(1, grade.vignette * 0.9).toFixed(2)}) 115%)`, pointerEvents: "none" }} /> : null}
+      {grade && grade.scanlines > 0 ? <AbsoluteFill style={{ backgroundImage: `repeating-linear-gradient(to bottom, rgba(0,0,0,${Math.min(1, grade.scanlines * 0.6).toFixed(2)}) 0px, rgba(0,0,0,0) ${Math.max(2, Math.round((4 * width) / 1080))}px)`, pointerEvents: "none" }} /> : null}
       {look.flash > 0 ? <AbsoluteFill style={{ background: "#fff", opacity: look.flash, pointerEvents: "none" }} /> : null}
       {look.leak > 0 ? <AbsoluteFill style={{ background: "linear-gradient(115deg, rgba(255,140,40,0.95) 0%, rgba(255,232,190,1) 55%, rgba(255,110,30,0.9) 100%)", opacity: Math.min(1, look.leak * 1.05), mixBlendMode: "screen", pointerEvents: "none" }} /> : null}
       {soft > 0 && <AbsoluteFill style={{ background: "linear-gradient(to top, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.25) 45%, rgba(0,0,0,0) 70%)", opacity: soft }} />}
@@ -546,21 +558,20 @@ function CutoutFrame({ s, index, offset, low, full, grow, lift = 0, children }: 
 /** A clip's picture inside a cut, in constant-rate pieces (a speed ramp is two or three of them). Sound stays on the first child's volume callback. */
 function SegmentVideo({ s, src, effects, cssFilter, volume, muted, objectFit, style }: { s: TimelineSegment; src: string; effects: Effects | undefined; /** the look for the Player's video element (no WebGL there) */ cssFilter?: string; volume: (f: number) => number; muted: boolean; objectFit: "cover" | "fill"; style: React.CSSProperties }) {
   const preview = useContext(PreviewCtx);
-  const pieces = speedPieces(s);
+  // Worked out once per shot, not per frame: a new volume function on every frame made Remotion compute the piece's
+  // whole volume curve again each time.
+  const pieces = useMemo(() => { let from = 0; return speedPieces(s).map((p) => { const at = from; from += p.frames; return { ...p, at, volume: (f: number) => volume(at + f) }; }); }, [s, volume]);
   if (pieces.length === 1 && pieces[0].rate === 1) {
     return <ShotVideo preview={preview} src={src} trimBefore={s.inFrame} frames={s.durationFrames} effects={effects} cssFilter={cssFilter} volume={volume} muted={muted} objectFit={objectFit} style={style} />;
   }
-  let from = 0;
   return (
     <>
-      {pieces.map((p, i) => {
-        const at = from; from += p.frames;
-        return (
-          <Sequence key={i} from={at} durationInFrames={p.frames} name={`${p.rate}x`}>
-            <ShotVideo preview={preview} src={src} trimBefore={secToFrames(p.in)} frames={p.frames} playbackRate={p.rate} effects={effects} cssFilter={cssFilter} volume={(f) => volume(at + f)} muted={muted} objectFit={objectFit} style={style} />
-          </Sequence>
-        );
-      })}
+      {pieces.map((p, i) => (
+        // Each piece after the first loads before it is due, like a shot does: a speed ramp used to hitch where the rate changes.
+        <Sequence key={i} from={p.at} durationInFrames={p.frames} premountFor={i ? Math.min(PREMOUNT_FRAMES, p.at) : undefined} name={`${p.rate}x`}>
+          <ShotVideo preview={preview} src={src} trimBefore={secToFrames(p.in)} frames={p.frames} playbackRate={p.rate} effects={effects} cssFilter={cssFilter} volume={p.volume} muted={muted} objectFit={objectFit} style={style} />
+        </Sequence>
+      ))}
     </>
   );
 }
@@ -739,7 +750,7 @@ function PictureShift({ spans, effects, skin, focus, children }: { spans: SceneS
   );
 }
 
-export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, captionsOn, ranking, captionWords, emphasis, finishOn, musicUrl, voiceUrls, cleanAudio, safeZoneGuide, watermarkUrl, preview, beat }) => {
+const ClipCompositionView: React.FC<ClipCompositionProps> = ({ edl, sources, captionsOn, ranking, captionWords, emphasis, finishOn, musicUrl, voiceUrls, cleanAudio, safeZoneGuide, watermarkUrl, preview, beat }) => {
   const { fps, width, height } = useVideoConfig();
   const style = edl.style ?? DEFAULT_STYLE;
   // The cut's theme with the person's overrides (lib/studioClips/themes): the look, the overlays, the caption type.
@@ -748,7 +759,9 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
   const hasLowerThird = Boolean(theme && theme.layout.lowerThird !== "none" && edl.lowerThird && (edl.lowerThird.name || edl.lowerThird.line));
   const fontFamily = useMemo(() => familyFor(style.font), [style.font]);
   // The theme's second face (the key word of a "script" caption page, the ending's line): loaded with the cut's own.
-  const scriptFont = theme?.typography.scriptFont as FontId | undefined;
+  // The "Script key word" caption style promises a script face on any cut, so it brings one when the theme has none.
+  const usesScript = style.captions.preset === "script" || Object.values(edl.captionOverrides ?? {}).some((o) => o.preset === "script");
+  const scriptFont = (theme?.typography.scriptFont ?? (usesScript ? "kaushan" : undefined)) as FontId | undefined;
   const scriptFamily = useMemo(() => (scriptFont ? familyFor(scriptFont) : undefined), [scriptFont]);
   useEffect(() => {
     if (!scriptFont) return;
@@ -1022,3 +1035,12 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
     </PreviewCtx.Provider>
   );
 };
+
+/**
+ * The composition the Player and the browser render are given. Memoised: the Player draws its child again on every
+ * frame (its own UI reads the frame), and before 2026-11-26 that re-ran this whole component 30 times a second, with
+ * new volume functions for every shot each time, so Remotion worked every shot's volume curve out again per frame.
+ * That was the largest single cause of the preview stuttering. Now it runs when the cut or its media change, and
+ * only the layers that read the frame (a shot's move, a caption page, a transition) run per frame.
+ */
+export const ClipComposition: React.FC<ClipCompositionProps> = React.memo(ClipCompositionView);
