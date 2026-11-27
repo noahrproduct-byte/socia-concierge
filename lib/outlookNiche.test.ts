@@ -16,18 +16,32 @@ describe("estimated views from the niche", () => {
     expect(b.accounts).toBe(4);
   });
 
-  it("scales the niche's views per follower to the brand's followers, and a stronger video lands higher", () => {
+  it("fits how views grow with followers instead of scaling straight by followers", () => {
+    // Views grow with the square root of followers here: 10K -> 1,000, 40K -> 2,000, 160K -> 4,000.
+    const b = nicheBaseline([
+      { handle: "s", followers: 10_000, views: [800, 1000, 1200, 900, 1100] },
+      { handle: "m", followers: 40_000, views: [1600, 2000, 2400, 1800, 2200] },
+      { handle: "l", followers: 160_000, views: [3200, 4000, 4800, 3600, 4400] },
+    ])!;
+    expect(b.growth).toBeCloseTo(0.5, 1);
+    const tiny = nicheForecast(b, 35, 60)!;
+    // A 35-follower account: about 1,000 x (35 / 10,000)^0.5 = 59 views, not 35 x 0.1 = 3.5 per follower scaling.
+    expect(tiny.estimate).toBeGreaterThan(40);
+    expect(tiny.estimate).toBeLessThan(90);
+  });
+
+  it("weighs a few of the account's own Reels in, and a stronger video lands higher", () => {
     const b = nicheBaseline(ACCOUNTS)!;
-    // Every Reel here is 0.2 to 1.0 views per follower, so for 20,000 followers an ordinary video sits at 0.6.
+    const noOwn = nicheForecast(b, 35, 60)!;
+    const withOwn = nicheForecast(b, 35, 60, [1500, 2200, 1800])!;
+    expect(withOwn.own).toBe(3);
+    expect(withOwn.estimate).toBeGreaterThan(noOwn.estimate);
+    expect(nicheForecast(b, 35, 60, [1500])!.own).toBe(0);
     const ordinary = nicheForecast(b, 20_000, 60)!;
-    expect(ordinary.basis).toBe("followers");
-    expect(ordinary.estimate).toBe(12_000);
     expect(ordinary.low).toBeLessThan(ordinary.estimate);
     expect(ordinary.high).toBeGreaterThan(ordinary.estimate);
-    const strong = nicheForecast(b, 20_000, 85)!;
-    const weak = nicheForecast(b, 20_000, 35)!;
-    expect(strong.estimate).toBeGreaterThan(ordinary.estimate);
-    expect(weak.estimate).toBeLessThan(ordinary.estimate);
+    expect(nicheForecast(b, 20_000, 85)!.estimate).toBeGreaterThan(ordinary.estimate);
+    expect(nicheForecast(b, 20_000, 35)!.estimate).toBeLessThan(ordinary.estimate);
   });
 
   it("without the brand's followers, says what the niche's accounts get", () => {
