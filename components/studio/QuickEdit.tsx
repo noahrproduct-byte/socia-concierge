@@ -281,7 +281,7 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
 
   // ---- Help me write a prompt ------------------------------------------------------
   const [helping, setHelping] = useState(false);
-  const [helped, setHelped] = useState<{ before: string; after: string; added: string[] } | null>(null);
+  const [helped, setHelped] = useState<{ before: string; after: string; added: string[]; /** clips SOCIA had not watched when it wrote this */ unseen: number } | null>(null);
   const [helpErr, setHelpErr] = useState<string | null>(null);
 
   // Whether this browser can render at all, asked once, before anything is uploaded.
@@ -668,12 +668,12 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
           goal: handed?.goal ?? null,
         }),
       }).catch(() => null);
-      const j = res ? ((await res.json().catch(() => null)) as { prompt?: string; added?: string[]; error?: string } | null) : null;
+      const j = res ? ((await res.json().catch(() => null)) as { prompt?: string; added?: string[]; unseen?: number; error?: string } | null) : null;
       if (!res) { setHelpErr("Couldn't reach SOCIA. Check your connection and try again."); return; }
       if (!res.ok || !j?.prompt) { setHelpErr(j?.error ?? "SOCIA couldn't write a prompt this time. Try again."); return; }
       const after = j.prompt.slice(0, PROMPT_MAX);
       setPrompt(after);
-      setHelped({ before, after, added: j.added ?? [] });
+      setHelped({ before, after, added: j.added ?? [], unseen: typeof j.unseen === "number" ? j.unseen : 0 });
     } finally {
       setHelping(false);
     }
@@ -837,8 +837,9 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
               <small>
                 {canPicture === false ? "SOCIA writing the prompt for you is included from Starter."
                   : !projectId ? "Add your footage first, so SOCIA writes it from what is in your clips."
-                  : ownWords ? `Written by SOCIA${helped.added.length ? `: added ${helped.added.join(", ")}` : ""}. Change anything before you make it.`
-                  : "From your clips, your business, the reference and what this video is for. Free; nothing is made."}
+                  : ownWords ? `Written by SOCIA${helped.added.length ? `: added ${helped.added.join(", ")}` : ""}.${helped.unseen ? ` SOCIA hasn't watched your ${helped.unseen === 1 ? "clip" : "clips"} yet, so it names no shots.` : ""} Change anything before you make it.`
+                  : understood ? "From your clips, your business, the reference and what this video is for. Free; nothing is made."
+                  : "From your business, the reference and what this video is for. SOCIA hasn't watched your clips yet, so it names no shots. Free; nothing is made."}
               </small>
             </div>
             {helpErr && <p className="qe-err" role="alert"><AlertTriangle size={14} aria-hidden /> {helpErr}</p>}

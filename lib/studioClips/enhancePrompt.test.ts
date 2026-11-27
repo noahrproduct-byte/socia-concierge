@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clipLines, ENHANCE_SYSTEM, sanitizeEnhanced, shouldAutoImprove } from "./enhancePrompt";
+import { clipLines, ENHANCE_SYSTEM, sanitizeEnhanced, shouldAutoImprove, stripMeta } from "./enhancePrompt";
 import type { ClipCard } from "./types";
 
 const card = (over: Partial<ClipCard> = {}): ClipCard => ({
@@ -28,7 +28,9 @@ describe("clipLines", () => {
     expect(clipLines([{ position: 0, duration_s: 5, card: c }])).toContain("says “Nobody in Nashville does this”");
   });
   it("counts clips it hasn't looked at, and never describes them", () => {
-    expect(clipLines([{ position: 0, duration_s: 5, card: card() }, { position: 1, duration_s: 5, card: null }])).toContain("1 more clip SOCIA hasn't looked at yet");
+    expect(clipLines([{ position: 0, duration_s: 5, card: card() }, { position: 1, duration_s: 5, card: null }])).toContain("1 more clip with no description yet");
+    // The note to the model never names SOCIA: it used to be copied into the person's prompt.
+    expect(clipLines([{ position: 0, duration_s: 5, card: null }])).toBe("- 1 clip with no description yet (not seen).");
     expect(clipLines([])).toBe("No clips described yet.");
   });
 });
@@ -50,7 +52,7 @@ describe("ENHANCE_SYSTEM", () => {
     expect(ENHANCE_SYSTEM).toMatch(/Use only the footage listed/);
     expect(ENHANCE_SYSTEM).toMatch(/Never invent facts/);
     expect(ENHANCE_SYSTEM).toMatch(/never change the idea/);
-    expect(ENHANCE_SYSTEM).toMatch(/big ending of its own/);
+    expect(ENHANCE_SYSTEM).toMatch(/added afterwards as an ending/);
     expect(ENHANCE_SYSTEM).toMatch(/throwaway speech/);
     expect(ENHANCE_SYSTEM).not.toMatch(/—/);
   });
@@ -70,5 +72,21 @@ describe("improving every prompt before the cut", () => {
   it("keeps the person's words after they chose them, until they write something else", () => {
     expect(shouldAutoImprove({ prompt: "my words", ownWords: "my words" })).toBe(false);
     expect(shouldAutoImprove({ prompt: "my new words", ownWords: "my words" })).toBe(true);
+  });
+});
+
+describe("SOCIA's notes to itself stay out of the prompt (Noah's screenshot, 2026-11-27)", () => {
+  const leaked = "Make a 15 to 20 second reel from the one clip, which SOCIA hasn't looked at yet, so don't name specific shots. Open on the most appetizing moment of action in the clip, already in motion, never a slow wide shot. End on the clearest shot of the food. The place, the ask and the website go in SOCIA's ending, so leave them off the on-screen text.";
+  it("takes the notes out and keeps the brief", () => {
+    expect(stripMeta(leaked)).toBe("Make a 15 to 20 second reel from the one clip. Open on the most appetizing moment of action in the clip, already in motion, never a slow wide shot. End on the clearest shot of the food.");
+    expect(sanitizeEnhanced({ prompt: leaked, added: [] })!.prompt).not.toMatch(/SOCIA|specific shots/);
+  });
+  it("leaves a brief whose subject is SOCIA alone", () => {
+    const own = "Open on the SOCIA dashboard loading. Show SOCIA's weekly plan next, then the calendar. End on the logo.";
+    expect(stripMeta(own)).toBe(own);
+  });
+  it("tells the model not to explain itself or guess at footage it has not seen", () => {
+    expect(ENHANCE_SYSTEM).toMatch(/never for the brief/);
+    expect(ENHANCE_SYSTEM).toMatch(/you have not seen it/);
   });
 });

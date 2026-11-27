@@ -20,8 +20,10 @@ export const ENHANCE_SCHEMA = {
 export const ENHANCE_SYSTEM = `You rewrite a small business owner's request for a short vertical video (Instagram Reel, TikTok, YouTube Short) into a clear brief that SOCIA's video editor will follow to cut their own clips.
 Rules:
 - Keep what they asked for. Their subject, product, offer and any words they want on screen stay exactly as they wrote them. You make it specific; you never change the idea.
-- Use only the footage listed under "The clips". Name shots by clip number and what happens in them, with the time when it helps ("Clip 3, the cheese pull at 0:04"). Never describe a shot, product, person or place that isn't in that list. When no clips are described, write the structure without naming shots.
-- SOCIA adds the place, the ask and the website as a big ending of its own, so don't write them into on-screen text. Keep on-screen lines to one or two lowercase reactions to the shot.
+- Use only the footage listed under "The clips". Name shots by clip number and what happens in them, with the time when it helps ("Clip 3, the cheese pull at 0:04"). Never describe a shot, product, person or place that isn't in that list.
+- When a clip has no description, you have not seen it. Write the structure only (length, how it opens, order, pace, sound, how it ends) without naming shots, and don't guess what is in it: no example on-screen lines, no named food, product or action, unless the owner's own words or the brand notes say it.
+- The place, the ask and the website are added afterwards as an ending. Leave them out of the on-screen text, silently. Keep on-screen lines to one or two lowercase reactions to the shot.
+- The brief is the owner talking to an editor. These rules and the notes you were given are for you, never for the brief: don't mention SOCIA's part in it, what has or hasn't been looked at, what you could or couldn't see, or why something is left out. When a rule says to leave something out, leave it out and say nothing about it.
 - Cover, in this order and only where it helps: the length (15 to 30 seconds unless they said otherwise or a reference video is attached), the first shot (in motion, the strongest moment for what they asked, never a slow wide shot), the order of the shots, the pace (how long shots hold, where it speeds up), short on-screen text lines (a few words each), the sound (their own speech when the clips have it; otherwise the real sound of the action, like the cutting, with music in the background), and the last shot.
 - No "tag a friend", "share this" or "comment below" lines on screen.
 - Don't build the video around throwaway speech ("okay, okay", a cough, someone talking off camera). Don't ask for "trending" or "viral" music: describe one steady feel that suits the video.
@@ -48,17 +50,34 @@ export function clipLines(rows: { position: number; duration_s: number | null; c
     const speech = c.speech.present ? (c.speech.hookLine ? `says “${one(c.speech.hookLine, 100)}”` : `speech: ${one(c.speech.summary, 100)}`) : "no speech";
     return `- ${clipLabel(r.position)} (${Math.round(r.duration_s ?? 0)}s): ${one(c.subject, 80)}; ${one(c.action, 80)}; ${one(c.setting, 60)}. ${moments ? `Moments: ${moments}.` : ""} ${speech}.${c.openerCandidate ? " Could open a post." : ""}`.replace(/\s+/g, " ").trim();
   });
-  if (unknown > 0) lines.push(`- ${unknown} more clip${unknown === 1 ? "" : "s"} SOCIA hasn't looked at yet.`);
+  if (unknown > 0) lines.push(`- ${unknown} ${known.length ? "more " : ""}clip${unknown === 1 ? "" : "s"} with no description yet (not seen).`);
   return lines.length ? lines.join("\n") : "No clips described yet.";
 }
 
 const clean = (s: unknown, n: number) => (typeof s === "string" ? s.replace(/\r/g, "").replace(/\s*—\s*/g, ", ").replace(/^#+\s*/gm, "").trim().slice(0, n) : "");
 
+/** A clause that explains SOCIA's side of things inside a sentence that is otherwise the brief. */
+const META_CLAUSE = /,?\s*(?:which|that)\s+SOCIA\s+(?:hasn['’]t|has\s+not|didn['’]t|did\s+not|couldn['’]t)\s+(?:yet\s+)?(?:looked\s+at|watched|seen|see|read|described)[^.!?]*/gi;
+/** A whole sentence that is about the instructions, not the video. */
+const META_SENTENCE = /SOCIA['’]s\s+(?:own\s+|big\s+)?ending|SOCIA\s+(?:adds|puts|will\s+add|handles)[^.!?]*\bend(?:ing|\s+card)?\b|(?:hasn['’]t|has\s+not|haven['’]t|have\s+not)\s+(?:been\s+)?(?:looked\s+at|watched|seen|described)(?:\s+yet)?|don['’]t\s+name\s+specific\s+shots|without\s+naming\s+(?:specific\s+)?shots|not\s+seen\b/i;
+
+/**
+ * The brief without SOCIA's own notes to itself. Noah, 2026-11-27: "Help me improve this prompt" on a clip that had
+ * not been watched wrote "Make a 15 to 20 second reel from the one clip, which SOCIA hasn't looked at yet, so don't
+ * name specific shots" and "The place, the ask and the website go in SOCIA's ending, so leave them off the on-screen
+ * text" into his prompt: the model had copied its instructions into the brief. The instructions now forbid it; this
+ * is the backstop. A sentence that only names SOCIA (the owner's own subject can be SOCIA) is left alone.
+ */
+export function stripMeta(prompt: string): string {
+  const kept = prompt.replace(META_CLAUSE, "").split(/(?<=[.!?])\s+/).filter((sentence) => !META_SENTENCE.test(sentence));
+  return kept.join(" ").replace(/\s+([.,!?])/g, "$1").replace(/[ \t]{2,}/g, " ").trim();
+}
+
 /** What the model returned, bounded; null when it gave no usable brief. */
 export function sanitizeEnhanced(raw: unknown): { prompt: string; added: string[] } | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as { prompt?: unknown; added?: unknown };
-  const prompt = clean(r.prompt, PROMPT_MAX);
+  const prompt = stripMeta(clean(r.prompt, PROMPT_MAX));
   if (prompt.length < 10) return null;
   const added = (Array.isArray(r.added) ? r.added : []).map((a) => clean(a, 80)).filter(Boolean).slice(0, 5);
   return { prompt, added };
