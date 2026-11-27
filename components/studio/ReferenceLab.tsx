@@ -58,7 +58,7 @@ export default function ReferenceLab() {
       <p className="cbp-muted">Case: {!ok ? "video not shared" : withMusic ? "video with music, two sounds in the library" : "video found (sample)"}</p>
       {ready && (
         <QuickEdit viewerId="lab-viewer" locals={[]} uploading={false} projectId={null} understood={false} canTranscribe canPicture drag={false}
-          onPick={() => {}} onRemove={() => {}} understand={async () => null} onOpenEditor={() => {}} onManual={() => {}} manualBusy={false} onReset={() => {}}
+          onPick={() => {}} onRemove={() => {}} understand={async () => null} hookLineOf={() => null} onOpenEditor={() => {}} onManual={() => {}} manualBusy={false} onReset={() => {}}
           handed={{ prompt: "Video idea: Three pizzas for three moods\nOpening: \"Your mood decides your pizza tonight\"", reference }} />
       )}
     </div>

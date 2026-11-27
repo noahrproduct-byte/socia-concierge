@@ -58,7 +58,19 @@ export const opSchema = z.discriminatedUnion("op", [
 ]);
 export type EditOp = z.infer<typeof opSchema>;
 
-export type InstructClip = Pick<ClipForEdl, "id" | "position" | "durationSec" | "words"> & { moments?: { start: number; end: number }[] };
+export type InstructClip = Pick<ClipForEdl, "id" | "position" | "durationSec" | "words"> & {
+  moments?: { start: number; end: number; label?: string; strength?: "strong" | "good" | "weak" }[];
+  /** what SOCIA saw when it watched the clip (its subject, what happens, where), absent when it has not been watched */
+  shows?: string | null;
+};
+
+const clock = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, "0")}`;
+/** What is in a clip, from SOCIA having watched it: one line, with the moments worth using and their clip times. */
+function seen(c: InstructClip): string {
+  const moments = (c.moments ?? []).filter((m) => m.label && m.strength !== "weak").slice(0, 8).map((m) => `${clock(m.start)}-${clock(m.end)} ${m.label!.replace(/\s+/g, " ").trim().slice(0, 60)}${m.strength ? ` (${m.strength})` : ""}`);
+  const shows = (c.shows ?? "").replace(/\s+/g, " ").trim().slice(0, 240);
+  return [shows ? `shows ${shows}` : "", moments.length ? `moments (clip time): ${moments.join("; ")}` : ""].filter(Boolean).join("; ");
+}
 
 export type ApplyResult = {
   edl: Edl;
@@ -111,6 +123,9 @@ export function describeCut(edl: Edl, clips: InstructClip[]): string {
     `Ending: ${edl.endCard && (edl.endCard.cta || edl.endCard.location) ? `"${edl.endCard.cta}" / "${edl.endCard.location}" / "${edl.endCard.site}"` : "none"}.`,
     edl.lowerThird ? `Lower third: "${edl.lowerThird.name}" / "${edl.lowerThird.line}".` : "",
     `Clips in the project: ${clips.slice().sort((a, b) => a.position - b.position).map((c) => `${clipLabel(c.position)} (${c.durationSec.toFixed(1)}s${c.words?.length ? `, says "${c.words.slice(0, 8).map((w) => w.text).join(" ")}${c.words.length > 8 ? "…" : ""}"` : ""})`).join("; ")}.`,
+    // What SOCIA saw in each clip it watched, so a request about the picture ("open on the cheese pull") can be
+    // followed with the real moment and its time. A clip with no line here was not watched.
+    ...clips.slice().sort((a, b) => a.position - b.position).filter((c) => seen(c)).map((c) => `What is in ${clipLabel(c.position)}: ${seen(c)}.`),
   ];
   return lines.filter(Boolean).join("\n");
 }

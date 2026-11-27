@@ -48,7 +48,7 @@ import type { EdlScene } from "@/lib/studioClips/scenes";
 import MicButton from "./MicButton";
 import { lookAtCut } from "@/lib/studioClips/lookAtCut";
 import { placeClear, placeNote, samplesFor } from "@/lib/studioClips/placement";
-import { PICTURE_BRIEF, quickCut, quickLook, quickStats, rawOf, type QuickStats } from "@/lib/studioClips/quickEdit";
+import { PICTURE_BRIEF, carriedBySpeech, quickCut, quickLook, quickStats, rawOf, type QuickStats } from "@/lib/studioClips/quickEdit";
 import { renderFaults, type RenderReport } from "@/lib/studioClips/renderCheck";
 import { renderErrorCopy } from "@/lib/studioClips/renderErrors";
 import { DEFAULT_THEME_ID, THEMES, themeById } from "@/lib/studioClips/themes";
@@ -124,7 +124,7 @@ function Count({ value }: { value: number }) {
 }
 const usable = (l: LocalClip) => l.phase === "done" && !!l.clip && (l.clip.status === "uploaded" || l.clip.status === "ready");
 
-export default function QuickEdit({ viewerId, locals, uploading, projectId, understood, canTranscribe, canPicture, drag, onPick, onRemove, understand, onOpenEditor, onManual, manualBusy, onReset, onRunning, handed }: {
+export default function QuickEdit({ viewerId, locals, uploading, projectId, understood, canTranscribe, canPicture, drag, onPick, onRemove, understand, hookLineOf, onOpenEditor, onManual, manualBusy, onReset, onRunning, handed }: {
   viewerId: string;
   /** the clips as ClipsStudio tracks them (their measuring and upload); empty before anything is added */
   locals: LocalClip[];
@@ -144,6 +144,8 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
   onRemove: (c: LocalClip) => void;
   /** SOCIA understands the clips (ClipsStudio's own job and its plan rules); an error to show, or null when it is done */
   understand: (say: (step: string) => void) => Promise<string | null>;
+  /** the spoken line SOCIA found that could open a post, for a clip it has watched; null when it found none or has not watched it */
+  hookLineOf: (clipId: string) => string | null;
   onOpenEditor: (buildId: string, title: string) => void;
   /** the person's own edit of these clips, by hand (no AI, nothing counted) */
   onManual: () => void;
@@ -281,7 +283,9 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
 
   // ---- Help me write a prompt ------------------------------------------------------
   const [helping, setHelping] = useState(false);
-  const [helped, setHelped] = useState<{ before: string; after: string; added: string[] } | null>(null);
+  /** What the helper is doing now: watching the clips (the first time) or writing. */
+  const [helpStep, setHelpStep] = useState<"watch" | "write">("write");
+  const [helped, setHelped] = useState<{ before: string; after: string; added: string[]; /** clips SOCIA had not watched when it wrote this */ unseen: number } | null>(null);
   const [helpErr, setHelpErr] = useState<string | null>(null);
 
   // Whether this browser can render at all, asked once, before anything is uploaded.
@@ -291,6 +295,8 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
   const [stage, setStage] = useState<Stage>("setup");
   const [progress, setProgress] = useState(0);
   const [picture, setPicture] = useState(false);
+  /** SOCIA watched the clip before a cut made by its speech (the step shows in the list). */
+  const [watched, setWatched] = useState(false);
   /** This run makes its cut from the picture from the start (several clips, a reference or a voiceover): no separate speech step. */
   const [direct, setDirect] = useState(false);
   const [step, setStep] = useState<string | null>(null);
@@ -407,7 +413,24 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
               : late ? "The words hadn't arrived after five minutes, so this video has no speech edit and no captions. Make it again in a few minutes."
               : silent ? `${anySound ? "No speech was heard in this clip" : "This clip has no sound"}${canPicture === false ? ", so it plays whole. Cutting a clip by what is in the picture is included from Starter." : ", so SOCIA cuts it by what is in the picture."}` : null,
           });
-          if (silent && canPicture !== false) { buildId.current = await fromPicture(); data = null; }
+          // SOCIA watches the clip before it edits it (Noah, 2026-11-27: "it should first look at the video, understand
+          // what the clip is about, and then make the edit"). Until then a clip with any heard word was cut by its
+          // words alone and never looked at. Where the plan includes it, the clip is watched here; then the cut is by
+          // speech when the speech carries the clip, and from the picture when the words are incidental.
+          let byPicture = silent;
+          if (!silent && canPicture !== false) {
+            go("picture"); setWatched(true);
+            const err = await understand((s) => setStep(s.replace(/…$/, "")));
+            if (signal.aborted) { const e = new Error("Stopped."); e.name = "AbortError"; throw e; }
+            if (err) throw new Error(err);
+            setStep(null);
+            const src = data.sources[0];
+            if (src && !late && canTranscribe !== false && !carriedBySpeech({ words: src.words, durationSec: src.durationSec, hookLine: hookLineOf(ids[0]) })) {
+              byPicture = true;
+              setHeard({ words: n, note: "A few words were heard, but they don't carry this clip, so SOCIA cuts it by what is in the picture." });
+            }
+          }
+          if (byPicture && canPicture !== false) { buildId.current = await fromPicture(); data = null; }
           else buildId.current = own;
         }
       }
@@ -606,10 +629,10 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
       setFailedAt(cur);
       setStage("error");
     }
-  }, [projectId, clipIds, canTranscribe, canPicture, understand, title, onRunning]);
+  }, [projectId, clipIds, canTranscribe, canPicture, understand, hookLineOf, title, onRunning]);
 
   // Different clips are a different video: the next "Make the video" starts a new cut.
-  useEffect(() => { buildId.current = null; base.current = null; viaPicture.current = false; setPicture(false); }, [clipIds]);
+  useEffect(() => { buildId.current = null; base.current = null; viaPicture.current = false; setPicture(false); setWatched(false); }, [clipIds]);
 
   const choiceNow = (): Choice => ({
     look, lookPicked, trackId, tracks, behind: place === "behind", split: place === "split", prompt, fx: fxPick, skin, sound: soundOn, creative,
@@ -651,7 +674,7 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
   const backToSetup = () => {
     abort.current?.abort(); onRunning?.(false);
     buildId.current = null; base.current = null; viaPicture.current = false; musicIn.current = null;
-    setPicture(false); setError(null); setFailedAt(null); setStep(null); setStage("setup");
+    setPicture(false); setWatched(false); setError(null); setFailedAt(null); setStep(null); setStage("setup");
   };
 
   /** "Help me write a prompt": SOCIA writes (or improves) the prompt from the clips, the brand, the goal and the reference. Free; nothing is made. */
@@ -659,6 +682,15 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
     if (!projectId || helping) return;
     setHelping(true); setHelpErr(null);
     try {
+      // SOCIA watches the clips before it writes about them (Noah, 2026-11-27): a prompt written without seeing the
+      // footage could only be general. The watching is the footage analysis, counted once: making the video after
+      // this doesn't count it again. The cost is on the screen before the button is pressed.
+      if (!understood) {
+        setHelpStep("watch");
+        const err = await understand(() => undefined);
+        if (err) { setHelpErr(err); return; }
+      }
+      setHelpStep("write");
       const before = prompt;
       const res = await fetch(`/api/studio/projects/${projectId}/brief/enhance`, {
         method: "POST", headers: { "content-type": "application/json" },
@@ -668,12 +700,12 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
           goal: handed?.goal ?? null,
         }),
       }).catch(() => null);
-      const j = res ? ((await res.json().catch(() => null)) as { prompt?: string; added?: string[]; error?: string } | null) : null;
+      const j = res ? ((await res.json().catch(() => null)) as { prompt?: string; added?: string[]; unseen?: number; error?: string } | null) : null;
       if (!res) { setHelpErr("Couldn't reach SOCIA. Check your connection and try again."); return; }
       if (!res.ok || !j?.prompt) { setHelpErr(j?.error ?? "SOCIA couldn't write a prompt this time. Try again."); return; }
       const after = j.prompt.slice(0, PROMPT_MAX);
       setPrompt(after);
-      setHelped({ before, after, added: j.added ?? [] });
+      setHelped({ before, after, added: j.added ?? [], unseen: typeof j.unseen === "number" ? j.unseen : 0 });
     } finally {
       setHelping(false);
     }
@@ -762,7 +794,9 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
     const picturePath = footageCount > 1 || Boolean(ref) || voiceOn;
     const locked = canPicture === false && picturePath;
     const promptOk = prompt.trim().length >= 3;
-    const analysisCr = picturePath && !understood ? actionCredits("content_build") : 0;
+    // SOCIA watches the footage before every edit where the plan includes it, a single talking clip too.
+    const watches = canPicture !== false && footageCount > 0;
+    const analysisCr = (picturePath || watches) && !understood ? actionCredits("content_build") : 0;
     const videoCr = picturePath ? actionCredits("video_builds") : 0;
     const voiceCr = voiceOn ? actionCredits("voiceovers") : 0;
     const total = analysisCr + videoCr + voiceCr;
@@ -831,14 +865,15 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
             </div>
             <div className="qe-row">
               <button type="button" className="qe-btn is-small" disabled={!projectId || helping || canPicture === false} onClick={() => void help()}>
-                {helping ? <Loader2 size={13} className="spin" aria-hidden /> : <PenLine size={13} aria-hidden />} {helping ? "Writing your prompt" : prompt.trim() ? "Help me improve this prompt" : "Help me write a prompt"}
+                {helping ? <Loader2 size={13} className="spin" aria-hidden /> : <PenLine size={13} aria-hidden />} {helping ? (helpStep === "watch" ? "Watching your clips (about a minute)" : "Writing your prompt") : prompt.trim() ? "Help me improve this prompt" : "Help me write a prompt"}
               </button>
               {ownWords && <button type="button" className="qe-btn is-small is-quiet" onClick={() => { setPrompt(helped.before); setHelped(null); }}><Undo2 size={13} aria-hidden /> Use my words</button>}
               <small>
                 {canPicture === false ? "SOCIA writing the prompt for you is included from Starter."
                   : !projectId ? "Add your footage first, so SOCIA writes it from what is in your clips."
-                  : ownWords ? `Written by SOCIA${helped.added.length ? `: added ${helped.added.join(", ")}` : ""}. Change anything before you make it.`
-                  : "From your clips, your business, the reference and what this video is for. Free; nothing is made."}
+                  : ownWords ? `Written by SOCIA${helped.added.length ? `: added ${helped.added.join(", ")}` : ""}.${helped.unseen ? ` SOCIA hasn't watched your ${helped.unseen === 1 ? "clip" : "clips"} yet, so it names no shots.` : ""} Change anything before you make it.`
+                  : understood ? "From your clips, your business, the reference and what this video is for. Free; nothing is made."
+                  : `SOCIA watches your clips first, then writes from what is in them. Watching is the footage analysis: ${actionCredits("content_build")} credits, counted once and not again when you make the video.`}
               </small>
             </div>
             {helpErr && <p className="qe-err" role="alert"><AlertTriangle size={14} aria-hidden /> {helpErr}</p>}
@@ -956,13 +991,16 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
                   <li><span>AI-made video</span><b>{videoCr} credits</b></li>
                 </>
               ) : (
-                <li><span>Cutting one talking clip</span><b>Free</b></li>
+                <>
+                  {watches && <li><span>Footage analysis</span><b>{understood ? "Done already, not counted again" : `${analysisCr} credits`}</b></li>}
+                  <li><span>Cutting one talking clip</span><b>Free</b></li>
+                </>
               )}
               {voiceOn && <li><span>Voiceover audio</span><b>{voiceCr} credits</b></li>}
               <li className="is-total"><span>Total</span><b>{total ? `${total} credits` : "Free"}</b></li>
             </ul>
             {!picturePath && canPicture !== false && locals.length > 0 && (
-              <small>If no one speaks in the clip, SOCIA cuts it by the picture instead: a footage analysis and an AI-made video{understood ? "" : `, ${actionCredits("content_build") + actionCredits("video_builds")} credits`}.</small>
+              <small>SOCIA watches the clip before it edits it. If no one speaks, or the words heard don&apos;t carry the clip, it is cut by the picture instead: an AI-made video, {actionCredits("video_builds")} credits more.</small>
             )}
             <div className="qe-make-row">
               <button type="button" className="qe-btn is-primary is-big" disabled={!canMake} onClick={() => void run(choiceNow())}><Scissors size={15} aria-hidden /> Make the video</button>
@@ -1062,7 +1100,7 @@ export default function QuickEdit({ viewerId, locals, uploading, projectId, unde
   const inUpload = !settled;
   const allFailed = settled && !ready.length;
   const showPicture = picture || many || direct;
-  const order: Stage[] = showPicture ? (many || direct ? ["upload", "picture", "cut", "render", "check"] : ["upload", "words", "picture", "cut", "render", "check"]) : ["upload", "words", "cut", "render", "check"];
+  const order: Stage[] = showPicture ? (many || direct ? ["upload", "picture", "cut", "render", "check"] : ["upload", "words", "picture", "cut", "render", "check"]) : watched ? ["upload", "words", "picture", "cut", "render", "check"] : ["upload", "words", "cut", "render", "check"];
   const at = order.indexOf(stage === "error" ? failedAt ?? "upload" : stage);
   const state = (id: Stage): "on" | "done" | "" => (stage !== "error" && stage === id && !inUpload ? "on" : !inUpload && at > order.indexOf(id) ? "done" : "");
   const active = locals.find((l) => !usable(l) && l.phase !== "error" && l.phase !== "duplicate");

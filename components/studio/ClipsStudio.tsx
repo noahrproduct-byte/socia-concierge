@@ -419,6 +419,9 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build", fro
     return "Understanding is taking longer than usual. Try again in a minute.";
   }, [busyIds, openProject]);
 
+  /** The spoken line SOCIA found in a clip it has watched (the clip's card), for deciding whether its speech carries it. */
+  const hookLineOf = useCallback((clipId: string): string | null => projectRef.current?.clips.find((c) => c.id === clipId)?.card?.speech.hookLine ?? null, []);
+
   // Video editor: clips picked from Your clips join the video being made here.
   const addFromLibrary = useCallback(async (clipIds: string[]): Promise<string | null> => {
     const p = projectRef.current ?? (await ensureProject());
@@ -570,6 +573,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build", fro
             onPick={(files) => incoming(files)}
             onRemove={(c) => void removeClip(c)}
             understand={ensureUnderstood}
+            hookLineOf={hookLineOf}
             onOpenEditor={(id, title) => { setRunning(false); setCustom({ id, title }); }}
             onManual={() => void openManual()}
             manualBusy={manualBusy}

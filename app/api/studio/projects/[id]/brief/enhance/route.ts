@@ -14,7 +14,7 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 // Improve the prompt (lib/studioClips/enhancePrompt.ts).
-//   POST { prompt?, hasReference?, help?, reference?, goal? } -> { prompt, added }
+//   POST { prompt?, hasReference?, help?, reference?, goal? } -> { prompt, added, unseen, clips }
 // "Help me write a prompt" (help: true) may start from an empty box: the brief is then written from the
 // clips, the brand, the goal the person came with (a planned post, a Discover idea) and the reference's
 // measured facts (its length, shots and whether anyone speaks), never from anything SOCIA didn't read.
@@ -71,7 +71,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const block = res.content.find((b) => b.type === "text");
     const out = sanitizeEnhanced(block && "text" in block ? JSON.parse(block.text) : null);
     if (!out) return NextResponse.json({ error: "SOCIA couldn't improve that prompt. Try adding a few more words." }, { status: 422 });
-    return NextResponse.json(out);
+    // How many of the clips SOCIA has not watched yet (nothing is watched until a video is made): the screen says so,
+    // so a prompt that names no shots is explained there and never inside the prompt.
+    return NextResponse.json({ ...out, unseen: usable.filter((c) => !c.card).length, clips: usable.length });
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
     const kind = aiFailure("studio/brief/enhance", e);
