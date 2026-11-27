@@ -3,7 +3,7 @@ import { AI_UNAVAILABLE_COPY } from "@/lib/aiStatus";
 import { aiFailure } from "@/lib/anthropic";
 import { perUserLimit } from "@/lib/rateLimit";
 import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
-import { buildPlayerData } from "@/lib/studioClips/server";
+import { buildPlayerData, clipRows } from "@/lib/studioClips/server";
 import { applyOps, describeCut, type InstructClip } from "@/lib/studioClips/instruct";
 import { opsFor } from "@/lib/studioClips/instructModel";
 import type { Edl } from "@/lib/studioClips/types";
@@ -33,7 +33,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   try {
     const data = await buildPlayerData(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id, true);
     if (!data) return NextResponse.json({ error: "That build does not exist." }, { status: 404 });
-    const clips: InstructClip[] = data.sources.map((s) => ({ id: s.clipId, position: s.position, durationSec: s.durationSec, words: s.words, moments: s.moments }));
+    // What SOCIA saw in each clip it has watched (its card), so a request about the picture can be followed.
+    const cards = new Map((await clipRows(ctx.client, data.build.projectId).catch(() => [])).map((row) => [row.id, row.card]));
+    const clips: InstructClip[] = data.sources.map((s) => {
+      const card = cards.get(s.clipId);
+      return { id: s.clipId, position: s.position, durationSec: s.durationSec, words: s.words, moments: s.moments, shows: card ? [card.subject, card.action, card.setting].filter(Boolean).join("; ") : null };
+    });
     const known = new Set(clips.map((c) => c.id));
     if (!body.edl.segments.every((s) => known.has(s.clipId))) return NextResponse.json({ error: "That cut uses footage that is no longer in this project. Reload the editor." }, { status: 409 });
     const description = describeCut(body.edl, clips);

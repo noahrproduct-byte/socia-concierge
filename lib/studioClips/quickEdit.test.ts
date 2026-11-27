@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PICTURE_BRIEF, quickCut, quickLook, quickStats, rawOf } from "./quickEdit";
+import { PICTURE_BRIEF, carriedBySpeech, quickCut, quickLook, quickStats, rawOf } from "./quickEdit";
 import { briefIntent } from "./briefIntent";
 import { themeById } from "./themes";
 import type { BuildSource, Edl, TranscriptWord } from "./types";
@@ -94,5 +94,22 @@ describe("the graphics and the beat", () => {
 
   it("asks for a cut, never a finish of the whole footage", () => {
     expect(briefIntent(PICTURE_BRIEF).keepWhole).toBe(false);
+  });
+});
+
+describe("carriedBySpeech (a clip is watched before it is edited, 2026-11-27)", () => {
+  it("is true for a clip someone talks through", () => {
+    expect(carriedBySpeech({ words: talk, durationSec: 10 })).toBe(true);
+  });
+  it("is false for a few words heard in the background of a long clip", () => {
+    const chatter = [w("vale", 3, 3.3), w("sí", 9, 9.2), w("otra", 14, 14.3)];
+    expect(carriedBySpeech({ words: chatter, durationSec: 30 })).toBe(false);
+    const sparse = Array.from({ length: 9 }, (_, i) => w("eh", i * 4, i * 4 + 0.3));
+    expect(carriedBySpeech({ words: sparse, durationSec: 40 })).toBe(false);
+  });
+  it("is true when SOCIA found a spoken line that could open a post, false with no words", () => {
+    expect(carriedBySpeech({ words: [w("Nobody", 1, 1.4), w("does", 1.4, 1.6), w("this", 1.6, 1.9)], durationSec: 30, hookLine: "Nobody does this" })).toBe(true);
+    expect(carriedBySpeech({ words: [], durationSec: 30, hookLine: "x" })).toBe(false);
+    expect(carriedBySpeech({ words: null, durationSec: 30 })).toBe(false);
   });
 });

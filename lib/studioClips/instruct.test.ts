@@ -29,6 +29,14 @@ describe("describeCut", () => {
     expect(d).toContain("line 1:");
     expect(d).toContain("Captions: on");
   });
+  it("says what SOCIA saw in a clip it watched, and nothing for one it did not", () => {
+    const watched: InstructClip[] = [{ ...clips[0], shows: "a double crust pizza; hands press the top crust on; kitchen counter", moments: [{ start: 4, end: 7, label: "cheese pull", strength: "strong" }, { start: 9, end: 10, label: "blurry pan", strength: "weak" }] }, ...clips.slice(1)];
+    const d = describeCut(base, watched);
+    expect(d).toContain("What is in Clip 1: shows a double crust pizza; hands press the top crust on; kitchen counter; moments (clip time): 0:04-0:07 cheese pull (strong).");
+    expect(d).not.toContain("blurry pan");
+    expect(d).not.toContain("What is in Clip 2");
+    expect(describeCut(base, clips)).not.toContain("What is in");
+  });
 });
 
 describe("applyOps", () => {

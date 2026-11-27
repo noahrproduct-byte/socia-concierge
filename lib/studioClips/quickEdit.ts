@@ -147,6 +147,31 @@ export function quickLook(base: Edl, theme: Theme, sources: BuildSource[], opts:
   return finish(captionsForSpeech(applyTheme(base, theme, { words }), theme, words), [], sources, words, opts);
 }
 
+/** Words closer together than this are one stretch of talking. */
+const TALK_GAP_SEC = 0.7;
+
+/**
+ * Whether the speech carries the clip, so it is cut by its words (pauses, retakes, the strongest line first), or the
+ * words are incidental (a few heard in a kitchen, a street, behind the camera) and it is cut by what is in the picture.
+ * Until 2026-11-27 one heard word was enough to cut a clip by speech without ever looking at it, so a food clip with
+ * chatter in the background was edited as if someone were presenting. Speech carries a clip when SOCIA, having watched
+ * it, found a spoken line that could open a post, or when talking fills at least a quarter of it.
+ */
+export function carriedBySpeech(a: { words: TranscriptWord[] | null | undefined; durationSec: number; hookLine?: string | null }): boolean {
+  const words = a.words ?? [];
+  if (!words.length || !(a.durationSec > 0)) return false;
+  if (a.hookLine?.trim()) return true;
+  if (words.length < 8) return false;
+  let spoken = 0;
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i], next = words[i + 1];
+    spoken += Math.max(0, w.endMs - w.startMs) / 1000;
+    const gap = next ? (next.startMs - w.endMs) / 1000 : 0;
+    if (gap > 0 && gap <= TALK_GAP_SEC) spoken += gap;
+  }
+  return spoken / a.durationSec >= 0.25;
+}
+
 /** The whole of every clip, end to end: what a cut from several clips is counted against. */
 export function rawOf(cut: Edl, sources: BuildSource[]): Edl {
   return { ...cut, segments: [...sources].sort((a, b) => a.position - b.position).map((s, i) => ({ id: `r${i + 1}`, clipId: s.clipId, in: 0, out: s.durationSec, role: "body" as const, note: "" })), text: [], broll: undefined, scenes: undefined };
